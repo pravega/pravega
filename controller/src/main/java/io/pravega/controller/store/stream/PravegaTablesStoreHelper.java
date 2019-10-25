@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
 import io.pravega.client.tables.impl.IteratorState;
 import io.pravega.client.tables.impl.KeyVersion;
@@ -22,6 +23,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
@@ -62,7 +64,8 @@ public class PravegaTablesStoreHelper {
     private final Cache cache;
     private final AtomicReference<String> authToken;
     private final GrpcAuthHelper authHelper;
-
+    private final int numOfRetries;
+    
     @lombok.Data
     @EqualsAndHashCode(exclude = {"fromBytesFunc"})
     private class TableCacheKey<T> implements Cache.CacheKey {
@@ -73,6 +76,11 @@ public class PravegaTablesStoreHelper {
     }
 
     public PravegaTablesStoreHelper(SegmentHelper segmentHelper, GrpcAuthHelper authHelper, ScheduledExecutorService executor) {
+        this(segmentHelper, authHelper, executor, NUM_OF_RETRIES);
+    }
+
+    @VisibleForTesting
+    PravegaTablesStoreHelper(SegmentHelper segmentHelper, GrpcAuthHelper authHelper, ScheduledExecutorService executor, int numOfRetries) {
         this.segmentHelper = segmentHelper;
         this.executor = executor;
 
@@ -81,10 +89,11 @@ public class PravegaTablesStoreHelper {
 
             // Since there are be multiple tables, we will cache `table+key` in our cache
             return getEntry(entryKey.getTable(), entryKey.getKey(), entryKey.fromBytesFunc)
-                                   .thenApply(v -> new VersionedMetadata<>(v.getObject(), v.getVersion()));
+                    .thenApply(v -> new VersionedMetadata<>(v.getObject(), v.getVersion()));
         });
         this.authHelper = authHelper;
         this.authToken = new AtomicReference<>(authHelper.retrieveMasterToken());
+        this.numOfRetries = numOfRetries;
     }
 
     /**
@@ -303,9 +312,22 @@ public class PravegaTablesStoreHelper {
      * It ignores DataNotFound exception.
      */
     public CompletableFuture<Void> removeEntry(String tableName, String key) {
-        log.trace("remove entry called for : {} key : {}", tableName, key);
+        return removeEntry(tableName, key, null);
+    }
 
-        List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
+    /**
+     * Method to remove entry from the store. 
+     * @param tableName tableName
+     * @param key key
+     * @param ver version for conditional removal
+     * @return CompletableFuture which when completed will indicate successful deletion of entry from the table. 
+     * It ignores DataNotFound exception. 
+     */
+    public CompletableFuture<Void> removeEntry(String tableName, String key, Version ver) {
+        log.trace("remove entry called for : {} key : {}", tableName, key);
+        KeyVersionImpl version = ver == null ? null : new KeyVersionImpl(ver.asLongVersion().getLongValue());
+
+        List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), version));
         return expectingDataNotFound(withRetries(() -> segmentHelper.removeTableKeys(
                 tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("remove entry: key: %s table: %s", key, tableName)), null)
@@ -529,6 +551,14 @@ public class PravegaTablesStoreHelper {
                 e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
                     return unwrap instanceof StoreException.StoreConnectionException;
-                }, NUM_OF_RETRIES, executor);
+                }, numOfRetries, executor)
+                .exceptionally(e -> {
+                    Throwable t = Exceptions.unwrap(e);
+                    if (t instanceof RetriesExhaustedException) {
+                        throw new CompletionException(t.getCause());
+                    } else {
+                        throw new CompletionException(t);
+                    }
+                });
     }
 }

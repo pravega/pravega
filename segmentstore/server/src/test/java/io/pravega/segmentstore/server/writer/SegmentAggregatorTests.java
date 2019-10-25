@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1601,6 +1602,57 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             Assert.assertFalse("Unexpected mustFlush() after flush", a.mustFlush());
             AssertExtensions.assertLessThan("Unexpected LUSN after flush.", 0, a.getLowestUncommittedSequenceNumber());
         }
+    }
+
+    /**
+     * Tests the ability of the Segment Aggregator to create Segments in Storage using the appropriate Segment Rolling Policy.
+     */
+    @Test
+    public void testSegmentRollingSize() throws Exception {
+        val config = WriterConfig
+                .builder()
+                .with(WriterConfig.MAX_ROLLOVER_SIZE, 1024L)
+                .with(WriterConfig.FLUSH_THRESHOLD_BYTES, DEFAULT_CONFIG.getFlushThresholdBytes())
+                .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, DEFAULT_CONFIG.getFlushThresholdTime().toMillis())
+                .with(WriterConfig.MAX_FLUSH_SIZE_BYTES, DEFAULT_CONFIG.getMaxFlushSizeBytes())
+                .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, DEFAULT_CONFIG.getMaxReadTimeout().toMillis())
+                .build();
+
+        @Cleanup
+        TestContext context = new TestContext(config);
+
+        // Configure rollover size on segment 1 to be much higher than the limit.
+        val a1 = context.segmentAggregator;
+        ((UpdateableSegmentMetadata) a1.getMetadata()).updateAttributes(
+                Collections.singletonMap(Attributes.ROLLOVER_SIZE, config.getMaxRolloverSize() * 10));
+        val expectedRollover1 = config.getMaxRolloverSize();
+
+        // Configure rollover size on segment 2 to be lower than the limit
+        val a2 = context.transactionAggregators[0];
+        ((UpdateableSegmentMetadata) a2.getMetadata()).updateAttributes(
+                Collections.singletonMap(Attributes.ROLLOVER_SIZE, config.getMaxRolloverSize() / 2));
+        val expectedRollover2 = config.getMaxRolloverSize() / 2;
+
+        // Intercept the Storage.create() call so we can figure out if the appropriate rolling size is passed.
+        val rolloverSizes = new HashMap<String, Long>();
+        context.storage.setCreateInterceptor((segmentName, policy, s) -> {
+            rolloverSizes.put(segmentName, policy.getMaxLength());
+            return CompletableFuture.completedFuture(null);
+        });
+
+        a1.initialize(TIMEOUT).join();
+        a1.add(generateAppendAndUpdateMetadata(0, a1.getMetadata().getId(), context));
+        a1.add(generateSealAndUpdateMetadata(a1.getMetadata().getId(), context));
+
+        a2.initialize(TIMEOUT).join();
+        a2.add(generateAppendAndUpdateMetadata(0, a2.getMetadata().getId(), context));
+        a2.add(generateSealAndUpdateMetadata(a2.getMetadata().getId(), context));
+        flushAllSegments(context);
+        Assert.assertEquals("Unexpected number of segments created.", 2, rolloverSizes.size());
+        Assert.assertEquals("Unexpected rollover size when limited by configuration.",
+                expectedRollover1, (long) rolloverSizes.get(a1.getMetadata().getName()));
+        Assert.assertEquals("Unexpected rollover size when not limited by configuration.",
+                expectedRollover2, (long) rolloverSizes.get(a2.getMetadata().getName()));
     }
 
     /**

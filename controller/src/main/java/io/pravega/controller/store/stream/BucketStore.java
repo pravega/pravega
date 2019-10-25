@@ -31,10 +31,10 @@ public interface BucketStore {
     
     /**
      * Method to get count of buckets in the store.
-     *
+     * @param serviceType service type
      * @return number of buckets.
      */
-    int getBucketCount();
+    int getBucketCount(ServiceType serviceType);
     
     /**
      * Return all streams in the bucket.
@@ -70,7 +70,8 @@ public interface BucketStore {
 
     enum ServiceType {
         // Naming the service id as "buckets" for backward compatibility
-        RetentionService("buckets"),;
+        RetentionService("buckets"),
+        WatermarkingService("watermarks"),;
 
         @Getter
         private final String name;

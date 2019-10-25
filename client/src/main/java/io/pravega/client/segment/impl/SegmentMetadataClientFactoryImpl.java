@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.impl.Controller;
 import lombok.RequiredArgsConstructor;
 
@@ -20,8 +21,8 @@ public class SegmentMetadataClientFactoryImpl implements SegmentMetadataClientFa
     private final ConnectionFactory cf;
     
     @Override
-    public SegmentMetadataClient createSegmentMetadataClient(Segment segment, String delegationToken) {
-        return new SegmentMetadataClientImpl(segment, controller, cf, delegationToken);
+    public SegmentMetadataClient createSegmentMetadataClient(Segment segment, DelegationTokenProvider tokenProvider) {
+        return new SegmentMetadataClientImpl(segment, controller, cf, tokenProvider);
     }
 
 }

@@ -63,6 +63,9 @@ import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStrea
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
 
+/**
+ * Used by the Controller for interacting with Segment Store. Think of this class as a 'SegmentStoreHelper'. 
+ */
 public class SegmentHelper implements AutoCloseable {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SegmentHelper.class));

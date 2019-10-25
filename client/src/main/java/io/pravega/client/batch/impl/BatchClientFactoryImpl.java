@@ -19,6 +19,7 @@ import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
@@ -143,7 +144,8 @@ public class BatchClientFactoryImpl implements BatchClientFactory, io.pravega.cl
             delegationToken = latestDelegationToken.get();
         }
         @Cleanup
-        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, delegationToken);
+        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s,
+                DelegationTokenProviderFactory.create(delegationToken, this.controller, s));
         return client.getSegmentInfo();
     }
 

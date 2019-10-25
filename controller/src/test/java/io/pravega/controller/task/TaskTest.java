@@ -233,12 +233,13 @@ public abstract class TaskTest {
         TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
 
         // Create stream test.
+        // this will create 2 new streams -> stream + mark stream
         completePartialTask(mockStreamTasks.createStream(SCOPE, stream, configuration1, System.currentTimeMillis()),
                 deadHost, sweeper);
         Assert.assertEquals(initialSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
 
         Map<String, StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
-        assertEquals(3, streams.size());
+        assertEquals(4, streams.size());
         assertEquals(configuration1, streams.get(stream));
     }
 

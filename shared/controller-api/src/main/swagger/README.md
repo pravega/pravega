@@ -39,9 +39,10 @@ In file RetentionConfig.java replace DAYS to LIMITED_DAYS and SIZE_MB to LIMITED
 
 ## Generate documentation
 ### Download Swagger2Markup CLI
-https://jcenter.bintray.com/io/github/swagger2markup/swagger2markup-cli/1.3.1/swagger2markup-cli-1.3.1.jar
+https://jcenter.bintray.com/io/github/swagger2markup/swagger2markup-cli/1.3.3/swagger2markup-cli-1.3.3.jar
 
 ### Generate and save the markup documentation
 ```
-java -Dswagger2markup.markupLanguage=MARKDOWN -Dswagger2markup.generatedExamplesEnabled=true -jar swagger2markup-cli-1.3.1.jar  convert -i <pravega root>/shared/controller-api/src/main/swagger/Controller.yaml -f <pravega root>/documentation/src/docs/rest/restapis
+java -Dswagger2markup.markupLanguage=MARKDOWN -Dswagger2markup.generatedExamplesEnabled=true -jar swagger2markup-cli-1.3.3.jar  convert
+ -i <pravega root>/shared/controller-api/src/main/swagger/Controller.yaml -f <pravega root>/documentation/src/docs/rest/restapis
 ```

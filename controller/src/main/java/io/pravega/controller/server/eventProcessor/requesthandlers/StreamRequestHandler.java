@@ -65,31 +65,51 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
 
     @Override
     public CompletableFuture<Void> processScaleOpRequest(ScaleOpEvent scaleOpEvent) {
+        log.info("Processing scale request {} for stream {}/{}", scaleOpEvent.getRequestId(), scaleOpEvent.getScope(), scaleOpEvent.getStream());
         return withCompletion(scaleOperationTask, scaleOpEvent, scaleOpEvent.getScope(), scaleOpEvent.getStream(),
-                OPERATION_NOT_ALLOWED_PREDICATE.or(e -> e instanceof EpochTransitionOperationExceptions.ConflictException));
+                OPERATION_NOT_ALLOWED_PREDICATE.or(e -> e instanceof EpochTransitionOperationExceptions.ConflictException))
+                .thenAccept(v -> {
+                    log.info("Processing scale request {} for stream {}/{} complete", scaleOpEvent.getRequestId(), scaleOpEvent.getScope(), scaleOpEvent.getStream());
+                });
     }
 
     @Override
     public CompletableFuture<Void> processUpdateStream(UpdateStreamEvent updateStreamEvent) {
+        log.info("Processing update request {} for stream {}/{}", updateStreamEvent.getRequestId(), updateStreamEvent.getScope(), updateStreamEvent.getStream());
         return withCompletion(updateStreamTask, updateStreamEvent, updateStreamEvent.getScope(), updateStreamEvent.getStream(),
-                OPERATION_NOT_ALLOWED_PREDICATE);
+                OPERATION_NOT_ALLOWED_PREDICATE)
+                .thenAccept(v -> {
+                    log.info("Processing update request {} for stream {}/{} complete", updateStreamEvent.getRequestId(), updateStreamEvent.getScope(), updateStreamEvent.getStream());
+                });
     }
 
     @Override
     public CompletableFuture<Void> processTruncateStream(TruncateStreamEvent truncateStreamEvent) {
+        log.info("Processing truncate request {} for stream {}/{}", truncateStreamEvent.getRequestId(), truncateStreamEvent.getScope(), truncateStreamEvent.getStream());
         return withCompletion(truncateStreamTask, truncateStreamEvent, truncateStreamEvent.getScope(), truncateStreamEvent.getStream(),
-                OPERATION_NOT_ALLOWED_PREDICATE);
+                OPERATION_NOT_ALLOWED_PREDICATE)
+                .thenAccept(v -> {
+                    log.info("Processing truncate request {} for stream {}/{} complete", truncateStreamEvent.getRequestId(), truncateStreamEvent.getScope(), truncateStreamEvent.getStream());
+                });
     }
 
     @Override
     public CompletableFuture<Void> processSealStream(SealStreamEvent sealStreamEvent) {
+        log.info("Processing seal request {} for stream {}/{}", sealStreamEvent.getRequestId(), sealStreamEvent.getScope(), sealStreamEvent.getStream());
         return withCompletion(sealStreamTask, sealStreamEvent, sealStreamEvent.getScope(), sealStreamEvent.getStream(),
-                OPERATION_NOT_ALLOWED_PREDICATE);
+                OPERATION_NOT_ALLOWED_PREDICATE)
+                .thenAccept(v -> {
+                    log.info("Processing seal request {} for stream {}/{} complete", sealStreamEvent.getRequestId(), sealStreamEvent.getScope(), sealStreamEvent.getStream());
+                });
     }
 
     @Override
     public CompletableFuture<Void> processDeleteStream(DeleteStreamEvent deleteStreamEvent) {
+        log.info("Processing delete request {} for stream {}/{}", deleteStreamEvent.getRequestId(), deleteStreamEvent.getScope(), deleteStreamEvent.getStream());
         return withCompletion(deleteStreamTask, deleteStreamEvent, deleteStreamEvent.getScope(), deleteStreamEvent.getStream(),
-                OPERATION_NOT_ALLOWED_PREDICATE);
+                OPERATION_NOT_ALLOWED_PREDICATE)
+                .thenAccept(v -> {
+                    log.info("Processing delete request {} for stream {}/{} complete", deleteStreamEvent.getRequestId(), deleteStreamEvent.getScope(), deleteStreamEvent.getStream());
+                });
     }
 }

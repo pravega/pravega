@@ -20,6 +20,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.netty.impl.ConnectionPoolImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
@@ -137,7 +138,8 @@ public class AppendReconnectTest {
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
-        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
+        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(),
+                DelegationTokenProviderFactory.createWithEmptyToken());
         CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(payload), ack));
         for (Channel c : ((ConnectionPoolImpl) clientCF.getConnectionPool()).getActiveChannels()) {
@@ -147,7 +149,8 @@ public class AppendReconnectTest {
         out.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(payload), ack2));
         ack.get(5, TimeUnit.SECONDS);
         ack2.get(5, TimeUnit.SECONDS);
-        SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, clientCF).createSegmentMetadataClient(segment, "");
+        SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, clientCF).createSegmentMetadataClient(segment,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals(payload.length * 2, metadataClient.fetchCurrentSegmentLength());
     }
     
@@ -174,13 +177,14 @@ public class AppendReconnectTest {
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
-        ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment, "", EventWriterConfig.builder().build());
+        ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment, DelegationTokenProviderFactory.createWithEmptyToken(), EventWriterConfig.builder().build());
         assertTrue(out.write(ByteBuffer.wrap(payload), 0));
         for (Channel c : ((ConnectionPoolImpl) (clientCF.getConnectionPool())).getActiveChannels()) {
             c.close();
         }
         assertTrue(out.write(ByteBuffer.wrap(payload), payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE));
-        SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, clientCF).createSegmentMetadataClient(segment, "");
+        SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, clientCF).createSegmentMetadataClient(segment,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals((payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE) * 2,
                      metadataClient.fetchCurrentSegmentLength());
     }

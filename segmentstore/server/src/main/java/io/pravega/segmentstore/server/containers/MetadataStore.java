@@ -243,17 +243,11 @@ public abstract class MetadataStore implements AutoCloseable {
         CompletableFuture<SegmentProperties> result;
         if (isValidSegmentId(streamSegmentId)) {
             // Looks like the Segment is active and we have it in our Metadata. Return the result from there.
-            SegmentMetadata sm = this.connector.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
-            if (sm.isDeleted() || sm.isMerged()) {
-                result = Futures.failedFuture(new StreamSegmentNotExistsException(segmentName));
-            } else {
-                result = CompletableFuture.completedFuture(sm.getSnapshot());
-            }
+            result = getSegmentSnapshot(streamSegmentId, segmentName);
         } else {
             // The Segment is not yet active.
             // First, check to see if we have a pending assignment. If so, piggyback on that.
-            QueuedCallback<SegmentProperties> queuedCallback = checkConcurrentAssignment(segmentName,
-                    id -> CompletableFuture.completedFuture(this.connector.containerMetadata.getStreamSegmentMetadata(id).getSnapshot()));
+            QueuedCallback<SegmentProperties> queuedCallback = checkConcurrentAssignment(segmentName, id -> getSegmentSnapshot(id, segmentName));
 
             if (queuedCallback != null) {
                 result = queuedCallback.result;
@@ -265,6 +259,23 @@ public abstract class MetadataStore implements AutoCloseable {
         }
 
         return result;
+    }
+
+    /**
+     * Creates a new {@link SegmentProperties} instance representing the current state of the given segment in the metadata.
+     *
+     * @param segmentId   The Id of the Segment.
+     * @param segmentName The Name of the Segment.
+     * @return A CompletableFuture that either contains a {@link SegmentProperties} with the current state of the segment
+     * or is failed with {@link StreamSegmentNotExistsException} if the Segment does not exist anymore.
+     */
+    private CompletableFuture<SegmentProperties> getSegmentSnapshot(long segmentId, String segmentName) {
+        SegmentMetadata sm = this.connector.containerMetadata.getStreamSegmentMetadata(segmentId);
+        if (sm == null || sm.isDeleted() || sm.isMerged()) {
+            return Futures.failedFuture(new StreamSegmentNotExistsException(segmentName));
+        } else {
+            return CompletableFuture.completedFuture(sm.getSnapshot());
+        }
     }
 
     /**
@@ -458,7 +469,7 @@ public abstract class MetadataStore implements AutoCloseable {
      */
     private long completeAssignment(String streamSegmentName, long streamSegmentId) {
         assert streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID : "no valid streamSegmentId given";
-        finishPendingRequests(streamSegmentName, PendingRequest::complete, streamSegmentId);
+        finishPendingRequests(streamSegmentName, PendingRequest::complete, streamSegmentId, true);
         return streamSegmentId;
     }
 
@@ -466,10 +477,10 @@ public abstract class MetadataStore implements AutoCloseable {
      * Fails the assignment for the given StreamSegment Id with the given reason.
      */
     private void failAssignment(String streamSegmentName, Throwable reason) {
-        finishPendingRequests(streamSegmentName, PendingRequest::completeExceptionally, reason);
+        finishPendingRequests(streamSegmentName, PendingRequest::completeExceptionally, reason, false);
     }
 
-    private <T> void finishPendingRequests(String streamSegmentName, BiConsumer<PendingRequest, T> completionMethod, T completionArgument) {
+    private <T> void finishPendingRequests(String streamSegmentName, BiConsumer<PendingRequest, T> completionMethod, T completionArgument, boolean isSuccess) {
         assert streamSegmentName != null : "no streamSegmentName given";
         // Get any pending requests and complete all of them, in order. We are running this in a loop (and replacing
         // the existing PendingRequest with an empty one) because more requests may come in while we are executing the
@@ -482,12 +493,19 @@ public abstract class MetadataStore implements AutoCloseable {
                 if (pendingRequest == null || pendingRequest.callbacks.size() == 0) {
                     // No more requests. Safe to exit.
                     break;
-                } else {
+                } else if (isSuccess) {
                     this.pendingRequests.put(streamSegmentName, new PendingRequest());
                 }
             }
 
             completionMethod.accept(pendingRequest, completionArgument);
+            if (!isSuccess) {
+                // If failed, we do not guarantee ordering (as it doesn't make any sense). This helps solve a situation
+                // where an inexistent segment is queried, then immediately created and then queried again. If we do not
+                // break here, it is possible that the first rejection (since it doesn't exist) may incorrectly spill over
+                // to the second attempt when the segment actually exists.
+                break;
+            }
         }
     }
 

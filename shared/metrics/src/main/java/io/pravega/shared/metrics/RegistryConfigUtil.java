@@ -96,7 +96,7 @@ public class RegistryConfigUtil {
 
             @Override
             public String password() {
-                return conf.getInfluxDBPassword();
+                return String.valueOf(conf.getInfluxDBPassword());
             }
 
             @Override

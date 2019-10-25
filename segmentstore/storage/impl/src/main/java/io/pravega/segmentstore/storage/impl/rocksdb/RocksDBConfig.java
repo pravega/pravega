@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,8 @@ public class RocksDBConfig {
     public static final Property<Integer> WRITE_BUFFER_SIZE_MB = Property.named("writeBufferSizeMB", 64);
     public static final Property<Integer> READ_CACHE_SIZE_MB = Property.named("readCacheSizeMB", 8);
     public static final Property<Integer> CACHE_BLOCK_SIZE_KB = Property.named("cacheBlockSizeKB", 32);
-    public static final Property<Boolean> DIRECT_READS = Property.named("directReads", true);
+    public static final Property<Boolean> DIRECT_READS = Property.named("directReads", false);
+    public static final Property<Boolean> MEM_ONLY = Property.named("memoryOnly", false);
     private static final String COMPONENT_CODE = "rocksdb";
 
     //endregion
@@ -64,10 +65,17 @@ public class RocksDBConfig {
     /**
      * Enabling direct reads may be beneficial for performance due to: i) it avoids extra copies of data on OS page
      * cache, ii) it exploits better knowledge of the behavior of data to apply policies (e.g., replacement). However,
-     * as not all OS/environments support direct IO, so we allow to disable it.
+     * as not all OS/environments support direct IO, we keep it disabled by default for safety.
      */
     @Getter
     private final boolean directReads;
+
+    /**
+     * Enabling memory only will let RocksDB write everything into memory instead of disks. This is supposed to provide
+     * very high performance since there is not disk IO incurred.
+     */
+    @Getter
+    private final boolean memoryOnly;
 
     //endregion
 
@@ -84,6 +92,7 @@ public class RocksDBConfig {
         this.readCacheSizeMB = properties.getInt(READ_CACHE_SIZE_MB);
         this.cacheBlockSizeKB = properties.getInt(CACHE_BLOCK_SIZE_KB);
         this.directReads = properties.getBoolean(DIRECT_READS);
+        this.memoryOnly = properties.getBoolean(MEM_ONLY);
     }
 
     /**

@@ -10,6 +10,7 @@ package io.pravega.test.integration.controller.server;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -109,7 +110,7 @@ public class DebugStreamSegmentsTest {
         zkTestServer.close();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testOutOfSequence() throws Exception {
         // 1. Prepare
         createScope(SCOPE);
@@ -119,7 +120,8 @@ public class DebugStreamSegmentsTest {
         when(streamFactory.createOutputStreamForSegment(any(), any(), any(),
                                                         any())).thenReturn(mock(SegmentOutputStream.class));
         SegmentSelector selector = new SegmentSelector(Stream.of(SCOPE, STREAM), controllerWrapper.getController(),
-                                                       streamFactory, EventWriterConfig.builder().build());
+                                                       streamFactory, EventWriterConfig.builder().build(),
+                                                       DelegationTokenProviderFactory.createWithEmptyToken());
 
         // 2.Create clientFactory.
         @Cleanup

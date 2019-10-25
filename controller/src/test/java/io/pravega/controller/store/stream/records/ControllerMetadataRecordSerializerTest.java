@@ -196,8 +196,22 @@ public class ControllerMetadataRecordSerializerTest {
         serialized = record.toBytes();
         deserialized = StreamConfigurationRecord.fromBytes(serialized);
         assertEquals(record, deserialized);
+
+        StreamConfiguration allWithTime = StreamConfiguration.builder()
+                                                             .scalingPolicy(ScalingPolicy.fixed(1))
+                                                             .retentionPolicy(RetentionPolicy.bySizeBytes(1L))
+                                                             .timestampAggregationTimeout(1000L)
+                                                             .build();
+
+        record = StreamConfigurationRecord.builder()
+                                          .streamConfiguration(allWithTime)
+                                          .streamName("a")
+                                          .scope("a")
+                                          .updating(true)
+                                          .build();
+        serialized = record.toBytes();
+        deserialized = StreamConfigurationRecord.fromBytes(serialized);
+        assertEquals(record, deserialized);
     }
-
-
 }
 

@@ -107,8 +107,9 @@ class ZkOrderedStore {
                                                              // 2. seal latest collection
                                                              .thenCompose(v -> storeHelper.createZNodeIfNotExist(
                                                                      getCollectionSealedPath(scope, stream, latestcollectionNum)))
-                                                             // 3. call addEntity recursively
-                                                             .thenCompose(v -> addEntity(scope, stream, entity))
+                                                             // 3. create new collection and put the entity in
+                                                             .thenCompose(v -> storeHelper.createPersistentSequentialZNode(getEntitySequentialPath(scope, stream, latestcollectionNum + 1), entity.getBytes(Charsets.UTF_8)))
+                                                             .thenApply(newPositionPath -> Position.toLong(latestcollectionNum + 1, getPositionFromPath(newPositionPath)))
                                                              // 4. delete empty sealed collection path
                                                              .thenCompose(orderedPosition -> 
                                                                      tryDeleteSealedCollection(scope, stream, latestcollectionNum)

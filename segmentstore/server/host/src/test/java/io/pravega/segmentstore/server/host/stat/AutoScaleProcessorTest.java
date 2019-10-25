@@ -9,20 +9,28 @@
  */
 package io.pravega.segmentstore.server.host.stat;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.ThreadPooledTestSuite;
+
+import java.net.URI;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -130,6 +138,79 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         assertNull(monitor.get(streamSegmentName1));
     }
 
+    @Test
+    public void testHasTlsEnabledThrowsExceptionWhenInputIsNull() {
+        AssertExtensions.assertThrows("Accepted null argument",
+                () -> AutoScaleProcessor.hasTlsEnabled(null),
+                e -> e instanceof NullPointerException);
+    }
+
+    @Test
+    public void testHasTlsEnabledReturnsFalseWhenSchemeIsNull() {
+        assertFalse(AutoScaleProcessor.hasTlsEnabled(URI.create("//localhost:9090")));
+    }
+
+    @Test
+    public void testHasTlsEnabledReturnsFalseWhenSchemeIsTlsIncompatible() {
+        assertFalse(AutoScaleProcessor.hasTlsEnabled(URI.create("tcp://localhost:9090")));
+
+        assertFalse(AutoScaleProcessor.hasTlsEnabled(URI.create("pravega://localhost:9090")));
+
+        assertFalse(AutoScaleProcessor.hasTlsEnabled(URI.create("unsupported://localhost:9090")));
+    }
+
+    @Test
+    public void testHasTlsEnabledReturnsTrueWhenSchemeIsTlsCompatible() {
+        assertTrue(AutoScaleProcessor.hasTlsEnabled(URI.create("tls://localhost:9090")));
+
+        assertTrue(AutoScaleProcessor.hasTlsEnabled(URI.create("pravegas://localhost:9090")));
+    }
+
+    @Test
+    public void testPrepareClientConfigForTlsDisabledInput() {
+        AutoScalerConfig config = AutoScalerConfig.builder()
+                .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090")
+                .with(AutoScalerConfig.TLS_ENABLED, false)
+                .build();
+        ClientConfig objectUnderTest = AutoScaleProcessor.prepareClientConfig(config);
+
+        assertFalse(objectUnderTest.isEnableTls());
+        assertEquals("tcp://localhost:9090", objectUnderTest.getControllerURI().toString());
+    }
+
+    @Test
+    public void testPrepareClientConfigForMixedTlsInput() {
+        // Notice that we are setting non-TLS scheme for the Controller, but enabling TLS for the auto scaler.
+        AutoScalerConfig config = AutoScalerConfig.builder()
+                .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090")
+                .with(AutoScalerConfig.TLS_ENABLED, true)
+                .with(AutoScalerConfig.TLS_CERT_FILE, SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
+                .with(AutoScalerConfig.VALIDATE_HOSTNAME, false)
+                .build();
+        ClientConfig objectUnderTest = AutoScaleProcessor.prepareClientConfig(config);
+
+        assertFalse(objectUnderTest.isEnableTls());
+        assertFalse(objectUnderTest.isEnableTlsToController());
+        assertTrue(objectUnderTest.isEnableTlsToSegmentStore());
+    }
+
+    @Test
+    public void testPrepareClientConfigWhenTlsIsEnabled() {
+        // Notice that we are setting non-TLS scheme for the Controller, but enabling TLS for the auto scaler.
+        AutoScalerConfig config = AutoScalerConfig.builder()
+                .with(AutoScalerConfig.CONTROLLER_URI, "tls://localhost:9090")
+                .with(AutoScalerConfig.TLS_ENABLED, true)
+                .with(AutoScalerConfig.TLS_CERT_FILE, SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
+                .with(AutoScalerConfig.VALIDATE_HOSTNAME, false)
+                .build();
+        ClientConfig objectUnderTest = AutoScaleProcessor.prepareClientConfig(config);
+
+        assertTrue(objectUnderTest.isEnableTls());
+        assertTrue(objectUnderTest.isEnableTlsToController());
+        assertTrue(objectUnderTest.isEnableTlsToSegmentStore());
+    }
+
+
     private EventStreamWriter<AutoScaleEvent> createWriter(Consumer<AutoScaleEvent> consumer) {
         return new EventStreamWriter<AutoScaleEvent>() {
             @Override
@@ -166,6 +247,11 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
             @Override
             public void close() {
 
+            }
+
+            @Override
+            public void noteTime(long timestamp) {
+                
             }
         };
     }

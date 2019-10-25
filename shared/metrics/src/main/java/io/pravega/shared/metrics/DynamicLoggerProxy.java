@@ -51,4 +51,10 @@ public class DynamicLoggerProxy implements DynamicLogger {
     public void recordMeterEvents(String name, long number, String... tags) {
         this.instance.get().recordMeterEvents(name, number, tags);
     }
+
+    @Override
+    public void freezeMeter(String name, String... tags) {
+        this.instance.get().freezeMeter(name, tags);
+    }
+
 }

@@ -100,9 +100,15 @@ public final class MetricsNames {
 
     // Cache (RocksDB) stats
     public static final String CACHE_INSERT_LATENCY = PREFIX + "segmentstore.cache.insert_latency_ms";   // Histogram
+    public static final String CACHE_INSERT_SIZE = PREFIX + "segmentstore.cache.insert_size";            // Histogram
+    public static final String CACHE_INSERT_COUNT = PREFIX + "segmentstore.cache.insert_count";          // Counter
     public static final String CACHE_WRITE_BYTES = PREFIX + "segmentstore.cache.write_bytes";            // Counter
     public static final String CACHE_GET_LATENCY = PREFIX + "segmentstore.cache.get_latency_ms";         // Histogram
+    public static final String CACHE_GET_SIZE = PREFIX + "segmentstore.cache.get_size";                  // Histogram
+    public static final String CACHE_GET_COUNT = PREFIX + "segmentstore.cache.get_count";                // Counter
     public static final String CACHE_READ_BYTES = PREFIX + "segmentstore.cache.read_bytes";              // Counter
+    public static final String CACHE_DELETE_LATENCY = PREFIX + "segmentstore.cache.delete_latency_ms";   // Histogram
+    public static final String CACHE_DELETE_COUNT = PREFIX + "segmentstore.cache.delete_count";          // Counter
     public static final String CACHE_TOTAL_SIZE_BYTES = PREFIX + "segmentstore.cache.size_bytes";        // Gauge
     public static final String CACHE_GENERATION_SPREAD = PREFIX + "segmentstore.cache.gen";              // Histogram
 

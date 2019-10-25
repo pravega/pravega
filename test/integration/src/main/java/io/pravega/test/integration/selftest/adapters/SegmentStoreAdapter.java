@@ -183,8 +183,8 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
         ensureRunning();
-        return this.streamSegmentStore.append(streamName, new ByteBufWrapper(event.getWriteBuffer()), null, timeout)
-                                      .exceptionally(ex -> attemptReconcile(ex, streamName, timeout));
+        return Futures.toVoid(this.streamSegmentStore.append(streamName, new ByteBufWrapper(event.getWriteBuffer()), null, timeout)
+                                                     .exceptionally(ex -> attemptReconcile(ex, streamName, timeout)));
     }
 
     @Override
@@ -326,7 +326,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @SneakyThrows
-    private Void attemptReconcile(Throwable ex, String segmentName, Duration timeout) {
+    private Long attemptReconcile(Throwable ex, String segmentName, Duration timeout) {
         ex = Exceptions.unwrap(ex);
         boolean reconciled = false;
         if (isPossibleEndOfSegment(ex)) {

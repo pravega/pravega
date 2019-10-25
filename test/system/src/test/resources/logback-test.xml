@@ -16,7 +16,7 @@ You may obtain a copy of the License at
         </encoder>
     </appender>
 
-    <root level="TRACE">
+    <root level="${log.level:-DEBUG}">
         <appender-ref ref="STDOUT"/>
     </root>
 </configuration>

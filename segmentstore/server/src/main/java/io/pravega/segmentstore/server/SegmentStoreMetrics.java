@@ -260,7 +260,7 @@ public final class SegmentStoreMetrics {
     /**
      * StreamSegmentContainer Metrics.
      */
-    public final static class Container {
+    public final static class Container implements AutoCloseable {
         private final String[] containerTag;
 
         public Container(int containerId) {
@@ -284,7 +284,7 @@ public final class SegmentStoreMetrics {
         }
 
         public void updateAttributes() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_GET_ATTRIBUTES_COUNT, 1, containerTag);
+            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_UPDATE_ATTRIBUTES_COUNT, 1, containerTag);
         }
 
         public void getAttributes() {
@@ -309,6 +309,21 @@ public final class SegmentStoreMetrics {
 
         public void truncate() {
             DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_TRUNCATE_COUNT, 1, containerTag);
+        }
+
+        @Override
+        public void close() {
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_CREATE_SEGMENT_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_DELETE_SEGMENT_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_MERGE_SEGMENT_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_APPEND_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_APPEND_OFFSET_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_UPDATE_ATTRIBUTES_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_GET_ATTRIBUTES_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_READ_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_GET_INFO_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_SEAL_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_TRUNCATE_COUNT, containerTag);
         }
     }
 

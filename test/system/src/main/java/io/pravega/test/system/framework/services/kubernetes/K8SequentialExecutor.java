@@ -46,6 +46,7 @@ public class K8SequentialExecutor implements TestExecutor {
     private static final String NAMESPACE = "default"; // KUBERNETES namespace where the tests run.
     private static final String SERVICE_ACCOUNT = "test-framework"; //Service Account used by the test pod.
     private static final String TEST_POD_IMAGE = System.getProperty("testPodImage", "openjdk:8u181-jre-alpine");
+    private static final String LOG_LEVEL = System.getProperty("logLevel", "DEBUG");
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
@@ -120,7 +121,8 @@ public class K8SequentialExecutor implements TestExecutor {
                 .withImage(TEST_POD_IMAGE)
                 .withImagePullPolicy("IfNotPresent")
                 .withCommand("/bin/sh")
-                .withArgs("-c", "java -DexecType=KUBERNETES -DsecurityEnabled=" + Utils.AUTH_ENABLED + " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "
+                .withArgs("-c", "java -DexecType=KUBERNETES -DsecurityEnabled=" + Utils.AUTH_ENABLED + " -Dlog.level=" + LOG_LEVEL
+                                  + " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "
                                   + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
                 .withVolumeMounts(new V1VolumeMountBuilder().withMountPath("/data").withName("task-pv-storage").build())
                 .endContainer()

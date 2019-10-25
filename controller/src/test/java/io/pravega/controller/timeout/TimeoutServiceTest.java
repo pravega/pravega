@@ -117,8 +117,9 @@ public abstract class TimeoutServiceTest {
 
         // Create TimeoutService
         timeoutService = (TimerWheelTimeoutService) streamTransactionMetadataTasks.getTimeoutService();
+        BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
 
-        controllerService = new ControllerService(streamStore, streamMetadataTasks,
+        controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, SegmentHelperMock.getSegmentHelperMock(), executor, null);
 
         // Create scope and stream
@@ -267,7 +268,7 @@ public abstract class TimeoutServiceTest {
         // Create TimeoutService
         TimerWheelTimeoutService timeoutService2 = (TimerWheelTimeoutService) streamTransactionMetadataTasks2.getTimeoutService();
 
-        ControllerService controllerService2 = new ControllerService(streamStore2, streamMetadataTasks2,
+        ControllerService controllerService2 = new ControllerService(streamStore2, bucketStore, streamMetadataTasks2,
                 streamTransactionMetadataTasks2, helperMock, executor, null);
 
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE)

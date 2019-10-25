@@ -124,7 +124,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                     actorSystem.clientFactory.createReader(readerId,
                             eventProcessorConfig.getConfig().getReaderGroupName(),
                             eventProcessorConfig.getSerializer(),
-                            ReaderConfig.builder().build());
+                            ReaderConfig.builder().disableTimeWindows(true).build());
 
             // Create event processor, and add it to the actors list.
             EventProcessorCell<T> actorCell = new EventProcessorCell<>(eventProcessorConfig, reader, writer,

@@ -46,6 +46,7 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.StreamMetadataStoreTestHelper;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.TxnStatus;
@@ -144,7 +145,10 @@ public abstract class StreamMetadataTasksTest {
 
         StreamMetadataStore streamStore = getStore();
         streamStorePartialMock = spy(streamStore); //create a partial mock.
-        bucketStore = StreamStoreFactory.createInMemoryBucketStore(1);
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
+                BucketStore.ServiceType.WatermarkingService, 1);
+
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore(map);
         
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
@@ -166,7 +170,7 @@ public abstract class StreamMetadataTasksTest {
                 new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 streamStorePartialMock,
                 executor);
-        consumer = new ControllerService(streamStorePartialMock, streamMetadataTasks,
+        consumer = new ControllerService(streamStorePartialMock, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
@@ -961,7 +965,8 @@ public abstract class StreamMetadataTasksTest {
                 .get().getKey();
 
         // set transaction to committing
-        streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, committingTxn.getId(), true, Optional.empty(), null, executor).join();
+        streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, committingTxn.getId(), true, Optional.empty(), 
+                "", Long.MIN_VALUE, null, executor).join();
 
         // Mock getActiveTransactions call such that we return committing txn as OPEN txn.
         Map<UUID, ActiveTxnRecord> activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
@@ -1021,33 +1026,106 @@ public abstract class StreamMetadataTasksTest {
 
     @Test(timeout = 30000)
     public void deleteStreamTest() throws Exception {
-        assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
+        deleteStreamTest(stream1);
+    }
+
+    private void deleteStreamTest(String stream) throws InterruptedException, ExecutionException {
+        assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
         // delete before seal
-        Controller.DeleteStreamStatus.Status deleteStatus = streamMetadataTasks.deleteStream(SCOPE, stream1, null).get();
+        Controller.DeleteStreamStatus.Status deleteStatus = streamMetadataTasks.deleteStream(SCOPE, stream, null).get();
         assertEquals(Controller.DeleteStreamStatus.Status.STREAM_NOT_SEALED, deleteStatus);
         assertNull(requestEventWriter.getEventQueue().peek());
 
         //seal stream.
-        CompletableFuture<UpdateStreamStatus.Status> sealOperationResult = streamMetadataTasks.sealStream(SCOPE, stream1, null);
+        CompletableFuture<UpdateStreamStatus.Status> sealOperationResult = streamMetadataTasks.sealStream(SCOPE, stream, null);
 
         assertTrue(Futures.await(processEvent(requestEventWriter)));
 
-        assertTrue(streamStorePartialMock.isSealed(SCOPE, stream1, null, executor).get());
+        assertTrue(streamStorePartialMock.isSealed(SCOPE, stream, null, executor).get());
         Futures.await(sealOperationResult);
         assertEquals(UpdateStreamStatus.Status.SUCCESS, sealOperationResult.get());
 
         // delete after seal
-        CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(SCOPE, stream1, null);
+        CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(SCOPE, stream, null);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
 
         assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, future.get());
 
-        assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream1).join());
+        assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream).join());
     }
 
+    @Test
+    public void deletePartiallyCreatedStreamTest() throws InterruptedException {
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        StreamMetadataStore store = streamStorePartialMock;
+        
+        final String scopeName = "RecreationScopePartial";
+        final String streamName = "RecreatedStreamPartial";
+
+        store.createScope(scopeName).join();
+        Controller.DeleteStreamStatus.Status deleteStatus;
+        
+        // region case 1: only add stream to scope without any additional metadata
+        StreamMetadataStoreTestHelper.addStreamToScope(store, scopeName, streamName);
+        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+        deleteStatus = streamMetadataTasks.deleteStream(scopeName, streamName, null).join();
+        assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, deleteStatus);
+        // verify that event is not posted 
+        assertTrue(requestEventWriter.eventQueue.isEmpty());
+        // endregion
+
+        // region case 2: only add creation time for the stream and then delete it. 
+        StreamMetadataStoreTestHelper.partiallyCreateStream(store, scopeName, streamName, 
+                Optional.of(100L), false);
+
+        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+
+        deleteStatus = streamMetadataTasks.deleteStream(scopeName, streamName, null).join();
+        assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, deleteStatus);
+        // verify that event is not posted 
+        assertTrue(requestEventWriter.eventQueue.isEmpty());
+        // endregion
+
+        // region case 3: create stream again but this time create the `state` but not history record.
+        // this should result in delete workflow being invoked as segments also have to be deleted. 
+        StreamMetadataStoreTestHelper.partiallyCreateStream(store, scopeName, streamName, Optional.of(100L), true);
+        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+
+        CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(scopeName,
+                streamName, null);
+
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+
+        assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, future.join());
+        // endregion
+
+        // region case 4: now create full stream metadata. 
+        // now create full stream metadata without setting state to active
+        // since there was no active segments, so we should have segments created from segment 0.
+        // configuration 2 has 3 segments. So highest segment number should be 2. 
+        StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3)).build();
+        store.createStream(scopeName, streamName, configuration, 101L, null, executor).join();
+        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+
+        assertEquals(store.getActiveEpoch(scopeName, streamName, null, true, executor).join()
+                          .getSegmentIds().stream().max(Long::compareTo).get().longValue(), 2L);
+
+        // delete stream should succeed
+        future = streamMetadataTasks.deleteStream(scopeName, streamName, null);
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+
+        assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, future.join());
+
+        store.createStream(scopeName, streamName, configuration, 102L, null, executor).join();
+        assertEquals(store.getActiveEpoch(scopeName, streamName, null, true, executor).join()
+                          .getSegmentIds().stream().max(Long::compareTo).get().longValue(), 5L);
+        // endregion
+    }
+    
     @Test(timeout = 30000)
     public void eventWriterInitializationTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
@@ -1286,6 +1364,35 @@ public abstract class StreamMetadataTasksTest {
                 e -> Exceptions.unwrap(e) instanceof TaskExceptions.PostEventException);
     }
 
+    @Test(timeout = 10000)
+    public void testAddIndexAndSubmitTask() {
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+
+        UpdateStreamEvent updateEvent = new UpdateStreamEvent("scope", "stream", 0L);
+        AssertExtensions.assertFutureThrows("throw Connection error", streamMetadataTasks.addIndexAndSubmitTask(updateEvent,
+                () -> Futures.failedFuture(StoreException.create(StoreException.Type.CONNECTION_ERROR, "Connection"))), 
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+        // verify that the event is posted
+        assertFalse(requestEventWriter.eventQueue.isEmpty());
+        assertEquals(requestEventWriter.eventQueue.poll(), updateEvent);
+
+        TruncateStreamEvent truncateEvent = new TruncateStreamEvent("scope", "stream", 0L);
+
+        AssertExtensions.assertFutureThrows("throw write conflict", streamMetadataTasks.addIndexAndSubmitTask(truncateEvent,
+                () -> Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "write conflict"))),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+        // verify that the event is posted
+        assertFalse(requestEventWriter.eventQueue.isEmpty());
+        assertEquals(requestEventWriter.eventQueue.poll(), truncateEvent);
+
+        AssertExtensions.assertFutureThrows("any other exception", streamMetadataTasks.addIndexAndSubmitTask(truncateEvent,
+                () -> Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "data not found"))),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        // no event should be posted for any other failure
+        assertTrue(requestEventWriter.eventQueue.isEmpty());
+    }
+    
     @Test(timeout = 30000)
     public void concurrentCreateStreamTest() {
         TaskMetadataStore taskMetadataStore = spy(TaskStoreFactory.createZKStore(zkClient, executor));
@@ -1420,6 +1527,11 @@ public abstract class StreamMetadataTasksTest {
         @Override
         public void close() {
 
+        }
+
+        @Override
+        public void noteTime(long timestamp) {
+            
         }
     }
 }

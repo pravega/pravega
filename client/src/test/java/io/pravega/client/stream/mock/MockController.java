@@ -12,9 +12,9 @@ package io.pravega.client.stream.mock;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -31,8 +31,10 @@ import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -89,7 +91,10 @@ public class MockController implements Controller {
     @Override
     @Synchronized
     public AsyncIterator<Stream> listStreams(String scopeName) {
-        Set<Stream> collect = createdScopes.get(scopeName);
+        Set<Stream> collect = createdScopes.get(scopeName)
+                                           .stream()
+                                           .filter(s -> !s.getStreamName().startsWith(NameUtils.INTERNAL_NAME_PREFIX))
+                                           .collect(Collectors.toSet());
         return new AsyncIterator<Stream>() {
             Object lock = new Object();
             @GuardedBy("lock")
@@ -128,6 +133,14 @@ public class MockController implements Controller {
     @Override
     @Synchronized
     public CompletableFuture<Boolean> createStream(String scope, String streamName, StreamConfiguration streamConfig) {
+        String markStream = NameUtils.getMarkStreamForStream(streamName);
+        StreamConfiguration markStreamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+
+        return createStreamInternal(scope, markStream, markStreamConfig)
+                .thenCompose(v -> createStreamInternal(scope, streamName, streamConfig));
+    }
+
+    private CompletableFuture<Boolean> createStreamInternal(String scope, String streamName, StreamConfiguration streamConfig) {
         Stream stream = new StreamImpl(scope, streamName);
         if (createdStreams.get(stream) != null) {
             return CompletableFuture.completedFuture(false);
@@ -148,7 +161,7 @@ public class MockController implements Controller {
     @Synchronized
     List<Segment> getSegmentsForStream(Stream stream) {
         StreamConfiguration config = createdStreams.get(stream);
-        Preconditions.checkArgument(config != null, "Stream must be created first");
+        Preconditions.checkArgument(config != null, "Stream " + stream.getScopedName() + " must be created first");
         ScalingPolicy scalingPolicy = config.getScalingPolicy();
         if (scalingPolicy.getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
             throw new IllegalArgumentException("Dynamic scaling not supported with a mock controller");
@@ -160,6 +173,21 @@ public class MockController implements Controller {
         return result;
     }
 
+    @Synchronized
+    List<SegmentWithRange> getSegmentsWithRanges(Stream stream) {
+        StreamConfiguration config = createdStreams.get(stream);
+        Preconditions.checkArgument(config != null, "Stream must be created first");
+        ScalingPolicy scalingPolicy = config.getScalingPolicy();
+        if (scalingPolicy.getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
+            throw new IllegalArgumentException("Dynamic scaling not supported with a mock controller");
+        }
+        List<SegmentWithRange> result = new ArrayList<>();
+        for (int i = 0; i < scalingPolicy.getMinNumSegments(); i++) {
+            result.add(createRange(stream, scalingPolicy.getMinNumSegments(), i));
+        }
+        return result;
+    }
+    
     @Override
     public CompletableFuture<Boolean> updateStream(String scope, String streamName, StreamConfiguration streamConfig) {
         throw new UnsupportedOperationException();
@@ -298,18 +326,21 @@ public class MockController implements Controller {
     private StreamSegments getCurrentSegments(Stream stream) {
         List<Segment> segmentsInStream = getSegmentsForStream(stream);
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
-        double increment = 1.0 / segmentsInStream.size();
         for (int i = 0; i < segmentsInStream.size(); i++) {
-            segments.put((i + 1) * increment,
-                         new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), i),
-                                              i * increment,
-                                              (i + 1) * increment));
+            SegmentWithRange s = createRange(stream, segmentsInStream.size(), i);
+            segments.put(s.getRange().getHigh(), s);
         }
         return new StreamSegments(segments, "");
     }
 
+    private SegmentWithRange createRange(Stream stream, int numSegments, int segmentNumber) {
+        double increment = 1.0 / numSegments;
+        return new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), segmentNumber),
+                                    segmentNumber * increment, (segmentNumber + 1) * increment);
+    }
+
     @Override
-    public CompletableFuture<Void> commitTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<Void> commitTransaction(Stream stream, final String writerId, final Long timestamp, UUID txId) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (Segment segment : getSegmentsForStream(stream)) {
             futures.add(commitTxSegment(txId, segment));            
@@ -537,6 +568,16 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
         return CompletableFuture.completedFuture("");
+    }
+
+    @Override
+    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, WriterPosition lastWrittenPosition) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeWriter(String writerId, Stream stream) {
+        return CompletableFuture.completedFuture(null);
     }
 }
 

@@ -17,7 +17,6 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Position;
@@ -30,6 +29,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
@@ -157,13 +157,13 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
-        Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
+        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
 
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }
 
     public Position getInitialPosition(String stream) {
-        return new PositionImpl(controller.getSegmentsForStream(new StreamImpl(scope, stream))
+        return new PositionImpl(controller.getSegmentsWithRanges(new StreamImpl(scope, stream))
                                           .stream()
                                           .collect(Collectors.toMap(segment -> segment, segment -> 0L)));
     }

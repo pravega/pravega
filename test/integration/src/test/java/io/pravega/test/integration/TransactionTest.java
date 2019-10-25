@@ -60,7 +60,7 @@ public class TransactionTest {
         ResourceLeakDetector.setLevel(originalLevel);
     }
 
-    @Test
+    @Test(timeout = 10000)
     @SuppressWarnings("deprecation")
     public void testTransactionalWritesOrderedCorrectly() throws TxnFailedException, ReinitializationRequiredException {
         int readTimeout = 5000;
@@ -135,7 +135,7 @@ public class TransactionTest {
         assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getEvent());
     }
 
-    @Test
+    @Test(timeout = 10000)
     @SuppressWarnings("deprecation")
     public void testDoubleCommit() throws TxnFailedException {
         String endpoint = "localhost";
@@ -165,7 +165,7 @@ public class TransactionTest {
         AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
     }
 
-    @Test
+    @Test(timeout = 10000)
     @SuppressWarnings("deprecation")
     public void testDrop() throws TxnFailedException, ReinitializationRequiredException {
         String endpoint = "localhost";

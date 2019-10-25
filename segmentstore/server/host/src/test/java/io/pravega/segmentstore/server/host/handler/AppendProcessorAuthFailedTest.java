@@ -17,6 +17,7 @@ import java.util.UUID;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -40,6 +41,6 @@ public class AppendProcessorAuthFailedTest {
     public void setupAppend() {
         processor.setupAppend(new WireCommands.SetupAppend(100L,
                 UUID.randomUUID(), "segment", "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, ""));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, "", TOKEN_CHECK_FAILED));
     }
 }

@@ -48,6 +48,7 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
@@ -79,6 +80,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -197,13 +199,13 @@ public abstract class RequestHandlersTest {
 
         StreamMetadataStore streamStore2 = getStore();
 
-        CommitRequestHandler requestHandler1 = new CommitRequestHandler(streamStore1Spied, streamMetadataTasks, streamTransactionMetadataTasks, executor);
-        CommitRequestHandler requestHandler2 = new CommitRequestHandler(streamStore2, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        CommitRequestHandler requestHandler1 = new CommitRequestHandler(streamStore1Spied, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler requestHandler2 = new CommitRequestHandler(streamStore2, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         
         // create txn on epoch 0 and set it to committing
         UUID txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
-        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()), null, executor).join();
+        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()), "", Long.MIN_VALUE, null, executor).join();
 
         // regular commit
         // start commit transactions
@@ -300,14 +302,14 @@ public abstract class RequestHandlersTest {
 
         StreamMetadataStore streamStore2 = getStore();
 
-        CommitRequestHandler requestHandler1 = new CommitRequestHandler(streamStore1Spied, streamMetadataTasks, streamTransactionMetadataTasks, executor);
-        CommitRequestHandler requestHandler2 = new CommitRequestHandler(streamStore2, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        CommitRequestHandler requestHandler1 = new CommitRequestHandler(streamStore1Spied, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler requestHandler2 = new CommitRequestHandler(streamStore2, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         ScaleOperationTask scaleRequesthandler = new ScaleOperationTask(streamMetadataTasks, streamStore2, executor);
 
         // create txn on epoch 0 and set it to committing
         UUID txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
-        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()), null, executor).join();
+        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()), "", Long.MIN_VALUE, null, executor).join();
         // perform scale
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(),
@@ -515,7 +517,38 @@ public abstract class RequestHandlersTest {
         streamStore1.close();
         streamStore2.close();
     }
-    
+
+    @Test
+    public void testDeleteAssociatedStream() {
+        String stream = "deleteAssociated";
+        createStreamInStore(stream);
+        String markStream = NameUtils.getMarkStreamForStream(stream);
+        createStreamInStore(markStream);
+
+        SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
+        DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor);
+
+        // create mark stream
+        // seal stream. 
+        SealStreamEvent sealEvent = new SealStreamEvent(scope, stream, 0L);
+        // set state to sealing and send event to the processor
+        streamStore.setState(scope, stream, State.SEALING, null, executor).join();
+        sealStreamTask.execute(sealEvent).join();
+        assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
+
+        // mark stream should still be present and active
+        assertTrue(streamStore.checkStreamExists(scope, markStream).join());
+        assertEquals(streamStore.getState(scope, markStream, true, null, executor).join(), State.ACTIVE);
+
+        // delete the stream
+        long creationTime = streamStore.getCreationTime(scope, stream, null, executor).join();
+        DeleteStreamEvent firstDeleteEvent = new DeleteStreamEvent(scope, stream, 0L, creationTime);
+        deleteStreamTask.execute(firstDeleteEvent).join();
+
+        // verify that mark stream is also deleted
+        assertFalse(streamStore.checkStreamExists(scope, markStream).join());
+    }
+
     @Test
     public void testDeleteStreamReplay() {
         String stream = "delete";
@@ -715,14 +748,14 @@ public abstract class RequestHandlersTest {
     
     @Test
     public void testCommitTxnIgnoreFairness() {
-        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         String fairness = "fairness";
         streamStore.createScope(fairness).join();
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
                 System.currentTimeMillis()).join();
 
         UUID txn = streamTransactionMetadataTasks.createTxn(fairness, fairness, 30000, null).join().getKey().getId();
-        streamStore.sealTransaction(fairness, fairness, txn, true, Optional.empty(), null, executor).join();
+        streamStore.sealTransaction(fairness, fairness, txn, true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
         
         // 1. set segment helper mock to throw exception
         doAnswer(x -> Futures.failedFuture(new RuntimeException()))
