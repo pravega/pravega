@@ -60,6 +60,7 @@ public class TestConfig {
     static final Property<Integer> CONTROLLER_BASE_PORT = Property.named("controllerPort", 9200);
     static final Property<Boolean> PAUSE_BEFORE_EXIT = Property.named("pauseBeforeExit", false);
     static final Property<String> BOOKIE_LEDGERS_DIR = Property.named("bkLedgersDir", "");
+    static final Property<String> STORAGE_DIR = Property.named("storageDir", "/tmp/pravega/storage");
     private static final Property<Integer> ZK_PORT = Property.named("zkPort", 9000);
     private static final Property<Integer> BK_BASE_PORT = Property.named("bkBasePort", 9100);
     private static final Property<Integer> SEGMENT_STORE_BASE_PORT = Property.named("segmentStorePort", 9300);
@@ -134,6 +135,8 @@ public class TestConfig {
     @Getter
     private final String bookieLedgersDir;
     @Getter
+    private final String storageDir;
+    @Getter
     private final String testId = Long.toHexString(System.currentTimeMillis());
 
     //endregion
@@ -193,6 +196,7 @@ public class TestConfig {
         this.pauseBeforeExit = properties.getBoolean(PAUSE_BEFORE_EXIT);
         this.enableSecurity = properties.getBoolean(ENABLE_SECURITY);
         this.bookieLedgersDir = properties.get(BOOKIE_LEDGERS_DIR);
+        this.storageDir = properties.get(STORAGE_DIR);
         checkOverlappingPorts();
     }
 

@@ -227,8 +227,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         conf.setJournalDirName(journalDir.getPath());
         conf.setLedgerDirNames(new String[]{ledgerDir.getPath()});
         conf.setAllowLoopback(true);
-        conf.setJournalAdaptiveGroupWrites(false);
-        //conf.setFlushIntervalInBytes(32 * 1024 * 1024);
+        conf.setJournalAdaptiveGroupWrites(true);
 
         if (secureBK) {
             conf.setTLSProvider("OpenSSL");

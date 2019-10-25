@@ -209,6 +209,7 @@ public class SelfTestRunner {
                     new Shortcut("ssc", TestConfig.SEGMENT_STORE_COUNT),
                     new Shortcut("bkc", TestConfig.BOOKIE_COUNT),
                     new Shortcut("bkledgerdir", TestConfig.BOOKIE_LEDGERS_DIR),
+                    new Shortcut("storagedir", TestConfig.STORAGE_DIR),
                     new Shortcut("controller", TestConfig.CONTROLLER_HOST),
                     new Shortcut("controllerport", TestConfig.CONTROLLER_BASE_PORT),
                     new Shortcut("metrics", TestConfig.METRICS_ENABLED),
