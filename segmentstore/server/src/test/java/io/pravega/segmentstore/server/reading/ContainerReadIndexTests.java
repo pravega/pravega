@@ -62,6 +62,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -111,6 +112,33 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Add a bunch of writes.
         appendData(segmentIds, segmentContents, context);
 
+        // Check all the appended data.
+        checkReadIndex("PostAppend", segmentContents, context);
+    }
+
+    /**
+     * Tests the basic append-read functionality of the ContainerReadIndex using appends larger than the maximum allowed
+     * by the Cache Storage.
+     */
+    @Test
+    public void testLargeAppends() throws Exception {
+        final int maxEntryLength = 64 * 1024;
+        final int appendCount = 10;
+        final Random rnd = new Random(0);
+        @Cleanup
+        TestContext context = new TestContext();
+        context.cacheStorage.maxEntryLength = maxEntryLength;
+        long segmentId = createSegments(context).get(0);
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+
+        // Add a bunch of writes.
+        for (int i = 0; i < appendCount; i++) {
+            val data = new ByteArraySegment(new byte[maxEntryLength + i * 10240]);
+            rnd.nextBytes(data.array());
+
+            appendSingleWrite(segmentId, data, context);
+            recordAppend(segmentId, data, segmentContents);
+        }
         // Check all the appended data.
         checkReadIndex("PostAppend", segmentContents, context);
     }
@@ -1555,9 +1583,12 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         Consumer<Integer> deleteCallback;
         boolean disableAppends;
         boolean usedBytesSameAsStoredBytes;
+        @Getter
+        int maxEntryLength;
 
         TestCacheStorage(long maxSizeBytes) {
             super(maxSizeBytes);
+            this.maxEntryLength = super.getMaxEntryLength();
         }
 
         @Override

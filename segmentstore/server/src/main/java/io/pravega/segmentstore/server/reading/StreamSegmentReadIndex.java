@@ -391,7 +391,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         if (data != null) {
             // Add the remainder of the buffer as a new entry (with the offset updated).
-            CacheIndexEntry newEntry = addToIndex(data, offset, "Append");
+            CacheIndexEntry newEntry = addToCacheAndIndex(data, offset, "Append");
             this.lastAppendedOffset.set(newEntry.getLastStreamSegmentOffset());
         }
     }
@@ -520,10 +520,28 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 "The given range of bytes (Offset=%s, Length=%s) does not correspond to the StreamSegment range that is in Storage (%s).",
                 offset, data.getLength(), this.metadata.getStorageLength());
 
-        addToIndex(data, offset, "Insert");
+        addToCacheAndIndex(data, offset, "Insert");
     }
 
-    private CacheIndexEntry addToIndex(BufferView data, long offset, String operationName) {
+    private CacheIndexEntry addToCacheAndIndex(BufferView data, long offset, String operationName) {
+        if (data.getLength() <= this.cacheStorage.getMaxEntryLength()) {
+            // The entire buffer can fit into one entry.
+            return addSingleEntryToCacheAndIndex(data, offset, operationName);
+        } else {
+            // Need to split the buffer into smaller entries and insert them individually.
+            int bufferOffset = 0;
+            CacheIndexEntry lastEntry = null;
+            while (bufferOffset < data.getLength()) {
+                int partLength = Math.min(data.getLength() - bufferOffset, this.cacheStorage.getMaxEntryLength());
+                lastEntry = addSingleEntryToCacheAndIndex(data.slice(bufferOffset, partLength), offset + bufferOffset, operationName);
+                bufferOffset += partLength;
+            }
+
+            return lastEntry;
+        }
+    }
+
+    private CacheIndexEntry addSingleEntryToCacheAndIndex(BufferView data, long offset, String operationName) {
         int dataAddress = this.cacheStorage.insert(data);
         CacheIndexEntry newEntry;
         ReadIndexEntry oldEntry;

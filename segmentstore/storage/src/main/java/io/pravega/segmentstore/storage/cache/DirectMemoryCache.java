@@ -204,7 +204,8 @@ public class DirectMemoryCache implements CacheStorage {
     @Override
     public int insert(BufferView data) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        Preconditions.checkArgument(data.getLength() < CacheLayout.MAX_ENTRY_SIZE);
+        Preconditions.checkArgument(data.getLength() <= CacheLayout.MAX_ENTRY_SIZE,
+                "Entry too long. Expected max %s, given %s.", CacheLayout.MAX_ENTRY_SIZE, data.getLength());
 
         int lastBlockAddress = CacheLayout.NO_ADDRESS;
         int remainingLength = data.getLength();
