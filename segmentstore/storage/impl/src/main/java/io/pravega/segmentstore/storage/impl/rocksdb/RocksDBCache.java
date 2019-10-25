@@ -274,7 +274,6 @@ class RocksDBCache implements Cache {
                 .setMaxBackgroundFlushes(INTERNAL_ROCKSDB_PARALLELISM / 2)
                 .setMaxBackgroundJobs(INTERNAL_ROCKSDB_PARALLELISM)
                 .setCompactionStyle(CompactionStyle.LEVEL)
-                .optimizeLevelStyleCompaction()
                 .setMaxBackgroundCompactions(INTERNAL_ROCKSDB_PARALLELISM)
                 .setLevelCompactionDynamicLevelBytes(true);
 
