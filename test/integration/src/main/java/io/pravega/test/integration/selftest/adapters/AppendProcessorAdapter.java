@@ -1,0 +1,316 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.test.integration.selftest.adapters;
+
+import com.google.common.base.Preconditions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.AsyncIterator;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.handler.AppendProcessor;
+import io.pravega.segmentstore.server.host.handler.ServerConnection;
+import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.FailingRequestProcessor;
+import io.pravega.shared.protocol.netty.RequestProcessor;
+import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.integration.selftest.Event;
+import io.pravega.test.integration.selftest.TestConfig;
+import java.time.Duration;
+import java.util.AbstractMap;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.val;
+
+/**
+ * {@link StoreAdapter} that connects to an {@link AppendProcessor} that uses the Segment Store via {@link SegmentStoreAdapter}.
+ * Useful to test the "server-side" of things without the Client interfering.
+ */
+public class AppendProcessorAdapter extends StoreAdapter {
+    //region Members
+
+    private final SegmentStoreAdapter segmentStoreAdapter;
+    private final TestConfig testConfig;
+    @GuardedBy("handlers")
+    private final HashMap<String, SegmentHandler> handlers;
+
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the AppendProcessorAdapter class.
+     *
+     * @param testConfig    The TestConfig to use.
+     * @param builderConfig The ServiceBuilderConfig to use.
+     * @param testExecutor  An Executor to use for test-related async operations.
+     */
+    AppendProcessorAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
+        this.testConfig = testConfig;
+        this.segmentStoreAdapter = new SegmentStoreAdapter(testConfig, builderConfig, testExecutor);
+        this.handlers = new HashMap<>();
+    }
+
+    //endregion
+
+    //region StoreAdapter Implementation
+
+    @Override
+    protected void startUp() throws Exception {
+        this.segmentStoreAdapter.startUp();
+    }
+
+    @Override
+    protected void shutDown() {
+        this.segmentStoreAdapter.shutDown();
+    }
+
+    @Override
+    public ExecutorServiceHelpers.Snapshot getStorePoolSnapshot() {
+        return this.segmentStoreAdapter.getStorePoolSnapshot();
+    }
+
+    @Override
+    public boolean isFeatureSupported(Feature feature) {
+        return feature == Feature.Append
+                || feature == Feature.CreateStream
+                || feature == Feature.DeleteStream;
+    }
+
+    @Override
+    public CompletableFuture<Void> append(String segmentName, Event event, Duration timeout) {
+        SegmentHandler handler;
+        synchronized (this.handlers) {
+            handler = this.handlers.get(segmentName);
+        }
+        if (handler == null) {
+            return Futures.failedFuture(new StreamSegmentNotExistsException(segmentName));
+        }
+
+        return handler.append(event);
+    }
+
+    @Override
+    public CompletableFuture<Void> createStream(String segmentName, Duration timeout) {
+        return this.segmentStoreAdapter
+                .getStreamSegmentStore()
+                .createStreamSegment(segmentName, null, timeout)
+                .thenRun(() -> {
+                    SegmentHandler handler = new SegmentHandler(segmentName, this.testConfig.getProducerCount(), this.segmentStoreAdapter.getStreamSegmentStore());
+                    synchronized (this.handlers) {
+                        this.handlers.put(segmentName, handler);
+                    }
+
+                    handler.initialize();
+                });
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteStream(String segmentName, Duration timeout) {
+        return this.segmentStoreAdapter
+                .getStreamSegmentStore()
+                .deleteStreamSegment(segmentName, timeout)
+                .thenRun(() -> {
+                    synchronized (this.handlers) {
+                        this.handlers.remove(segmentName);
+                    }
+                });
+    }
+
+    //endregion
+
+    //region Unimplemented Methods
+
+    @Override
+    public StoreReader createReader() {
+        throw new UnsupportedOperationException("createReader");
+    }
+
+    @Override
+    public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
+        throw new UnsupportedOperationException("createTransaction");
+    }
+
+    @Override
+    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
+        throw new UnsupportedOperationException("mergeTransaction");
+    }
+
+    @Override
+    public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) {
+        throw new UnsupportedOperationException("abortTransaction");
+    }
+
+    @Override
+    public CompletableFuture<Void> sealStream(String streamName, Duration timeout) {
+        throw new UnsupportedOperationException("sealStream");
+    }
+
+    @Override
+    public CompletableFuture<Void> createTable(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException("createTable");
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteTable(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException("deleteTable");
+    }
+
+    @Override
+    public CompletableFuture<Long> updateTableEntry(String tableName, ArrayView key, ArrayView value, Long compareVersion, Duration timeout) {
+        throw new UnsupportedOperationException("updateTableEntry");
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout) {
+        throw new UnsupportedOperationException("removeTableEntry");
+    }
+
+    @Override
+    public CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
+        throw new UnsupportedOperationException("getTableEntries");
+    }
+
+    @Override
+    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException("iterateTableEntries");
+    }
+
+    //endregion
+
+    //region SegmentHandler
+
+    private static class SegmentHandler implements ServerConnection {
+        private final String segmentName;
+        private final AppendProcessor appendProcessor;
+        private final int producerCount;
+        @GuardedBy("resultFutures")
+        private final Deque<Map.Entry<Long, CompletableFuture<Void>>> resultFutures;
+        @GuardedBy("resultFutures")
+        private long nextSequence;
+        @GuardedBy("resultFutures")
+        private CompletableFuture<Void> pause;
+        @GuardedBy("resultFutures")
+        private CompletableFuture<Void> appendSetup;
+
+        SegmentHandler(String segmentName, int producerCount, StreamSegmentStore segmentStore) {
+            this.segmentName = segmentName;
+            this.producerCount = producerCount;
+            this.appendProcessor = new AppendProcessor(segmentStore, this, new FailingRequestProcessor(), null);
+            this.nextSequence = 1;
+            this.resultFutures = new ArrayDeque<>();
+            this.appendSetup = new CompletableFuture<>();
+        }
+
+        void initialize() {
+            Preconditions.checkState(!this.appendSetup.isDone(), "Already setup.");
+
+            // Not very efficient, but does the job and is only executed once, upon initialization.
+            for (int i = 0; i < this.producerCount; i++) {
+                this.appendSetup = new CompletableFuture<>();
+                this.appendProcessor.setupAppend(new WireCommands.SetupAppend(0, getWriterId(i), this.segmentName, null));
+                this.appendSetup.join();
+            }
+        }
+
+        CompletableFuture<Void> append(Event event) {
+            CompletableFuture<Void> result = new CompletableFuture<>();
+            CompletableFuture<Void> p;
+            synchronized (this.resultFutures) {
+                p = this.pause;
+            }
+
+            if (p == null) {
+                appendInternal(event, result);
+            } else {
+                p.thenRun(() -> appendInternal(event, result));
+            }
+
+            return result;
+        }
+
+        private void appendInternal(Event event, CompletableFuture<Void> result) {
+            WireCommands.Event e = new WireCommands.Event(event.getWriteBuffer().copy());
+            synchronized (this.resultFutures) {
+                this.resultFutures.addLast(new AbstractMap.SimpleImmutableEntry<>(this.nextSequence, result));
+                this.appendProcessor.append(new Append(this.segmentName, getWriterId(event.getOwnerId()), this.nextSequence, e, 0));
+                this.nextSequence++;
+            }
+        }
+
+        private UUID getWriterId(int producerId) {
+            return new UUID(0, producerId);
+        }
+
+        //region ServerConnection Implementation
+
+        @Override
+        public void send(WireCommand cmd) {
+            if (cmd instanceof WireCommands.DataAppended) {
+                val ack = (WireCommands.DataAppended) cmd;
+                val results = new ArrayList<CompletableFuture<Void>>();
+                synchronized (this.resultFutures) {
+                    while (!this.resultFutures.isEmpty() && this.resultFutures.peekFirst().getKey() <= ack.getEventNumber()) {
+                        results.add(this.resultFutures.removeFirst().getValue());
+                    }
+                }
+                results.forEach(c -> c.complete(null));
+            } else if (cmd instanceof WireCommands.AppendSetup) {
+                this.appendSetup.complete(null);
+            }
+        }
+
+        @Override
+        public void pauseReading() {
+            synchronized (this.resultFutures) {
+                if (this.pause == null) {
+                    this.pause = new CompletableFuture<>();
+                }
+            }
+        }
+
+        @Override
+        public void resumeReading() {
+            CompletableFuture<Void> p;
+            synchronized (this.resultFutures) {
+                p = this.pause;
+                this.pause = null;
+            }
+            if (p != null) {
+                p.complete(null);
+            }
+        }
+
+        @Override
+        public void close() {
+            // Not used.
+        }
+
+        @Override
+        public void setRequestProcessor(RequestProcessor cp) {
+            // Not used.
+        }
+
+        //endregion
+    }
+
+    //endregion
+}

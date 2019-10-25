@@ -346,6 +346,7 @@ public class TestConfig {
         SegmentStoreTable(true),
         InProcessMock(false),
         InProcessStore(false),
+        AppendProcessor(false),
         OutOfProcess(false),
         External(false),
         BookKeeper(false);
