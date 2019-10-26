@@ -15,26 +15,30 @@ import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
-
-import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Unit tests for the StreamSegmentService using NoOpStorage.
+ * Note this end-to-end test includes the verification of segment content read from storage,
+ * userStorageFactory is created to accommodate user segments for the purpose.
  */
-public class StreamSegmentServiceNoOpStoreTests extends StreamSegmentStoreTestBase {
-    private InMemoryStorageFactory underlyingStorageFactory;
+public class StreamSegmentServiceNoOpWriteReadTests extends StreamSegmentStoreTestBase {
+
     private NoOpStorageFactory storageFactory;
     private InMemoryDurableDataLogFactory durableDataLogFactory;
 
+    //The underlying factory to create system storage for system segments.
+    private InMemoryStorageFactory systemStorageFactory;
+    //The underlying factory to create user storage for user segments; optional. Write operation is no-oped if this factory not present.
+    private InMemoryStorageFactory userStorageFactory;
+
     @Before
     public void setUp() {
-        ScheduledExecutorService executor = executorService();
-        this.underlyingStorageFactory = new InMemoryStorageFactory(executor);
+        this.systemStorageFactory = new InMemoryStorageFactory(executorService());
+        this.userStorageFactory = new InMemoryStorageFactory(executorService());
 
         StorageExtraConfig config = StorageExtraConfig.builder().with(StorageExtraConfig.STORAGE_NO_OP_MODE, true).build();
-        this.storageFactory = new NoOpStorageFactory(config, executor, underlyingStorageFactory);
-        this.durableDataLogFactory = new PermanentDurableDataLogFactory(executorService());
+        this.storageFactory = new NoOpStorageFactory(config, executorService(), systemStorageFactory, userStorageFactory);
+        this.durableDataLogFactory = new StreamSegmentServiceTests.PermanentDurableDataLogFactory(executorService());
     }
 
     @After
@@ -44,9 +48,14 @@ public class StreamSegmentServiceNoOpStoreTests extends StreamSegmentStoreTestBa
             this.durableDataLogFactory = null;
         }
 
-        if (this.underlyingStorageFactory != null) {
-            this.underlyingStorageFactory.close();
-            this.underlyingStorageFactory = null;
+        if (this.systemStorageFactory != null) {
+            this.systemStorageFactory.close();
+            this.systemStorageFactory = null;
+        }
+
+        if (this.userStorageFactory != null) {
+            this.userStorageFactory.close();
+            this.userStorageFactory = null;
         }
     }
 
@@ -55,21 +64,5 @@ public class StreamSegmentServiceNoOpStoreTests extends StreamSegmentStoreTestBa
         return ServiceBuilder.newInMemoryBuilder(builderConfig.build())
                              .withStorageFactory(setup -> this.storageFactory)
                              .withDataLogFactory(setup -> this.durableDataLogFactory);
-    }
-
-    @Override
-    @Ignore
-    public void testEndToEndWithFencing() {
-    }
-
-    private static class PermanentDurableDataLogFactory extends InMemoryDurableDataLogFactory {
-        PermanentDurableDataLogFactory(ScheduledExecutorService executorService) {
-            super(executorService);
-        }
-
-        @Override
-        public void close() {
-            // This method intentionally left blank; we want this factory to live between multiple recovery attempts.
-        }
     }
 }

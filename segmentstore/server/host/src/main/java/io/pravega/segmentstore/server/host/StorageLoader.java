@@ -38,7 +38,7 @@ public class StorageLoader {
                     return factory;
                 } else { //No-Op mode is set to true
                     log.info("WARNING !!! {} is in NO-OP MODE: make sure this is by full intention for testing purpose!", storageImplementation);
-                    return new NoOpStorageFactory(noOpConfig, executor, factory);
+                    return new NoOpStorageFactory(noOpConfig, executor, factory, null);
                 }
             }
         }

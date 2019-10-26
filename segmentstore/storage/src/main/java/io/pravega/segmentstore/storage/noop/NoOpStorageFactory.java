@@ -14,6 +14,7 @@ import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+
 import java.util.concurrent.Executor;
 
 /**
@@ -22,20 +23,20 @@ import java.util.concurrent.Executor;
 public class NoOpStorageFactory implements StorageFactory {
     private final StorageExtraConfig config;
     private final Executor executor;
-    private final StorageFactory baseStorageFactory;
+    private final StorageFactory systemStorageFactory;
+    private final StorageFactory userStorageFactory;
 
-    public NoOpStorageFactory(StorageExtraConfig config, Executor executor, StorageFactory baseStorageFactory) {
-        Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(executor, "executor");
-        Preconditions.checkNotNull(baseStorageFactory, "baseStorageFactory");
-        this.config = config;
-        this.executor = executor;
-        this.baseStorageFactory = baseStorageFactory;
+    public NoOpStorageFactory(StorageExtraConfig config, Executor executor, StorageFactory systemStorageFactory, StorageFactory userStorageFactory) {
+        this.config = Preconditions.checkNotNull(config, "config");
+        this.executor = Preconditions.checkNotNull(executor, "executor");
+        this.systemStorageFactory = Preconditions.checkNotNull(systemStorageFactory, "systemStorageFactory");
+        this.userStorageFactory = userStorageFactory;
     }
 
     @Override
     public Storage createStorageAdapter() {
-        NoOpStorage s = new NoOpStorage(this.config, this.baseStorageFactory.createSyncStorage());
+        NoOpStorage s = new NoOpStorage(this.config, this.systemStorageFactory.createSyncStorage(),
+                userStorageFactory == null ? null : userStorageFactory.createSyncStorage());
         return new AsyncStorageWrapper(new RollingStorage(s), this.executor);
     }
 }

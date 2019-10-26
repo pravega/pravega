@@ -18,25 +18,26 @@ import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.InputStream;
 import java.util.concurrent.TimeUnit;
 
-import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
+import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
 
 /**
  * Storage adapter for testing scenario without interference from tier 2.
  *
- * All the writes to tier 2 are no-oped unless its for metadata (system segments).
- * Reads are not supported.
- * Can also add latency to write operation to make the no-oped write as close to real as possible.
+ * . When this storage is used, all system segments are written to system storage.
+ * . If userStorage is present, user data segments are written to it; otherwise no-op.
+ * . If userStorage is present, user data segments are read from userStorage; otherwise UnsupportedOperationException thrown.
+ * . For no-oped write operation, latency is applied in order to make the no-op as real as possible.
  */
 @Slf4j
 class NoOpStorage implements SyncStorage {
 
-    //Hidden in memory storage to verify the correctness of no-operation.
-    private final SyncStorage noopInMemoryStorage;
-
-    private final SyncStorage baseStorage;
+    // Storage for system segments; must not null.
+    private final SyncStorage systemStorage;
+    // Optional storage for user data segments, for testing of NoOpStorage only.
+    private final SyncStorage userStorage;
+    // latency in milliseconds to be applied to no-oped write operation.
     private final int writeNoOpLatencyMill;
 
     /**
@@ -44,39 +45,38 @@ class NoOpStorage implements SyncStorage {
      *
      * @param config   The configuration to use.
      */
-    NoOpStorage(StorageExtraConfig config, SyncStorage baseStorage) {
+    NoOpStorage(StorageExtraConfig config, SyncStorage systemStorage, SyncStorage userStorage) {
         Preconditions.checkNotNull(config, "config");
         this.writeNoOpLatencyMill = config.getStorageWriteNoOpLatencyMill();
-        this.baseStorage = Preconditions.checkNotNull(baseStorage, "baseStorage");
-
-        noopInMemoryStorage = new InMemoryStorage();
+        this.systemStorage = Preconditions.checkNotNull(systemStorage, "systemStorage");
+        this.userStorage = userStorage;
     }
 
     @Override
     public void close() {
-        baseStorage.close();
-        if (noopInMemoryStorage != null) {
-            noopInMemoryStorage.close();
+        systemStorage.close();
+        if (userStorage != null) {
+            userStorage.close();
         }
     }
 
     @Override
     public void initialize(long epoch) {
-        baseStorage.initialize(epoch);
-        if (noopInMemoryStorage != null) {
-            noopInMemoryStorage.initialize(1);
+        systemStorage.initialize(epoch);
+        if (userStorage != null) {
+            userStorage.initialize(1);
         }
     }
 
     @Override
     public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
         if (isSystemSegment(streamSegmentName)) {
-            return baseStorage.getStreamSegmentInfo(streamSegmentName);
+            return systemStorage.getStreamSegmentInfo(streamSegmentName);
         } else {
-            if (noopInMemoryStorage != null) {
-                return noopInMemoryStorage.getStreamSegmentInfo(streamSegmentName);
+            if (userStorage != null) {
+                return userStorage.getStreamSegmentInfo(streamSegmentName);
             } else {
-                throw new UnsupportedOperationException("getStreamSegmentInfo() for non-system segment is not supported in NO-OP mode.");
+                throw new UnsupportedOperationException("getStreamSegmentInfo() for user segment is not supported in NO-OP mode.");
             }
         }
     }
@@ -84,12 +84,12 @@ class NoOpStorage implements SyncStorage {
     @Override
     public boolean exists(String streamSegmentName) {
         if (isSystemSegment(streamSegmentName)) {
-            return baseStorage.exists(streamSegmentName);
+            return systemStorage.exists(streamSegmentName);
         } else {
-            if (noopInMemoryStorage != null) {
-                return noopInMemoryStorage.exists(streamSegmentName);
+            if (userStorage != null) {
+                return userStorage.exists(streamSegmentName);
             } else {
-                throw new UnsupportedOperationException("exists() for non-system segment is not supported in NO-OP mode.");
+                throw new UnsupportedOperationException("exists() for user segment is not supported in NO-OP mode.");
             }
         }
     }
@@ -97,12 +97,12 @@ class NoOpStorage implements SyncStorage {
     @Override
     public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
         if (isSystemSegment(handle.getSegmentName())) {
-            return baseStorage.read(handle, offset, buffer, bufferOffset, length);
+            return systemStorage.read(handle, offset, buffer, bufferOffset, length);
         } else {
-            if (noopInMemoryStorage != null) {
-                return noopInMemoryStorage.read(handle, offset, buffer, bufferOffset, length);
+            if (userStorage != null) {
+                return userStorage.read(handle, offset, buffer, bufferOffset, length);
             } else {
-                throw new UnsupportedOperationException("read() of non-system segment is not supported in NO-OP mode.");
+                throw new UnsupportedOperationException("read() of user segment is not supported in NO-OP mode.");
             }
         }
     }
@@ -110,12 +110,12 @@ class NoOpStorage implements SyncStorage {
     @Override
     public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentException {
         if (isSystemSegment(streamSegmentName)) {
-            return baseStorage.openRead(streamSegmentName);
+            return systemStorage.openRead(streamSegmentName);
         } else {
-            if (noopInMemoryStorage != null) {
-                return noopInMemoryStorage.openRead(streamSegmentName);
+            if (userStorage != null) {
+                return userStorage.openRead(streamSegmentName);
             } else {
-                throw new UnsupportedOperationException("openRead() of non-system segment is not supported in NO-OP mode.");
+                throw new UnsupportedOperationException("openRead() of user segment is not supported in NO-OP mode.");
             }
         }
     }
@@ -123,12 +123,12 @@ class NoOpStorage implements SyncStorage {
     @Override
     public void seal(SegmentHandle handle) throws StreamSegmentException {
         if (isSystemSegment(handle.getSegmentName())) {
-            baseStorage.seal(handle);
+            systemStorage.seal(handle);
         } else {
-            if (noopInMemoryStorage != null) {
-                noopInMemoryStorage.seal(handle);
+            if (userStorage != null) {
+                userStorage.seal(handle);
             } else {
-                throw new UnsupportedOperationException("seal() of non-system segment is not supported in NO-OP mode.");
+                noOp();
             }
         }
     }
@@ -136,25 +136,25 @@ class NoOpStorage implements SyncStorage {
     @Override
     public void unseal(SegmentHandle handle) throws StreamSegmentException {
         if (isSystemSegment(handle.getSegmentName())) {
-            baseStorage.unseal(handle);
+            systemStorage.unseal(handle);
         } else {
-            if (noopInMemoryStorage != null) {
-                noopInMemoryStorage.unseal(handle);
+            if (userStorage != null) {
+                userStorage.unseal(handle);
             } else {
-                throw new UnsupportedOperationException("unseal() of non-system segment is not supported in NO-OP mode.");
+                noOp();
             }
         }
     }
 
     @Override
     public void concat(SegmentHandle target, long offset, String sourceSegment) throws StreamSegmentException {
-        if (isSystemSegment(target.getSegmentName()) && isSystemSegment(sourceSegment)) {
-            baseStorage.concat(target, offset, sourceSegment);
+        if (isSystemSegment(target.getSegmentName())) {
+            systemStorage.concat(target, offset, sourceSegment);
         } else {
-            if (noopInMemoryStorage != null) {
-                noopInMemoryStorage.concat(target, offset, sourceSegment);
+            if (userStorage != null) {
+                userStorage.concat(target, offset, sourceSegment);
             } else {
-                throw new UnsupportedOperationException("concat() for non-system segment is not supported in NO-OP mode.");
+                noOp();
             }
         }
     }
@@ -162,12 +162,12 @@ class NoOpStorage implements SyncStorage {
     @Override
     public void delete(SegmentHandle handle) throws StreamSegmentException {
         if (isSystemSegment(handle.getSegmentName())) {
-            baseStorage.delete(handle);
+            systemStorage.delete(handle);
         } else {
-            if (noopInMemoryStorage != null) {
-                noopInMemoryStorage.delete(handle);
+            if (userStorage != null) {
+                userStorage.delete(handle);
             } else {
-                throw new UnsupportedOperationException("delete() non-system segment is not supported in NO-OP mode.");
+                noOp();
             }
         }
     }
@@ -175,19 +175,19 @@ class NoOpStorage implements SyncStorage {
     @Override
     public void truncate(SegmentHandle handle, long offset) throws StreamSegmentException {
         if (isSystemSegment(handle.getSegmentName())) {
-            baseStorage.truncate(handle, offset);
+            systemStorage.truncate(handle, offset);
         } else {
-            if (noopInMemoryStorage != null) {
-                noopInMemoryStorage.truncate(handle, offset);
+            if (userStorage != null) {
+                userStorage.truncate(handle, offset);
             } else {
-                throw new UnsupportedOperationException("truncate() non-system segment is not supported in NO-OP mode.");
+                noOp();
             }
         }
     }
 
     @Override
     public boolean supportsTruncation() {
-        return baseStorage.supportsTruncation();
+        return systemStorage.supportsTruncation();
     }
 
     /**
@@ -200,14 +200,13 @@ class NoOpStorage implements SyncStorage {
      */
     @Override
     public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
-
         if (isSystemSegment(handle.getSegmentName())) {
-            baseStorage.write(handle, offset, data, length);
+            systemStorage.write(handle, offset, data, length);
         } else {
-            if (noopInMemoryStorage != null) {
-                noopInMemoryStorage.write(handle, offset, data, length);
+            if (userStorage != null) {
+                userStorage.write(handle, offset, data, length);
             } else {
-                Uninterruptibles.sleepUninterruptibly(this.writeNoOpLatencyMill, TimeUnit.MILLISECONDS);
+                noOp();
             }
         }
     }
@@ -215,10 +214,10 @@ class NoOpStorage implements SyncStorage {
     @Override
     public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
         if (isSystemSegment(streamSegmentName)) {
-            return baseStorage.openWrite(streamSegmentName);
+            return systemStorage.openWrite(streamSegmentName);
         } else {
-            if (noopInMemoryStorage != null) {
-                return noopInMemoryStorage.openWrite(streamSegmentName);
+            if (userStorage != null) {
+                return userStorage.openWrite(streamSegmentName);
             } else {
                 return new NoOpSegmentHandle(streamSegmentName);
             }
@@ -228,10 +227,10 @@ class NoOpStorage implements SyncStorage {
     @Override
     public SegmentHandle create(String streamSegmentName) throws StreamSegmentException {
         if (isSystemSegment(streamSegmentName)) {
-            return baseStorage.create(streamSegmentName);
+            return systemStorage.create(streamSegmentName);
         } else {
-            if (noopInMemoryStorage != null) {
-                return noopInMemoryStorage.create(streamSegmentName);
+            if (userStorage != null) {
+                return userStorage.create(streamSegmentName);
             } else {
                 return new NoOpSegmentHandle(streamSegmentName);
             }
@@ -240,7 +239,11 @@ class NoOpStorage implements SyncStorage {
 
     private boolean isSystemSegment(String segmentName) {
         Preconditions.checkNotNull(segmentName);
-        return segmentName.startsWith(INTERNAL_SCOPE_NAME);
+        return segmentName.startsWith(INTERNAL_NAME_PREFIX);
+    }
+
+    private void noOp() {
+        Uninterruptibles.sleepUninterruptibly(this.writeNoOpLatencyMill, TimeUnit.MILLISECONDS);
     }
 
     static class NoOpSegmentHandle implements SegmentHandle {
@@ -261,5 +264,4 @@ class NoOpStorage implements SyncStorage {
             return false;
         }
     }
-
 }
