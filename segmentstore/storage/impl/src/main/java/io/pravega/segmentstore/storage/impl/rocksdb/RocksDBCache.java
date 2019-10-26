@@ -26,6 +26,10 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.BlockBasedTableConfig;
 import org.rocksdb.Env;
+import org.rocksdb.BloomFilter;
+import org.rocksdb.CompactionStyle;
+import org.rocksdb.IndexType;
+import org.rocksdb.LRUCache;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -41,13 +45,6 @@ class RocksDBCache implements Cache {
 
     private static final String FILE_PREFIX = "cache_";
     private static final String DB_LOG_DIR = "log";
-    private static final String DB_WRITE_AHEAD_LOG_DIR = "wal";
-
-    /**
-     * Max RocksDB WAL Size MB.
-     * See this for more info: https://github.com/facebook/rocksdb/wiki/Basic-Operations#purging-wal-files
-     */
-    private static final int MAX_WRITE_AHEAD_LOG_SIZE_MB = 64;
 
     /**
      * Max number of in-memory write buffers (memtables) for the cache (active and immutable).
@@ -58,6 +55,11 @@ class RocksDBCache implements Cache {
      * Minimum number of in-memory write buffers (memtables) to be merged before flushing to storage.
      */
     private static final int MIN_WRITE_BUFFER_NUMBER_TO_MERGE = 2;
+
+    /**
+     * Number of internal parallel threads that RocksDB will use for a specific task.
+     */
+    private static final int INTERNAL_ROCKSDB_PARALLELISM = 8;
 
     @Getter
     private final String id;
@@ -212,11 +214,13 @@ class RocksDBCache implements Cache {
     @Override
     public void remove(Key key) {
         ensureInitializedAndNotClosed();
+        Timer timer = new Timer();
         try {
             this.database.get().delete(this.writeOptions, key.serialize());
         } catch (RocksDBException ex) {
             throw convert(ex, "remove key '%s'", key);
         }
+        RocksDBMetrics.delete(timer.getElapsedMillis());
     }
 
     //endregion
@@ -247,25 +251,37 @@ class RocksDBCache implements Cache {
         BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
                 .setBlockSize(cacheBlockSizeKB * 1024L)
                 .setBlockCacheSize(readCacheSizeMB * 1024L * 1024L)
-                .setCacheIndexAndFilterBlocks(true);
+                .setBlockCache(new LRUCache(readCacheSizeMB * 1024L * 1024L, 4))
+                .setCacheIndexAndFilterBlocks(true)
+                .setIndexType(IndexType.kHashSearch)
+                .setFilter(new BloomFilter());
 
         Options options = new Options()
                 .setCreateIfMissing(true)
                 .setDbLogDir(Paths.get(this.dbDir, DB_LOG_DIR).toString())
-                .setWalDir(Paths.get(this.dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
                 .setWalTtlSeconds(0)
-                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB)
+                .setWalBytesPerSync(0)
+                .setWalSizeLimitMB(0)
                 .setWriteBufferSize(writeBufferSizeMB * 1024L * 1024L)
                 .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
                 .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
                 .setTableFormatConfig(tableFormatConfig)
                 .setOptimizeFiltersForHits(true)
-                .setUseDirectReads(this.directReads);
+                .setUseDirectReads(this.directReads)
+                .setSkipStatsUpdateOnDbOpen(true)
+                .optimizeForPointLookup(readCacheSizeMB * 1024L * 1024L)
+                .setIncreaseParallelism(INTERNAL_ROCKSDB_PARALLELISM)
+                .setMaxBackgroundFlushes(INTERNAL_ROCKSDB_PARALLELISM / 2)
+                .setMaxBackgroundJobs(INTERNAL_ROCKSDB_PARALLELISM)
+                .setCompactionStyle(CompactionStyle.LEVEL)
+                .setMaxBackgroundCompactions(INTERNAL_ROCKSDB_PARALLELISM)
+                .setLevelCompactionDynamicLevelBytes(true);
 
         if (this.memoryOnly) {
             Env env = new RocksMemEnv();
             options.setEnv(env);
         }
+        
         return options;
     }
 
