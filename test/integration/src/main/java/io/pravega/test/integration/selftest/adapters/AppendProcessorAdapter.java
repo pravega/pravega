@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration.selftest.adapters;
 
-import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
@@ -27,16 +26,14 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
-import java.util.AbstractMap;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.val;
 
@@ -198,37 +195,35 @@ public class AppendProcessorAdapter extends StoreAdapter {
 
     //region SegmentHandler
 
-    private static class SegmentHandler implements ServerConnection {
+    private class SegmentHandler implements ServerConnection {
         private final String segmentName;
         private final AppendProcessor appendProcessor;
         private final int producerCount;
         @GuardedBy("resultFutures")
-        private final Deque<Map.Entry<Long, CompletableFuture<Void>>> resultFutures;
+        private final Map<UUID, Map<Long, CompletableFuture<Void>>> resultFutures;
         @GuardedBy("resultFutures")
         private long nextSequence;
         @GuardedBy("resultFutures")
         private CompletableFuture<Void> pause;
-        @GuardedBy("resultFutures")
-        private CompletableFuture<Void> appendSetup;
+        private final AtomicReference<CompletableFuture<Void>> appendSetup;
 
         SegmentHandler(String segmentName, int producerCount, StreamSegmentStore segmentStore) {
             this.segmentName = segmentName;
             this.producerCount = producerCount;
             this.appendProcessor = new AppendProcessor(segmentStore, this, new FailingRequestProcessor(), null);
             this.nextSequence = 1;
-            this.resultFutures = new ArrayDeque<>();
-            this.appendSetup = new CompletableFuture<>();
+            this.resultFutures = new HashMap<>();
+            this.appendSetup = new AtomicReference<>();
         }
 
         void initialize() {
-            Preconditions.checkState(!this.appendSetup.isDone(), "Already setup.");
-
             // Not very efficient, but does the job and is only executed once, upon initialization.
             for (int i = 0; i < this.producerCount; i++) {
-                this.appendSetup = new CompletableFuture<>();
+                this.appendSetup.set(new CompletableFuture<>());
                 this.appendProcessor.setupAppend(new WireCommands.SetupAppend(0, getWriterId(i), this.segmentName, null));
-                this.appendSetup.join();
+                this.appendSetup.get().join();
             }
+            this.appendSetup.set(null);
         }
 
         CompletableFuture<Void> append(Event event) {
@@ -250,8 +245,15 @@ public class AppendProcessorAdapter extends StoreAdapter {
         private void appendInternal(Event event, CompletableFuture<Void> result) {
             WireCommands.Event e = new WireCommands.Event(event.getWriteBuffer().retain());
             synchronized (this.resultFutures) {
-                this.resultFutures.addLast(new AbstractMap.SimpleImmutableEntry<>(this.nextSequence, result));
                 // Event.getRoutingKey() is the ProducerId. We can use it to simulate different Writer Ids.
+                UUID writerId = getWriterId(event.getRoutingKey());
+                Map<Long, CompletableFuture<Void>> writerResultFutures = this.resultFutures.getOrDefault(writerId, null);
+                if (writerResultFutures == null) {
+                    writerResultFutures = new HashMap<>();
+                    this.resultFutures.put(writerId, writerResultFutures);
+                }
+
+                writerResultFutures.put(this.nextSequence, result);
                 this.appendProcessor.append(new Append(this.segmentName, getWriterId(event.getRoutingKey()), this.nextSequence, e, 0));
                 this.nextSequence++;
             }
@@ -269,13 +271,19 @@ public class AppendProcessorAdapter extends StoreAdapter {
                 val ack = (WireCommands.DataAppended) cmd;
                 val results = new ArrayList<CompletableFuture<Void>>();
                 synchronized (this.resultFutures) {
-                    while (!this.resultFutures.isEmpty() && this.resultFutures.peekFirst().getKey() <= ack.getEventNumber()) {
-                        results.add(this.resultFutures.removeFirst().getValue());
+                    val writerResultFutures = this.resultFutures.get(ack.getWriterId());
+                    long startEventNumber = Math.max(0, ack.getPreviousEventNumber()) + 1;
+                    for (long eventNumber = startEventNumber; eventNumber <= ack.getEventNumber(); eventNumber++) {
+                        val f = writerResultFutures.remove(eventNumber);
+                        if (f != null) {
+                            results.add(f);
+                        }
                     }
+
                 }
                 results.forEach(c -> c.complete(null));
             } else if (cmd instanceof WireCommands.AppendSetup) {
-                this.appendSetup.complete(null);
+                this.appendSetup.get().complete(null);
             }
         }
 
