@@ -15,6 +15,7 @@ import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
@@ -53,7 +54,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Controller controller;
-    private final String delegationToken;
+    private final DelegationTokenProvider tokenProvider;
     @VisibleForTesting
     @Getter
     private final long requestId = Flow.create().asLong();
@@ -140,9 +141,9 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, Segment segment,
-                                       String delegationToken) {
+                                       DelegationTokenProvider tokenProvider) {
         super(segment);
-        this.delegationToken = delegationToken;
+        this.tokenProvider = tokenProvider;
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(connectionFactory);
         Preconditions.checkNotNull(segment);
@@ -167,7 +168,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     public CompletableFuture<SegmentRead> read(long offset, int length) {
         Exceptions.checkNotClosed(closed.get(), this);
         WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length,
-                                                                        this.delegationToken, requestId);
+                                                                        this.tokenProvider.retrieveToken(), requestId);
         return backoffSchedule.retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
             if (closed.get()) {

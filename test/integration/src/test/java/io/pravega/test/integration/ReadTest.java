@@ -18,6 +18,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.EndOfSegmentException;
@@ -196,7 +197,8 @@ public class ReadTest {
                                  .getSegments().iterator().next();
 
         @Cleanup("close")
-        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
+        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(),
+                DelegationTokenProviderFactory.createWithEmptyToken());
         out.write(PendingEvent.withHeader(null, ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>()));
         out.flush();
 
@@ -240,7 +242,8 @@ public class ReadTest {
                                  .getSegments().iterator().next();
 
         @Cleanup("close")
-        ConditionalOutputStream out = segmentproducerClient.createConditionalOutputStream(segment, "", EventWriterConfig.builder().build());
+        ConditionalOutputStream out = segmentproducerClient.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.createWithEmptyToken(), EventWriterConfig.builder().build());
         assertTrue(out.write(ByteBuffer.wrap(testString), 0));
 
         @Cleanup("close")

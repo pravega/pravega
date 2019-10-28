@@ -863,8 +863,10 @@ public class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             state.distanceToTail.put(readerId, Math.max(ASSUMED_LAG_MILLIS, distanceToTail));
-            for (Entry<SegmentWithRange, Long> entry : lastReadPositions.entrySet()) {
-                state.lastReadPosition.replace(entry.getKey(), entry.getValue());
+            if (lastReadPositions != null) { // if state was serialized via the revision 0 then lastReadPositions will be null.
+                for (Entry<SegmentWithRange, Long> entry : lastReadPositions.entrySet()) {
+                    state.lastReadPosition.replace(entry.getKey(), entry.getValue());
+                }
             }
         }
         
