@@ -11,6 +11,8 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -43,7 +45,8 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
                                                                                                           segment.getStream()
                                                                                                                  .getStreamName()),
                                                                 RuntimeException::new);
-        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment,
+                DelegationTokenProviderFactory.create(delegationToken, controller, segment));
         async.getConnection();                      //Sanity enforcement
         bufferSize = MathHelpers.minMax(bufferSize, SegmentInputStreamImpl.MIN_BUFFER_SIZE, SegmentInputStreamImpl.MAX_BUFFER_SIZE);
         return getEventSegmentReader(async, 0, endOffset, bufferSize);
@@ -61,8 +64,8 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken) {
-        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
+    public SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider) {
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, tokenProvider);
         async.getConnection();
         return new SegmentInputStreamImpl(async, 0);
     }

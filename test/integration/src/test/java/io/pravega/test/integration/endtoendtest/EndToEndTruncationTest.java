@@ -32,6 +32,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -169,7 +170,8 @@ public class EndToEndTruncationTest {
         SegmentMetadataClientFactory metadataClientFactory = new SegmentMetadataClientFactoryImpl(controller,
                                                                                                   streamManager.getConnectionFactory());
         Segment segment = new Segment(scope, streamName, 0);
-        SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segment, "");
+        SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segment,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals(0, metadataClient.getSegmentInfo().getStartingOffset());
         long writeOffset = metadataClient.getSegmentInfo().getWriteOffset();
         assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength());
