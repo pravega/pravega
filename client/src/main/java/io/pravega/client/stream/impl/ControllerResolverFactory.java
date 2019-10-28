@@ -201,7 +201,9 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         @Synchronized
         public void shutdown() {
             shutdown = true;
-            scheduledFuture.cancel(false);
+            if (scheduledFuture != null) {
+                scheduledFuture.cancel(false);
+            }
         }
 
         @Override
