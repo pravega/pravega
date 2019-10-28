@@ -41,6 +41,7 @@ public class TestConfig {
     static final Property<Integer> MAX_TRANSACTION_SIZE = Property.named("maxTransactionSize", 20);
     static final Property<Integer> PRODUCER_COUNT = Property.named("producerCount", 1);
     static final Property<Integer> PRODUCER_PARALLELISM = Property.named("producerParallelism", 1);
+    static final Property<Integer> CLIENT_WRITERS_PER_STREAM = Property.named("writersPerStream", -1);
     static final Property<Integer> MIN_APPEND_SIZE = Property.named("minAppendSize", 100);
     static final Property<Integer> MAX_APPEND_SIZE = Property.named("maxAppendSize", 100);
     static final Property<Boolean> TABLE_CONDITIONAL_UPDATES = Property.named("tableConditionalUpdates", false);
@@ -93,6 +94,8 @@ public class TestConfig {
     private final int producerCount;
     @Getter
     private final int producerParallelism;
+    @Getter
+    private final int clientWritersPerStream;
     @Getter
     private final int minAppendSize;
     @Getter
@@ -158,6 +161,7 @@ public class TestConfig {
         this.maxTransactionAppendCount = properties.getInt(MAX_TRANSACTION_SIZE);
         this.producerCount = properties.getInt(PRODUCER_COUNT);
         this.producerParallelism = properties.getInt(PRODUCER_PARALLELISM);
+        this.clientWritersPerStream = properties.getInt(CLIENT_WRITERS_PER_STREAM);
         this.minAppendSize = properties.getInt(MIN_APPEND_SIZE);
         this.maxAppendSize = properties.getInt(MAX_APPEND_SIZE);
         if (this.minAppendSize < Event.HEADER_LENGTH) {

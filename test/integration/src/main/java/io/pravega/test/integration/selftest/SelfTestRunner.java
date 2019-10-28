@@ -202,6 +202,7 @@ public class SelfTestRunner {
                     new Shortcut("o", TestConfig.OPERATION_COUNT),
                     new Shortcut("p", TestConfig.PRODUCER_COUNT),
                     new Shortcut("pp", TestConfig.PRODUCER_PARALLELISM),
+                    new Shortcut("wps", TestConfig.CLIENT_WRITERS_PER_STREAM),
                     new Shortcut("ws", TestConfig.MIN_APPEND_SIZE),
                     new Shortcut("ws", TestConfig.MAX_APPEND_SIZE),
                     new Shortcut("target", TestConfig.TEST_TYPE),
