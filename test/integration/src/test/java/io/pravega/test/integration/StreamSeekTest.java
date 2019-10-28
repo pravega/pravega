@@ -222,6 +222,6 @@ public class StreamSeekTest {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
-        controller.createStream(SCOPE, streamName, config).get();
+        controller.createStream(SCOPE, streamName, config).join();
     }
 }

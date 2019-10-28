@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -27,6 +28,7 @@ import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +50,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 
 /**
  * ZK Stream. It understands the following.
@@ -74,6 +78,7 @@ class ZKStream extends PersistentStreamBase {
     private static final String SEGMENTS_SEALED_SIZE_MAP_SHARD_PATH = STREAM_PATH + "/segmentsSealedSizeMapShardPath";
     private static final String SEGMENT_SEALED_EPOCH_PATH = STREAM_PATH + "/segmentSealedEpochPath";
     private static final String COMMITTING_TXNS_PATH = STREAM_PATH + "/committingTxns";
+    private static final String WRITER_POSITIONS_PATH = STREAM_PATH + "/writerPositions";
     private static final String WAITING_REQUEST_PROCESSOR_PATH = STREAM_PATH + "/waitingRequestProcessor";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
     private static final String ID_PATH = STREAM_PATH + "/id";
@@ -102,6 +107,7 @@ class ZKStream extends PersistentStreamBase {
     private final String historyTimeSeriesChunkPathFormat;
     private final String segmentSealedEpochPathFormat;
     private final String segmentsSealedSizeMapShardPathFormat;
+    private final String writerPositionsPath;
 
     private final Supplier<Integer> currentBatchSupplier;
     private final Executor executor;
@@ -149,7 +155,7 @@ class ZKStream extends PersistentStreamBase {
         historyTimeSeriesChunkPathFormat = String.format(HISTORY_TIMESERIES_CHUNK_PATH, scopeName, streamName) + "/%d";
         segmentSealedEpochPathFormat = String.format(SEGMENT_SEALED_EPOCH_PATH, scopeName, streamName) + "/%d";
         segmentsSealedSizeMapShardPathFormat = String.format(SEGMENTS_SEALED_SIZE_MAP_SHARD_PATH, scopeName, streamName) + "/%d";
-
+        writerPositionsPath = String.format(WRITER_POSITIONS_PATH, scopeName, streamName);
         idRef = new AtomicReference<>();
         this.currentBatchSupplier = currentBatchSupplier;
         this.executor = executor;
@@ -664,6 +670,50 @@ class ZKStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Void> deleteWaitingRequestNode() {
         return store.deletePath(waitingRequestProcessorPath, false);
+    }
+
+    @Override
+    CompletableFuture<Void> createWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position) {
+        String writerPath = getWriterPath(writer);
+        WriterMark mark = new WriterMark(timestamp, position);
+        return Futures.toVoid(store.createZNode(writerPath, mark.toBytes()));
+    }
+
+    @Override
+    public CompletableFuture<Void> removeWriterRecord(String writer, Version version) {
+        String writerPath = getWriterPath(writer);
+        return store.deleteNode(writerPath, version);
+    }
+
+    @Override
+    CompletableFuture<VersionedMetadata<WriterMark>> getWriterMarkRecord(String writer) {
+        String writerPath = getWriterPath(writer);
+        return store.getData(writerPath, WriterMark::fromBytes);
+    }
+
+    @Override
+    CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position,
+                                                   boolean isAlive, Version version) {
+        String writerPath = getWriterPath(writer);
+        WriterMark mark = new WriterMark(timestamp, position, isAlive);
+
+        return Futures.toVoid(store.setData(writerPath, mark.toBytes(), version));
+    }
+
+    private String getWriterPath(String writer) {
+        return ZKPaths.makePath(writerPositionsPath, writer);
+    }
+
+    @Override
+    public CompletableFuture<Map<String, WriterMark>> getAllWriterMarks() {
+        return store.getChildren(writerPositionsPath)
+                .thenCompose(children -> {
+                    return Futures.allOfWithResults(children.stream().collect(Collectors.toMap(writer -> writer, 
+                            writer -> Futures.exceptionallyExpecting(getWriterMark(writer), 
+                                    DATA_NOT_FOUND_PREDICATE, WriterMark.EMPTY))))
+                            .thenApply(map -> map.entrySet().stream().filter(x -> !x.getValue().equals(WriterMark.EMPTY))
+                                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+                });
     }
 
     @Override

@@ -60,6 +60,7 @@ import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
 import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
@@ -658,11 +659,32 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, Supplier<CompletableFuture<T>> futureSupplier) {
         String id = UUID.randomUUID().toString();
-        return streamMetadataStore.addRequestToIndex(context.getHostId(), id, event)
-                           .thenCompose(v -> futureSupplier.get())
-                           .thenCompose(t -> RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event), e -> { }, executor)
-                                                        .thenCompose(v -> streamMetadataStore.removeTaskFromIndex(context.getHostId(), id))
-                                                        .thenApply(v -> t));
+        // We first add index and then call the metadata update.
+        //  While trying to perform a metadata update, upon getting a connection exception or a write conflict exception 
+        // (which can also occur if we had retried on a store exception), we will still post the event because we
+        //  don't know whether our update succeeded. Posting the event is harmless, though. If the update
+        // has succeeded, then the event will be used for processing. If the update had failed, then the event
+        // will be discarded. We will throw the exception that we received from running futureSupplier or return the
+        // successful value
+        return streamMetadataStore.addRequestToIndex(context.getHostId(), id, event) 
+            .thenCompose(v -> Futures.handleCompose(futureSupplier.get(),
+                (r, e) -> {
+                    if (e == null || (Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException ||
+                            Exceptions.unwrap(e) instanceof StoreException.WriteConflictException)) {
+                        return RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event),
+                                ex -> log.warn("writing event failed with {}", ex.getMessage()), executor)
+                                          .thenCompose(z -> streamMetadataStore.removeTaskFromIndex(context.getHostId(), id))
+                                          .thenApply(vd -> {
+                                              if (e != null) {
+                                                  throw new CompletionException(e);
+                                              } else {
+                                                  return r;
+                                              }
+                                          });
+                    } else {
+                        throw new CompletionException(e);
+                    }
+                }));
     }
     
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
@@ -711,6 +733,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                            .map(x -> StreamSegmentNameUtils.computeSegmentId(x, 0))
                                                            .collect(Collectors.toList());
                         return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken(), requestId)
+                                .thenCompose(v -> createMarkStream(scope, stream, timestamp, requestId))
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
@@ -751,6 +774,34 @@ public class StreamMetadataTasks extends TaskBase {
                         return result;
                     }
                 });
+    }
+
+    /**
+     * Method to create mark stream linked to the base stream. Mark Stream is a special single segmented dedicated internal stream where
+     * watermarks for the said stream are stored. 
+     * @param scope scope for base stream
+     * @param baseStream name of base stream
+     * @param timestamp timestamp 
+     * @param requestId request id for stream creation. 
+     * @return Completable future which is completed successfully when the internal mark stream is created
+     */
+    private CompletableFuture<Void> createMarkStream(String scope, String baseStream, long timestamp, long requestId) {
+        String markStream = NameUtils.getMarkStreamForStream(baseStream);
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        return this.streamMetadataStore.createStream(scope, markStream, config, timestamp, null, executor)
+                                .thenCompose(response -> {
+                                    final long segmentId = StreamSegmentNameUtils.computeSegmentId(response.getStartingSegmentNumber(), 0);
+                                    return notifyNewSegment(scope, markStream, segmentId, response.getConfiguration().getScalingPolicy(),
+                                            this.retrieveDelegationToken(), requestId);
+                                })
+                                .thenCompose(v -> {
+                                    final OperationContext context = streamMetadataStore.createContext(scope, markStream);
+
+                                    return streamMetadataStore.getVersionedState(scope, markStream, context, executor)
+                                                       .thenCompose(state -> 
+                                                               Futures.toVoid(streamMetadataStore.updateVersionedState(scope, markStream, State.ACTIVE,
+                                                               state, context, executor)));
+                                });
     }
 
     private CreateStreamStatus.Status translate(CreateStreamResponse.CreateStatus status) {
@@ -824,9 +875,9 @@ public class StreamMetadataTasks extends TaskBase {
                 segmentCut.getValue(), delegationToken, requestId), executor));
     }
 
-    public CompletableFuture<Map<Long, Long>> getSealedSegmentsSize(String scope, String stream, List<Long> sealedSegments, String delegationToken) {
+    public CompletableFuture<Map<Long, Long>> getSealedSegmentsSize(String scope, String stream, List<Long> segments, String delegationToken) {
         return Futures.allOfWithResults(
-                sealedSegments
+                segments
                         .stream()
                         .parallel()
                         .collect(Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x, delegationToken))));
@@ -943,6 +994,11 @@ public class StreamMetadataTasks extends TaskBase {
                 segmentNumber,
                 txnId,
                 this.retrieveDelegationToken()), executor);
+    }
+
+    public CompletableFuture<Map<Long, Long>> getCurrentSegmentSizes(String scope, String stream, List<Long> segments) {
+        return Futures.allOfWithResults(segments.stream().collect(
+                Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x, this.retrieveDelegationToken()))));
     }
 
     @Override
