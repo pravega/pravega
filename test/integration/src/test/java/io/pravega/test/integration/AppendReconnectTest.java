@@ -37,6 +37,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
+import io.pravega.segmentstore.server.host.handler.ConnectionTracker;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor;
 import io.pravega.segmentstore.server.host.handler.ServerConnectionInboundHandler;
@@ -104,7 +105,7 @@ public class AppendReconnectTest {
     }
 
     static EmbeddedChannel createChannel(StreamSegmentStore store) {
-        ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
+        ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler(new ConnectionTracker());
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
                 new CommandEncoder(null),
                 new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),

@@ -55,7 +55,6 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -71,12 +70,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final int HIGH_WATER_MARK = 8 * WireCommands.MAX_WIRECOMMAND_SIZE; // 64MB. TODO make this smarter.
-    private static final int LOW_WATER_MARK = (int) (HIGH_WATER_MARK * 0.75);
     private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore store;
     private final ServerConnection connection;
-    private final AtomicLong pendingBytes = new AtomicLong(0);
 
     @Getter
     private final RequestProcessor nextRequestProcessor;
@@ -189,8 +185,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
         Preconditions.checkState(state != null, "Data from unexpected connection: %s.", id);
         long previousEventNumber = state.updateLastEventNumber(append.getEventNumber());
-        adjustPendingBytes(append.getData().readableBytes());
-        pauseOrResumeReading();
+        this.connection.adjustOutstandingBytes(append.getData().readableBytes());
         Timer timer = new Timer();
         storeAppend(append, previousEventNumber)
                 .whenCompleteAsync((length, ex) -> {
@@ -199,8 +194,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 })
                 .whenComplete((v, e) -> {
                     append.getData().release();
-                    adjustPendingBytes(-append.getData().readableBytes());
-                    pauseOrResumeReading();
+                    this.connection.adjustOutstandingBytes(-append.getData().readableBytes());
                 });
     }
 
@@ -317,45 +311,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
         }
-    }
-
-    /**
-     * If there is too much data waiting throttle the producer by stopping consumption from the socket.
-     * If there is room for more data, we resume consuming from the socket.
-     */
-    private void pauseOrResumeReading() {
-        long bytesWaiting = getPendingBytes();
-
-        if (bytesWaiting > HIGH_WATER_MARK) {
-            log.debug("Pausing writing from connection {}", connection);
-            connection.pauseReading();
-        }
-        if (bytesWaiting < LOW_WATER_MARK) {
-            log.trace("Resuming writing from connection {}", connection);
-            connection.resumeReading();
-        }
-    }
-
-    /**
-     * return the remaining bytes to be consumed.
-     */
-    protected long getPendingBytes() {
-        return pendingBytes.get();
-    }
-
-    /**
-     * set the remaining bytes to be consumed.
-     * Make sure that negative value is not set.
-     *
-     * @param val  New value to set.
-     */
-    @Deprecated
-    protected void setPendingBytes(long val) {
-        pendingBytes.set(Math.max(val, 0));
-    }
-
-    private void adjustPendingBytes(long delta) {
-        this.pendingBytes.updateAndGet(prev -> prev + delta);
     }
 
     //endregion
