@@ -195,7 +195,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
 
     //region SegmentHandler
 
-    private class SegmentHandler implements ServerConnection {
+    private static class SegmentHandler implements ServerConnection {
         private final String segmentName;
         private final AppendProcessor appendProcessor;
         private final int producerCount;
