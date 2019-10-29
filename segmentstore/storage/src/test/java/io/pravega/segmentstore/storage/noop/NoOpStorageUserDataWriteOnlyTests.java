@@ -97,6 +97,41 @@ public class NoOpStorageUserDataWriteOnlyTests extends StorageTestBase {
         }
     }
 
+    @Test
+    public void testExist() {
+        String segmentName = "foo_exist";
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+            assertFutureThrows("exists() did not throw UnsupportedOperationException.",
+                    s.exists(segmentName, TIMEOUT),
+                    ex -> ex instanceof UnsupportedOperationException);
+        }
+    }
+
+    @Test
+    public void testUnseal() throws Exception {
+        StorageExtraConfig config = StorageExtraConfig.builder().build();
+        NoOpStorage.NoOpSegmentHandle handle = new NoOpStorage.NoOpSegmentHandle("foo_unseal");
+        NoOpStorage storage = new NoOpStorage(config, systemStorage, null);
+        storage.unseal(handle);
+    }
+
+    @Test
+    public void testTruncate() throws Exception {
+        StorageExtraConfig config = StorageExtraConfig.builder().build();
+        NoOpStorage.NoOpSegmentHandle handle = new NoOpStorage.NoOpSegmentHandle("foo_truncate");
+        NoOpStorage storage = new NoOpStorage(config, systemStorage, null);
+        storage.truncate(handle, 0);
+    }
+
+    @Test
+    public void testSupportTruncation() throws Exception {
+        StorageExtraConfig config = StorageExtraConfig.builder().build();
+        NoOpStorage.NoOpSegmentHandle handle = new NoOpStorage.NoOpSegmentHandle("foo_supportTruncation");
+        NoOpStorage storage = new NoOpStorage(config, systemStorage, null);
+        assertEquals(systemStorage.supportsTruncation(), storage.supportsTruncation());
+    }
+
     @Override
     @Test
     public void testWrite() throws Exception {
@@ -125,9 +160,10 @@ public class NoOpStorageUserDataWriteOnlyTests extends StorageTestBase {
         final String segmentName = "TestRead";
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
+            val segmentHandle = s.openWrite(segmentName).join();
 
-            assertFutureThrows("openRead() did not throw UnsupportedOperationException.",
-                    s.openRead(segmentName),
+            assertFutureThrows("read() did not throw UnsupportedOperationException.",
+                    s.read(segmentHandle, 0, null, 0, 0, TIMEOUT),
                     ex -> ex instanceof UnsupportedOperationException);
         }
     }
