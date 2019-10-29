@@ -25,7 +25,6 @@ import org.junit.Before;
 public class NoOpStorageSystemDataWriteReadTests extends StorageTestBase {
 
     private SyncStorage systemStorage;
-    private SyncStorage userStorage;
     private StorageExtraConfig config;
 
     @Before
@@ -33,13 +32,12 @@ public class NoOpStorageSystemDataWriteReadTests extends StorageTestBase {
         //In this test only system segments are being tested.
         isTestingSystemSegment = true;
         systemStorage = new InMemoryStorageFactory(executorService()).createSyncStorage();
-        userStorage = null;
         config = StorageExtraConfig.builder().with(StorageExtraConfig.STORAGE_NO_OP_MODE, true).build();
     }
 
     @Override
     protected Storage createStorage() {
-        return new AsyncStorageWrapper(new NoOpStorage(config, systemStorage, userStorage), executorService());
+        return new AsyncStorageWrapper(new NoOpStorage(config, systemStorage, null), executorService());
     }
 
     @Override
