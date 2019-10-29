@@ -15,9 +15,14 @@ import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import org.junit.Before;
-import org.junit.Ignore;
 
-public class NoOpStorageWriteReadTests extends StorageTestBase {
+/**
+ * This is to test Storage in No-Op mode for system segments only.
+ *
+ * For system segment storage, operations on both directions (write and read) should just work as before.
+ * In other words, No-Op layer is totally transparent for system segments.
+ */
+public class NoOpStorageSystemDataWriteReadTests extends StorageTestBase {
 
     private SyncStorage systemStorage;
     private SyncStorage userStorage;
@@ -25,8 +30,10 @@ public class NoOpStorageWriteReadTests extends StorageTestBase {
 
     @Before
     public void setUp() {
+        //In this test only system segments are being tested.
+        isTestingSystemSegment = true;
         systemStorage = new InMemoryStorageFactory(executorService()).createSyncStorage();
-        userStorage = new InMemoryStorageFactory(executorService()).createSyncStorage();
+        userStorage = null;
         config = StorageExtraConfig.builder().with(StorageExtraConfig.STORAGE_NO_OP_MODE, true).build();
     }
 
@@ -36,8 +43,7 @@ public class NoOpStorageWriteReadTests extends StorageTestBase {
     }
 
     @Override
-    @Ignore
-    public void testFencing() throws Exception {
+    public void testFencing() {
     }
 
 }

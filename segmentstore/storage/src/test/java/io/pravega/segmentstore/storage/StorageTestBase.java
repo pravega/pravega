@@ -47,6 +47,8 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     protected static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final int SEGMENT_COUNT = 4;
 
+    protected boolean isTestingSystemSegment = false;
+
     @Override
     protected int getThreadPoolSize() {
         return 5;
@@ -61,7 +63,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testCreate() {
-        String segmentName = "foo_open";
+        String segmentName = createSegmentName("foo_open");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
             createSegment(segmentName, s);
@@ -82,7 +84,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testDelete() {
-        String segmentName = "foo_open";
+        String segmentName = createSegmentName("foo_open");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
             createSegment(segmentName, s);
@@ -101,7 +103,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testOpen() {
-        String segmentName = "foo_open";
+        String segmentName = createSegmentName("foo_open");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
 
@@ -123,7 +125,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testWrite() throws Exception {
-        String segmentName = "foo_write";
+        String segmentName = createSegmentName("foo_write");
         int appendCount = 10;
 
         try (Storage s = createStorage()) {
@@ -179,7 +181,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testRead() throws Exception {
-        final String context = "Read";
+        final String context = createSegmentName("Read");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
 
@@ -247,7 +249,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testSeal() throws Exception {
-        final String context = "Seal";
+        final String context = createSegmentName("Seal");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
 
@@ -297,7 +299,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testConcat() throws Exception {
-        final String context = "Concat";
+        final String context = createSegmentName("Concat");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
@@ -305,7 +307,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             // Check invalid segment name.
             val firstSegmentName = getSegmentName(0, context);
             val firstSegmentHandle = s.openWrite(firstSegmentName).join();
-            val sealedSegmentName = "SealedSegment";
+            val sealedSegmentName = createSegmentName("SealedSegment");
             createSegment(sealedSegmentName, s);
             val sealedSegmentHandle = s.openWrite(sealedSegmentName).join();
             s.write(sealedSegmentHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT).join();
@@ -484,7 +486,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     protected SegmentHandle createInexistentSegmentHandle(Storage s, boolean readOnly) {
         Random rnd = RandomFactory.create();
-        String segmentName = "Inexistent_" + MathHelpers.abs(rnd.nextInt());
+        String segmentName = (isTestingSystemSegment ? "_" : "") + "Inexistent_" + MathHelpers.abs(rnd.nextInt());
         createSegment(segmentName, s);
         return (readOnly ? s.openRead(segmentName) : s.openWrite(segmentName))
                 .thenCompose(handle -> s.openWrite(segmentName)
@@ -495,6 +497,14 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     protected void createSegment(String name, Storage s) {
         s.create(name, null).join();
+    }
+
+    protected String createSegmentName(String originName) {
+        if (isTestingSystemSegment) {
+            return "_" + originName;
+        } else {
+            return originName;
+        }
     }
 
     //endregion
