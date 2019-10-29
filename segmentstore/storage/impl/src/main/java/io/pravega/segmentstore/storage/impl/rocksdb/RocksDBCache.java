@@ -26,10 +26,6 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.BlockBasedTableConfig;
 import org.rocksdb.Env;
-import org.rocksdb.BloomFilter;
-import org.rocksdb.CompactionStyle;
-import org.rocksdb.IndexType;
-import org.rocksdb.LRUCache;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -251,10 +247,7 @@ class RocksDBCache implements Cache {
         BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
                 .setBlockSize(cacheBlockSizeKB * 1024L)
                 .setBlockCacheSize(readCacheSizeMB * 1024L * 1024L)
-                .setBlockCache(new LRUCache(readCacheSizeMB * 1024L * 1024L, 4))
-                .setCacheIndexAndFilterBlocks(true)
-                .setIndexType(IndexType.kHashSearch)
-                .setFilter(new BloomFilter());
+                .setCacheIndexAndFilterBlocks(true);
 
         Options options = new Options()
                 .setCreateIfMissing(true)
@@ -269,14 +262,10 @@ class RocksDBCache implements Cache {
                 .setOptimizeFiltersForHits(true)
                 .setUseDirectReads(this.directReads)
                 .setSkipStatsUpdateOnDbOpen(true)
-                .optimizeForPointLookup(readCacheSizeMB * 1024L * 1024L)
                 .setIncreaseParallelism(INTERNAL_ROCKSDB_PARALLELISM)
                 .setMaxBackgroundFlushes(INTERNAL_ROCKSDB_PARALLELISM / 2)
                 .setMaxBackgroundJobs(INTERNAL_ROCKSDB_PARALLELISM)
-                .setCompactionStyle(CompactionStyle.LEVEL)
-                .optimizeLevelStyleCompaction()
-                .setMaxBackgroundCompactions(INTERNAL_ROCKSDB_PARALLELISM)
-                .setLevelCompactionDynamicLevelBytes(true);
+                .setMaxBackgroundCompactions(INTERNAL_ROCKSDB_PARALLELISM);
 
         if (this.memoryOnly) {
             Env env = new RocksMemEnv();
