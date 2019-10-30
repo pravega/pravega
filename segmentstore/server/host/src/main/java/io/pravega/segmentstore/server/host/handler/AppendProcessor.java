@@ -185,16 +185,17 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
         Preconditions.checkState(state != null, "Data from unexpected connection: %s.", id);
         long previousEventNumber = state.updateLastEventNumber(append.getEventNumber());
-        this.connection.adjustOutstandingBytes(append.getData().readableBytes());
+        int appendLength = append.getData().readableBytes();
+        this.connection.adjustOutstandingBytes(appendLength);
         Timer timer = new Timer();
         storeAppend(append, previousEventNumber)
-                .whenCompleteAsync((length, ex) -> {
+                .whenComplete((length, ex) -> {
                     handleAppendResult(append, length, ex, timer);
                     LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, ex);
                 })
                 .whenComplete((v, e) -> {
                     append.getData().release();
-                    this.connection.adjustOutstandingBytes(-append.getData().readableBytes());
+                    this.connection.adjustOutstandingBytes(-appendLength);
                 });
     }
 
@@ -210,7 +211,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
-    private void handleAppendResult(final Append append, long newWriteOffset, Throwable exception, Timer elapsedTimer) {
+    private void handleAppendResult(final Append append, Long newWriteOffset, Throwable exception, Timer elapsedTimer) {
         boolean success = exception == null;
         try {
             boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
@@ -218,8 +219,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             if (success) {
                 WriterState state = this.writerStates.getOrDefault(Pair.of(append.getSegment(), append.getWriterId()), null);
                 synchronized (this.ackLock) {
-                    // TODO acks must be sent in order. Can we do it without this lock?
-                    long previousLastAcked = state == null ? WriterState.DEFAULT_EVENT_NUMBER : state.updateLastAckedEventNumber(append.getEventNumber());
+                    // Acks must be sent in order. The only way to do this is by using a lock.
+                    long previousLastAcked = state == null ? Long.MIN_VALUE : state.updateLastAckedEventNumber(append.getEventNumber());
                     if (previousLastAcked < append.getEventNumber()) {
                         final DataAppended dataAppendedAck = new DataAppended(append.getRequestId(), append.getWriterId(), append.getEventNumber(),
                                 previousLastAcked, newWriteOffset);
@@ -318,7 +319,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     //region WriterState
 
     private static class WriterState {
-        static final long DEFAULT_EVENT_NUMBER = Long.MIN_VALUE;
         @GuardedBy("this")
         private long lastStoredEventNumber;
         @GuardedBy("this")
@@ -326,7 +326,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         WriterState(long initialEventNumber) {
             this.lastStoredEventNumber = initialEventNumber;
-            this.lastAckedEventNumber = DEFAULT_EVENT_NUMBER;
+            this.lastAckedEventNumber = initialEventNumber;
         }
 
         synchronized long updateLastEventNumber(long eventNumber) {
