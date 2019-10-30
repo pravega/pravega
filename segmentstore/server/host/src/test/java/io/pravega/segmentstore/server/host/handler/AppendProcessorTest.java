@@ -423,6 +423,54 @@ public class AppendProcessorTest {
         verifyNoMoreInteractions(store);
     }
 
+    /**
+     * Verifies that appends are "pipelined" into the underlying store and that acks are sent as appropriate via the
+     * connection when they complete.
+     */
+    @Test(timeout = 15 * 1000)
+    public void testAppendPipelining() {
+        String streamSegmentName = "scope/stream/testAppendSegment";
+        UUID clientId = UUID.randomUUID();
+        byte[] data1 = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        byte[] data2 = new byte[]{1, 2, 3, 4, 5};
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
+
+        setupGetAttributes(streamSegmentName, clientId, store);
+        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+
+        // Initiate two appends in short sequence, and simulate the Store blocking on both of them.
+        val store1 = new CompletableFuture<Long>();
+        val ac1 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 1, 0, 1), store1);
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data1), null, requestId));
+        val store2 = new CompletableFuture<Long>();
+        val ac2 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 2, 1, 1), store2);
+        processor.append(new Append(streamSegmentName, clientId, 2, 1, Unpooled.wrappedBuffer(data2), null, requestId));
+        verifyStoreAppend(ac1, data1);
+        verifyStoreAppend(ac2, data2);
+        verify(connection).adjustOutstandingBytes(data1.length);
+        verify(connection).adjustOutstandingBytes(data2.length);
+
+        // Complete the second one (this simulates acks arriving out of order from the store).
+        store2.complete(100L);
+
+        // Verify an ack is sent for both appends (because of pipelining guarantees), but only the second append's length
+        // is subtracted from the outstanding bytes.
+        verify(connection).send(new DataAppended(requestId, clientId, 2, 0L, 100L));
+        verify(connection).adjustOutstandingBytes(-data2.length);
+        verifyNoMoreInteractions(connection);
+
+        // Complete the first one, and verify that no additional acks are sent via the connection, but the first append's
+        // length is subtracted from the outstanding bytes.
+        store1.complete(50L);
+        verify(connection).adjustOutstandingBytes(-data1.length);
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+    }
+
     @Test
     public void testEventNumbersOldClient() {
         String streamSegmentName = "scope/stream/testAppendSegment";
