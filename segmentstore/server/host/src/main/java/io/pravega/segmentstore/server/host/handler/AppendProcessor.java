@@ -193,8 +193,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, ex);
                 })
                 .whenComplete((v, e) -> {
-                    append.getData().release();
                     this.connection.adjustOutstandingBytes(-appendLength);
+                    append.getData().release();
                 });
     }
 
@@ -217,7 +217,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
             if (success) {
                 WriterState state = this.writerStates.getOrDefault(Pair.of(append.getSegment(), append.getWriterId()), null);
-                Preconditions.checkState(state != null, "Synchronization error in while processing append: %s. Unable to send ack.", append);
+                Preconditions.checkState(state != null, "Synchronization error while processing append: %s. Unable to send ack.", append);
                 synchronized (state) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
                     long previousLastAcked = state.updateLastAckedEventNumber(append.getEventNumber());
