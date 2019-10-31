@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,12 @@ import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
  * Unit tests for the StreamSegmentService using NoOpStorage.
  * Note this end-to-end test does not include the verification of segment content,
- * because user segment is not written to storage.
+ * because user segment write operation is no-oped.
  */
 @Slf4j
 public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTestBase {
@@ -30,14 +29,13 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
     private NoOpStorageFactory storageFactory;
     private InMemoryDurableDataLogFactory durableDataLogFactory;
     private InMemoryStorageFactory systemStorageFactory;
-    // userStorageFactory is null, all user segment write operations are no-oped.
-    private final InMemoryStorageFactory userStorageFactory = null;
 
     @Before
     public void setUp() {
         this.systemStorageFactory = new InMemoryStorageFactory(executorService());
         StorageExtraConfig config = StorageExtraConfig.builder().with(StorageExtraConfig.STORAGE_NO_OP_MODE, true).build();
-        this.storageFactory = new NoOpStorageFactory(config, executorService(), systemStorageFactory, userStorageFactory);
+        //Note userStorageFactory is null, then all user segment write operations are no-oped
+        this.storageFactory = new NoOpStorageFactory(config, executorService(), systemStorageFactory, null);
         this.durableDataLogFactory = new StreamSegmentServiceTests.PermanentDurableDataLogFactory(executorService());
     }
 
@@ -62,41 +60,22 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
     }
 
     /**
-     * Ignore testEndToEnd because it includes segment content verification,
-     * which is not possible when write is no-oped.
+     * Trigger the endToEndProcess without the verification of segment content.
+     * It is not possible to verify segment content when write is no-oped.
      */
     @Override
-    @Ignore
-    public void testEndToEnd() throws Exception {
-    }
-
-    /**
-     * Ignore testEndToEndWithFenching because it includes segment content verification,
-     * which is not possible when write is no-oped.
-     */
-    @Override
-    @Ignore
-    public void testEndToEndWithFencing() throws Exception {
-    }
-
-    /**
-     * Trigger the endToEndProcess without verification of segment content.
-     *
-     * @throws Exception
-     */
     @Test
-    public void testEndToEndWriteOnly() throws Exception {
+    public void testEndToEnd() throws Exception {
         endToEndProcess(false);
     }
 
     /**
-     * Trigger the endToEndProcessWithFencing without verification of segment content.
-     *
-     * @throws Exception
+     * Trigger the endToEndProcessWithFencing without the verification of segment content.
+     * It is not possible to verify segment content when write is no-oped.
      */
+    @Override
     @Test
-    public void testEndToEndWithFenchingWriteOnly() throws Exception {
+    public void testEndToEndWithFencing() throws Exception {
         endToEndProcessWithFencing(false);
     }
-
 }

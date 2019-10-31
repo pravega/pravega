@@ -30,7 +30,7 @@ public class NoOpStorageSystemDataWriteReadTests extends StorageTestBase {
     @Before
     public void setUp() {
         //In this test only system segments are being tested.
-        isTestingSystemSegment = true;
+        setTestingSystemSegment(true);
         systemStorage = new InMemoryStorageFactory(executorService()).createSyncStorage();
         config = StorageExtraConfig.builder().with(StorageExtraConfig.STORAGE_NO_OP_MODE, true).build();
     }
@@ -40,6 +40,10 @@ public class NoOpStorageSystemDataWriteReadTests extends StorageTestBase {
         return new AsyncStorageWrapper(new NoOpStorage(config, systemStorage, null), executorService());
     }
 
+    /**
+     * This method intentionally left blank as it's out of concern for No-Op Storage.
+     * It must be here as it is defined as abstract method in super class.
+     */
     @Override
     public void testFencing() {
     }

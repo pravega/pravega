@@ -24,20 +24,21 @@ import lombok.extern.slf4j.Slf4j;
  * for this purpose.
  * The custom storage implementation is required to implement {@link StorageFactoryCreator} interface.
  *
+ * If storageextra.storageNoOpMode is set to true, then instance of NoOpStorageFactory is returned which wraps the storage implementation factory.
  */
 @Slf4j
 public class StorageLoader {
     public StorageFactory load(ConfigSetup setup, String storageImplementation, ScheduledExecutorService executor) {
         ServiceLoader<StorageFactoryCreator> loader = ServiceLoader.load(StorageFactoryCreator.class);
+        StorageExtraConfig noOpConfig = setup.getConfig(StorageExtraConfig::builder);
         for (StorageFactoryCreator factoryCreator : loader) {
             log.info("Loading {}, trying {}", storageImplementation, factoryCreator.getName());
             if (factoryCreator.getName().equals(storageImplementation)) {
                 StorageFactory factory = factoryCreator.createFactory(setup, executor);
-                StorageExtraConfig noOpConfig = setup.getConfig(StorageExtraConfig::builder);
                 if (!noOpConfig.isStorageNoOpMode()) {
                     return factory;
-                } else { //No-Op mode is set to true
-                    log.info("WARNING !!! {} is in NO-OP MODE: make sure this is by full intention for testing purpose!", storageImplementation);
+                } else { //The specified storage implementation is in No-Op mode.
+                    log.warn("{} IS IN NO-OP MODE: DATA LOSS WILL HAPPEN! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);
                     return new NoOpStorageFactory(noOpConfig, executor, factory, null);
                 }
             }

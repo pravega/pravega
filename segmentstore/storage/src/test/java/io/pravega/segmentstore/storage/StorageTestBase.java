@@ -27,6 +27,10 @@ import java.util.HashMap;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
+
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -35,6 +39,7 @@ import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static io.pravega.test.common.AssertExtensions.assertSuppliedFutureThrows;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
+import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
 /**
  * Base class for testing any implementation of the Storage interface.
  */
@@ -47,7 +52,9 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     protected static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final int SEGMENT_COUNT = 4;
 
-    protected boolean isTestingSystemSegment = false;
+    @Getter(AccessLevel.PROTECTED)
+    @Setter(AccessLevel.PROTECTED)
+    private boolean isTestingSystemSegment = false;
 
     @Override
     protected int getThreadPoolSize() {
@@ -486,7 +493,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     protected SegmentHandle createInexistentSegmentHandle(Storage s, boolean readOnly) {
         Random rnd = RandomFactory.create();
-        String segmentName = (isTestingSystemSegment ? "_" : "") + "Inexistent_" + MathHelpers.abs(rnd.nextInt());
+        String segmentName = (isTestingSystemSegment() ? INTERNAL_NAME_PREFIX : "") + "Inexistent_" + MathHelpers.abs(rnd.nextInt());
         createSegment(segmentName, s);
         return (readOnly ? s.openRead(segmentName) : s.openWrite(segmentName))
                 .thenCompose(handle -> s.openWrite(segmentName)
@@ -500,8 +507,8 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     }
 
     protected String createSegmentName(String originName) {
-        if (isTestingSystemSegment) {
-            return "_" + originName;
+        if (isTestingSystemSegment()) {
+            return INTERNAL_NAME_PREFIX + originName;
         } else {
             return originName;
         }

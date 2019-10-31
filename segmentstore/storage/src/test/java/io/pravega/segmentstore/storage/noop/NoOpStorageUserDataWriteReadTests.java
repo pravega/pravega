@@ -33,7 +33,7 @@ public class NoOpStorageUserDataWriteReadTests extends StorageTestBase {
     @Before
     public void setUp() {
         //Inside this test only user segments are being tested.
-        isTestingSystemSegment = false;
+        setTestingSystemSegment(false);
         systemStorage = new InMemoryStorageFactory(executorService()).createSyncStorage();
         userStorage = new InMemoryStorageFactory(executorService()).createSyncStorage();
         config = StorageExtraConfig.builder().with(StorageExtraConfig.STORAGE_NO_OP_MODE, true).build();

@@ -23,9 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 public class StorageExtraConfig {
 
     public static final Property<Boolean> STORAGE_NO_OP_MODE = Property.named("storageNoOpMode", false);
-    public static final Property<Integer> STORAGE_WRITE_NO_OP_LATENCY = Property.named("storageWriteNoOpLatencyMilli", 20);
+    public static final Property<Integer> STORAGE_WRITE_NO_OP_LATENCY = Property.named("storageWriteNoOpLatencyMillis", 20);
     private static final String COMPONENT_CODE = "storageextra";
-
 
     /**
      * Latency in milliseconds applied for storage write in no-op mode
