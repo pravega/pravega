@@ -55,7 +55,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import javax.annotation.concurrent.GuardedBy;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
@@ -80,7 +80,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
-    private final Object ackLock = new Object();
 
     //endregion
 
@@ -218,9 +217,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
             if (success) {
                 WriterState state = this.writerStates.getOrDefault(Pair.of(append.getSegment(), append.getWriterId()), null);
-                synchronized (this.ackLock) {
+                Preconditions.checkState(state != null, "Synchronization error in while processing append: %s. Unable to send ack.", append);
+                synchronized (state) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
-                    long previousLastAcked = state == null ? Long.MIN_VALUE : state.updateLastAckedEventNumber(append.getEventNumber());
+                    long previousLastAcked = state.updateLastAckedEventNumber(append.getEventNumber());
                     if (previousLastAcked < append.getEventNumber()) {
                         final DataAppended dataAppendedAck = new DataAppended(append.getRequestId(), append.getWriterId(), append.getEventNumber(),
                                 previousLastAcked, newWriteOffset);
@@ -319,34 +319,28 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     //region WriterState
 
     private static class WriterState {
-        @GuardedBy("this")
-        private long lastStoredEventNumber;
-        @GuardedBy("this")
-        private long lastAckedEventNumber;
+        private final AtomicLong lastStoredEventNumber;
+        private final AtomicLong lastAckedEventNumber;
 
         WriterState(long initialEventNumber) {
-            this.lastStoredEventNumber = initialEventNumber;
-            this.lastAckedEventNumber = initialEventNumber;
+            this.lastStoredEventNumber = new AtomicLong(initialEventNumber);
+            this.lastAckedEventNumber = new AtomicLong(initialEventNumber);
         }
 
-        synchronized long updateLastEventNumber(long eventNumber) {
-            long previousEventNumber = this.lastStoredEventNumber;
-            Preconditions.checkState(eventNumber >= previousEventNumber, "Event was already appended.");
-            this.lastStoredEventNumber = eventNumber;
-            return previousEventNumber;
+        long updateLastEventNumber(long eventNumber) {
+            return this.lastStoredEventNumber.getAndUpdate(previousEventNumber -> {
+                Preconditions.checkState(eventNumber >= previousEventNumber, "Event was already appended.");
+                return eventNumber;
+            });
         }
 
-        synchronized long updateLastAckedEventNumber(long eventNumber) {
-            long previousLastAcked = this.lastAckedEventNumber;
-            if (previousLastAcked < eventNumber) {
-                this.lastAckedEventNumber = eventNumber;
-            }
-            return previousLastAcked;
+        long updateLastAckedEventNumber(long eventNumber) {
+            return this.lastAckedEventNumber.getAndUpdate(previousLastAcked -> Math.max(previousLastAcked, eventNumber));
         }
 
         @Override
         public synchronized String toString() {
-            return String.format("Stored=%d, Acked=%d", this.lastStoredEventNumber, this.lastAckedEventNumber);
+            return String.format("Stored=%s, Acked=%s", this.lastStoredEventNumber, this.lastAckedEventNumber);
         }
     }
 
