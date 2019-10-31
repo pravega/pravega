@@ -128,51 +128,51 @@ class NoOpStorage implements SyncStorage {
     @Override
     public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
         return delegate(streamSegmentName,
-                (storage) -> storage.getStreamSegmentInfo(streamSegmentName),
+                storage -> storage.getStreamSegmentInfo(streamSegmentName),
                 "getStreamSegmentInfo() for user segment is not supported in NO-OP mode.");
     }
 
     @Override
     public boolean exists(String streamSegmentName) {
-        return delegateNoCheckedException(streamSegmentName, (storage) -> storage.exists(streamSegmentName), "exists() for user segment is not supported in NO-OP mode.");
+        return delegateNoCheckedException(streamSegmentName, storage -> storage.exists(streamSegmentName), "exists() for user segment is not supported in NO-OP mode.");
     }
 
     @Override
     public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
-        return delegate(handle.getSegmentName(), (storage) -> storage.read(handle, offset, buffer, bufferOffset, length),
+        return delegate(handle.getSegmentName(), storage -> storage.read(handle, offset, buffer, bufferOffset, length),
                 "read() of user segment is not supported in NO-OP mode.");
     }
 
     @Override
     public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentException {
         return delegate(streamSegmentName,
-                (storage) -> storage.openRead(streamSegmentName),
+                storage -> storage.openRead(streamSegmentName),
                 "openRead() of user segment is not supported in NO-OP mode.");
     }
 
     @Override
     public void seal(SegmentHandle handle) throws StreamSegmentException {
-        delegateNoOp(handle.getSegmentName(), (storage) -> storage.seal(handle));
+        delegateNoOp(handle.getSegmentName(), storage -> storage.seal(handle));
     }
 
     @Override
     public void unseal(SegmentHandle handle) throws StreamSegmentException {
-        delegateNoOp(handle.getSegmentName(), (storage) -> storage.unseal(handle));
+        delegateNoOp(handle.getSegmentName(), storage -> storage.unseal(handle));
     }
 
     @Override
     public void concat(SegmentHandle target, long offset, String sourceSegment) throws StreamSegmentException {
-        delegateNoOp(target.getSegmentName(), (storage) -> storage.concat(target, offset, sourceSegment));
+        delegateNoOp(target.getSegmentName(), storage -> storage.concat(target, offset, sourceSegment));
     }
 
     @Override
     public void delete(SegmentHandle handle) throws StreamSegmentException {
-        delegateNoOp(handle.getSegmentName(), (storage) -> storage.delete(handle));
+        delegateNoOp(handle.getSegmentName(), storage -> storage.delete(handle));
     }
 
     @Override
     public void truncate(SegmentHandle handle, long offset) throws StreamSegmentException {
-        delegateNoOp(handle.getSegmentName(), (storage) -> storage.truncate(handle, offset));
+        delegateNoOp(handle.getSegmentName(), storage -> storage.truncate(handle, offset));
     }
 
     @Override
@@ -190,7 +190,7 @@ class NoOpStorage implements SyncStorage {
      */
     @Override
     public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
-        delegateNoOp(handle.getSegmentName(), (storage) -> storage.write(handle, offset, data, length));
+        delegateNoOp(handle.getSegmentName(), storage -> storage.write(handle, offset, data, length));
     }
 
     @Override
