@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Tracks outstanding data for all connections and provides hints as to when to pause or resume reading from them.
  */
-class ConnectionTracker {
+public class ConnectionTracker {
     /**
      * Threshold under which any connection may be resumed, subject to total connections not exceeding
      * {@link #DEFAULT_ALL_CONNECTIONS_MAX_OUTSTANDING_BYTES}.
@@ -36,7 +36,7 @@ class ConnectionTracker {
     private final int singleConnectionDoubleLimit;
     private final AtomicLong totalOutstanding = new AtomicLong(0);
 
-    ConnectionTracker() {
+    public ConnectionTracker() {
         this(DEFAULT_ALL_CONNECTIONS_MAX_OUTSTANDING_BYTES, DEFAULT_SINGLE_CONNECTION_MAX_OUTSTANDING);
     }
 
