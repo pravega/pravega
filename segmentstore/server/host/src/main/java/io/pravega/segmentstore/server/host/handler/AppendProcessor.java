@@ -364,10 +364,22 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
 
         /**
-         * Invoked when an append has been successfully stored.
+         * Invoked when an append has been successfully stored and is about to be ack-ed to the Client.
          *
-         * @param eventNumber The Append's Event Number.
-         * @return The last successful Append's Event Number (prior to this one).
+         * This method is designed to be invoked immediately before sending a {@link DataAppended} ack to the client,
+         * however both its invocation and the ack must be sent atomically as the Client expects acks to arrive in order.
+         *
+         * When composing a {@link DataAppended} ack, the value passed to eventNumber should be passed as
+         * {@link DataAppended#getEventNumber()} and the return value from this method should be passed as
+         * {@link DataAppended#getPreviousEventNumber()}.
+         *
+         * @param eventNumber The Append's Event Number. This should correspond to the last successful append in the Store
+         *                    and will be sent in the {@link DataAppended} ack back to the Client. This value will be
+         *                    remembered and returned upon the next invocation of this method. If this value is less
+         *                    than that of a previous invocation of this method (due to out-of-order acks from the Store),
+         *                    it will have no effect as it has already been ack-ed as part of a previous call.
+         * @return The last successful Append's Event Number (prior to this one). This is the value of eventNumber for
+         * the previous invocation of this method.
          */
         synchronized long appendSuccessful(long eventNumber) {
             this.inFlightCount--;
