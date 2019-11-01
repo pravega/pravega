@@ -30,7 +30,7 @@ public class StorageExtraConfig {
      * Latency in milliseconds applied for storage write in no-op mode
      */
     @Getter
-    private final int storageWriteNoOpLatencyMill;
+    private final int storageWriteNoOpLatencyMillis;
 
     /**
      * Flag of No Operation Mode of the underlying tier-2 storage.
@@ -46,7 +46,7 @@ public class StorageExtraConfig {
      */
     private StorageExtraConfig(TypedProperties properties) throws ConfigurationException {
         this.storageNoOpMode = properties.getBoolean(STORAGE_NO_OP_MODE);
-        this.storageWriteNoOpLatencyMill = properties.getInt(STORAGE_WRITE_NO_OP_LATENCY);
+        this.storageWriteNoOpLatencyMillis = properties.getInt(STORAGE_WRITE_NO_OP_LATENCY);
     }
 
     public static ConfigBuilder<StorageExtraConfig> builder() {

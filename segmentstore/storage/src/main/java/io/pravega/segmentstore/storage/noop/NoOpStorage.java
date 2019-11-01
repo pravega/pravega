@@ -59,7 +59,7 @@ class NoOpStorage implements SyncStorage {
      */
     NoOpStorage(StorageExtraConfig config, SyncStorage baseStorage, SyncStorage storageForNoOp) {
         Preconditions.checkNotNull(config, "config");
-        this.writeNoOpLatencyMills = config.getStorageWriteNoOpLatencyMill();
+        this.writeNoOpLatencyMills = config.getStorageWriteNoOpLatencyMillis();
         this.baseStorage = Preconditions.checkNotNull(baseStorage, "baseStorage");
         this.storageForNoOp = storageForNoOp;
     }

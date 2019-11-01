@@ -20,15 +20,15 @@ public class StorageExtraConfigTest {
     @Test
     public void testDefault() {
         StorageExtraConfig defaultConfig = StorageExtraConfig.builder().build();
-        assertEquals(20, defaultConfig.getStorageWriteNoOpLatencyMill());
+        assertEquals(20, defaultConfig.getStorageWriteNoOpLatencyMillis());
         assertEquals(false, defaultConfig.isStorageNoOpMode());
     }
 
     @Test
     public void testLatency() {
         ConfigBuilder<StorageExtraConfig> builder = StorageExtraConfig.builder();
-        builder.with(Property.named("storageWriteNoOpLatencyMilli"), 50);
-        assertEquals(50, builder.build().getStorageWriteNoOpLatencyMill());
+        builder.with(Property.named("storageWriteNoOpLatencyMillis"), 50);
+        assertEquals(50, builder.build().getStorageWriteNoOpLatencyMillis());
     }
 
     @Test
