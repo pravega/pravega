@@ -18,10 +18,12 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
-import io.pravega.test.common.SecurityConfigDefaults;
+
 
 import java.io.FileNotFoundException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import io.pravega.shared.security.utils.SecurityConfigDefaults;
 import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;

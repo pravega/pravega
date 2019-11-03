@@ -8,9 +8,8 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.server.host.security;
-
 import io.netty.handler.ssl.SslContext;
-import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.shared.security.utils.SecurityConfigDefaults;
 import org.junit.Test;
 import java.io.File;
 import java.nio.file.WatchEvent;

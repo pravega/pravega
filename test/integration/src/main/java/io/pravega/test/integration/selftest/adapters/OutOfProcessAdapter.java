@@ -11,7 +11,6 @@ package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.lang.ProcessStarter;
 import io.pravega.common.util.Property;
@@ -23,6 +22,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.security.utils.SecurityConfigDefaults;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.io.File;

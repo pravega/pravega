@@ -15,11 +15,10 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.controller.event.AutoScaleEvent;
+import io.pravega.shared.security.utils.SecurityConfigDefaults;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.ThreadPooledTestSuite;
-
 import java.net.URI;
 import java.time.Duration;
 import java.util.UUID;
