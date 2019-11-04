@@ -40,7 +40,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
-import io.pravega.segmentstore.server.host.handler.ConnectionTracker;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor;
 import io.pravega.segmentstore.server.host.handler.ServerConnectionInboundHandler;
@@ -189,14 +188,18 @@ public class AppendTest {
     }
 
     static EmbeddedChannel createChannel(StreamSegmentStore store) {
-        ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler(new ConnectionTracker());
+        ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
                 new CommandEncoder(null),
                 new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
-        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, mock(TableStore.class), lsh), null));
+        lsh.setRequestProcessor(AppendProcessor.defaultBuilder()
+                                               .store(store)
+                                               .connection(lsh)
+                                               .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh))
+                                               .build());
         return channel;
     }
 

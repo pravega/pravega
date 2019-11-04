@@ -191,7 +191,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
                      p.addLast(TLSHelper.TLS_HANDLER_NAME, sslHandler);
                  }
 
-                 ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler(connectionTracker);
+                 ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
                  p.addLast(new ExceptionLoggingHandler(ch.remoteAddress().toString()),
                          new CommandEncoder(null, NO_OP_METRIC_NOTIFIER),
                          new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
@@ -201,6 +201,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
+                         connectionTracker,
                          new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError),
                          statsRecorder,
                          tokenVerifier,

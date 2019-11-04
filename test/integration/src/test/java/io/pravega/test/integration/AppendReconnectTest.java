@@ -9,10 +9,7 @@
  */
 package io.pravega.test.integration;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
-import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -36,20 +33,9 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.host.handler.AppendProcessor;
-import io.pravega.segmentstore.server.host.handler.ConnectionTracker;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor;
-import io.pravega.segmentstore.server.host.handler.ServerConnectionInboundHandler;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.protocol.netty.AppendDecoder;
-import io.pravega.shared.protocol.netty.CommandDecoder;
-import io.pravega.shared.protocol.netty.CommandEncoder;
-import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
-import io.pravega.shared.protocol.netty.Reply;
-import io.pravega.shared.protocol.netty.Request;
-import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.TestUtils;
 import java.nio.ByteBuffer;
@@ -61,9 +47,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -85,35 +69,6 @@ public class AppendReconnectTest {
     public void teardown() {
         this.serviceBuilder.close();
         ResourceLeakDetector.setLevel(originalLevel);
-    }
-
-    static Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
-        channel.writeInbound(request);
-        Object encodedReply = channel.readOutbound();
-        for (int i = 0; encodedReply == null && i < 50; i++) {
-            channel.runPendingTasks();
-            Thread.sleep(10);
-            encodedReply = channel.readOutbound();
-        }
-        if (encodedReply == null) {
-            throw new IllegalStateException("No reply to request: " + request);
-        }
-        WireCommand decoded = CommandDecoder.parseCommand((ByteBuf) encodedReply);
-        ((ByteBuf) encodedReply).release();
-        assertNotNull(decoded);
-        return (Reply) decoded;
-    }
-
-    static EmbeddedChannel createChannel(StreamSegmentStore store) {
-        ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler(new ConnectionTracker());
-        EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
-                new CommandEncoder(null),
-                new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
-                new CommandDecoder(),
-                new AppendDecoder(),
-                lsh);
-        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, mock(TableStore.class), lsh), null));
-        return channel;
     }
 
     @Test(timeout = 30000)

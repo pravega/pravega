@@ -32,11 +32,9 @@ public interface ServerConnection extends AutoCloseable {
      */
     void setRequestProcessor(RequestProcessor cp);
 
-    /**
-     * Adjusts the number of outstanding bytes by the given amount.
-     * @param delta The amount to adjust by. May be negative.
-     */
-    void adjustOutstandingBytes(int delta);
+    void pauseReading();
+
+    void resumeReading();
 
     /**
      * Drop the connection. No further operations may be performed.

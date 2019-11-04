@@ -64,13 +64,29 @@ public class ConnectionTracker {
     }
 
     /**
+     * Updates the total outstanding byte count for the given connection and pauses ({@link ServerConnection#pauseReading})
+     * or resumes ({@link ServerConnection#resumeReading} as needed.
+     *
+     * @param connection                 The {@link ServerConnection} to pause or resume if needed.
+     * @param deltaBytes                 The number of bytes to adjust by. May be negative.
+     * @param connectionOutstandingBytes The current number of outstanding bytes for the connection invoking this method.
+     */
+    void updateOutstandingBytes(ServerConnection connection, long deltaBytes, long connectionOutstandingBytes) {
+        if (shouldContinueReading(deltaBytes, connectionOutstandingBytes)) {
+            connection.resumeReading();
+        } else {
+            connection.pauseReading();
+        }
+    }
+
+    /**
      * Updates the total outstanding byte count by the given value.
      *
      * @param deltaBytes                 The number of bytes to adjust by. May be negative.
      * @param connectionOutstandingBytes The current number of outstanding bytes for the connection invoking this method.
      * @return True if the connection should continue reading, false if it should pause.
      */
-    boolean adjustOutstandingBytes(long deltaBytes, long connectionOutstandingBytes) {
+    private boolean shouldContinueReading(long deltaBytes, long connectionOutstandingBytes) {
         // Perform quick sanity checks as assertions: these should pop up during tests but since this method is invoked
         // very frequently we do not want them enabled for production use.
         // Sanity Check #1: If a connection increased by an amount, its total outstanding should be at least that value.

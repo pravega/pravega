@@ -20,9 +20,7 @@ import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -32,12 +30,6 @@ import lombok.extern.slf4j.Slf4j;
 public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ServerConnection {
     private final AtomicReference<RequestProcessor> processor = new AtomicReference<>();
     private final AtomicReference<Channel> channel = new AtomicReference<>();
-    private final AtomicLong outstandingBytes = new AtomicLong();
-    private final ConnectionTracker connectionTracker;
-
-    public ServerConnectionInboundHandler(@NonNull ConnectionTracker connectionTracker) {
-        this.connectionTracker = connectionTracker;
-    }
 
     @Override
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
@@ -99,18 +91,15 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
     }
 
     @Override
-    public void adjustOutstandingBytes(int delta) {
-        // If there is too much data waiting throttle the producer by stopping consumption from the socket.
-        // If there is room for more data, we resume consuming from the socket.
-        long bytesWaiting = this.outstandingBytes.updateAndGet(p -> Math.max(0, p + delta));
-        boolean resume = this.connectionTracker.adjustOutstandingBytes(delta, bytesWaiting);
-        if (resume) {
-            log.trace("Resuming writing from connection {}", this);
-            getChannel().config().setAutoRead(true);
-        } else {
-            log.debug("Pausing writing from connection {}", this);
-            getChannel().config().setAutoRead(false);
-        }
+    public void pauseReading() {
+        log.debug("Pausing reading from connection {}", this);
+        getChannel().config().setAutoRead(false);
+    }
+
+    @Override
+    public void resumeReading() {
+        log.trace("Resuming reading from connection {}", this);
+        getChannel().config().setAutoRead(true);
     }
 
     private Channel getChannel() {

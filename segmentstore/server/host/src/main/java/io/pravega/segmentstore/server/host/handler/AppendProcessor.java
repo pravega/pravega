@@ -34,6 +34,7 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.DelegatingRequestProcessor;
+import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
@@ -55,9 +56,12 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -67,56 +71,44 @@ import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
  * Process incoming Append requests and write them to the SegmentStore.
  */
 @Slf4j
+@Builder
 public class AppendProcessor extends DelegatingRequestProcessor {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final String EMPTY_STACK_TRACE = "";
+    @NonNull
     private final StreamSegmentStore store;
+    @NonNull
     private final ServerConnection connection;
-
+    @NonNull
+    private final ConnectionTracker connectionTracker;
     @Getter
+    @NonNull
     private final RequestProcessor nextRequestProcessor;
+    @NonNull
     private final SegmentStatsRecorder statsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
+    private final AtomicLong outstandingBytes = new AtomicLong();
 
     //endregion
 
-    //region Constructor
-
+    //region Builder
 
     /**
-     * Creates a new instance of the AppendProcessor class with no Metrics StatsRecorder.
-     *
-     * @param store      The SegmentStore to send append requests to.
-     * @param connection The ServerConnection to send responses to.
-     * @param next       The RequestProcessor to invoke next.
-     * @param verifier    The token verifier.
+     * Creates a new {@link AppendProcessorBuilder} instance with all optional arguments set to default values.
+     * These default values may not be appropriate for production use and should be used for testing purposes only.
+     * @return A {@link AppendProcessorBuilder} instance.
      */
     @VisibleForTesting
-    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier) {
-        this(store, connection, next, SegmentStatsRecorder.noOp(), verifier, false);
-    }
-
-    /**
-     * Creates a new instance of the AppendProcessor class.
-     * @param store         The SegmentStore to send append requests to.
-     * @param connection    The ServerConnection to send responses to.
-     * @param next          The RequestProcessor to invoke next.
-     * @param statsRecorder A StatsRecorder to record Metrics.
-     * @param tokenVerifier Delegation token verifier.
-     * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
-     */
-    AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder,
-                    DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
-        this.store = Preconditions.checkNotNull(store, "store");
-        this.connection = Preconditions.checkNotNull(connection, "connection");
-        this.nextRequestProcessor = Preconditions.checkNotNull(next, "next");
-        this.statsRecorder = Preconditions.checkNotNull(statsRecorder, statsRecorder);
-        this.tokenVerifier = tokenVerifier;
-        this.replyWithStackTraceOnError = replyWithStackTraceOnError;
+    public static AppendProcessorBuilder defaultBuilder() {
+        return builder()
+                .nextRequestProcessor(new FailingRequestProcessor())
+                .statsRecorder(SegmentStatsRecorder.noOp())
+                .connectionTracker(new ConnectionTracker())
+                .replyWithStackTraceOnError(false);
     }
 
     //endregion
@@ -186,7 +178,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         Preconditions.checkState(state != null, "Data from unexpected connection: %s.", id);
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
-        this.connection.adjustOutstandingBytes(appendLength);
+        adjustOutstandingBytes(appendLength);
         Timer timer = new Timer();
         storeAppend(append, previousEventNumber)
                 .whenComplete((newLength, ex) -> {
@@ -194,9 +186,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, ex);
                 })
                 .whenComplete((v, e) -> {
-                    this.connection.adjustOutstandingBytes(-appendLength);
+                    adjustOutstandingBytes(-appendLength);
                     append.getData().release();
                 });
+    }
+
+    private void adjustOutstandingBytes(int delta) {
+        long currentOutstanding = this.outstandingBytes.updateAndGet(p -> Math.max(0, p + delta));
+        this.connectionTracker.updateOutstandingBytes(this.connection, delta, currentOutstanding);
     }
 
     private CompletableFuture<Long> storeAppend(Append append, long lastEventNumber) {
