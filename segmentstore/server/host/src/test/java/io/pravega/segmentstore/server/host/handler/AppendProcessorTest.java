@@ -609,7 +609,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
      * regardless of append outcome.
      */
     @Test
-    public void tesOutstandingByteTracking() throws Exception {
+    public void testOutstandingByteTracking() throws Exception {
         final int connectionCount = 5;
         final int writersCount = 5;
         final int segmentCount = 5;
