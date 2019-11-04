@@ -1403,6 +1403,52 @@ public abstract class StreamMetadataStoreTest {
     }
 
     @Test
+    public void deletePartiallyCreatedStreamTest() {
+        final String scopeName = "RecreationScopePartial";
+        final String streamName = "RecreatedStreamPartial";
+
+        store.createScope(scopeName).join();
+        
+        // region case 1: only add stream to scope without any additional metadata
+        StreamMetadataStoreTestHelper.addStreamToScope(store, scopeName, streamName);
+        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+        store.deleteStream(scopeName, streamName, null, executor).join();
+        assertFalse(store.checkStreamExists(scopeName, streamName).join());
+
+        // region case 2: only add creation time for the stream and then delete it. 
+        StreamMetadataStoreTestHelper.partiallyCreateStream(store, scopeName, streamName, Optional.of(100L), false);
+        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+        store.deleteStream(scopeName, streamName, null, executor).join();
+        assertFalse(store.checkStreamExists(scopeName, streamName).join());
+        // endregion
+        
+        // region case 3: create stream again but this time create the `state` but not history record. 
+        StreamMetadataStoreTestHelper.partiallyCreateStream(store, scopeName, streamName, Optional.of(100L), true);
+        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+        store.deleteStream(scopeName, streamName, null, executor).join();
+        assertFalse(store.checkStreamExists(scopeName, streamName).join());
+        // endregion
+        
+        // region case 4: now create full stream metadata. 
+        // now create full stream metadata without setting state to active
+        // since there was no active segments, so we should have segments created from segment 0.
+        // configuration 2 has 3 segments. So highest segment number should be 2. 
+        store.createStream(scopeName, streamName, configuration2, 101L, null, executor).join();
+        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+
+        assertEquals(store.getActiveEpoch(scopeName, streamName, null, true, executor).join()
+                .getSegmentIds().stream().max(Long::compareTo).get().longValue(), 2L);
+        
+        store.deleteStream(scopeName, streamName, null, executor).join();
+        assertFalse(store.checkStreamExists(scopeName, streamName).join());
+
+        store.createStream(scopeName, streamName, configuration2, 102L, null, executor).join();
+        assertEquals(store.getActiveEpoch(scopeName, streamName, null, true, executor).join()
+                          .getSegmentIds().stream().max(Long::compareTo).get().longValue(), 5L);
+        // endregion
+    }
+    
+    @Test
     public void testWriterMark() {
         String stream = "mark";
         store.createScope(scope).join();

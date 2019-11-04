@@ -18,6 +18,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.SequentialProcessor;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -60,6 +61,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private final Timer timer;
     private final AckCalculator ackCalculator;
     private final WriterFactory.CreateProcessors createProcessors;
+    private final SequentialProcessor ackProcessor;
 
     //endregion
 
@@ -88,6 +90,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         this.state = new WriterState();
         this.timer = new Timer();
         this.ackCalculator = new AckCalculator(this.state);
+        this.ackProcessor = new SequentialProcessor(this.executor);
     }
 
     //endregion
@@ -115,11 +118,11 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                         .thenComposeAsync(this::readData, this.executor)
                         .thenComposeAsync(this::processReadResult, this.executor)
                         .thenComposeAsync(this::flush, this.executor)
-                        .thenComposeAsync(this::acknowledge, this.executor)
+                        .thenRunAsync(this::triggerAcknowledge, this.executor)
                         .exceptionally(this::iterationErrorHandler)
                         .thenRunAsync(this::endIteration, this.executor),
                 this.executor)
-                .thenRun(this::closeProcessors);
+                      .thenRun(this::closeProcessors);
     }
 
     private boolean canRun() {
@@ -164,6 +167,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private void closeProcessors() {
         this.processors.values().forEach(ProcessorCollection::close);
         this.processors.clear();
+        this.ackProcessor.close();
     }
 
     //endregion
@@ -236,10 +240,10 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                     });
                 },
                 this.executor)
-                .thenRun(() -> {
-                    logStageEvent("InputRead", result);
-                    LoggerHelpers.traceLeave(log, this.traceObjectId, "processReadResult", traceId);
-                });
+                      .thenRun(() -> {
+                          logStageEvent("InputRead", result);
+                          LoggerHelpers.traceLeave(log, this.traceObjectId, "processReadResult", traceId);
+                      });
     }
 
     private CompletableFuture<Void> processOperation(Operation op) {
@@ -345,25 +349,35 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     /**
      * Acknowledges operations that were flushed to storage
      */
-    private CompletableFuture<Void> acknowledge(Void ignored) {
+    private void triggerAcknowledge() {
         checkRunning();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "acknowledge");
-
         long highestCommittedSeqNo = this.ackCalculator.getHighestCommittedSequenceNumber(this.processors.values());
         long ackSequenceNumber = this.dataSource.getClosestValidTruncationPoint(highestCommittedSeqNo);
+
         if (ackSequenceNumber > this.state.getLastTruncatedSequenceNumber()) {
-            // Issue the truncation and update the state (when done).
-            return this.dataSource
-                    .acknowledge(ackSequenceNumber, this.config.getAckTimeout())
-                    .thenRun(() -> {
-                        this.state.setLastTruncatedSequenceNumber(ackSequenceNumber);
-                        logStageEvent("Acknowledged", "SeqNo=" + ackSequenceNumber);
-                        LoggerHelpers.traceLeave(log, this.traceObjectId, "acknowledge", traceId, ackSequenceNumber);
-                    });
+            this.ackProcessor.add(() -> {
+                // If the StorageWriter completes an iteration faster than the data source can process the acknowledgment,
+                // then the State's LastTruncatedSequenceNumber may not be updated in time and we can re-queue the same
+                // truncation multiple times, which is undesirable. However, the ackProcessor serializes all invocations
+                // to its add() method so at this point we are guaranteed to have completed the callback below that updates
+                // that value.
+                if (ackSequenceNumber <= this.state.getLastTruncatedSequenceNumber()) {
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                // Issue the truncation and update the state (when done).
+                return this.dataSource
+                        .acknowledge(ackSequenceNumber, this.config.getAckTimeout())
+                        .thenRun(() -> {
+                            this.state.setLastTruncatedSequenceNumber(ackSequenceNumber);
+                            logStageEvent("Acknowledged", "SeqNo=" + ackSequenceNumber);
+                            LoggerHelpers.traceLeave(log, this.traceObjectId, "acknowledge", traceId, ackSequenceNumber);
+                        });
+            }).exceptionally(this::iterationErrorHandler);
         } else {
             // Nothing to do.
             LoggerHelpers.traceLeave(log, this.traceObjectId, "acknowledge", traceId, Operation.NO_SEQUENCE_NUMBER);
-            return CompletableFuture.completedFuture(null);
         }
     }
 
