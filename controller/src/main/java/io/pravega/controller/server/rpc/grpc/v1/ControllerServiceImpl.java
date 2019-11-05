@@ -557,7 +557,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         logAndUntrackRequestTag(requestTag);
                     });
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
+            log.error("Encountered exception in authenticateExecuteAndProcessResults: {}", e.getMessage(), e);
             logAndUntrackRequestTag(requestTag);
             streamObserver.onError(Status.UNAUTHENTICATED
                     .withDescription("Authentication failed")
