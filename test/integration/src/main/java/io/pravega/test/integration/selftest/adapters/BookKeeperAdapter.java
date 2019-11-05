@@ -283,7 +283,7 @@ class BookKeeperAdapter extends StoreAdapter {
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BASE_PORT, config.getBkPort(0))
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BOOKIE_COUNT, bookieCount)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_ZK_PORT, config.getZkPort())
-                .sysProp(BookKeeperServiceRunner.PROPERTY_ZK_LEDGERS_PATH, TestConfig.BK_ZK_LEDGER_PATH)
+                .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, TestConfig.BK_ZK_LEDGER_PATH)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_START_ZK, true)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_DIR, config.getBookieLedgersDir())
                 .stdOut(ProcessBuilder.Redirect.to(new File(config.getComponentOutLogPath("bk", 0))))
