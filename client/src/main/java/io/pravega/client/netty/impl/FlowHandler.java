@@ -198,7 +198,9 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         Channel ch = ctx.channel();
         channel.set(ch);
         log.info("Connection established with endpoint {} on channel {}", connectionName, ch);
-        ch.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), ch.voidPromise());
+        ctx.executor().execute(() -> {
+            ch.writeAndFlush(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), ch.voidPromise());
+        });
         registeredFutureLatch.release(null); //release all futures waiting for channel registration to complete.
         // WireCommands.KeepAlive messages are sent for every network connection to a SegmentStore.
         ScheduledFuture<?> old = keepAliveFuture.getAndSet(ch.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));

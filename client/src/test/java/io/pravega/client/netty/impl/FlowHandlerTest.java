@@ -94,6 +94,7 @@ public class FlowHandlerTest {
         appendCmd = new Append("segment0", UUID.randomUUID(), 2, 1, buffer, 10L, flow.asLong());
 
         when(ctx.channel()).thenReturn(ch);
+        when(ctx.executor()).thenReturn(loop);
         when(ch.eventLoop()).thenReturn(loop);
         Mockito.doAnswer(new Answer<Void>() {
             @Override
