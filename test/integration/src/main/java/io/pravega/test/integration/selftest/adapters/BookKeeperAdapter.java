@@ -11,15 +11,13 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.ProcessStarter;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
@@ -30,21 +28,23 @@ import io.pravega.test.integration.selftest.TestLogger;
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import javax.annotation.concurrent.GuardedBy;
 import lombok.val;
+import org.apache.bookkeeper.client.AsyncCallback;
+import org.apache.bookkeeper.client.BKException;
+import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
 /**
- * Store adapter that executes requests directly to BookKeeper via the BookKeeperLog class.
+ * Store adapter that executes requests directly to BookKeeper via Ledgers.
  */
 class BookKeeperAdapter extends StoreAdapter {
     //region Members
@@ -52,9 +52,7 @@ class BookKeeperAdapter extends StoreAdapter {
     private final TestConfig testConfig;
     private final BookKeeperConfig bkConfig;
     private final ScheduledExecutorService executor;
-    private final ConcurrentHashMap<String, DurableDataLog> logs;
-    @GuardedBy("internalIds")
-    private final HashMap<String, Integer> internalIds;
+    private final ConcurrentHashMap<String, LedgerHandle> ledgers;
     private final Thread stopBookKeeperProcess;
     private Process bookKeeperService;
     private CuratorFramework zkClient;
@@ -76,8 +74,7 @@ class BookKeeperAdapter extends StoreAdapter {
         this.bkConfig = Preconditions.checkNotNull(bkConfig, "bkConfig");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkArgument(testConfig.getBookieCount() > 0, "BookKeeperAdapter requires at least one Bookie.");
-        this.logs = new ConcurrentHashMap<>();
-        this.internalIds = new HashMap<>();
+        this.ledgers = new ConcurrentHashMap<>();
         this.stopBookKeeperProcess = new Thread(this::stopBookKeeper);
         Runtime.getRuntime().addShutdownHook(this.stopBookKeeperProcess);
     }
@@ -114,9 +111,16 @@ class BookKeeperAdapter extends StoreAdapter {
     }
 
     @Override
+
     protected void shutDown() {
-        this.logs.values().forEach(DurableDataLog::close);
-        this.logs.clear();
+        for (LedgerHandle lh : this.ledgers.values()) {
+            try {
+                lh.close();
+            } catch (Exception ex) {
+                System.err.println(ex);
+            }
+        }
+        this.ledgers.clear();
 
         BookKeeperLogFactory lf = this.logFactory;
         if (lf != null) {
@@ -138,35 +142,25 @@ class BookKeeperAdapter extends StoreAdapter {
     public CompletableFuture<Void> createStream(String logName, Duration timeout) {
         ensureRunning();
 
-        int id;
-        synchronized (this.internalIds) {
-            if (this.internalIds.containsKey(logName)) {
-                return Futures.failedFuture(new StreamSegmentExistsException(logName));
-            }
-
-            id = this.internalIds.size();
-            this.internalIds.put(logName, id);
-        }
-
         return CompletableFuture.runAsync(() -> {
-            DurableDataLog log = null;
+            LedgerHandle ledger = null;
             boolean success = false;
             try {
-                log = this.logFactory.createDurableDataLog(id);
-                this.logs.put(logName, log);
-                log.initialize(timeout);
+                ledger = getBookKeeper().createLedger(this.bkConfig.getBkEnsembleSize(), this.bkConfig.getBkWriteQuorumSize(), this.bkConfig.getBkAckQuorumSize(),
+                        BookKeeper.DigestType.MAC, new byte[0]);
+                this.ledgers.put(logName, ledger);
                 success = true;
-            } catch (DurableDataLogException ex) {
+            } catch (Exception ex) {
                 throw new CompletionException(ex);
             } finally {
                 if (!success) {
-                    this.logs.remove(logName);
-                    synchronized (this.internalIds) {
-                        this.internalIds.remove(logName);
-                    }
-
-                    if (log != null) {
-                        log.close();
+                    this.ledgers.remove(logName);
+                    if (ledger != null) {
+                        try {
+                            ledger.close();
+                        } catch (Exception ex) {
+                            System.err.println(ex);
+                        }
                     }
                 }
             }
@@ -176,13 +170,22 @@ class BookKeeperAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> append(String logName, Event event, Duration timeout) {
         ensureRunning();
-        DurableDataLog log = this.logs.getOrDefault(logName, null);
-        if (log == null) {
+        LedgerHandle lh = this.ledgers.getOrDefault(logName, null);
+        if (lh == null) {
             return Futures.failedFuture(new StreamSegmentNotExistsException(logName));
         }
 
         ArrayView s = event.getSerialization();
-        return Futures.toVoid(log.append(s, timeout));
+        val result = new CompletableFuture<Void>();
+        AsyncCallback.AddCallback addCallback = (rc, handle, entryId, ctx) -> {
+            if (rc == BKException.Code.OK) {
+                result.complete(null);
+            } else {
+                result.completeExceptionally(BKException.create(rc));
+            }
+        };
+        lh.asyncAddEntry(s.array(), s.arrayOffset(), s.getLength(), addCallback, null);
+        return result;
     }
 
     @Override
@@ -252,6 +255,10 @@ class BookKeeperAdapter extends StoreAdapter {
 
     //endregion
 
+    private BookKeeper getBookKeeper() {
+        return this.logFactory.getBookKeeperClient();
+    }
+
     private void stopBookKeeper() {
         val bk = this.bookKeeperService;
         if (bk != null) {
@@ -276,12 +283,14 @@ class BookKeeperAdapter extends StoreAdapter {
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BASE_PORT, config.getBkPort(0))
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BOOKIE_COUNT, bookieCount)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_ZK_PORT, config.getZkPort())
-                .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, TestConfig.BK_LEDGER_PATH)
+                .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, TestConfig.BK_ZK_LEDGER_PATH)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_START_ZK, true)
+                .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_DIR, config.getBookieLedgersDir())
                 .stdOut(ProcessBuilder.Redirect.to(new File(config.getComponentOutLogPath("bk", 0))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(config.getComponentErrLogPath("bk", 0))))
                 .start();
         ZooKeeperServiceRunner.waitForServerUp(config.getZkPort());
+        Exceptions.handleInterrupted(() -> Thread.sleep(2000));
         TestLogger.log(logId, "Zookeeper (Port %s) and BookKeeper (Ports %s-%s) started.",
                 config.getZkPort(), config.getBkPort(0), config.getBkPort(bookieCount - 1));
         return p;
