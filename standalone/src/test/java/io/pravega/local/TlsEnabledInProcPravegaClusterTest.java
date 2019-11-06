@@ -12,7 +12,7 @@ package io.pravega.local;
 import io.pravega.client.ClientConfig;
 
 import io.pravega.client.admin.StreamManager;
-import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.shared.security.utils.SecurityConfigDefaults;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
 import java.util.concurrent.ExecutionException;

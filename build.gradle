@@ -169,6 +169,19 @@ project('shared:authplugin') {
 }
 
 project('shared:security') {
+    task jarTest (type: Jar) {
+        from sourceSets.test.output
+        classifier = 'test'
+    }
+
+    configurations {
+        testOutput
+    }
+
+    artifacts {
+        testOutput jarTest
+    }
+
     dependencies {
         compile project(':common')
         compile project(':shared:authplugin')
@@ -249,6 +262,7 @@ project('client') {
         // The client fallsback to NIO based transport if epoll is not available.
         compile group: 'io.netty', name: 'netty-transport-native-epoll', version: nettyVersion, classifier: 'linux-x86_64'
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        testCompile project(path: ':shared:security', configuration: 'testOutput')
         testCompile project(':test:testcommon')
         testCompile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
@@ -364,6 +378,7 @@ project('segmentstore:server') {
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
+        testCompile project(path: ':shared:security', configuration: 'testOutput')
         testCompile project(':test:testcommon')
     }
     javadoc {
@@ -469,6 +484,7 @@ project('test:integration') {
         compile project(':test:testcommon')
         compile group: 'junit', name:'junit', version: junitVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        compile project(path: ':shared:security', configuration: 'testOutput')
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
         testCompile project(path:':common', configuration:'testRuntime')
@@ -626,6 +642,7 @@ project('controller') {
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
+        testCompile project(path: ':shared:security', configuration: 'testOutput')
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
@@ -696,6 +713,7 @@ project('standalone') {
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
+        testCompile project(path: ':shared:security', configuration: 'testOutput')
         testCompile project(':test:testcommon')
         testCompile project(path:':common', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
