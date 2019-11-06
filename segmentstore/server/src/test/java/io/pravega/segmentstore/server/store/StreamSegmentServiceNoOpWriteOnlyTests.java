@@ -33,7 +33,10 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
     @Before
     public void setUp() {
         this.systemStorageFactory = new InMemoryStorageFactory(executorService());
-        StorageExtraConfig config = StorageExtraConfig.builder().with(StorageExtraConfig.STORAGE_NO_OP_MODE, true).build();
+        StorageExtraConfig config = StorageExtraConfig.builder()
+                .with(StorageExtraConfig.STORAGE_NO_OP_MODE, true)
+                .with(StorageExtraConfig.STORAGE_WRITE_NO_OP_LATENCY, 100)
+                .build();
         //Note userStorageFactory is null, then all user segment write operations are no-oped
         this.storageFactory = new NoOpStorageFactory(config, executorService(), systemStorageFactory, null);
         this.durableDataLogFactory = new StreamSegmentServiceTests.PermanentDurableDataLogFactory(executorService());

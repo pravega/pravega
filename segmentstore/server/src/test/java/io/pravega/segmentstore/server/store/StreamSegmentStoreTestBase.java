@@ -344,11 +344,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // Wait for the instance creations to be done (this will help surface any exceptions coming from this).
             context.awaitAllInitializations().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-            // Check reads.
-            checkReads(segmentContents, context.getActiveStore());
-            log.info("Finished checking reads.");
-
             if (verifySegmentContent) {
+                // Check reads.
+                checkReads(segmentContents, context.getActiveStore());
+                log.info("Finished checking reads.");
+
                 try (val readOnlyBuilder = createReadOnlyBuilder(Integer.MAX_VALUE - 1)) {
                     waitForSegmentsInStorage(segmentNames, context.getActiveStore(), readOnlyBuilder.createStreamSegmentService())
                             .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);

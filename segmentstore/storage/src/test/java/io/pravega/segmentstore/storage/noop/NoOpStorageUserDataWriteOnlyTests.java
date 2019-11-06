@@ -75,10 +75,7 @@ public class NoOpStorageUserDataWriteOnlyTests extends StorageTestBase {
             createSegment(segmentName, s);
             //Ensure delete operation can be completed.
             s.openWrite(segmentName).thenCompose(handle -> s.delete(handle, null)).join();
-            //However get segment info should throw exception
-            assertFutureThrows("getStreamSegmentInfo() did not throw UnsupportedOperationException.",
-                    s.getStreamSegmentInfo(segmentName, TIMEOUT),
-                    ex -> ex instanceof UnsupportedOperationException);
+            s.getStreamSegmentInfo(segmentName, TIMEOUT);
         }
     }
 
@@ -91,9 +88,7 @@ public class NoOpStorageUserDataWriteOnlyTests extends StorageTestBase {
 
             // Segment does not exist but openWrite should still succeed in No-Op mode
             s.openWrite(segmentName).join();
-            assertFutureThrows("openRead() did not throw UnsupportedOperationException.",
-                    s.openRead(segmentName),
-                    ex -> ex instanceof UnsupportedOperationException);
+            s.openRead(segmentName);
         }
     }
 

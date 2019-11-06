@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Uninterruptibles;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.InputStream;
@@ -127,9 +128,15 @@ class NoOpStorage implements SyncStorage {
 
     @Override
     public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
-        return delegate(streamSegmentName,
-                storage -> storage.getStreamSegmentInfo(streamSegmentName),
-                "getStreamSegmentInfo() for user segment is not supported in NO-OP mode.");
+        if (isSystemSegment(streamSegmentName)) {
+            return this.baseStorage.getStreamSegmentInfo(streamSegmentName);
+        } else {
+            if (this.storageForNoOp != null) {
+                return storageForNoOp.getStreamSegmentInfo(streamSegmentName);
+            } else {
+                return StreamSegmentInformation.builder().name(streamSegmentName).build();
+            }
+        }
     }
 
     @Override
@@ -145,9 +152,15 @@ class NoOpStorage implements SyncStorage {
 
     @Override
     public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentException {
-        return delegate(streamSegmentName,
-                storage -> storage.openRead(streamSegmentName),
-                "openRead() of user segment is not supported in NO-OP mode.");
+        if (isSystemSegment(streamSegmentName)) {
+            return this.baseStorage.openRead(streamSegmentName);
+        } else {
+            if (this.storageForNoOp != null) {
+                return storageForNoOp.openRead(streamSegmentName);
+            } else {
+                return new NoOpSegmentHandle(streamSegmentName);
+            }
+        }
     }
 
     @Override
