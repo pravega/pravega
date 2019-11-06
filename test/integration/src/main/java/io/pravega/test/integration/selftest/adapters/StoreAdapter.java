@@ -233,6 +233,9 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
             case SegmentStoreTable:
                 result = new SegmentStoreAdapter(testConfig, builderConfig, executor);
                 break;
+            case AppendProcessor:
+                result = new AppendProcessorAdapter(testConfig, builderConfig, executor);
+                break;
             case InProcessMock:
                 result = new InProcessMockClientAdapter(testConfig, executor);
                 break;
