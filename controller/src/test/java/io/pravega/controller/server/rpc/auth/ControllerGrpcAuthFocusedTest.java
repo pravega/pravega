@@ -456,6 +456,24 @@ public class ControllerGrpcAuthFocusedTest {
                 e -> e.getMessage().contains("PERMISSION_DENIED"));
     }
 
+    @Test
+    public void listStreamThrowsExceptionWhenUserIsNonExistent() {
+        // Arrange
+        createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
+                prepareFromFixedScaleTypePolicy(2));
+
+        ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.SCOPE2_READ, "wrong-password");
+        Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(
+                        Controller.ScopeInfo.newBuilder().setScope("scope1").build())
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+
+        // Act and assert
+        AssertExtensions.assertThrows("Expected auth failure.",
+                () -> stub.listStreamsInScope(request),
+                e -> e.getMessage().contains("UNAUTHENTICATED"));
+    }
+
     //region Private methods
 
     private TxnId createTransaction(StreamInfo streamInfo, int lease) {
