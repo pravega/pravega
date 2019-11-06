@@ -14,6 +14,8 @@ import com.google.common.base.Throwables;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.AuthorizationException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
@@ -548,26 +550,34 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             logError(requestTag, cause);
                             String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
                             streamObserver.onError(getStatusFromException(cause).withCause(cause)
-                                                                                .withDescription(errorDescription)
-                                                                                .asRuntimeException());
+                                    .withDescription(errorDescription)
+                                    .asRuntimeException());
                         } else if (value != null) {
                             streamObserver.onNext(value);
                             streamObserver.onCompleted();
                         }
                         logAndUntrackRequestTag(requestTag);
                     });
+        } catch (AuthenticationException e) {
+            handleException(e, streamObserver, requestTag, Status.UNAUTHENTICATED, "Authentication failed");
+        } catch (AuthorizationException e) {
+            handleException(e, streamObserver, requestTag, Status.PERMISSION_DENIED, "Authorization failed");
         } catch (Exception e) {
-            log.error("Encountered exception in authenticateExecuteAndProcessResults: {}", e.getMessage(), e);
-            logAndUntrackRequestTag(requestTag);
-            streamObserver.onError(Status.UNAUTHENTICATED
-                    .withDescription("Authentication failed")
-                    .asRuntimeException());
+            handleException(e, streamObserver, requestTag, Status.INTERNAL, "Internal exception occurred");
         }
     }
 
     private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
                                                           final StreamObserver<T> streamObserver) {
         authenticateExecuteAndProcessResults(authenticator, call, streamObserver, null);
+    }
+
+    private void handleException(Exception e, final StreamObserver streamObserver, RequestTag requestTag,
+                                 Status status, String message) {
+        log.error("Encountered {} in authenticateExecuteAndProcessResults", e.getClass().getSimpleName(), e);
+        logAndUntrackRequestTag(requestTag);
+        streamObserver.onError(status.withDescription(message).asRuntimeException());
+
     }
     
     @SuppressWarnings("checkstyle:ReturnCount")
