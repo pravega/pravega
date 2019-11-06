@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import lombok.Data;
+import lombok.ToString;
 import lombok.experimental.Accessors;
 
 import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
@@ -494,6 +495,7 @@ public final class WireCommands {
         final long requestId;
         final UUID writerId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -757,6 +759,7 @@ public final class WireCommands {
         final String segment;
         final long offset;
         final int suggestedLength;
+        @ToString.Exclude
         final String delegationToken;
         final long requestId;
 
@@ -843,6 +846,7 @@ public final class WireCommands {
         final long requestId;
         final String segmentName;
         final UUID attributeId;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -900,6 +904,7 @@ public final class WireCommands {
         final UUID attributeId;
         final long newValue;
         final long expectedValue;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -958,6 +963,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
         final long requestId;
         final String segmentName;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1038,6 +1044,7 @@ public final class WireCommands {
         final String segment;
         final byte scaleType;
         final int targetRate;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1071,6 +1078,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1126,6 +1134,7 @@ public final class WireCommands {
         final String segment;
         final byte scaleType;
         final int targetRate;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1183,6 +1192,7 @@ public final class WireCommands {
         final long requestId;
         final String target;
         final String source;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1213,6 +1223,7 @@ public final class WireCommands {
         final long requestId;
         final String target;
         final String source;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1272,6 +1283,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1299,6 +1311,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.SEAL_TABLE_SEGMENT;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1351,6 +1364,7 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final long truncationOffset;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1404,6 +1418,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1432,6 +1447,7 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final boolean mustBeEmpty; // If true, the Table Segment will only be deleted if it is empty (contains no keys)
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1591,6 +1607,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
         final TableEntries tableEntries;
 
@@ -1654,6 +1671,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
         final List<TableKey> keys;
 
@@ -1716,6 +1734,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.READ_TABLE;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
         final List<TableKey> keys; // the version of the key is always set to io.pravega.segmentstore.contracts.tables.TableKey.NO_VERSION
 
@@ -1781,6 +1800,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
         final int suggestedKeyCount;
         final ByteBuf continuationToken; // this is used to indicate the point from which the next keys should be fetched.
@@ -1875,6 +1895,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
         final int suggestedEntryCount;
         final ByteBuf continuationToken; // this is used to indicate the point from which the next entry should be fetched.

@@ -250,6 +250,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 ConcurrentNavigableMap<Long, PendingEvent> acked = inflight.headMap(ackLevel, true);
                 List<PendingEvent> result = new ArrayList<>(acked.values());
                 acked.clear();
+                releaseIfEmptyInflight(); // release waitingInflight under the same re-entrant lock.
                 return result;
             }
         }
@@ -408,13 +409,16 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
 
         private void ackUpTo(long ackLevel) {
-            for (PendingEvent toAck : state.removeInflightBelow(ackLevel)) {
-                if (toAck.getAckFuture() != null) {
-                    toAck.getAckFuture().complete(null);
+            final List<PendingEvent> pendingEvents = state.removeInflightBelow(ackLevel);
+            // Complete the futures and release buffer in a different thread.
+            connectionFactory.getInternalExecutor().execute(() -> {
+                for (PendingEvent toAck : pendingEvents) {
+                    if (toAck.getAckFuture() != null) {
+                        toAck.getAckFuture().complete(null);
+                    }
+                    toAck.getData().release();
                 }
-                toAck.getData().release();
-            }
-            state.releaseIfEmptyInflight();
+            });
         }
 
         private void checkAckLevels(long ackLevel, long previousAckLevel) {
