@@ -63,7 +63,7 @@ public class ClientConnectionTest {
         embeddedChannel.runPendingTasks();
         Queue<Object> messages = embeddedChannel.outboundMessages();
         assertEquals(1, messages.size());
-        clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1,2), "segment", ""));
+        clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));
         embeddedChannel.runPendingTasks();
         messages = embeddedChannel.outboundMessages();
         assertEquals(2, messages.size());
