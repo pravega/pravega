@@ -65,7 +65,7 @@ public class GrpcAuthHelper {
             }
             String message = String.format("Principal [%s] not allowed [%s] access for resource [%s]",
                     ctx != null ? ctx.getPrincipal() : null, expectedLevel, resource);
-            throw new RuntimeException(new AuthorizationException(message));
+            throw new AuthorizationException(message);
         }
     }
 
