@@ -182,7 +182,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         Timer timer = new Timer();
         storeAppend(append, previousEventNumber)
                 .whenComplete((newLength, ex) -> {
-                    handleAppendResult(append, newLength, previousEventNumber, ex, timer);
+                    handleAppendResult(append, newLength, ex, timer);
                     LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, ex);
                 })
                 .whenComplete((v, e) -> {
@@ -208,7 +208,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
-    private void handleAppendResult(final Append append, Long newWriteOffset, Long previousEventNumber, Throwable exception, Timer elapsedTimer) {
+    private void handleAppendResult(final Append append, Long newWriteOffset, Throwable exception, Timer elapsedTimer) {
         boolean success = exception == null;
         try {
             boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
