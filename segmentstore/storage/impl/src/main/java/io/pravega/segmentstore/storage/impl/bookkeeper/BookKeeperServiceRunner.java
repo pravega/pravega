@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.pravega.common.auth.JKSHelper;
 import io.pravega.common.auth.ZKTLSUtils;
 import java.io.File;
@@ -44,11 +45,12 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public static final String PROPERTY_BASE_PORT = "basePort";
     public static final String PROPERTY_BOOKIE_COUNT = "bookieCount";
     public static final String PROPERTY_ZK_PORT = "zkPort";
-    public static final String PROPERTY_LEDGERS_PATH = "ledgersPath";
+    public static final String PROPERTY_LEDGERS_PATH = "zkLedgersPath"; // ZK namespace path for ledger metadata.
     public static final String PROPERTY_START_ZK = "startZk";
     public static final String PROPERTY_SECURE_BK = "secureBk";
     public static final String TLS_KEY_STORE_PASSWD = "tlsKeyStorePasswd";
     public static final String TLS_KEY_STORE = "tlsKeyStore";
+    public static final String PROPERTY_LEDGERS_DIR = "ledgersDir"; // File System path to store ledger data.
 
     private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
     private final boolean startZk;
@@ -59,10 +61,12 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final String tLSKeyStorePasswordPath;
     private final boolean secureZK;
     private final String tlsTrustStore;
+    private final String ledgersDir;
     private final List<Integer> bookiePorts;
     private final List<BookieServer> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
-    private final HashMap<Integer, File> tempDirs = new HashMap<>();
+    private final HashMap<Integer, File> journalDirs = new HashMap<>();
+    private final HashMap<Integer, File> ledgerDirs = new HashMap<>();
     private final AtomicReference<Thread> cleanup = new AtomicReference<>();
 
     //endregion
@@ -120,19 +124,6 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         Preconditions.checkState(this.servers.get(0) == null, "Bookie already running.");
         this.servers.set(bookieIndex, runBookie(this.bookiePorts.get(bookieIndex)));
         log.info("Bookie {} stopped.", bookieIndex);
-    }
-
-    /**
-     * Suspends (stops) ZooKeeper, without destroying its underlying data (so a subsequent resume can pick up from the
-     * state where it left off).
-     */
-    public void suspendZooKeeper() {
-        val zk = this.zkServer.get();
-        Preconditions.checkState(zk != null, "ZooKeeper not started.");
-
-        // Stop, but do not close, the ZK runner.
-        zk.stop();
-        log.info("ZooKeeper suspended.");
     }
 
     /**
@@ -211,26 +202,32 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     }
 
     private BookieServer runBookie(int bkPort) throws Exception {
-        // Attempt to reuse an existing data directory. This is useful in case of stops & restarts, when we want to perserve
+        // Attempt to reuse an existing data directory. This is useful in case of stops & restarts, when we want to preserve
         // already committed data.
-        File tmpDir = this.tempDirs.getOrDefault(bkPort, null);
-        if (tmpDir == null) {
-            tmpDir = IOUtils.createTempDir("bookie_" + bkPort, "test");
-            tmpDir.deleteOnExit();
-            this.tempDirs.put(bkPort, tmpDir);
-            log.info("Created " + tmpDir);
-            if (!tmpDir.delete() || !tmpDir.mkdir()) {
-                throw new IOException("Couldn't create bookie dir " + tmpDir);
-            }
+        File journalDir = this.journalDirs.getOrDefault(bkPort, null);
+        if (journalDir == null) {
+            journalDir = IOUtils.createTempDir("bookiejournal_" + bkPort, "_test");
+            log.info("Journal Dir[{}]: {}.", bkPort, journalDir.getPath());
+            this.journalDirs.put(bkPort, journalDir);
+            setupTempDir(journalDir);
+        }
+
+        File ledgerDir = this.ledgerDirs.getOrDefault(bkPort, null);
+        if (ledgerDir == null) {
+            ledgerDir = Strings.isNullOrEmpty(this.ledgersDir) ? null : new File(this.ledgersDir);
+            ledgerDir = IOUtils.createTempDir("bookieledger_" + bkPort, "_test", ledgerDir);
+            log.info("Ledgers Dir[{}]: {}.", bkPort, ledgerDir.getPath());
+            this.ledgerDirs.put(bkPort, ledgerDir);
+            setupTempDir(ledgerDir);
         }
 
         val conf = new ServerConfiguration();
         conf.setBookiePort(bkPort);
         conf.setMetadataServiceUri("zk://" + LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort + ledgersPath);
-        conf.setJournalDirName(tmpDir.getPath());
-        conf.setLedgerDirNames(new String[]{tmpDir.getPath()});
+        conf.setJournalDirName(journalDir.getPath());
+        conf.setLedgerDirNames(new String[]{ledgerDir.getPath()});
         conf.setAllowLoopback(true);
-        conf.setJournalAdaptiveGroupWrites(false);
+        conf.setJournalAdaptiveGroupWrites(true);
 
         if (secureBK) {
             conf.setTLSProvider("OpenSSL");
@@ -245,13 +242,26 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         return bs;
     }
 
+    private void setupTempDir(File dir) throws IOException {
+        dir.deleteOnExit();
+        log.info("Created " + dir);
+        if (!dir.delete() || !dir.mkdir()) {
+            throw new IOException("Couldn't create bookie dir " + dir);
+        }
+    }
+
     private void cleanupDirectories() throws IOException {
-        for (File dir : this.tempDirs.values()) {
+        cleanupDirectories(this.ledgerDirs);
+        cleanupDirectories(this.journalDirs);
+    }
+
+    private void cleanupDirectories(HashMap<?, File> toDelete) throws IOException {
+        for (File dir : toDelete.values()) {
             log.info("Cleaning up " + dir);
             FileUtils.deleteDirectory(dir);
         }
 
-        this.tempDirs.clear();
+        toDelete.clear();
     }
 
     //endregion
@@ -281,6 +291,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
             b.tLSKeyStore(System.getProperty(TLS_KEY_STORE, "../../../config/bookie.keystore.jks"));
             b.tLSKeyStorePasswordPath(System.getProperty(TLS_KEY_STORE_PASSWD, "../../../config/bookie.keystore.jks.passwd"));
             b.secureBK(Boolean.parseBoolean(System.getProperty(PROPERTY_SECURE_BK, "false")));
+            b.ledgersDir(System.getProperty(PROPERTY_LEDGERS_DIR, null)); // null will colocate ledgers and journal.
 
         } catch (Exception ex) {
             System.out.println(String.format("Invalid or missing arguments (via system properties). Expected: %s(int), " +
