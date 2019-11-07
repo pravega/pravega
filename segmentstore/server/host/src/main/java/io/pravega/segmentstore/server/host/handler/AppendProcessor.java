@@ -12,9 +12,6 @@ package io.pravega.segmentstore.server.host.handler;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
-import com.google.common.collect.LinkedListMultimap;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
@@ -37,6 +34,7 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.DelegatingRequestProcessor;
+import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
@@ -53,15 +51,17 @@ import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -71,66 +71,44 @@ import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
  * Process incoming Append requests and write them to the SegmentStore.
  */
 @Slf4j
+@Builder
 public class AppendProcessor extends DelegatingRequestProcessor {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final int HIGH_WATER_MARK = 1024 * 1024; // 1MB
-    private static final int LOW_WATER_MARK = 640 * 1024;  // 640KB
     private static final String EMPTY_STACK_TRACE = "";
+    @NonNull
     private final StreamSegmentStore store;
+    @NonNull
     private final ServerConnection connection;
-    private final AtomicLong pendingBytes = new AtomicLong(0);
-
+    @NonNull
+    private final ConnectionTracker connectionTracker;
     @Getter
+    @NonNull
     private final RequestProcessor nextRequestProcessor;
-    private final Object lock = new Object();
+    @NonNull
     private final SegmentStatsRecorder statsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
-
-    @GuardedBy("lock")
-    private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
-    @GuardedBy("lock")
-    private final HashMap<Pair<String, UUID>, Long> latestEventNumbers = new HashMap<>();
-    @GuardedBy("lock")
-    private Append outstandingAppend = null;
+    private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
+    private final AtomicLong outstandingBytes = new AtomicLong();
 
     //endregion
 
-    //region Constructor
-
+    //region Builder
 
     /**
-     * Creates a new instance of the AppendProcessor class with no Metrics StatsRecorder.
-     *
-     * @param store      The SegmentStore to send append requests to.
-     * @param connection The ServerConnection to send responses to.
-     * @param next       The RequestProcessor to invoke next.
-     * @param verifier    The token verifier.
+     * Creates a new {@link AppendProcessorBuilder} instance with all optional arguments set to default values.
+     * These default values may not be appropriate for production use and should be used for testing purposes only.
+     * @return A {@link AppendProcessorBuilder} instance.
      */
     @VisibleForTesting
-    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier) {
-        this(store, connection, next, SegmentStatsRecorder.noOp(), verifier, false);
-    }
-
-    /**
-     * Creates a new instance of the AppendProcessor class.
-     * @param store         The SegmentStore to send append requests to.
-     * @param connection    The ServerConnection to send responses to.
-     * @param next          The RequestProcessor to invoke next.
-     * @param statsRecorder A StatsRecorder to record Metrics.
-     * @param tokenVerifier Delegation token verifier.
-     * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
-     */
-    AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder,
-                    DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
-        this.store = Preconditions.checkNotNull(store, "store");
-        this.connection = Preconditions.checkNotNull(connection, "connection");
-        this.nextRequestProcessor = Preconditions.checkNotNull(next, "next");
-        this.statsRecorder = Preconditions.checkNotNull(statsRecorder, statsRecorder);
-        this.tokenVerifier = tokenVerifier;
-        this.replyWithStackTraceOnError = replyWithStackTraceOnError;
+    public static AppendProcessorBuilder defaultBuilder() {
+        return builder()
+                .nextRequestProcessor(new FailingRequestProcessor())
+                .statsRecorder(SegmentStatsRecorder.noOp())
+                .connectionTracker(new ConnectionTracker())
+                .replyWithStackTraceOnError(false);
     }
 
     //endregion
@@ -180,9 +158,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
                         } else {
                             long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
-                            synchronized (lock) {
-                                latestEventNumbers.putIfAbsent(Pair.of(newSegment, writer), eventNumber);
-                            }
+                            this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
                             connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
                         }
                     } catch (Throwable e) {
@@ -192,66 +168,35 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     /**
-     * If there isn't already an append outstanding against the store, write a new one.
-     * Appends are opportunistically batched here. i.e. If many are waiting they are combined into a single append and
-     * that is written.
+     * Append data to the store.
      */
-    private void performNextWrite() {
-        Append append = getNextAppend();
-        if (append == null) {
-            return;
-        }
-        long traceId = LoggerHelpers.traceEnter(log, "storeAppend", append);
+    @Override
+    public void append(Append append) {
+        long traceId = LoggerHelpers.traceEnter(log, "append", append);
+        UUID id = append.getWriterId();
+        WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
+        Preconditions.checkState(state != null, "Data from unexpected connection: %s.", id);
+        long previousEventNumber = state.beginAppend(append.getEventNumber());
+        int appendLength = append.getData().readableBytes();
+        adjustOutstandingBytes(appendLength);
         Timer timer = new Timer();
-        storeAppend(append)
-                .whenComplete((length, e) -> {
-                    handleAppendResult(append, length, e, timer);
-                    LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, e);
+        storeAppend(append, previousEventNumber)
+                .whenComplete((newLength, ex) -> {
+                    handleAppendResult(append, newLength, ex, timer);
+                    LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, ex);
                 })
-                .whenComplete((v, e) -> append.getData().release());
+                .whenComplete((v, e) -> {
+                    adjustOutstandingBytes(-appendLength);
+                    append.getData().release();
+                });
     }
 
-    private Append getNextAppend() {
-        synchronized (lock) {
-            if (outstandingAppend != null || waitingAppends.isEmpty()) {
-                return null;
-            }
-            UUID writer = waitingAppends.keys().iterator().next();
-            List<Append> appends = waitingAppends.get(writer);
-            if (appends.get(0).isConditional()) {
-                outstandingAppend = appends.remove(0);
-            } else {
-                ByteBuf[] toAppend = new ByteBuf[appends.size()];
-                Append last = appends.get(0);
-                int eventCount = 0;
-                int i = -1;
-                for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
-                    Append a = iterator.next();
-                    if (a.isConditional()) {
-                        break;
-                    }
-                    i++;
-                    toAppend[i] = a.getData();
-                    last = a;
-                    eventCount += a.getEventCount();
-                    iterator.remove();
-                }
-                ByteBuf data = Unpooled.wrappedBuffer(toAppend);
-                String segment = last.getSegment();
-                long eventNumber = last.getEventNumber();
-                outstandingAppend = new Append(segment, writer, eventNumber, eventCount, data, null, last.getRequestId());
-            }
-            setPendingBytes(getPendingBytes() - outstandingAppend.getData().readableBytes());
-            return outstandingAppend;
-        }
+    private void adjustOutstandingBytes(int delta) {
+        long currentOutstanding = this.outstandingBytes.updateAndGet(p -> Math.max(0, p + delta));
+        this.connectionTracker.updateOutstandingBytes(this.connection, delta, currentOutstanding);
     }
 
-    private CompletableFuture<Long> storeAppend(Append append) {
-        long lastEventNumber;
-        synchronized (lock) {
-            lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
-        }
-
+    private CompletableFuture<Long> storeAppend(Append append, long lastEventNumber) {
         List<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfEquals, append.getEventNumber(), lastEventNumber),
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
@@ -267,52 +212,36 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         boolean success = exception == null;
         try {
             boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
-            long previousEventNumber;
-            synchronized (lock) {
-                previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
-                Preconditions.checkState(outstandingAppend == append,
-                        "Synchronization error in: %s while processing append: %s.",
-                        AppendProcessor.this.getClass().getName(), append);
-            }
 
+            WriterState state = this.writerStates.getOrDefault(Pair.of(append.getSegment(), append.getWriterId()), null);
             if (success) {
-                final DataAppended dataAppendedAck = new DataAppended(append.getRequestId(), append.getWriterId(), append.getEventNumber(),
-                        previousEventNumber, newWriteOffset);
-                log.trace("Sending DataAppended : {}", dataAppendedAck);
-                connection.send(dataAppendedAck);
+                Preconditions.checkState(state != null, "Synchronization error while processing append: %s. Unable to send ack.", append);
+                synchronized (state.getAckLock()) {
+                    // Acks must be sent in order. The only way to do this is by using a lock.
+                    long previousLastAcked = state.appendSuccessful(append.getEventNumber());
+                    if (previousLastAcked < append.getEventNumber()) {
+                        final DataAppended dataAppendedAck = new DataAppended(append.getRequestId(), append.getWriterId(), append.getEventNumber(),
+                                previousLastAcked, newWriteOffset);
+                        log.trace("Sending DataAppended : {}", dataAppendedAck);
+                        connection.send(dataAppendedAck);
+                    }
+                }
             } else {
                 if (conditionalFailed) {
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
+                    if (state != null) {
+                        // Revert the state to the last known good one. This is needed because we do not close the connection
+                        // for offset-conditional append failures, hence we must revert the effects of the failed append.
+                        state.conditionalAppendFailed();
+                    }
                     connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber(), append.getRequestId()));
                 } else {
+                    // Clear the state in case of error.
+                    this.writerStates.remove(Pair.of(append.getSegment(), append.getWriterId()));
                     handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
-                                    "appending data", exception);
+                            "appending data", exception);
                 }
             }
-
-            /* Reply (DataAppended in case of success, else an error Reply based on exception) has been sent. Next,
-             *   - clear outstandingAppend to handle the next Append message.
-             *   - ensure latestEventNumbers and waitingAppends are updated.
-             */
-            synchronized (lock) {
-                Preconditions.checkState(outstandingAppend == append,
-                        "Synchronization error in: %s while processing append: %s.",
-                        AppendProcessor.this.getClass().getName(), append);
-                outstandingAppend = null;
-                if (exception == null) {
-                    latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());
-                } else {
-                    if (!conditionalFailed) {
-                        long bytes = waitingAppends.removeAll(append.getWriterId())
-                                .stream().mapToInt(a -> a.getData().readableBytes()).sum();
-                        setPendingBytes(getPendingBytes() - bytes);
-                        latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
-                    }
-                }
-            }
-      
-            pauseOrResumeReading();
-            performNextWrite();
         } catch (Throwable e) {
             success = false;
             handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "handling append result", e);
@@ -385,58 +314,82 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
-    /**
-     * If there is too much data waiting throttle the producer by stopping consumption from the socket.
-     * If there is room for more data, we resume consuming from the socket.
-     */
-    private void pauseOrResumeReading() {
-        long bytesWaiting = getPendingBytes();
+    //endregion
 
-        if (bytesWaiting > HIGH_WATER_MARK) {
-            log.debug("Pausing writing from connection {}", connection);
-            connection.pauseReading();
+    //region WriterState
+
+    @ThreadSafe
+    private static class WriterState {
+        @Getter
+        private final Object ackLock = new Object();
+        @GuardedBy("this")
+        private long lastStoredEventNumber;
+        @GuardedBy("this")
+        private long lastAckedEventNumber;
+        @GuardedBy("this")
+        private long inFlightCount;
+
+        WriterState(long initialEventNumber) {
+            this.inFlightCount = 0;
+            this.lastStoredEventNumber = initialEventNumber;
+            this.lastAckedEventNumber = initialEventNumber;
         }
-        if (bytesWaiting < LOW_WATER_MARK) {
-            log.trace("Resuming writing from connection {}", connection);
-            connection.resumeReading();
+
+        /**
+         * Invoked when a new append is initiated.
+         *
+         * @param eventNumber The Append's Event Number.
+         * @return The previously attempted Event Number.
+         */
+        synchronized long beginAppend(long eventNumber) {
+            long previousEventNumber = this.lastStoredEventNumber;
+            Preconditions.checkState(eventNumber >= previousEventNumber, "Event was already appended.");
+            this.lastStoredEventNumber = eventNumber;
+            this.inFlightCount++;
+            return previousEventNumber;
+        }
+
+        /**
+         * Invoked when a conditional append has failed due to {@link BadOffsetException}. If no more appends are in the
+         * pipeline, then the Last Stored Event Number is reverted to the Last (Successfully) Acked Event Number.
+         */
+        synchronized void conditionalAppendFailed() {
+            this.inFlightCount--;
+            if (this.inFlightCount == 0) {
+                this.lastStoredEventNumber = this.lastAckedEventNumber;
+            }
+        }
+
+        /**
+         * Invoked when an append has been successfully stored and is about to be ack-ed to the Client.
+         *
+         * This method is designed to be invoked immediately before sending a {@link DataAppended} ack to the client,
+         * however both its invocation and the ack must be sent atomically as the Client expects acks to arrive in order.
+         *
+         * When composing a {@link DataAppended} ack, the value passed to eventNumber should be passed as
+         * {@link DataAppended#getEventNumber()} and the return value from this method should be passed as
+         * {@link DataAppended#getPreviousEventNumber()}.
+         *
+         * @param eventNumber The Append's Event Number. This should correspond to the last successful append in the Store
+         *                    and will be sent in the {@link DataAppended} ack back to the Client. This value will be
+         *                    remembered and returned upon the next invocation of this method. If this value is less
+         *                    than that of a previous invocation of this method (due to out-of-order acks from the Store),
+         *                    it will have no effect as it has already been ack-ed as part of a previous call.
+         * @return The last successful Append's Event Number (prior to this one). This is the value of eventNumber for
+         * the previous invocation of this method.
+         */
+        synchronized long appendSuccessful(long eventNumber) {
+            this.inFlightCount--;
+            long previousLastAcked = this.lastAckedEventNumber;
+            this.lastAckedEventNumber = Math.max(previousLastAcked, eventNumber);
+            return previousLastAcked;
+        }
+
+        @Override
+        public synchronized String toString() {
+            return String.format("Stored=%s, Acked=%s", this.lastStoredEventNumber, this.lastAckedEventNumber);
         }
     }
 
-    /**
-     * return the remaining bytes to be consumed.
-     */
-    protected long getPendingBytes() {
-        return pendingBytes.get();
-    }
-
-    /**
-     * set the remaining bytes to be consumed.
-     * Make sure that negative value is not set.
-     *
-     * @param val  New value to set.
-     */
-    protected void setPendingBytes(long val) {
-        pendingBytes.set(Math.max(val, 0));
-    }
-
-    /**
-     * Append data to the store.
-     * Because ordering dictates that there only be one outstanding append from a given connection, this is implemented
-     * by adding the append to a queue.
-     */
-    @Override
-    public void append(Append append) {
-        log.trace("Processing append received from client {}", append);
-        UUID id = append.getWriterId();
-        synchronized (lock) {
-            Long lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), id));
-            Preconditions.checkState(lastEventNumber != null, "Data from unexpected connection: %s.", id);
-            Preconditions.checkState(append.getEventNumber() >= lastEventNumber, "Event was already appended.");
-            waitingAppends.put(id, append);
-        }
-        setPendingBytes(getPendingBytes() + append.getData().readableBytes());
-        pauseOrResumeReading();
-        performNextWrite();
-    }
     //endregion
 }

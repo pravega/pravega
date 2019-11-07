@@ -69,6 +69,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private final StreamSegmentStore store;
     private final TableStore tableStore;
     private final DelegationTokenVerifier tokenVerifier;
+    private final ConnectionTracker connectionTracker;
 
     private Channel serverChannel;
     private EventLoopGroup bossGroup;
@@ -147,6 +148,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
             this.tokenVerifier = new PassingTokenVerifier();
         }
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
+        this.connectionTracker = new ConnectionTracker();
     }
 
     //endregion
@@ -199,6 +201,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
+                         connectionTracker,
                          new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError),
                          statsRecorder,
                          tokenVerifier,
