@@ -24,6 +24,7 @@ import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.storage.cache.CacheFullException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -113,8 +114,11 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
      * @param operations An Iterator iterating over the operations to process (in sequence).
      * @throws DataCorruptionException If a serious, non-recoverable, data corruption was detected, such as trying to
      *                                 append operations out of order.
+     * @throws CacheFullException If any operation in the given iterator contains data that needs to be added to the
+     * {@link ReadIndex} but it could not be done due to the cache being full and unable to evict anything to make room
+     * for more.
      */
-    void process(Iterator<Operation> operations) throws DataCorruptionException {
+    void process(Iterator<Operation> operations) throws DataCorruptionException, CacheFullException {
         HashSet<Long> segmentIds = new HashSet<>();
         while (operations.hasNext()) {
             Operation op = operations.next();
@@ -142,8 +146,10 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
      * @param operation The operation to process.
      * @throws DataCorruptionException If a serious, non-recoverable, data corruption was detected, such as trying to
      *                                 append operations out of order.
+     * @throws CacheFullException If the operation contains data that needs to be added to the {@link ReadIndex} but it
+     * could not be done due to the cache being full and unable to evict anything to make room for more.
      */
-    void process(Operation operation) throws DataCorruptionException {
+    void process(Operation operation) throws DataCorruptionException, CacheFullException {
         // Add entry to MemoryTransactionLog and ReadIndex/Cache. This callback is invoked from the OperationProcessor,
         // which always acks items in order of Sequence Number - so the entries should be ordered (but always check).
         if (operation instanceof StorageOperation) {
@@ -191,8 +197,13 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
      * Registers the given operation in the ReadIndex.
      *
      * @param operation The operation to register.
+     * @throws CacheFullException If the operation could not be added to the {@link ReadIndex} due to the cache being
+     * full and unable to evict anything to make room for more.
+     * @throws DataCorruptionException If any unexpected exception occurred that prevented the operation from being
+     * added to the {@link ReadIndex}. Unexpected exceptions are all exceptions other than those declared in this
+     * method or that indicate we are shutting down or that the segment has been deleted.
      */
-    private void addToReadIndex(StorageOperation operation) throws DataCorruptionException {
+    private void addToReadIndex(StorageOperation operation) throws DataCorruptionException, CacheFullException {
         try {
             if (operation instanceof StreamSegmentAppendOperation) {
                 // Record a StreamSegmentAppendOperation. Just in case, we also support this type of operation, but we need to
@@ -216,6 +227,10 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
             // The Segment is in the process of being deleted. We usually end up in here because a concurrent delete
             // request has updated the metadata while we were executing.
             log.warn("Not adding operation '{}' to ReadIndex because it refers to a deleted StreamSegment.", operation);
+        } catch (CacheFullException ex) {
+            // Record the operation that we couldn't add and re-throw the exception as we cannot do anything about it here.
+            log.warn("Not adding operation '{}' to ReadIndex because the Cache is full.", operation);
+            throw ex;
         } catch (Exception ex) {
             throw new DataCorruptionException(String.format("Unable to add operation '%s' to ReadIndex.", operation), ex);
         }

@@ -26,6 +26,7 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
+import io.pravega.segmentstore.storage.cache.CacheFullException;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -384,7 +385,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private static boolean isFatalException(Throwable ex) {
         return ex instanceof DataCorruptionException
                 || ex instanceof DataLogWriterNotPrimaryException
-                || ex instanceof ObjectClosedException;
+                || ex instanceof ObjectClosedException
+                || ex instanceof CacheFullException;
     }
 
     private void processCommits(Collection<List<CompletableOperation>> items) {
