@@ -548,10 +548,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);
                             logError(requestTag, cause);
-                            String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
-                            streamObserver.onError(getStatusFromException(cause).withCause(cause)
-                                                                                .withDescription(errorDescription)
-                                                                                .asRuntimeException());
+                            String stackTrace = "controllerStackTrace=" + Throwables.getStackTraceAsString(ex);
+                            String errorDescription = replyWithStackTraceOnError ? stackTrace : cause.getMessage();
+                            streamObserver.onError(getStatusFromException(cause)
+                                    .withCause(cause)
+                                    .withDescription(errorDescription)
+                                    .asRuntimeException());
                         } else if (value != null) {
                             streamObserver.onNext(value);
                             streamObserver.onCompleted();
@@ -577,7 +579,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.error("Encountered {} in authenticateExecuteAndProcessResults", e.getClass().getSimpleName(), e);
         logAndUntrackRequestTag(requestTag);
         streamObserver.onError(status.withDescription(message).asRuntimeException());
-
     }
     
     @SuppressWarnings("checkstyle:ReturnCount")
