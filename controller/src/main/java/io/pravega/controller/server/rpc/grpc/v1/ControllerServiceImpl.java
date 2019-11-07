@@ -550,8 +550,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             logError(requestTag, cause);
                             String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
                             streamObserver.onError(getStatusFromException(cause).withCause(cause)
-                                    .withDescription(errorDescription)
-                                    .asRuntimeException());
+                                                                                .withDescription(errorDescription)
+                                                                                .asRuntimeException());
                         } else if (value != null) {
                             streamObserver.onNext(value);
                             streamObserver.onCompleted();
