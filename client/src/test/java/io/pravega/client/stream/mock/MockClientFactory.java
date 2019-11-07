@@ -64,6 +64,11 @@ public class MockClientFactory implements EventStreamClientFactory, Synchronizer
     }
 
     @Override
+    public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
+        return impl.createTransactionalEventWriter(streamName, s, config);
+    }
+
+    @Override
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
             ReaderConfig config) {
         return impl.createReader(readerId, readerGroup, s, config);
