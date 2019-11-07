@@ -93,7 +93,6 @@ import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -468,13 +467,11 @@ public class ControllerGrpcAuthFocusedTest {
                 .newBuilder().setScope(
                         Controller.ScopeInfo.newBuilder().setScope("scope1").build())
                 .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
-        try {
-            stub.listStreamsInScope(request);
-        } catch (RuntimeException e) {
-            if (!e.getMessage().contains("UNAUTHENTICATED")) {
-                fail("Expected auth failure.");
-            }
-        }
+
+        // Act and assert
+        AssertExtensions.assertThrows("Expected auth failure.",
+                () -> stub.listStreamsInScope(request),
+                e -> e.getMessage().contains("UNAUTHENTICATED"));
     }
 
     //region Private methods
