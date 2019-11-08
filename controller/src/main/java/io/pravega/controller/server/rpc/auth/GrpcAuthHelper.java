@@ -11,6 +11,7 @@ package io.pravega.controller.server.rpc.auth;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.AuthorizationException;
 import io.pravega.shared.security.token.JsonWebToken;
 
@@ -60,11 +61,11 @@ public class GrpcAuthHelper {
         if (isAuthorized(resource, expectedLevel, ctx)) {
             return "";
         } else {
-            if (ctx == null) {
-                log.warn("AuthContext is null");
+            if (ctx == null || ctx.getPrincipal() == null) {
+                throw new AuthenticationException("Could't extract Principal");
             }
             String message = String.format("Principal [%s] not allowed [%s] access for resource [%s]",
-                    ctx != null ? ctx.getPrincipal() : null, expectedLevel, resource);
+                    ctx.getPrincipal(), expectedLevel, resource);
             throw new AuthorizationException(message);
         }
     }

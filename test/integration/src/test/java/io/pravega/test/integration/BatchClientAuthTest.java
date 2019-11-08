@@ -115,7 +115,7 @@ public class BatchClientAuthTest extends BatchClientTest {
 
         AssertExtensions.assertThrows("Auth exception did not occur.",
                 () -> this.listAndReadSegmentsUsingBatchClient("testScope", "testBatchStream", config),
-                e -> hasAuthorizationExceptionAsRootCause(e));
+                e -> hasAuthenticationExceptionAsRootCause(e));
     }
 
     @Test(timeout = 250000)

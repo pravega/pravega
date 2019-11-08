@@ -561,6 +561,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         logAndUntrackRequestTag(requestTag);
                     });
         } catch (AuthenticationException e) {
+            // Empty credentials when Auth is enabled may lead to this exception here. When credentials are present in
+            // the client call but are incorrect, the client is returned the same status from AuthInterceptor.
             handleException(e, streamObserver, requestTag, Status.UNAUTHENTICATED, "Authentication failed");
         } catch (AuthorizationException e) {
             handleException(e, streamObserver, requestTag, Status.PERMISSION_DENIED, "Authorization failed");

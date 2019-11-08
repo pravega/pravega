@@ -462,7 +462,7 @@ public class ControllerGrpcAuthFocusedTest {
         createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
                 prepareFromFixedScaleTypePolicy(2));
 
-        ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.SCOPE2_READ, "wrong-password");
+        ControllerServiceBlockingStub stub = prepareBlockingCallStubWithNoCredentials();
         Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
                 .newBuilder().setScope(
                         Controller.ScopeInfo.newBuilder().setScope("scope1").build())
@@ -501,6 +501,10 @@ public class ControllerGrpcAuthFocusedTest {
                 .setStreamInfo(StreamInfo.newBuilder().setScope(scope).setStream(stream).build())
                 .setSegmentId(segmentId)
                 .build();
+    }
+
+    private ControllerServiceBlockingStub prepareBlockingCallStubWithNoCredentials() {
+        return ControllerServiceGrpc.newBlockingStub(inProcessChannel);
     }
 
     private ControllerServiceBlockingStub prepareBlockingCallStub(String username, String password) {
