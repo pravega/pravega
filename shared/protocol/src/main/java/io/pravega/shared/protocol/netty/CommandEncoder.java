@@ -19,7 +19,6 @@ import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
-import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import java.io.IOException;
@@ -388,8 +387,14 @@ public class CommandEncoder extends FlushingMessageToByteEncoder<Object> {
         if (isChannelFree()) {
             return;
         }
-        writeMessage(new Padding(bytesLeftInBlock), out);
+        writePadding(out);
         completeAppend(null, out);
+    }
+    
+    private void writePadding(ByteBuf out) {
+        out.writeInt(WireCommandType.PADDING.getCode());
+        out.writeInt(bytesLeftInBlock);
+        out.writeZero(bytesLeftInBlock);
     }
 
     @SneakyThrows(IOException.class)
