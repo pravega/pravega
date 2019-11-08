@@ -28,9 +28,8 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ServerConnection {
-
-    private AtomicReference<RequestProcessor> processor = new AtomicReference<>();
-    private AtomicReference<Channel> channel = new AtomicReference<>();
+    private final AtomicReference<RequestProcessor> processor = new AtomicReference<>();
+    private final AtomicReference<Channel> channel = new AtomicReference<>();
 
     @Override
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
@@ -93,11 +92,13 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
 
     @Override
     public void pauseReading() {
+        log.debug("Pausing reading from connection {}", this);
         getChannel().config().setAutoRead(false);
     }
 
     @Override
     public void resumeReading() {
+        log.trace("Resuming reading from connection {}", this);
         getChannel().config().setAutoRead(true);
     }
 
