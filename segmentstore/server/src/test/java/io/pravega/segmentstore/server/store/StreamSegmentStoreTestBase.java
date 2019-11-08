@@ -1,3 +1,4 @@
+
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
@@ -85,7 +86,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int MAX_INSTANCE_COUNT = 4;
     private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
     private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
-    private static final Duration TIMEOUT = Duration.ofSeconds(120);
+    private static final Duration TIMEOUT = Duration.ofSeconds(600);
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
@@ -183,9 +184,14 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             log.info("Finished appending data.");
 
             checkSegmentStatus(lengths, startOffsets, false, false, expectedAttributeValue, segmentStore);
+            builder.close();
             log.info("Finished Phase 1");
         }
-
+        segmentNames.clear();
+        transactionsBySegment.clear();
+        lengths.clear();
+        startOffsets.clear();
+        segmentContents.clear();
         // Phase 2: Force a recovery and merge all transactions.
         log.info("Starting Phase 2.");
         try (val builder = createBuilder(++instanceId)) {
@@ -212,9 +218,14 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
 
             checkSegmentStatus(lengths, startOffsets, false, false, expectedAttributeValue, segmentStore);
+            builder.close();
             log.info("Finished Phase 2.");
         }
-
+        segmentNames.clear();
+        transactionsBySegment.clear();
+        lengths.clear();
+        startOffsets.clear();
+        segmentContents.clear();
         // Phase 3: Force a recovery, immediately check reads, then truncate and read at the same time.
         log.info("Starting Phase 3.");
         try (val builder = createBuilder(++instanceId);
@@ -237,9 +248,15 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             log.info("Finished checking reads while truncating.");
 
             checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
+            builder.close();
+            readOnlyBuilder.close();
             log.info("Finished Phase 3.");
         }
-
+        segmentNames.clear();
+        transactionsBySegment.clear();
+        lengths.clear();
+        startOffsets.clear();
+        segmentContents.clear();
         // Phase 4: Force a recovery, seal segments and then delete them.
         log.info("Starting Phase 4.");
         try (val builder = createBuilder(++instanceId);
@@ -262,6 +279,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             log.info("Finished deleting segments.");
 
             checkSegmentStatus(lengths, startOffsets, true, true, expectedAttributeValue, segmentStore);
+            builder.close();
             log.info("Finished Phase 4.");
         }
 
