@@ -11,6 +11,7 @@ package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.Flow;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -57,7 +58,8 @@ public class AsyncSegmentInputStreamTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, "");
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         ClientConnection c = mock(ClientConnection.class);
         InOrder inOrder = Mockito.inOrder(c);
         connectionFactory.provideConnection(endpoint, c);
@@ -110,7 +112,8 @@ public class AsyncSegmentInputStreamTest {
         connectionFactory.provideConnection(endpoint, c);
         MockConnectionFactoryImpl mockedCF = spy(connectionFactory);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, mockedCF, segment, "");
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, mockedCF, segment,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         InOrder inOrder = Mockito.inOrder(c);
 
         // Failed Connection
@@ -131,17 +134,19 @@ public class AsyncSegmentInputStreamTest {
         ArgumentCaptor<ClientConnection.CompletedCallback> callBackCaptor =
                 ArgumentCaptor.forClass(ClientConnection.CompletedCallback.class);
         Mockito.doAnswer(new Answer<Void>() {
+            @Override
             public Void answer(InvocationOnMock invocation) {
                 // Simulate a connection failure post establishing connection to SegmentStore.
                 callBackCaptor.getValue().complete(new ConnectionFailedException("SendAsync exception since netty channel is null"));
                 return null;
             }
         }).doAnswer(new Answer<Void>() {
-                   public Void answer(InvocationOnMock invocation) {
-                       mockedCF.getProcessor(endpoint).segmentRead(segmentRead);
-                       return null;
-                   }
-               }).when(c).sendAsync(any(ReadSegment.class), callBackCaptor.capture());
+            @Override
+            public Void answer(InvocationOnMock invocation) {
+                mockedCF.getProcessor(endpoint).segmentRead(segmentRead);
+                return null;
+            }
+        }).when(c).sendAsync(any(ReadSegment.class), callBackCaptor.capture());
 
         // Read invocation.
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
@@ -170,7 +175,8 @@ public class AsyncSegmentInputStreamTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, "");
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         in.getConnection().get(); // Make sure connection is established.
@@ -189,7 +195,8 @@ public class AsyncSegmentInputStreamTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
 
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, "");
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         
@@ -216,7 +223,8 @@ public class AsyncSegmentInputStreamTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
 
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, "");
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
 
@@ -261,7 +269,8 @@ public class AsyncSegmentInputStreamTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, "");
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);

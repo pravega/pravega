@@ -10,6 +10,8 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
@@ -35,6 +37,7 @@ import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -160,6 +163,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         ArrayList<String> segmentNames;
         HashMap<String, ArrayList<String>> transactionsBySegment;
         HashMap<String, Long> lengths = new HashMap<>();
+        ArrayList<ByteBuf> appendBuffers = new ArrayList<>();
         HashMap<String, Long> startOffsets = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
         long expectedAttributeValue = 0;
@@ -179,7 +183,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // Add some appends.
             ArrayList<String> segmentsAndTransactions = new ArrayList<>(segmentNames);
             transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
-            appendData(segmentsAndTransactions, segmentContents, lengths, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            appendData(segmentsAndTransactions, segmentContents, lengths, appendBuffers, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             expectedAttributeValue += ATTRIBUTE_UPDATE_DELTA;
             log.info("Finished appending data.");
 
@@ -192,6 +196,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         lengths.clear();
         startOffsets.clear();
         segmentContents.clear();
+
+        // Verify all buffers have been released.
+        checkAppendLeaks(appendBuffers);
+        appendBuffers.clear();
+
         // Phase 2: Force a recovery and merge all transactions.
         log.info("Starting Phase 2.");
         try (val builder = createBuilder(++instanceId)) {
@@ -210,7 +219,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 checkSegmentStatus(lengths, startOffsets, false, false, expectedAttributeValue, segmentStore);
 
                 // Append more data.
-                appendData(segmentNames, segmentContents, lengths, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                appendData(segmentNames, segmentContents, lengths, appendBuffers, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 expectedAttributeValue += ATTRIBUTE_UPDATE_DELTA;
                 log.info("Finished appending after merging transactions.");
             } else {
@@ -226,6 +235,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         lengths.clear();
         startOffsets.clear();
         segmentContents.clear();
+
+        // Verify all buffers have been released.
+        checkAppendLeaks(appendBuffers);
+        appendBuffers.clear();
+
         // Phase 3: Force a recovery, immediately check reads, then truncate and read at the same time.
         log.info("Starting Phase 3.");
         try (val builder = createBuilder(++instanceId);
@@ -309,7 +323,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             HashMap<String, Long> lengths = new HashMap<>();
             HashMap<String, Long> startOffsets = new HashMap<>();
             HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
-            val appends = createAppendDataRequests(segmentsAndTransactions, segmentContents, lengths,
+            val appends = createAppendDataRequests(segmentsAndTransactions, segmentContents, lengths, null,
                     applyFencingMultiplier(ATTRIBUTE_UPDATES_PER_SEGMENT), applyFencingMultiplier(APPENDS_PER_SEGMENT));
             val requests = appends.iterator();
 
@@ -384,13 +398,13 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     private ArrayList<StoreRequest> createAppendDataRequests(
-            Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths) {
-        return createAppendDataRequests(segmentNames, segmentContents, lengths, ATTRIBUTE_UPDATES_PER_SEGMENT, APPENDS_PER_SEGMENT);
+            Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, List<ByteBuf> appendBuffers) {
+        return createAppendDataRequests(segmentNames, segmentContents, lengths, appendBuffers, ATTRIBUTE_UPDATES_PER_SEGMENT, APPENDS_PER_SEGMENT);
     }
 
     private ArrayList<StoreRequest> createAppendDataRequests(
             Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths,
-            int attributeUpdatesPerSegment, int appendsPerSegment) {
+            List<ByteBuf> appendBuffers, int attributeUpdatesPerSegment, int appendsPerSegment) {
         val result = new ArrayList<StoreRequest>();
         val halfAttributeCount = attributeUpdatesPerSegment / 2;
         for (String segmentName : segmentNames) {
@@ -409,7 +423,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
-                result.add(store -> store.append(segmentName, appendData, createAttributeUpdates(), TIMEOUT));
+                // Use Netty ByteBuf here - this mimics the behavior of AppendProcessor.
+                ByteBuf buf = Unpooled.wrappedBuffer(appendData);
+                result.add(store -> Futures.toVoid(store.append(segmentName, new ByteBufWrapper(buf), createAttributeUpdates(), TIMEOUT)));
+                if (appendBuffers != null) {
+                    appendBuffers.add(buf);
+                }
             }
 
             // Add the rest of the attribute updates.
@@ -422,8 +441,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     private CompletableFuture<Void> appendData(Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents,
-                                               HashMap<String, Long> lengths, StreamSegmentStore store) {
-        return execute(createAppendDataRequests(segmentNames, segmentContents, lengths), store);
+                                               HashMap<String, Long> lengths, List<ByteBuf> appendBuffers, StreamSegmentStore store) {
+        return execute(createAppendDataRequests(segmentNames, segmentContents, lengths, appendBuffers), store);
     }
 
     private Collection<AttributeUpdate> createAttributeUpdates() {
@@ -833,6 +852,15 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             AssertExtensions.assertArrayEquals("Unexpected data written to storage for segment " + segmentName,
                     expectedData, expectedData.length - expectedLength, actualData, 0, expectedLength);
         }
+    }
+
+    private void checkAppendLeaks(ArrayList<ByteBuf> buffers) {
+        // Release our reference to these buffers.
+        buffers.forEach(ByteBuf::release);
+
+        // Then verify nobody else still holds such a reference.
+        Assert.assertTrue("Memory Leak: At least one append buffer did not have its data released.",
+                buffers.stream().allMatch(r -> r.refCnt() == 0));
     }
 
     private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, StreamSegmentStore baseStore,

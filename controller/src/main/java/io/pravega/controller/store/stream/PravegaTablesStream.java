@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
@@ -26,6 +27,7 @@ import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.ByteBuffer;
@@ -57,18 +59,19 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedTableName;
 
-@Slf4j
 /**
- * Pravega Table Stream. 
- * This creates two top level tables per stream - metadataTable, epochsWithTransactionsTable. 
- * All metadata records are stored in metadata table. 
- * EpochsWithTransactions is a top level table for storing epochs where any transaction was created. 
+ * Pravega Table Stream.
+ * This creates two top level tables per stream - metadataTable, epochsWithTransactionsTable.
+ * All metadata records are stored in metadata table.
+ * EpochsWithTransactions is a top level table for storing epochs where any transaction was created.
  * This class is coded for transaction ids that follow the scheme that msb 32 bits represent epoch.
- * Each stream table is protected against recreation of stream by attaching a unique id to the stream when it is created. 
+ * Each stream table is protected against recreation of stream by attaching a unique id to the stream when it is created.
  */
+@Slf4j
 class PravegaTablesStream extends PersistentStreamBase {
     private static final String METADATA_TABLE = "metadata" + SEPARATOR + "%s";
     private static final String EPOCHS_WITH_TRANSACTIONS_TABLE = "epochsWithTransactions" + SEPARATOR + "%s";
+    private static final String WRITERS_POSITIONS_TABLE = "writersPositions" + SEPARATOR + "%s";
     private static final String TRANSACTIONS_IN_EPOCH_TABLE_FORMAT = "transactionsInEpoch-%d" + SEPARATOR + "%s";
 
     // metadata keys
@@ -99,9 +102,9 @@ class PravegaTablesStream extends PersistentStreamBase {
     private final AtomicReference<String> idRef;
     private final ZkOrderedStore txnCommitOrderer;
     private final ScheduledExecutorService executor;
-    
+
     @VisibleForTesting
-    PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper, ZkOrderedStore txnCommitOrderer, 
+    PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper, ZkOrderedStore txnCommitOrderer,
                         Supplier<Integer> currentBatchSupplier, Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier,
                         ScheduledExecutorService executor) {
         this(scopeName, streamName, storeHelper, txnCommitOrderer, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE,
@@ -109,7 +112,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @VisibleForTesting
-    PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper, ZkOrderedStore txnCommitOrderer, 
+    PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper, ZkOrderedStore txnCommitOrderer,
                         Supplier<Integer> currentBatchSupplier, int chunkSize, int shardSize,
                         Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier, ScheduledExecutorService executor) {
         super(scopeName, streamName, chunkSize, shardSize);
@@ -128,8 +131,8 @@ class PravegaTablesStream extends PersistentStreamBase {
             return CompletableFuture.completedFuture(id);
         } else {
             return streamsInScopeTableNameSupplier.get()
-                                                  .thenCompose(streamsInScopeTable -> 
-                                                          storeHelper.getEntry(streamsInScopeTable, getName(), 
+                                                  .thenCompose(streamsInScopeTable ->
+                                                          storeHelper.getEntry(streamsInScopeTable, getName(),
                                                           x -> BitConverter.readUUID(x, 0)))
                                                   .thenComposeAsync(data -> {
                                                       idRef.compareAndSet(null, data.getObject().toString());
@@ -145,7 +148,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     private String getMetadataTableName(String id) {
         return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(METADATA_TABLE, id));
     }
-    
+
     private CompletableFuture<String> getEpochsWithTransactionsTable() {
         return getId().thenApply(this::getEpochsWithTransactionsTableName);
     }
@@ -162,23 +165,31 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(TRANSACTIONS_IN_EPOCH_TABLE_FORMAT, epoch, id));
     }
 
+    private CompletableFuture<String> getWritersTable() {
+        return getId().thenApply(this::getWritersTableName);
+    }
+
+    private String getWritersTableName(String id) {
+        return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(WRITERS_POSITIONS_TABLE, id));
+    }
     // region overrides
 
     @Override
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record) {
-        // create all transaction entries in committing txn list. 
-        // remove all entries from active txn in epoch. 
+        // create all transaction entries in committing txn list.
+        // remove all entries from active txn in epoch.
         // reset CommittingTxnRecord
         long time = System.currentTimeMillis();
 
         Map<String, byte[]> completedRecords = record.getObject().getTransactionsToCommit().stream()
-                                                               .collect(Collectors.toMap(UUID::toString, 
+                                                               .collect(Collectors.toMap(UUID::toString,
                                                                        x -> new CompletedTxnRecord(time, TxnStatus.COMMITTED).toBytes()));
         CompletableFuture<Void> future;
         if (record.getObject().getTransactionsToCommit().size() == 0) {
             future = CompletableFuture.completedFuture(null);
         } else {
-            future = createCompletedTxEntries(completedRecords)
+            future = generateMarksForTransactions(record.getObject())
+                .thenCompose(v -> createCompletedTxEntries(completedRecords))
                     .thenCompose(x -> getTransactionsInEpochTable(record.getObject().getEpoch())
                             .thenCompose(table -> storeHelper.removeEntries(table, completedRecords.keySet())))
                     .thenCompose(x -> tryRemoveOlderTransactionsInEpochTables(epoch -> epoch < record.getObject().getEpoch()));
@@ -193,10 +204,11 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getId().thenCompose(id -> {
             String metadataTable = getMetadataTableName(id);
             String epochWithTxnTable = getEpochsWithTransactionsTableName(id);
+            String writersPositionsTable = getWritersTableName(id);
             return CompletableFuture.allOf(storeHelper.createTable(metadataTable),
-                    storeHelper.createTable(epochWithTxnTable))
-                                    .thenAccept(v -> log.debug("stream {}/{} metadata tables {} & {} created", getScope(), getName(), metadataTable,
-                                            epochWithTxnTable));
+                    storeHelper.createTable(epochWithTxnTable), storeHelper.createTable(writersPositionsTable))
+                                    .thenAccept(v -> log.debug("stream {}/{} metadata tables {}, {} & {} created", getScope(), getName(), metadataTable,
+                                            epochWithTxnTable, writersPositionsTable));
         });
     }
 
@@ -246,21 +258,21 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Long> getCreationTime() {
         return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.getCachedData(metadataTable, CREATION_TIME_KEY, 
+                .thenCompose(metadataTable -> storeHelper.getCachedData(metadataTable, CREATION_TIME_KEY,
                         data -> BitConverter.readLong(data, 0))).thenApply(VersionedMetadata::getObject);
     }
 
     @Override
     public CompletableFuture<Void> deleteStream() {
         // delete all tables for this stream even if they are not empty!
-        // 1. read epoch table 
+        // 1. read epoch table
         // delete all epoch txn specific tables
         // delete epoch txn base table
         // delete metadata table
 
-        // delete stream in scope 
+        // delete stream in scope
         return getId()
-                .thenCompose(id -> tryRemoveOlderTransactionsInEpochTables(epoch -> true)
+                .thenCompose(id -> storeHelper.expectingDataNotFound(tryRemoveOlderTransactionsInEpochTables(epoch -> true), null)
                         .thenCompose(v -> getEpochsWithTransactionsTable()
                                 .thenCompose(epochWithTxnTable -> storeHelper.expectingDataNotFound(
                                         storeHelper.deleteTable(epochWithTxnTable, false), null))
@@ -408,7 +420,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                     }
                 });
     }
-    
+
     @Override
     CompletableFuture<VersionedMetadata<EpochRecord>> getEpochRecordData(int epoch) {
         return getMetadataTable()
@@ -473,7 +485,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Version> updateEpochTransitionNode(VersionedMetadata<EpochTransitionRecord> epochTransition) {
         return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, EPOCH_TRANSITION_KEY, 
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, EPOCH_TRANSITION_KEY,
                         epochTransition.getObject().toBytes(), epochTransition.getVersion())
                                                          .thenApply(v -> {
                                                              storeHelper.invalidateCache(metadataTable, EPOCH_TRANSITION_KEY);
@@ -555,7 +567,7 @@ class PravegaTablesStream extends PersistentStreamBase {
             return map;
         });
     }
-    
+
     private CompletableFuture<List<Integer>> getEpochsWithTransactions() {
         return getEpochsWithTransactionsTable()
                 .thenCompose(epochWithTxnTable -> {
@@ -611,8 +623,8 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     public CompletableFuture<Version> createNewTransaction(final int epoch, final UUID txId, final ActiveTxnRecord txnRecord) {
-        // create txn ==> 
-        // if epoch table exists, add txn to epoch 
+        // create txn ==>
+        // if epoch table exists, add txn to epoch
         //  1. add epochs_with_txn entry for the epoch
         //  2. create txns-in-epoch table
         //  3. create txn in txns-in-epoch
@@ -659,14 +671,14 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getTransactionsInEpochTable(epoch)
                 .thenCompose(epochTransactionsTableName ->
                         storeHelper.removeEntry(epochTransactionsTableName, txId.toString()))
-                // this is only best case attempt. If the epoch table is not empty, it will be ignored. 
+                // this is only best case attempt. If the epoch table is not empty, it will be ignored.
                 // if we fail to do this after having removed the transaction, in retried attempt
-                // the caller may not find the transaction and never attempt to remove this table.  
-                // this can lead to proliferation of tables. 
-                // But remove transaction entry is called from . 
+                // the caller may not find the transaction and never attempt to remove this table.
+                // this can lead to proliferation of tables.
+                // But remove transaction entry is called from .
                 .thenCompose(v -> tryRemoveOlderTransactionsInEpochTables(e -> e < epoch));
     }
-    
+
     private CompletableFuture<Void> tryRemoveOlderTransactionsInEpochTables(Predicate<Integer> epochPredicate) {
         return getEpochsWithTransactions()
                 .thenCompose(list -> {
@@ -678,7 +690,7 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     private CompletableFuture<Void> tryRemoveTransactionsInEpochTable(int epoch) {
         return getTransactionsInEpochTable(epoch)
-                .thenCompose(epochTable -> 
+                .thenCompose(epochTable ->
                         storeHelper.deleteTable(epochTable, true)
                                                                   .handle((r, e) -> {
                                                                       if (e != null) {
@@ -702,7 +714,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                           }
                       }));
     }
-    
+
     @Override
     CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final CompletedTxnRecord complete) {
         return createCompletedTxEntries(Collections.singletonMap(txId.toString(), complete.toBytes()));
@@ -731,7 +743,7 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @VisibleForTesting
     static String getCompletedTransactionsBatchTableName(int batch) {
-        return getQualifiedTableName(INTERNAL_SCOPE_NAME, 
+        return getQualifiedTableName(INTERNAL_SCOPE_NAME,
                 String.format(COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT, batch));
     }
 
@@ -776,14 +788,14 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Void> createTruncationDataIfAbsent(final StreamTruncationRecord truncationRecord) {
         return getMetadataTable()
-                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, 
+                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable,
                         TRUNCATION_KEY, truncationRecord.toBytes())));
     }
 
     @Override
     CompletableFuture<Version> setTruncationData(final VersionedMetadata<StreamTruncationRecord> truncationRecord) {
         return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, TRUNCATION_KEY, 
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, TRUNCATION_KEY,
                         truncationRecord.getObject().toBytes(), truncationRecord.getVersion())
                                                          .thenApply(r -> {
                                                              storeHelper.invalidateCache(metadataTable, TRUNCATION_KEY);
@@ -806,7 +818,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Version> setConfigurationData(final VersionedMetadata<StreamConfigurationRecord> configuration) {
         return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, CONFIGURATION_KEY, 
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, CONFIGURATION_KEY,
                         configuration.getObject().toBytes(), configuration.getVersion())
                                                          .thenApply(r -> {
                                                              storeHelper.invalidateCache(metadataTable, CONFIGURATION_KEY);
@@ -859,14 +871,14 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getCommitTxnRecord() {
         return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.getEntry(metadataTable, COMMITTING_TRANSACTIONS_RECORD_KEY, 
+                .thenCompose(metadataTable -> storeHelper.getEntry(metadataTable, COMMITTING_TRANSACTIONS_RECORD_KEY,
                         CommittingTransactionsRecord::fromBytes));
     }
 
     @Override
     CompletableFuture<Version> updateCommittingTxnRecord(VersionedMetadata<CommittingTransactionsRecord> update) {
         return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, COMMITTING_TRANSACTIONS_RECORD_KEY, 
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, COMMITTING_TRANSACTIONS_RECORD_KEY,
                         update.getObject().toBytes(), update.getVersion()));
     }
 
@@ -889,6 +901,45 @@ class PravegaTablesStream extends PersistentStreamBase {
     CompletableFuture<Void> deleteWaitingRequestNode() {
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.removeEntry(metadataTable, WAITING_REQUEST_PROCESSOR_PATH));
+    }
+
+    @Override
+    CompletableFuture<Void> createWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position) {
+        WriterMark mark = new WriterMark(timestamp, position);
+        return Futures.toVoid(getWritersTable()
+                .thenCompose(table -> storeHelper.addNewEntry(table, writer, mark.toBytes())));
+    }
+
+    @Override
+    public CompletableFuture<Void> removeWriterRecord(String writer, Version version) {
+        return getWritersTable()
+                .thenCompose(table -> storeHelper.removeEntry(table, writer, version));
+    }
+
+    @Override
+    CompletableFuture<VersionedMetadata<WriterMark>> getWriterMarkRecord(String writer) {
+        return getWritersTable()
+                .thenCompose(table -> storeHelper.getEntry(table, writer, WriterMark::fromBytes));
+    }
+
+    @Override
+    CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, 
+                                                   boolean isAlive, Version version) {
+        WriterMark mark = new WriterMark(timestamp, position, isAlive);
+        return Futures.toVoid(getWritersTable()
+                .thenCompose(table -> storeHelper.updateEntry(table, writer, mark.toBytes(), version)));
+    }
+
+    @Override
+    public CompletableFuture<Map<String, WriterMark>> getAllWriterMarks() {
+        Map<String, WriterMark> result = new ConcurrentHashMap<>();
+
+        return getWritersTable()
+                .thenCompose(table -> storeHelper.getAllEntries(table, WriterMark::fromBytes)
+                .collectRemaining(x -> {
+                    result.put(x.getKey(), x.getValue().getObject());
+                    return true;
+                })).thenApply(v -> result);
     }
 
     @Override

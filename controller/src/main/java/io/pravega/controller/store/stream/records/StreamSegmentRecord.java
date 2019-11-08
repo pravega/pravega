@@ -22,12 +22,12 @@ import lombok.Data;
 import java.io.IOException;
 import java.util.Map;
 
-@Data
-@Builder
-@AllArgsConstructor
 /**
  * Data class for Stream segment record.
  */
+@Data
+@Builder
+@AllArgsConstructor
 public class StreamSegmentRecord {
     public static final StreamSegmentRecordSerializer SERIALIZER = new StreamSegmentRecordSerializer();
 

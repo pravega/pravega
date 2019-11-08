@@ -18,14 +18,16 @@ import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.InvalidStreamException;
+import io.pravega.client.stream.NoSuchScopeException;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -59,6 +61,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.io.IOException;
@@ -80,10 +83,11 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
@@ -102,6 +106,8 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class ControllerImplTest {
     private static final int SERVICE_PORT = 12345;
+    private static final String NON_EXISTENT = "non-existent";
+    private static final String FAILING = "failing";
 
     @Rule
     public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
@@ -120,6 +126,7 @@ public class ControllerImplTest {
     private ControllerImpl controllerClient = null;
     private ScheduledExecutorService executor;
     private NettyServerBuilder serverBuilder;
+    private final AtomicReference<Object> lastRequest = new AtomicReference<>();
 
     @Before
     public void setup() throws IOException {
@@ -552,6 +559,8 @@ public class ControllerImplTest {
             @Override
             public void commitTransaction(TxnRequest request,
                     StreamObserver<Controller.TxnStatus> responseObserver) {
+                lastRequest.set(request);
+
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(Controller.TxnStatus.newBuilder()
                                                     .setStatus(Controller.TxnStatus.Status.SUCCESS)
@@ -723,25 +732,35 @@ public class ControllerImplTest {
 
             @Override
             public void listStreamsInScope(Controller.StreamsInScopeRequest request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
-                if (Strings.isNullOrEmpty(request.getContinuationToken().getToken())) {
+                if (request.getScope().getScope().equals(NON_EXISTENT)) {
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                            .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getScope().getScope().equals(FAILING)) {
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                            .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.FAILURE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (Strings.isNullOrEmpty(request.getContinuationToken().getToken())) {
                     List<StreamInfo> list1 = new LinkedList<>();
                     list1.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream1").build());
                     list1.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream2").build());
                     responseObserver.onNext(Controller.StreamsInScopeResponse
-                            .newBuilder().addAllStreams(list1)
+                            .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS).addAllStreams(list1)
                             .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("myToken").build()).build());
                     responseObserver.onCompleted();
                 } else if (request.getContinuationToken().getToken().equals("myToken")) {
                     List<StreamInfo> list2 = new LinkedList<>();
                     list2.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream3").build());
                     responseObserver.onNext(Controller.StreamsInScopeResponse
-                            .newBuilder().addAllStreams(list2)
+                            .newBuilder().addAllStreams(list2).setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS)
                             .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("myToken2").build()).build());
                     responseObserver.onCompleted();
                 } else if (request.getContinuationToken().getToken().equals("myToken2")) {
                     List<StreamInfo> list3 = new LinkedList<>();
                     responseObserver.onNext(Controller.StreamsInScopeResponse
-                            .newBuilder().addAllStreams(list3)
+                            .newBuilder().addAllStreams(list3).setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS)
                             .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("").build()).build());
                     responseObserver.onCompleted();
                 } else {
@@ -1030,14 +1049,14 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testGetSegmentsImmediatelyFollowing() throws Exception {
-        CompletableFuture<Map<Segment, List<Long>>> successors;
+    public void testGetSegmentsImmediatlyFollowing() throws Exception {
+        CompletableFuture<Map<SegmentWithRange, List<Long>>> successors;
         successors = controllerClient.getSuccessors(new Segment("scope1", "stream1", 0L))
                 .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
         assertEquals(2, successors.get().size());
-        assertEquals(20, successors.get().get(new Segment("scope1", "stream1", 2L))
+        assertEquals(20, successors.get().get(new SegmentWithRange(new Segment("scope1", "stream1", 2L), 0.0, 0.25))
                 .get(0).longValue());
-        assertEquals(30, successors.get().get(new Segment("scope1", "stream1", 3L))
+        assertEquals(30, successors.get().get(new SegmentWithRange(new Segment("scope1", "stream1", 3L), 0.25, 0.5))
                 .get(0).longValue());
 
         successors = controllerClient.getSuccessors(new Segment("scope1", "stream2", 0L))
@@ -1104,15 +1123,15 @@ public class ControllerImplTest {
         CompletableFuture<TxnSegments> transaction;
         transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream1"), 0);
         assertEquals(new UUID(11L, 22L), transaction.get().getTxnId());
-        assertEquals(2, transaction.get().getSteamSegments().getSegments().size());
-        assertEquals(new Segment("scope1", "stream1", 0), transaction.get().getSteamSegments().getSegmentForKey(.2));
-        assertEquals(new Segment("scope1", "stream1", 1), transaction.get().getSteamSegments().getSegmentForKey(.8));
+        assertEquals(2, transaction.get().getStreamSegments().getSegments().size());
+        assertEquals(new Segment("scope1", "stream1", 0), transaction.get().getStreamSegments().getSegmentForKey(.2));
+        assertEquals(new Segment("scope1", "stream1", 1), transaction.get().getStreamSegments().getSegmentForKey(.8));
         
         transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream2"), 0);
         assertEquals(new UUID(33L, 44L), transaction.get().getTxnId());
-        assertEquals(1, transaction.get().getSteamSegments().getSegments().size());
-        assertEquals(new Segment("scope1", "stream2", 0), transaction.get().getSteamSegments().getSegmentForKey(.2));
-        assertEquals(new Segment("scope1", "stream2", 0), transaction.get().getSteamSegments().getSegmentForKey(.8));
+        assertEquals(1, transaction.get().getStreamSegments().getSegments().size());
+        assertEquals(new Segment("scope1", "stream2", 0), transaction.get().getStreamSegments().getSegmentForKey(.2));
+        assertEquals(new Segment("scope1", "stream2", 0), transaction.get().getStreamSegments().getSegmentForKey(.8));
         
         transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream3"), 0);
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
@@ -1121,20 +1140,28 @@ public class ControllerImplTest {
     @Test
     public void testCommitTransaction() throws Exception {
         CompletableFuture<Void> transaction;
-        transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream1"), UUID.randomUUID());
+        transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream1"), "writer", null, UUID.randomUUID());
         assertTrue(transaction.get() == null);
+        assertTrue(lastRequest.get() instanceof TxnRequest);
+        assertEquals(((TxnRequest) (lastRequest.get())).getTimestamp(), Long.MIN_VALUE);
+        
+        transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream1"), "writer", 100L, UUID.randomUUID());
+        assertTrue(transaction.get() == null);
+        assertTrue(lastRequest.get() instanceof TxnRequest);
+        assertEquals(((TxnRequest) (lastRequest.get())).getTimestamp(), 100L);
 
-        transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream2"), UUID.randomUUID());
+        transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream2"), "writer", null, UUID.randomUUID());
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> throwable instanceof TxnFailedException);
+
+        transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream3"), "writer", null, UUID.randomUUID());
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> throwable instanceof InvalidStreamException);
+
+        transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream4"), "writer", null, UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
 
-        transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream3"), UUID.randomUUID());
+        transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream5"), "writer", null, UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
-
-        transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream4"), UUID.randomUUID());
-        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
-
-        transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream5"), UUID.randomUUID());
-        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
+           
     }
 
     @Test
@@ -1147,7 +1174,7 @@ public class ControllerImplTest {
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
 
         transaction = controllerClient.abortTransaction(new StreamImpl("scope1", "stream3"), UUID.randomUUID());
-        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> throwable instanceof InvalidStreamException);
 
         transaction = controllerClient.abortTransaction(new StreamImpl("scope1", "stream4"), UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
@@ -1245,6 +1272,14 @@ public class ControllerImplTest {
         assertEquals("stream2", m.getStreamName());
         m = iterator.getNext().join();
         assertEquals("stream3", m.getStreamName());
+
+        AssertExtensions.assertFutureThrows("Non existent scope",
+                controllerClient.listStreams(NON_EXISTENT).getNext(),
+                e -> Exceptions.unwrap(e) instanceof NoSuchScopeException);
+
+        AssertExtensions.assertFutureThrows("failing request",
+                controllerClient.listStreams(FAILING).getNext(),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
     }
 
     @Test

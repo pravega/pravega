@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
@@ -88,6 +89,17 @@ public class ZKStoreHelperTest {
         AssertExtensions.assertFutureThrows("Should throw UnknownException", zkStoreHelper.deleteNode("/test/test1"),
                 e -> e instanceof StoreException.StoreConnectionException);
     }
+    
+    @Test
+    public void testDeleteConditionally() {
+        String path = "/test/test/deleteConditionally";
+        zkStoreHelper.createZNode(path, new byte[0]).join();
+        VersionedMetadata<byte[]> data = zkStoreHelper.getData(path, x -> x).join();
+        zkStoreHelper.setData(path, data.getObject(), data.getVersion()).join();
+        AssertExtensions.assertFutureThrows("delete version mismatch",
+                zkStoreHelper.deleteNode(path, data.getVersion()),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+    }
 
     @Test
     public void testEphemeralNode() {
@@ -102,6 +114,24 @@ public class ZKStoreHelperTest {
         // let session get expired.
         // now read the data again. Verify that node no longer exists
         AssertExtensions.assertFutureThrows("", Futures.delayedFuture(() -> zkStoreHelper.getData("/testEphemeral", x -> x), 1000, executor),
+                e -> e instanceof StoreException.DataNotFoundException);
+    }
+    
+    @Test
+    public void testGetChildren() {
+        zkStoreHelper.createZNodeIfNotExist("/1").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/1").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/2").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/3").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/4").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/1/1").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/1/2").join();
+        assertEquals(zkStoreHelper.getChildren("/1").join().size(), 4);
+        assertEquals(zkStoreHelper.getChildren("/1/1").join().size(), 2);
+        assertEquals(zkStoreHelper.getChildren("/1/1/2").join().size(), 0);
+        assertEquals(zkStoreHelper.getChildren("/112").join().size(), 0);
+        AssertExtensions.assertFutureThrows("data not found",
+                zkStoreHelper.getChildren("/112", false),
                 e -> e instanceof StoreException.DataNotFoundException);
     }
     

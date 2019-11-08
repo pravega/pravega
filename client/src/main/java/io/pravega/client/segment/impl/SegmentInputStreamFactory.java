@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventStreamReader;
 
@@ -25,10 +26,10 @@ public interface SegmentInputStreamFactory {
      * process space).
      *
      * @param segment The segment to create an input for.
-     * @param delegationToken The delegation used to connect to the server.
+     * @param tokenProvider The {@link DelegationTokenProvider} instance to be used for obtaining a delegation token.
      * @return New instance of SegmentInputStream for reading.
      */
-    SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken);
+    SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider);
     
     /**
      * Opens an existing segment for reading events. This operation will fail if the

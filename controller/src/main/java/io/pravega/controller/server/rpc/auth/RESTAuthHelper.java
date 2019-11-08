@@ -28,9 +28,9 @@ public class RESTAuthHelper {
     /**
      * The delegate used for performing authentication and authorization.
      */
-    private final PravegaAuthManager pravegaAuthManager;
+    private final AuthHandlerManager pravegaAuthManager;
 
-    public RESTAuthHelper(PravegaAuthManager pravegaAuthManager) {
+    public RESTAuthHelper(AuthHandlerManager pravegaAuthManager) {
         this.pravegaAuthManager = pravegaAuthManager;
     }
 
@@ -106,8 +106,8 @@ public class RESTAuthHelper {
         if (isAuthEnabled()) {
             String credentials = parseCredentials(authHeader);
             if (!pravegaAuthManager.authenticateAndAuthorize(resource, credentials, permission)) {
-                throw new AuthException(
-                        String.format("Failed to authenticate or authorize for resource [%s]", resource),
+                throw new AuthorizationException(
+                        String.format("Failed to authorize for resource [%s]", resource),
                         Response.Status.FORBIDDEN.getStatusCode());
             }
         }

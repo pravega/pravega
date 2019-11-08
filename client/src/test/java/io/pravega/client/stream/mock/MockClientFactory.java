@@ -28,10 +28,11 @@ import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import java.util.function.Supplier;
+import lombok.Getter;
 
 public class MockClientFactory implements EventStreamClientFactory, SynchronizerClientFactory, AutoCloseable {
-
     private final ConnectionFactoryImpl connectionFactory;
+    @Getter
     private final Controller controller;
     private final ClientFactoryImpl impl;
 
@@ -52,6 +53,16 @@ public class MockClientFactory implements EventStreamClientFactory, Synchronizer
         return impl.createEventWriter(streamName, s, config);
     }
     
+    @Override
+    public <T> EventStreamWriter<T> createEventWriter(String writerId, String streamName, Serializer<T> s, EventWriterConfig config) {
+        return impl.createEventWriter(writerId, streamName, s, config);
+    }
+    
+    @Override
+    public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String writerId, String streamName, Serializer<T> s, EventWriterConfig config) {
+        return impl.createTransactionalEventWriter(writerId, streamName, s, config);
+    }
+
     @Override
     public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         return impl.createTransactionalEventWriter(streamName, s, config);

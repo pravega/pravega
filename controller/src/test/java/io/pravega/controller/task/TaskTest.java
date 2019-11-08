@@ -15,7 +15,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -106,7 +106,7 @@ public abstract class TaskTest {
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore, segmentHelperMock,
-                executor, HOSTNAME, AuthHelper.getDisabledAuthHelper(), requestTracker);
+                executor, HOSTNAME, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
 
         final String stream2 = "stream2";
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -228,17 +228,18 @@ public abstract class TaskTest {
         // Create objects.
         @Cleanup
         StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore, segmentHelperMock,
-                executor, deadHost, AuthHelper.getDisabledAuthHelper(), requestTracker);
+                executor, deadHost, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
         mockStreamTasks.setCreateIndexOnlyMode();
         TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
 
         // Create stream test.
+        // this will create 2 new streams -> stream + mark stream
         completePartialTask(mockStreamTasks.createStream(SCOPE, stream, configuration1, System.currentTimeMillis()),
                 deadHost, sweeper);
         Assert.assertEquals(initialSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
 
         Map<String, StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
-        assertEquals(3, streams.size());
+        assertEquals(4, streams.size());
         assertEquals(configuration1, streams.get(stream));
     }
 

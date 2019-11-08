@@ -17,7 +17,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
@@ -71,7 +71,7 @@ public class StreamTest {
     @Test(timeout = 10000)
     public void testPravegaTablesCreateStream() throws ExecutionException, InterruptedException {
         PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(
-                SegmentHelperMock.getSegmentHelperMockForTables(executor), AuthHelper.getDisabledAuthHelper(), executor);
+                SegmentHelperMock.getSegmentHelperMockForTables(executor), GrpcAuthHelper.getDisabledAuthHelper(), executor);
         PravegaTablesScope scope = new PravegaTablesScope("test", storeHelper);
         scope.createScope().join();
         scope.addStreamToScope("test").join();
@@ -174,7 +174,7 @@ public class StreamTest {
     @Test(timeout = 10000)
     public void testConcurrentGetSuccessorScalePravegaTables() throws Exception {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
-        AuthHelper authHelper = AuthHelper.getDisabledAuthHelper();
+        GrpcAuthHelper authHelper = GrpcAuthHelper.getDisabledAuthHelper();
         try (final StreamMetadataStore store = new PravegaTablesStreamMetadataStore(
                 segmentHelper, cli, executor, authHelper)) {
 

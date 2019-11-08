@@ -179,7 +179,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public CompletableFuture<Void> fillBuffer() {
+    public CompletableFuture<?> fillBuffer() {
         return CompletableFuture.completedFuture(null);
     }
 
@@ -238,5 +238,10 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     public void sealSegment() {
         //Nothing to do
+    }
+
+    @Override
+    public long getLastObservedWriteOffset() {
+        return fetchCurrentSegmentLength();
     }
 }

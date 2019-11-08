@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
@@ -17,6 +18,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.EndOfSegmentException;
@@ -53,6 +55,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
@@ -100,7 +103,7 @@ public class ReadTest {
         ResourceLeakDetector.setLevel(originalLevel);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testReadDirectlyFromStore() throws Exception {
         String segmentName = "testReadFromStore";
         final int entries = 10;
@@ -131,7 +134,7 @@ public class ReadTest {
         assertEquals(entries * data.length, index);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testReceivingReadCall() throws Exception {
         String segmentName = "testReceivingReadCall";
         int entries = 10;
@@ -169,7 +172,7 @@ public class ReadTest {
         assertEquals(expected, actual);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException, SegmentTruncatedException {
         String endpoint = "localhost";
         String scope = "scope";
@@ -194,7 +197,8 @@ public class ReadTest {
                                  .getSegments().iterator().next();
 
         @Cleanup("close")
-        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
+        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(),
+                DelegationTokenProviderFactory.createWithEmptyToken());
         out.write(PendingEvent.withHeader(null, ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>()));
         out.flush();
 
@@ -238,7 +242,8 @@ public class ReadTest {
                                  .getSegments().iterator().next();
 
         @Cleanup("close")
-        ConditionalOutputStream out = segmentproducerClient.createConditionalOutputStream(segment, "", EventWriterConfig.builder().build());
+        ConditionalOutputStream out = segmentproducerClient.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.createWithEmptyToken(), EventWriterConfig.builder().build());
         assertTrue(out.write(ByteBuffer.wrap(testString), 0));
 
         @Cleanup("close")
@@ -253,7 +258,7 @@ public class ReadTest {
         assertNull(in.read(100));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void readThroughStreamClient() throws ReinitializationRequiredException {
         String endpoint = "localhost";
         String streamName = "abc";
@@ -330,7 +335,7 @@ public class ReadTest {
         try {
             segmentStore.createStreamSegment(segmentName, null, Duration.ZERO).get();
             for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
-                segmentStore.append(segmentName, data, null, Duration.ZERO).get();
+                segmentStore.append(segmentName, new ByteBufWrapper(Unpooled.wrappedBuffer(data)), null, Duration.ZERO).get();
             }
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
