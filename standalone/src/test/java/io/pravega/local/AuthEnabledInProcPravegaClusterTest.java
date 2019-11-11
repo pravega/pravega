@@ -21,7 +21,7 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.shared.security.utils.SecurityConfigDefaults;
+import io.pravega.shared.security.test.SecurityConfigDefaults;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 

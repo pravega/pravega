@@ -10,7 +10,7 @@
 package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
-import io.pravega.shared.security.utils.SecurityConfigDefaults;
+import io.pravega.shared.security.test.SecurityConfigDefaults;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rpc.auth.AuthHandlerManager;

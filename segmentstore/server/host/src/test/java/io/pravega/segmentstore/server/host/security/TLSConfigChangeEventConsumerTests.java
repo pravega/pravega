@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.host.security;
 
 import io.netty.handler.ssl.SslContext;
-import io.pravega.shared.security.utils.SecurityConfigDefaults;
+import io.pravega.shared.security.test.SecurityConfigDefaults;
 import org.junit.Test;
 import java.io.File;
 import java.nio.file.WatchEvent;

@@ -11,7 +11,7 @@ package io.pravega.client.netty.impl;
 
 import io.netty.handler.ssl.SslContext;
 import io.pravega.client.ClientConfig;
-import io.pravega.shared.security.utils.SecurityConfigDefaults;
+import io.pravega.shared.security.test.SecurityConfigDefaults;
 import org.junit.Test;
 
 import java.net.URI;

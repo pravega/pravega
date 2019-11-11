@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.security.utils;
+package io.pravega.shared.security.test;
 
 /**
  * Holds default security configuration values.
