@@ -236,7 +236,7 @@ public class ControllerGrpcAuthFocusedTest {
 
         //Verify
         thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("UNAUTHENTICATED");
+        thrown.expectMessage("PERMISSION_DENIED");
 
         //Act
         blockingStub.createScope(Controller.ScopeInfo.newBuilder().setScope("dummy").build());
@@ -317,7 +317,7 @@ public class ControllerGrpcAuthFocusedTest {
         //Set the expected exception
         thrown.expect(StatusRuntimeException.class);
         //thrown.expectMessage();
-        thrown.expectMessage("UNAUTHENTICATED");
+        thrown.expectMessage("PERMISSION_DENIED");
 
         stub.isSegmentValid(segmentId(scope, stream, 0));
     }
@@ -352,7 +352,7 @@ public class ControllerGrpcAuthFocusedTest {
 
         //Set the expected exception
         thrown.expect(StatusRuntimeException.class);
-        thrown.expectMessage("UNAUTHENTICATED: Authentication failed");
+        thrown.expectMessage("PERMISSION_DENIED");
 
         PingTxnStatus status = stub.pingTransaction(Controller.PingTxnRequest.newBuilder()
                 .setStreamInfo(StreamInfo.newBuilder().setScope(scope).setStream(stream).build())
@@ -453,6 +453,24 @@ public class ControllerGrpcAuthFocusedTest {
         // Act and assert
         AssertExtensions.assertThrows("Expected auth failure.",
                 () -> stub.listStreamsInScope(request),
+                e -> e.getMessage().contains("PERMISSION_DENIED"));
+    }
+
+    @Test
+    public void listStreamThrowsExceptionWhenUserIsNonExistent() {
+        // Arrange
+        createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
+                prepareFromFixedScaleTypePolicy(2));
+
+        ControllerServiceBlockingStub stub = prepareBlockingCallStubWithNoCredentials();
+        Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(
+                        Controller.ScopeInfo.newBuilder().setScope("scope1").build())
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+
+        // Act and assert
+        AssertExtensions.assertThrows("Expected auth failure.",
+                () -> stub.listStreamsInScope(request),
                 e -> e.getMessage().contains("UNAUTHENTICATED"));
     }
 
@@ -483,6 +501,10 @@ public class ControllerGrpcAuthFocusedTest {
                 .setStreamInfo(StreamInfo.newBuilder().setScope(scope).setStream(stream).build())
                 .setSegmentId(segmentId)
                 .build();
+    }
+
+    private ControllerServiceBlockingStub prepareBlockingCallStubWithNoCredentials() {
+        return ControllerServiceGrpc.newBlockingStub(inProcessChannel);
     }
 
     private ControllerServiceBlockingStub prepareBlockingCallStub(String username, String password) {
