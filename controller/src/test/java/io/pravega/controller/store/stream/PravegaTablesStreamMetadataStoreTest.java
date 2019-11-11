@@ -52,8 +52,12 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 /**
  * Zookeeper based stream metadata store tests.
@@ -436,6 +440,13 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         status = store.createScope(scopeName).join();
         assertEquals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS, status.getStatus());
 
+        PravegaTablesStoreHelper spy = spy(storeHelper);
+        PravegaTablesScope scopeObj = new PravegaTablesScope("thirdScope", spy);
+        StoreException unknown = StoreException.create(StoreException.Type.UNKNOWN, "unknown");
+        doReturn(Futures.failedFuture(unknown)).when(spy).addNewEntry(anyString(), anyString(), any());
+        AssertExtensions.assertFutureThrows("Create scope should have thrown exception",
+                scopeObj.createScope(), 
+                e -> Exceptions.unwrap(e).equals(unknown));
     }
     
     private Set<Integer> getAllBatches(PravegaTablesStreamMetadataStore testStore) {
