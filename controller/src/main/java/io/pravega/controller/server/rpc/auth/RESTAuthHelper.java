@@ -106,8 +106,8 @@ public class RESTAuthHelper {
         if (isAuthEnabled()) {
             String credentials = parseCredentials(authHeader);
             if (!pravegaAuthManager.authenticateAndAuthorize(resource, credentials, permission)) {
-                throw new AuthException(
-                        String.format("Failed to authenticate or authorize for resource [%s]", resource),
+                throw new AuthorizationException(
+                        String.format("Failed to authorize for resource [%s]", resource),
                         Response.Status.FORBIDDEN.getStatusCode());
             }
         }
