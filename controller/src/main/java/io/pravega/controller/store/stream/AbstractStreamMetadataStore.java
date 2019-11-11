@@ -215,7 +215,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
             }
             if (ex instanceof StoreException.DataExistsException ||
-                    ex.getCause() instanceof StoreException.DataExistsException) {
+                    Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
             } else {
                 log.debug("Create scope failed due to ", ex);
