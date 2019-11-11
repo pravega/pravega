@@ -16,10 +16,10 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
+import io.pravega.segmentstore.server.host.handler.ConnectionTracker;
 import io.pravega.segmentstore.server.host.handler.ServerConnection;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -48,6 +48,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
     private final TestConfig testConfig;
     @GuardedBy("handlers")
     private final HashMap<String, SegmentHandler> handlers;
+    private final ConnectionTracker connectionTracker;
 
     //endregion
 
@@ -64,6 +65,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
         this.testConfig = testConfig;
         this.segmentStoreAdapter = new SegmentStoreAdapter(testConfig, builderConfig, testExecutor);
         this.handlers = new HashMap<>();
+        this.connectionTracker = new ConnectionTracker();
     }
 
     //endregion
@@ -195,7 +197,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
 
     //region SegmentHandler
 
-    private static class SegmentHandler implements ServerConnection {
+    private class SegmentHandler implements ServerConnection {
         private final String segmentName;
         private final AppendProcessor appendProcessor;
         private final int producerCount;
@@ -210,7 +212,11 @@ public class AppendProcessorAdapter extends StoreAdapter {
         SegmentHandler(String segmentName, int producerCount, StreamSegmentStore segmentStore) {
             this.segmentName = segmentName;
             this.producerCount = producerCount;
-            this.appendProcessor = new AppendProcessor(segmentStore, this, new FailingRequestProcessor(), null);
+            this.appendProcessor = AppendProcessor.defaultBuilder()
+                                                  .store(segmentStore)
+                                                  .connection(this)
+                                                  .connectionTracker(connectionTracker)
+                                                  .build();
             this.nextSequence = 1;
             this.resultFutures = new HashMap<>();
             this.appendSetup = new AtomicReference<>();
