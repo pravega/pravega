@@ -168,7 +168,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     public CompletableFuture<SegmentRead> read(long offset, int length) {
         Exceptions.checkNotClosed(closed.get(), this);
 
-        return this.tokenProvider.retrieveToken().thenCompose(token -> {
+        return this.tokenProvider.retrieveToken().thenComposeAsync(token -> {
             WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length,
                     token, requestId);
             return backoffSchedule.retryWhen(t -> {
