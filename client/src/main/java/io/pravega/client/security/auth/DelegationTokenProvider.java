@@ -9,6 +9,8 @@
  */
 package io.pravega.client.security.auth;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * A client-side proxy for obtaining a delegation token from the server.
  *
@@ -22,7 +24,7 @@ public interface DelegationTokenProvider {
      *
      * @return a delegation token
      */
-    String retrieveToken();
+    CompletableFuture<String> retrieveToken();
 
     /**
      * Populates the object with the specified delegation token.
