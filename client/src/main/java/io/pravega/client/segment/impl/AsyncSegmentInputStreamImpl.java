@@ -195,7 +195,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                                 })
                         );
             }, connectionFactory.getInternalExecutor());
-        });
+        }, connectionFactory.getInternalExecutor());
     }
         
     private CompletableFuture<SegmentRead> sendRequestOverConnection(WireCommands.ReadSegment request, ClientConnection c) {

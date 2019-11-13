@@ -576,7 +576,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                      log.info("Fetching endpoint for segment {}, writer {}", segmentName, writerId);
 
                      return controller.getEndpointForSegment(segmentName)
-
                          // Establish and return a connection to segment store
                          .thenComposeAsync((PravegaNodeUri uri) -> {
                              log.info("Establishing connection to {} for {}, writerID: {}", uri, segmentName, writerId);

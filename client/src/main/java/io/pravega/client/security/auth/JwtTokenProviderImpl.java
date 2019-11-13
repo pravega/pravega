@@ -176,7 +176,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
      * Returns the delegation token. It returns existing delegation token if it is not close to expiry. If the token
      * is close to expiry, it obtains a new delegation token and returns that one instead.
      *
-     * @return String the delegation token JWT compact value
+     * @return a CompletableFuture that, when completed, will return the delegation token JWT compact value
      */
     @Override
     public CompletableFuture<String> retrieveToken() {

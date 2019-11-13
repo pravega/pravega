@@ -22,7 +22,7 @@ public interface DelegationTokenProvider {
     /**
      * Retrieve delegation token.
      *
-     * @return a delegation token
+     * @return a CompletableFuture that, when completed, will return the retrieved delegation token
      */
     CompletableFuture<String> retrieveToken();
 
