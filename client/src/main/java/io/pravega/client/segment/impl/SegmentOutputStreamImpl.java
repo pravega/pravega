@@ -39,6 +39,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -582,16 +583,21 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                              return establishConnection(uri);
                          }, connectionFactory.getInternalExecutor())
 
-                         // Retrieve the token, then setup append command and send the command over the connection.
-                         .thenCombineAsync(tokenProvider.retrieveToken(), (connection, token) -> {
+                         .thenCombineAsync(tokenProvider.retrieveToken(), AbstractMap.SimpleEntry<ClientConnection, String>::new,
+                                 connectionFactory.getInternalExecutor())
+
+                         .thenComposeAsync(pair -> {
+                             ClientConnection connection = pair.getKey();
+                             String token = pair.getValue();
+
                              CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
                              SetupAppend cmd = new SetupAppend(requestId, writerId, segmentName, token);
                              try {
-                                connection.send(cmd);
+                                 connection.send(cmd);
                              } catch (ConnectionFailedException e1) {
-                                // This needs to be invoked here because call to failConnection from netty may occur before state.newConnection above.
-                                state.failConnection(e1);
-                                throw Exceptions.sneakyThrow(e1);
+                                 // This needs to be invoked here because call to failConnection from netty may occur before state.newConnection above.
+                                 state.failConnection(e1);
+                                 throw Exceptions.sneakyThrow(e1);
                              }
                              return connectionSetupFuture.exceptionally(t -> {
                                  Throwable exception = Exceptions.unwrap(t);
@@ -610,7 +616,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                  }
                                  throw Exceptions.sneakyThrow(t);
                              });
-                     }, connectionFactory.getInternalExecutor());
+
+                         }, connectionFactory.getInternalExecutor());
                  }, connectionFactory.getInternalExecutor());
         }, new CompletableFuture<ClientConnection>());
     }
