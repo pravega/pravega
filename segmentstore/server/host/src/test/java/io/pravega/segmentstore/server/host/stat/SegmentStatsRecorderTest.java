@@ -49,6 +49,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
     private static final String STREAM_SEGMENT_NAME = "scope/stream/0";
     private static final String[] SEGMENT_TAGS = segmentTags(STREAM_SEGMENT_NAME);
 
+    @Override
     protected int getThreadPoolSize() {
         return 3;
     }

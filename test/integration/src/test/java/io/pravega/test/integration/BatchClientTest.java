@@ -212,6 +212,7 @@ public class BatchClientTest {
     }
 
     @Test(timeout = 50000)
+    @SuppressWarnings("deprecation")
     public void testGetStreamInfoOfImplementation() throws InterruptedException {
         createStream();
 
