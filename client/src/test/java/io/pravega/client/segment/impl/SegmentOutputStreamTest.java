@@ -45,10 +45,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.List;
 import lombok.Cleanup;
-import lombok.Getter;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -59,7 +58,6 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -71,6 +69,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -127,8 +126,8 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         // create one thread on connection factory
         cf.setExecutor(Executors.newSingleThreadScheduledExecutor());
         CompletableFuture<Void> signal = new CompletableFuture<>();
-        MockControllerWithTokenTask controller = new MockControllerWithTokenTask(uri.getEndpoint(), uri.getPort(), cf,
-                true, signal);
+        MockControllerWithTokenTask controller = spy(new MockControllerWithTokenTask(uri.getEndpoint(), uri.getPort(), cf,
+                true, signal));
 
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -137,7 +136,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         output.reconnect();
 
         signal.join();
-        assertEquals(1, controller.countOfDelegationTokenCalls.get());
+        verify(controller, times(1)).getOrRefreshDelegationTokenFor("scope", "stream");
     }
 
     @Test(timeout = 10000)
@@ -422,7 +421,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
     public void testReconnectOnMissedAcks() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = Mockito.spy(new MockConnectionFactoryImpl());
+        MockConnectionFactoryImpl cf = spy(new MockConnectionFactoryImpl());
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         cf.setExecutor(executor);
@@ -464,7 +463,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
     public void testReconnectOnBadAcks() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = Mockito.spy(new MockConnectionFactoryImpl());
+        MockConnectionFactoryImpl cf = spy(new MockConnectionFactoryImpl());
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         cf.setExecutor(executor);
@@ -1111,9 +1110,6 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         final ConnectionFactory cf;
         final CompletableFuture<Void> signal;
 
-        @Getter
-        final AtomicInteger countOfDelegationTokenCalls = new AtomicInteger(0);
-
         public MockControllerWithTokenTask(String endpoint, int port, ConnectionFactory connectionFactory,
                                            boolean callServer, CompletableFuture<Void> signal) {
             super(endpoint, port, connectionFactory, callServer);
@@ -1124,7 +1120,6 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         @Override
         public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
             return CompletableFuture.supplyAsync(() -> {
-                countOfDelegationTokenCalls.incrementAndGet();
                 signal.complete(null);
                 return "my-test-token";
             }, cf.getInternalExecutor());
