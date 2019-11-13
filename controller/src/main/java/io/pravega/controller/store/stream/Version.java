@@ -43,6 +43,7 @@ public interface Version {
             throw new UnsupportedOperationException();
         }
 
+        @Override
         public byte[] toBytes() {
             throw new UnsupportedOperationException();
         }
