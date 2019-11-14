@@ -11,6 +11,7 @@ package io.pravega.client.security.auth;
 
 import io.pravega.common.Exceptions;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -26,8 +27,8 @@ public class StringTokenProviderImpl implements DelegationTokenProvider {
     }
 
     @Override
-    public String retrieveToken() {
-        return this.token.get();
+    public CompletableFuture<String> retrieveToken() {
+        return CompletableFuture.completedFuture(this.token.get());
     }
 
     @Override
