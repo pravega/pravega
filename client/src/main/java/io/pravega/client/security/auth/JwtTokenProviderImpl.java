@@ -176,21 +176,21 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
      * Returns the delegation token. It returns existing delegation token if it is not close to expiry. If the token
      * is close to expiry, it obtains a new delegation token and returns that one instead.
      *
-     * @return String the delegation token JWT compact value
+     * @return a CompletableFuture that, when completed, will return the delegation token JWT compact value
      */
     @Override
-    public String retrieveToken() {
+    public CompletableFuture<String> retrieveToken() {
         DelegationToken currentToken = this.delegationToken.get();
 
         if (currentToken == null) {
             return this.refreshToken();
         } else if (currentToken.getExpiryTime() == null) {
-            return currentToken.getValue();
+            return CompletableFuture.completedFuture(currentToken.getValue());
         } else if (isTokenNearingExpiry(currentToken)) {
             log.debug("Token is nearing expiry for scope/stream {}/{}", this.scopeName, this.streamName);
             return refreshToken();
         } else {
-            return currentToken.getValue();
+            return CompletableFuture.completedFuture(currentToken.getValue());
         }
     }
 
@@ -222,7 +222,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     }
 
     @VisibleForTesting
-    String refreshToken() {
+    CompletableFuture<String> refreshToken() {
         long traceEnterId = LoggerHelpers.traceEnter(log, "refreshToken", this.scopeName, this.streamName);
         CompletableFuture<Void> currentRefreshFuture = tokenRefreshFuture.get();
         if (currentRefreshFuture == null) {
@@ -232,13 +232,14 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         } else {
             log.debug("Token is already under refresh for scope {} and stream {}", this.scopeName, this.streamName);
         }
-        try {
-            currentRefreshFuture.join(); // Block until the token is refreshed
-        } finally {
-            this.tokenRefreshFuture.compareAndSet(currentRefreshFuture, null); // Token is already refreshed, so resetting the future to null.
-        }
-        LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
-        return delegationToken.get().getValue();
+
+        final CompletableFuture<Void> handleToCurrentRefreshFuture  = currentRefreshFuture;
+        return currentRefreshFuture.thenApply(v -> {
+                    // Token is already refreshed, so resetting the future to null.
+                    this.tokenRefreshFuture.compareAndSet(handleToCurrentRefreshFuture, null);
+                    LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
+                    return delegationToken.get().getValue();
+                });
     }
 
     private CompletableFuture<Void> recreateToken() {
