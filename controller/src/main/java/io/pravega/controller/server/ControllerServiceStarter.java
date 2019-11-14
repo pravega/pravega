@@ -84,6 +84,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private final String objectId;
 
     private ScheduledExecutorService controllerExecutor;
+    private ScheduledExecutorService eventExecutor;
     private ScheduledExecutorService retentionExecutor;
     private ScheduledExecutorService watermarkingExecutor;
 
@@ -164,6 +165,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             //Initialize the executor service.
             controllerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
                                                                                "controllerpool");
+            eventExecutor = ExecutorServiceHelpers.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
+                                                                               "eventprocessor");
 
             retentionExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.RETENTION_THREAD_POOL_SIZE,
                                                                                "retentionpool");
@@ -282,12 +285,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
                         bucketStore, connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
-                        controllerExecutor);
+                        eventExecutor);
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
                 eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks)
-                        .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), controllerExecutor);
+                        .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventExecutor);
             }
 
             // Setup and start controller cluster listener after all sweepers have been initialized.
