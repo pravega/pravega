@@ -420,6 +420,9 @@ public final class StreamSegmentNameUtils {
         return tags;
     }
 
+    final static Pattern SEGMENT_TAGS_PATTERN =
+        Pattern.compile("((([\\w\\-\\\\.]+)/)?(([\\w\\-\\\\.]+)/))?(\\d+)(\\.#epoch\\.(\\d+))?");
+
     private static String[] updateSegmentTags(String qualifiedSegmentName, String[] tags) {
         final String segmentBaseName = getSegmentBaseName(qualifiedSegmentName);
         final Matcher m = SEGMENT_TAGS_PATTERN.matcher(segmentBaseName);
