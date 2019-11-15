@@ -57,7 +57,6 @@ class FutureReadResultEntryCollection {
                 result = Collections.emptyList();
             } else {
                 result = new ArrayList<>(this.reads);
-                this.reads.remove(null);
                 this.reads.clear();
                 this.closed = true;
             }

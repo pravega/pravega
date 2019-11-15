@@ -590,10 +590,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         Assert.assertTrue(futureReadEntry.getContent().isCancelled());
 
         AssertExtensions.assertEventuallyEquals("FutureReadResultEntry not unregistered after owning ReadResult closed.",
-                0,
-                () -> context.readIndex.getIndex(segmentId).getFutureReadCount(),
-                10,
-                TIMEOUT.toMillis());
+                0, () -> context.readIndex.getIndex(segmentId).getFutureReadCount(),
+                10, TIMEOUT.toMillis());
     }
 
     /**
