@@ -39,7 +39,7 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.net.URI;
@@ -241,8 +241,8 @@ public abstract class ControllerServiceWithStreamTest {
         keyRanges.put(0.75, 1.0);
         scale(System.currentTimeMillis(), Arrays.asList(1L), keyRanges);
         // new segments after scale = {(0.0), (2.1), (3.1)}
-        long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
-        long three = StreamSegmentNameUtils.computeSegmentId(3, 1);
+        long two = NameUtils.computeSegmentId(2, 1);
+        long three = NameUtils.computeSegmentId(3, 1);
         segments.add(two);
         segments.add(three);
 
@@ -250,7 +250,7 @@ public abstract class ControllerServiceWithStreamTest {
         keyRanges.put(0.0, 0.5);
         scale(System.currentTimeMillis(), Arrays.asList(0L), keyRanges);
         // new segments after scale = {(4.2), (2.1), (3.1)}
-        long four = StreamSegmentNameUtils.computeSegmentId(4, 2);
+        long four = NameUtils.computeSegmentId(4, 2);
         segments.add(four);
 
         keyRanges = new HashMap<>(1);
@@ -258,8 +258,8 @@ public abstract class ControllerServiceWithStreamTest {
         keyRanges.put(0.5, 1.0);
         scale(System.currentTimeMillis(), Arrays.asList(two, three, four), keyRanges);
         // new segments after scale = {(5.3), (6.3)}
-        long five = StreamSegmentNameUtils.computeSegmentId(5, 3);
-        long six = StreamSegmentNameUtils.computeSegmentId(6, 3);
+        long five = NameUtils.computeSegmentId(5, 3);
+        long six = NameUtils.computeSegmentId(6, 3);
         segments.add(five);
         segments.add(six);
 

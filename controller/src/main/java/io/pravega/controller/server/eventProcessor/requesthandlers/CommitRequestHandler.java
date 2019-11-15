@@ -27,7 +27,7 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.CommitEvent;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.shared.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.computeSegmentId;
 
 import java.util.ArrayList;
 import java.util.List;

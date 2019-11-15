@@ -32,7 +32,7 @@ import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.SegmentWithRange;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.common.tracing.TagLogger;
@@ -306,7 +306,7 @@ public class PeriodicWatermarking {
         }
 
         return Futures.doWhileLoop(() -> {
-            int highestEpoch = streamCut.keySet().stream().mapToInt(x -> StreamSegmentNameUtils.getEpoch(x.getSegmentId()))
+            int highestEpoch = streamCut.keySet().stream().mapToInt(x -> NameUtils.getEpoch(x.getSegmentId()))
                                         .max().orElse(-1);
             assert highestEpoch >= 0;
             

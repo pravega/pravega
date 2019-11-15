@@ -33,7 +33,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import static io.pravega.shared.StreamSegmentNameUtils.*;
+import static io.pravega.shared.NameUtils.*;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;

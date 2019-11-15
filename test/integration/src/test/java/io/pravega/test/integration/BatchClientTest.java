@@ -60,7 +60,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static io.pravega.shared.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 

@@ -30,7 +30,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
@@ -40,7 +40,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import static io.pravega.shared.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.computeSegmentId;
 
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -1210,7 +1210,7 @@ public abstract class StreamMetadataStoreTest {
         Random random = new Random();
         for (int i = 0; i < 100; i++) {
             int epoch = random.nextInt(10);
-            valid.put(StreamSegmentNameUtils.computeSegmentId(epoch * 100 + i, epoch), 0L);
+            valid.put(NameUtils.computeSegmentId(epoch * 100 + i, epoch), 0L);
         }
         
         assertTrue(store.isStreamCutValid(scope, stream, valid, null, executor).join());

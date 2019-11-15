@@ -26,7 +26,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
-import static io.pravega.shared.StreamSegmentNameUtils.getQualifiedTableName;
+import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 import java.time.Duration;
 import java.util.ArrayList;

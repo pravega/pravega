@@ -36,7 +36,7 @@ import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -571,7 +571,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             val txnList = new ArrayList<String>(TRANSACTIONS_PER_SEGMENT);
             transactions.put(segmentName, txnList);
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
-                String txnName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+                String txnName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
                 txnList.add(txnName);
                 futures.add(store.createStreamSegment(txnName, null, TIMEOUT));
             }

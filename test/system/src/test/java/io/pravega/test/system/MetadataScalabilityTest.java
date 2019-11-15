@@ -20,7 +20,7 @@ import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import lombok.extern.slf4j.Slf4j;
@@ -120,7 +120,7 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
                         .thenCompose(segments -> {
                             ArrayList<Segment> sorted = Lists.newArrayList(segments.getSegments().stream()
                                     .sorted(Comparator.comparingInt(x ->
-                                            StreamSegmentNameUtils.getSegmentNumber(x.getSegmentId()) % numSegments))
+                                            NameUtils.getSegmentNumber(x.getSegmentId()) % numSegments))
                                     .collect(Collectors.toList()));
                             listOfEpochs.add(sorted);
                             // note: with SCALES_TO_PERFORM < numSegments, we can use the segment number as the index

@@ -27,7 +27,7 @@ import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -201,7 +201,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         val context = new TestContext(config);
         populateSegments(context);
 
-        context.storage.create(StreamSegmentNameUtils.getAttributeSegmentName(SEGMENT_NAME), TIMEOUT)
+        context.storage.create(NameUtils.getAttributeSegmentName(SEGMENT_NAME), TIMEOUT)
                        .thenCompose(handle -> context.storage.seal(handle, TIMEOUT));
         val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
@@ -248,7 +248,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         idx.removeAllCacheEntries();
         checkIndex(idx, Collections.emptyMap());
         Assert.assertFalse("Not expecting Attribute Segment to be recreated.",
-                context.storage.exists(StreamSegmentNameUtils.getAttributeSegmentName(SEGMENT_NAME), TIMEOUT).join());
+                context.storage.exists(NameUtils.getAttributeSegmentName(SEGMENT_NAME), TIMEOUT).join());
     }
 
     /**
@@ -302,7 +302,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 () -> context.index.forSegment(deletedSegment.getId(), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
         Assert.assertFalse("Attribute segment was created in Storage for a deleted Segment..",
-                context.storage.exists(StreamSegmentNameUtils.getAttributeSegmentName(deletedSegment.getName()), TIMEOUT).join());
+                context.storage.exists(NameUtils.getAttributeSegmentName(deletedSegment.getName()), TIMEOUT).join());
 
         // Create one index before main segment deletion.
         @Cleanup
@@ -575,7 +575,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     @Test
     public void testLazyCreateAttributeSegment() {
         val attributeId = UUID.randomUUID();
-        val attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(SEGMENT_NAME);
+        val attributeSegmentName = NameUtils.getAttributeSegmentName(SEGMENT_NAME);
         @Cleanup
         val context = new TestContext(DEFAULT_CONFIG);
         populateSegments(context);

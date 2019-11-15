@@ -23,14 +23,14 @@ import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static io.pravega.shared.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.StreamSegmentNameUtils.getEpoch;
+import static io.pravega.shared.NameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.getEpoch;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -854,7 +854,7 @@ public abstract class StreamTestBase {
         EpochRecord activeEpoch = stream.getActiveEpoch(true).join();
         // now roll transaction so that we have 2 more epochs added for overall 8 epochs and 4 chunks 
         Map<Long, Long> map1 = stream.getEpochRecord(0).join().getSegmentIds().stream()
-                                     .collect(Collectors.toMap(x -> computeSegmentId(StreamSegmentNameUtils.getSegmentNumber(x),
+                                     .collect(Collectors.toMap(x -> computeSegmentId(NameUtils.getSegmentNumber(x),
                                              activeEpoch.getEpoch() + 1), x -> 100L));
         Map<Long, Long> map2 = activeEpoch.getSegmentIds().stream()
                                      .collect(Collectors.toMap(x -> x, x -> 100L));
@@ -1170,20 +1170,20 @@ public abstract class StreamTestBase {
 
         // 0, 5, 6, 1`, 6`, 7, 2`, 7`, 12, 8, 3`, 8`, 9`, 14
         Set<Long> expected = new HashSet<>();
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 0, 0));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 5, 1));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 6, 2));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 1, 6));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 6, 7));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 7, 3));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 2, 6));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 7, 7));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 12, 10));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 8, 4));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 3, 6));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 8, 7));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 9, 7));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 14, 12));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 0, 0));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 5, 1));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 6, 2));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 1, 6));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 6, 7));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 7, 3));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 2, 6));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 7, 7));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 12, 10));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 8, 4));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 3, 6));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 8, 7));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 9, 7));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 14, 12));
         assertEquals(expected, segmentIdsBetween);
 
         // Note: all sealed segments have sizes 100L. So expected size = 1400 - 10x5 - 90 x 5 = 900

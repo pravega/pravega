@@ -14,7 +14,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -42,7 +42,7 @@ public class StreamSegmentRecord {
     }
 
     public long segmentId() {
-        return StreamSegmentNameUtils.computeSegmentId(segmentNumber, creationEpoch);
+        return NameUtils.computeSegmentId(segmentNumber, creationEpoch);
     }
 
     /**

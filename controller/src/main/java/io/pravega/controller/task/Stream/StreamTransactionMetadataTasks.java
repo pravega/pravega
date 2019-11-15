@@ -35,7 +35,7 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import java.time.Duration;
@@ -342,8 +342,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     }, executor).thenApplyAsync(v -> {
                         List<StreamSegmentRecord> segments = segmentsFuture.join().stream().map(x -> {
                             long generalizedSegmentId = RecordHelper.generalizedSegmentId(x.segmentId(), txnId);
-                            int epoch = StreamSegmentNameUtils.getEpoch(generalizedSegmentId);
-                            int segmentNumber = StreamSegmentNameUtils.getSegmentNumber(generalizedSegmentId);
+                            int epoch = NameUtils.getEpoch(generalizedSegmentId);
+                            int segmentNumber = NameUtils.getSegmentNumber(generalizedSegmentId);
                             return StreamSegmentRecord.builder().creationEpoch(epoch).segmentNumber(segmentNumber)
                                     .creationTime(x.getCreationTime()).keyStart(x.getKeyStart()).keyEnd(x.getKeyEnd()).build();
                         }).collect(Collectors.toList());

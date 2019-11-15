@@ -35,7 +35,6 @@ import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -387,7 +386,7 @@ public class MockController implements Controller {
             }
         };
         sendRequestOverNewConnection(new WireCommands.MergeSegments(idGenerator.get(), segment.getScopedName(),
-                StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId), ""), replyProcessor, result);
+                NameUtils.getTransactionNameFromId(segment.getScopedName(), txId), ""), replyProcessor, result);
         return result;
     }
 
@@ -438,7 +437,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
+        String transactionName = NameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
         sendRequestOverNewConnection(new DeleteSegment(idGenerator.get(), transactionName, ""), replyProcessor, result);
         return result;
     }
@@ -492,7 +491,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
+        String transactionName = NameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
         sendRequestOverNewConnection(new CreateSegment(idGenerator.get(), transactionName, WireCommands.CreateSegment.NO_SCALE,
                 0, ""), replyProcessor, result);
         return result;

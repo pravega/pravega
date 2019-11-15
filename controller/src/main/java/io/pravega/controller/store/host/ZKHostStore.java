@@ -14,7 +14,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.controller.util.ZKUtils;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.util.Map;
 import java.util.Optional;
@@ -138,7 +138,7 @@ public class ZKHostStore implements HostControllerStore {
 
     @Override
     public Host getHostForSegment(String scope, String stream, long segmentId) {
-        String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
+        String qualifiedName = NameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
     }
 

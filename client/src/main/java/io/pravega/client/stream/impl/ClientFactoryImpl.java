@@ -59,7 +59,6 @@ import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.StreamSegmentNameUtils;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 
@@ -189,7 +188,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
         Builder<Stream, WatermarkReaderImpl> watermarkReaders = ImmutableMap.builder();
         if (!config.isDisableTimeWindows()) {
             for (Stream stream : stateManager.getStreams()) {
-                String streamName = StreamSegmentNameUtils.getMarkForStream(stream.getStreamName());
+                String streamName = NameUtils.getMarkStreamForStream(stream.getStreamName());
                 val client = createRevisionedStreamClient(getSegmentForRevisionedClient(stream.getScope(), streamName),
                                                           new WatermarkSerializer(),
                                                           SynchronizerConfig.builder().readBufferSize(4096).build());

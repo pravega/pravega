@@ -61,7 +61,7 @@ import io.pravega.controller.task.TaskBase;
 import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
@@ -750,7 +750,7 @@ public class StreamMetadataTasks extends TaskBase {
                         final int minNumSegments = response.getConfiguration().getScalingPolicy().getMinNumSegments();
                         List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
                                                            .boxed()
-                                                           .map(x -> StreamSegmentNameUtils.computeSegmentId(x, 0))
+                                                           .map(x -> NameUtils.computeSegmentId(x, 0))
                                                            .collect(Collectors.toList());
                         return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken(), requestId)
                                 .thenCompose(v -> createMarkStream(scope, stream, timestamp, requestId))
@@ -810,7 +810,7 @@ public class StreamMetadataTasks extends TaskBase {
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         return this.streamMetadataStore.createStream(scope, markStream, config, timestamp, null, executor)
                                 .thenCompose(response -> {
-                                    final long segmentId = StreamSegmentNameUtils.computeSegmentId(response.getStartingSegmentNumber(), 0);
+                                    final long segmentId = NameUtils.computeSegmentId(response.getStartingSegmentNumber(), 0);
                                     return notifyNewSegment(scope, markStream, segmentId, response.getConfiguration().getScalingPolicy(),
                                             this.retrieveDelegationToken(), requestId);
                                 })

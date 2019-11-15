@@ -49,7 +49,7 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
@@ -641,7 +641,7 @@ public abstract class RequestHandlersTest {
         assertEquals(State.ACTIVE, streamStore.getState(fairness, fairness, true, null, executor).join());
         
         // 6. run a new scale. it should fail because of waiting processor.
-        ScaleOpEvent scaleEvent2 = new ScaleOpEvent(fairness, fairness, Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(1, 1)),
+        ScaleOpEvent scaleEvent2 = new ScaleOpEvent(fairness, fairness, Collections.singletonList(NameUtils.computeSegmentId(1, 1)),
                 Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0)),
                 false, System.currentTimeMillis(), 0L);
         AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent2),

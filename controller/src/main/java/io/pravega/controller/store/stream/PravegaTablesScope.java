@@ -32,7 +32,7 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SEPARATOR;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
-import static io.pravega.shared.StreamSegmentNameUtils.getQualifiedTableName;
+import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 /**
  * Pravega Tables based scope metadata.

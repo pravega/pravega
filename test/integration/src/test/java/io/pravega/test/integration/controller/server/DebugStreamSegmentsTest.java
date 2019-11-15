@@ -31,7 +31,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
@@ -138,8 +138,8 @@ public class DebugStreamSegmentsTest {
             for (int key = 0; key < 100; key++) {
                 Segment segment = selector.getSegmentForEvent("key-" + key);
                 if (lastSegments[key] != null) {
-                    int lastEpoch = StreamSegmentNameUtils.getEpoch(lastSegments[key].getSegmentId());
-                    int thisEpoch = StreamSegmentNameUtils.getEpoch(segment.getSegmentId());
+                    int lastEpoch = NameUtils.getEpoch(lastSegments[key].getSegmentId());
+                    int thisEpoch = NameUtils.getEpoch(segment.getSegmentId());
                     assertTrue(thisEpoch >= lastEpoch);
                     if (thisEpoch == lastEpoch) {
                         assertEquals(lastSegments[key], segment);

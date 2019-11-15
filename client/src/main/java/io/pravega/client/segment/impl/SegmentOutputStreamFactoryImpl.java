@@ -18,7 +18,7 @@ import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import java.util.UUID;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     @Override
     public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, EventWriterConfig config,
                                                                 DelegationTokenProvider tokenProvider) {
-        return new SegmentOutputStreamImpl(StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId),
+        return new SegmentOutputStreamImpl(NameUtils.getTransactionNameFromId(segment.getScopedName(), txId),
                                            config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(), nopSegmentSealedCallback,
                                            getRetryFromConfig(config), tokenProvider);
     }

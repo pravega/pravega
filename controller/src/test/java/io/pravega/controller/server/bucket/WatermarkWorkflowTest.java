@@ -37,7 +37,7 @@ import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -354,8 +354,8 @@ public class WatermarkWorkflowTest {
         streamMetadataStore.noteWriterMark(scope, streamName, writer1, 302L, map1, null, executor).join();
         map2 = ImmutableMap.of(1L, 100L, 2L, 400L);
         streamMetadataStore.noteWriterMark(scope, streamName, writer2, 301L, map2, null, executor).join();
-        long segment3 = StreamSegmentNameUtils.computeSegmentId(3, 1);
-        long segment4 = StreamSegmentNameUtils.computeSegmentId(4, 1);
+        long segment3 = NameUtils.computeSegmentId(3, 1);
+        long segment4 = NameUtils.computeSegmentId(4, 1);
         map3 = ImmutableMap.of(segment3, 100L);
         // writer 3 has lowest reported time. 
         streamMetadataStore.noteWriterMark(scope, streamName, writer3, 300L, map3, null, executor).join();

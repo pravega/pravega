@@ -17,7 +17,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.MetricsNames;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -112,7 +112,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, 2, SEGMENT_TAGS);
 
         // Append the 1st metrics txn.
-        val txnName = StreamSegmentNameUtils.getTransactionNameFromId(STREAM_SEGMENT_NAME, UUID.randomUUID());
+        val txnName = NameUtils.getTransactionNameFromId(STREAM_SEGMENT_NAME, UUID.randomUUID());
         context.statsRecorder.recordAppend(txnName, 321L, 5, elapsed);
         verify(context.dynamicLogger, times(1)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_BYTES), 123L);
         verify(context.dynamicLogger, times(1)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_BYTES), 321L);
@@ -125,7 +125,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         context.statsRecorder.deleteSegment(txnName);
 
         // Append the 2nd metrics txn.
-        val txnName2 = StreamSegmentNameUtils.getTransactionNameFromId(STREAM_SEGMENT_NAME, UUID.randomUUID());
+        val txnName2 = NameUtils.getTransactionNameFromId(STREAM_SEGMENT_NAME, UUID.randomUUID());
         context.statsRecorder.recordAppend(txnName2, 321L, 5, elapsed);
 
         // Seal the 2nd txn segment, this shouldn't affect the parent segment

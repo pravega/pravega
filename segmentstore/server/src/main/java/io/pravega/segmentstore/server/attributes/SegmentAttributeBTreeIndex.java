@@ -38,7 +38,7 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
@@ -154,7 +154,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     CompletableFuture<Void> initialize(Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         Preconditions.checkState(!this.index.isInitialized(), "SegmentAttributeIndex is already initialized.");
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
 
         // Attempt to open the Attribute Segment; if it does not exist do not create it now. It will be created when we
         // make the first write.
@@ -179,7 +179,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      */
     static CompletableFuture<Void> delete(String segmentName, Storage storage, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(segmentName);
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(segmentName);
         return Futures.exceptionallyExpecting(
                 storage.openWrite(attributeSegmentName)
                        .thenCompose(handle -> storage.delete(handle, timer.getRemaining())),
@@ -386,7 +386,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      */
     private <T> CompletableFuture<T> createAttributeSegmentIfNecessary(Supplier<CompletableFuture<T>> toRun, Duration timeout) {
         if (this.handle.get() == null) {
-            String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
+            String attributeSegmentName = NameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
             return Futures
                     .exceptionallyComposeExpecting(
                             this.storage.create(attributeSegmentName, this.config.getAttributeSegmentRollingPolicy(), timeout),

@@ -11,7 +11,7 @@ package io.pravega.segmentstore.storage.rolling;
 
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,7 +27,7 @@ import org.junit.Test;
 public class RollingSegmentHandleTests {
     private static final SegmentRollingPolicy DEFAULT_ROLLING_POLICY = new SegmentRollingPolicy(1234);
     private static final String SEGMENT_NAME = "Segment";
-    private static final String HEADER_NAME = StreamSegmentNameUtils.getHeaderSegmentName(SEGMENT_NAME);
+    private static final String HEADER_NAME = NameUtils.getHeaderSegmentName(SEGMENT_NAME);
 
     /**
      * Tests various features of the RollingSegmentHandle.

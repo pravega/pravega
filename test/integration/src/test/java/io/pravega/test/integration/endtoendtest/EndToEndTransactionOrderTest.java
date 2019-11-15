@@ -39,7 +39,6 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.test.integration.utils.IntegerSerializer;
@@ -174,9 +173,9 @@ public class EndToEndTransactionOrderTest {
 
         controller.scaleStream(s, Collections.singletonList(0L), map, executor).getFuture().get();
 
-        controller.scaleStream(s, Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(1, 1)), map, executor).getFuture().get();
+        controller.scaleStream(s, Collections.singletonList(NameUtils.computeSegmentId(1, 1)), map, executor).getFuture().get();
 
-        controller.scaleStream(s, Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(2, 2)), map, executor).getFuture().get();
+        controller.scaleStream(s, Collections.singletonList(NameUtils.computeSegmentId(2, 2)), map, executor).getFuture().get();
 
         // stop writers
         done.set(true);

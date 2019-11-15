@@ -65,7 +65,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.util.Config;
-import io.pravega.shared.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
@@ -103,7 +103,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static io.pravega.shared.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -338,8 +338,8 @@ public abstract class StreamMetadataTasksTest {
         // 2. change state to scaling
         streamStorePartialMock.setState(SCOPE, "test", State.SCALING, null, executor).get();
         // call update should fail without posting the event
-        long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
-        long three = StreamSegmentNameUtils.computeSegmentId(3, 1);
+        long two = NameUtils.computeSegmentId(2, 1);
+        long three = NameUtils.computeSegmentId(3, 1);
         Map<Long, Long> streamCut2 = new HashMap<>();
         streamCut2.put(0L, 1L);
         streamCut2.put(two, 1L);
@@ -1247,7 +1247,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS, scaleStatusResult.getStatus());
 
         // start another scale
-        scaleOpResult = streamMetadataTasks.manualScale(SCOPE, test, Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(1, 1)),
+        scaleOpResult = streamMetadataTasks.manualScale(SCOPE, test, Collections.singletonList(NameUtils.computeSegmentId(1, 1)),
                 newRanges, 30, null).get();
         assertEquals(ScaleStreamStatus.STARTED, scaleOpResult.getStatus());
         streamStorePartialMock.setState(SCOPE, test, State.SCALING, null, executor).join();
