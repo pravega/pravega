@@ -273,6 +273,7 @@ public class ZKScope implements Scope {
             return SERIALIZER.deserialize(Base64.getDecoder().decode(token));
         }
 
+        @Override
         @SneakyThrows
         public String toString() {
             return Base64.getEncoder().encodeToString(SERIALIZER.serialize(this).getCopy());

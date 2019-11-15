@@ -9,14 +9,16 @@
  */
 package io.pravega.client.security.auth;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Provides empty delegation tokens. This provider is useful when auth is disabled.
  */
 public class EmptyTokenProviderImpl implements DelegationTokenProvider {
 
     @Override
-    public String retrieveToken() {
-        return "";
+    public CompletableFuture<String> retrieveToken() {
+        return CompletableFuture.completedFuture("");
     }
 
     @Override
