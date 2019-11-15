@@ -13,8 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CancellationException;
 import java.util.function.BiFunction;
 import lombok.extern.slf4j.Slf4j;
 
@@ -29,7 +28,7 @@ class StreamSegmentReadResult implements ReadResult {
     private final long streamSegmentStartOffset;
     private final int maxResultLength;
     private final NextEntrySupplier getNextItem;
-    private CompletableFuture<ReadResultEntryContents> lastEntryFuture;
+    private CompletableReadResultEntry lastEntry;
     private int consumedLength;
     private boolean canRead;
     private boolean closed;
@@ -100,10 +99,10 @@ class StreamSegmentReadResult implements ReadResult {
             this.closed = true;
 
             // If we have already returned a result but it hasn't been consumed yet, cancel it.
-            CompletableFuture<ReadResultEntryContents> lastReturnedFuture = this.lastEntryFuture;
-            if (lastReturnedFuture != null && !lastReturnedFuture.isDone()) {
-                lastReturnedFuture.cancel(true);
-                this.lastEntryFuture = null;
+            CompletableReadResultEntry lastEntry = this.lastEntry;
+            if (lastEntry != null && !lastEntry.isDone()) {
+                lastEntry.fail(new CancellationException(String.format("ReadResult[%s] closed.", this.traceObjectId)));
+                this.lastEntry = null;
             }
 
             log.trace("{}.ReadResult[{}]: Closed.", this.traceObjectId, this.streamSegmentStartOffset);
@@ -146,10 +145,8 @@ class StreamSegmentReadResult implements ReadResult {
         Exceptions.checkNotClosed(this.closed, this);
 
         // If the previous entry hasn't finished yet, we cannot proceed.
-        Preconditions.checkState(this.lastEntryFuture == null || this.lastEntryFuture.isDone(), "Cannot request a new entry when the previous one hasn't completed retrieval yet.");
-        if (this.lastEntryFuture != null && !this.lastEntryFuture.isDone()) {
-            this.lastEntryFuture.join();
-        }
+        Preconditions.checkState(this.lastEntry == null || this.lastEntry.isDone(),
+                "Cannot request a new entry when the previous one hasn't completed retrieval yet.");
 
         // Only check for hasNext now, after we have waited for the previous entry to finish - since that updates
         // some fields that hasNext relies on.
@@ -164,7 +161,7 @@ class StreamSegmentReadResult implements ReadResult {
 
         if (entry == null) {
             assert remainingLength <= 0 : String.format("No ReadResultEntry received when one was expected. Offset %d, MaxLen %d.", startOffset, remainingLength);
-            this.lastEntryFuture = null;
+            this.lastEntry = null;
         } else {
             assert entry.getStreamSegmentOffset() == startOffset : String.format("Invalid ReadResultEntry. Expected offset %d, given %d.", startOffset, entry.getStreamSegmentOffset());
             if (entry.getType().isTerminal()) {
@@ -173,12 +170,12 @@ class StreamSegmentReadResult implements ReadResult {
                 // or if the StreamSegment is now sealed and we have requested an offset that is beyond the StreamSegment
                 // length. We cannot continue reading; close the ReadResult and return the appropriate Result Entry.
                 // If we don't close the ReadResult, hasNext() will erroneously return true and next() will have undefined behavior.
-                this.lastEntryFuture = null;
+                this.lastEntry = null;
                 this.canRead = false;
             } else {
                 // After the previous entry is done, update the consumedLength value.
                 entry.setCompletionCallback(length -> this.consumedLength += length);
-                this.lastEntryFuture = entry.getContent();
+                this.lastEntry = entry;
 
                 // Check, again, if we are closed. It is possible that this Result was closed after the last check
                 // and before we got the lastEntryFuture. If this happened, throw the exception and don't return anything.

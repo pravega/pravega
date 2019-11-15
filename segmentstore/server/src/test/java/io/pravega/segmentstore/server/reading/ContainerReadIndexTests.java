@@ -589,8 +589,11 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         rr.close();
         Assert.assertTrue(futureReadEntry.getContent().isCancelled());
 
-        // TODO: check that the read index's FutureReadCollection is empty.
-        Assert.fail("FIX ME");
+        AssertExtensions.assertEventuallyEquals("FutureReadResultEntry not unregistered after owning ReadResult closed.",
+                0,
+                () -> context.readIndex.getIndex(segmentId).getFutureReadCount(),
+                10,
+                TIMEOUT.toMillis());
     }
 
     /**
