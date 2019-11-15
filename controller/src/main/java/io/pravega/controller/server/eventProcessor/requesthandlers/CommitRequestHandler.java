@@ -27,6 +27,8 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.CommitEvent;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.StreamSegmentNameUtils.computeSegmentId;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -35,8 +37,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 
 /**
  * Request handler for processing commit events in commit-stream.

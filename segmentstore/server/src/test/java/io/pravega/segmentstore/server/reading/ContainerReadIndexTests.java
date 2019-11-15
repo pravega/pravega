@@ -32,7 +32,7 @@ import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;

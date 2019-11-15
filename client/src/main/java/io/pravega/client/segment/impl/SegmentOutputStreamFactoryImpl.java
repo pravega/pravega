@@ -18,7 +18,7 @@ import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import java.util.UUID;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;

@@ -9,7 +9,7 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static io.pravega.test.integration.ReadWriteUtils.readEvents;

@@ -35,6 +35,7 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import java.time.Duration;
@@ -48,8 +49,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;

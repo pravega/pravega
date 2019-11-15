@@ -13,7 +13,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ControllerImpl;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.test.system.framework.SystemTestRunner;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;

@@ -27,7 +27,7 @@ import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;

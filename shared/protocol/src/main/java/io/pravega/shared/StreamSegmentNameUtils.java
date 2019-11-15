@@ -7,12 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.segment;
+package io.pravega.shared;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
-import io.pravega.shared.NameUtils;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;

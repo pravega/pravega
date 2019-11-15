@@ -59,7 +59,7 @@ import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 

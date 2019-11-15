@@ -21,6 +21,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ToStringUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import java.io.IOException;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
@@ -32,8 +33,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;

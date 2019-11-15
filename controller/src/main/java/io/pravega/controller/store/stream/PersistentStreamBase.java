@@ -39,8 +39,7 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
-
+import io.pravega.shared.StreamSegmentNameUtils;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -69,8 +68,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
+import static io.pravega.shared.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.StreamSegmentNameUtils.getSegmentNumber;
 import static java.util.stream.Collectors.groupingBy;
 
 @Slf4j

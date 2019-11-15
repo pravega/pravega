@@ -11,6 +11,7 @@ package io.pravega.shared.segment;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.HashHelper;
+import io.pravega.shared.StreamSegmentNameUtils;
 
 /**
  * Defines a Mapper from StreamSegment Name to Container Id.

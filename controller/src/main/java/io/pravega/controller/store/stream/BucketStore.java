@@ -10,7 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.controller.store.client.StoreType;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import lombok.Getter;
 
 import java.util.Set;

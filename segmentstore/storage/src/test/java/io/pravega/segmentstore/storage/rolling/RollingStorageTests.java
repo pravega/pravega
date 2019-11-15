@@ -20,7 +20,7 @@ import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.io.ByteArrayInputStream;

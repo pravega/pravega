@@ -23,11 +23,14 @@ import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import static io.pravega.shared.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.StreamSegmentNameUtils.getEpoch;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -49,8 +52,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getEpoch;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;

@@ -29,7 +29,7 @@ import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryI
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.ThreadPooledTestSuite;

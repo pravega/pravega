@@ -21,6 +21,7 @@ import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventWriterConfig;
 
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.shared.StreamSegmentNameUtils;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,13 +31,11 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static java.util.Collections.singletonList;
 import static org.junit.Assert.*;

@@ -26,7 +26,7 @@ import java.util.Map;
 import lombok.Cleanup;
 import org.junit.Test;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 

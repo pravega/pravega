@@ -7,8 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.segment;
+package io.pravega.shared;
 
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.util.List;
 import java.util.Stack;
@@ -16,11 +17,11 @@ import java.util.UUID;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_EPOCH;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_SCOPE;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_SEGMENT;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_STREAM;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_WRITER;
+import static io.pravega.shared.StreamSegmentNameUtils.TAG_EPOCH;
+import static io.pravega.shared.StreamSegmentNameUtils.TAG_SCOPE;
+import static io.pravega.shared.StreamSegmentNameUtils.TAG_SEGMENT;
+import static io.pravega.shared.StreamSegmentNameUtils.TAG_STREAM;
+import static io.pravega.shared.StreamSegmentNameUtils.TAG_WRITER;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 

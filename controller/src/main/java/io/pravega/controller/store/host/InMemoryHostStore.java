@@ -11,13 +11,12 @@ package io.pravega.controller.store.host;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.cluster.Host;
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 

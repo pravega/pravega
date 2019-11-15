@@ -38,7 +38,7 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;

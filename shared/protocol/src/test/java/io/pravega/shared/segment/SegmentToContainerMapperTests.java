@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.segment;
 
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.nio.CharBuffer;
 import java.util.HashMap;

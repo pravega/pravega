@@ -35,10 +35,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.StreamSegmentNameUtils.segmentTags;
 import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_APPEND_BLOCK_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.segmentTags;
 
 /**
  * Encodes data so that it can go out onto the wire.

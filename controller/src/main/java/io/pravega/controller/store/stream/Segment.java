@@ -9,11 +9,10 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.ToString;
-
+import io.pravega.shared.StreamSegmentNameUtils;
 import java.util.AbstractMap;
 
 /**

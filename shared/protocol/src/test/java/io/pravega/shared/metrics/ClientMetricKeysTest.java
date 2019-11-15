@@ -9,7 +9,7 @@
  */
 package io.pravega.shared.metrics;
 
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import java.util.UUID;
 import org.junit.Test;
 

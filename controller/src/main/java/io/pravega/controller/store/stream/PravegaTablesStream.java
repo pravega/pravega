@@ -57,7 +57,7 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedTableName;
+import static io.pravega.shared.StreamSegmentNameUtils.getQualifiedTableName;
 
 /**
  * Pravega Table Stream.

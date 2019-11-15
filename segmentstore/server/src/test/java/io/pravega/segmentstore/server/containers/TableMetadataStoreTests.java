@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.containers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.TableStoreMock;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;

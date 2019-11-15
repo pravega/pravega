@@ -13,8 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.common.Exceptions;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
-
+import io.pravega.shared.StreamSegmentNameUtils;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -25,8 +24,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
+import static io.pravega.shared.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.StreamSegmentNameUtils.getSegmentNumber;
 
 public class RecordHelper {
     

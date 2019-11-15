@@ -11,7 +11,7 @@ package io.pravega.segmentstore.storage.rolling;
 
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Arrays;

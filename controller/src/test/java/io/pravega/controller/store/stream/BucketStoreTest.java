@@ -11,7 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

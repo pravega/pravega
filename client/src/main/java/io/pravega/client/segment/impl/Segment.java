@@ -11,11 +11,10 @@ package io.pravega.client.segment.impl;
 
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.shared.StreamSegmentNameUtils;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.List;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Data;
 import lombok.NonNull;
 

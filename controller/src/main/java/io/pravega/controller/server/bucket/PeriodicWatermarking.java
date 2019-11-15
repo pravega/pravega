@@ -32,7 +32,7 @@ import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.SegmentWithRange;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.common.tracing.TagLogger;

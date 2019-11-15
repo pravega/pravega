@@ -28,7 +28,7 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.StreamSegmentNameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;

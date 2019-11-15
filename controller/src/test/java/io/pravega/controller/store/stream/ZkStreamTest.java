@@ -33,6 +33,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import static io.pravega.shared.StreamSegmentNameUtils.*;
+
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,7 +50,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
