@@ -16,6 +16,8 @@ import io.pravega.shared.NameUtils;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Utility methods for StreamSegment Names.
@@ -32,6 +34,8 @@ public final class StreamSegmentNameUtils {
     static final String TAG_EPOCH = "epoch";
     static final String TAG_DEFAULT = "default";
     static final String TAG_WRITER = "writer";
+    static final Pattern SEGMENT_TAGS_PATTERN =
+        Pattern.compile("((([\\w\\-\\\\.]+)/)?(([\\w\\-\\\\.]+)/))?(\\d+)(\\.#epoch\\.(\\d+))?");
 
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its extended attributes.
@@ -417,28 +421,16 @@ public final class StreamSegmentNameUtils {
     }
 
     private static String[] updateSegmentTags(String qualifiedSegmentName, String[] tags) {
-        String segmentBaseName = getSegmentBaseName(qualifiedSegmentName);
-        String[] tokens = segmentBaseName.split("[/]");
-
-        int segmentIdIndex = (tokens.length == 1) ? 0 : (tokens.length) == 2 ? 1 : 2;
-        if (tokens[segmentIdIndex].contains(EPOCH_DELIMITER)) {
-            String[] segmentIdTokens = tokens[segmentIdIndex].split(EPOCH_DELIMITER);
-            tags[5] = segmentIdTokens[0];
-            tags[7] = segmentIdTokens[1];
-        } else {
-            tags[5] = tokens[segmentIdIndex];
-            tags[7] = "0";
-        }
-        if (tokens.length == 3) {
-            tags[1] = tokens[0];
-            tags[3] = tokens[1];
-        } else if (tokens.length == 1) {
-            tags[1] = TAG_DEFAULT;
-            tags[3] = TAG_DEFAULT;
-        } else {
-            tags[1] = TAG_DEFAULT;
-            tags[3] = tokens[0];
-        }
+        final String segmentBaseName = getSegmentBaseName(qualifiedSegmentName);
+        final Matcher m = SEGMENT_TAGS_PATTERN.matcher(segmentBaseName);
+        m.find();
+        final String scope = m.group(3);
+        tags[1] = scope == null ? TAG_DEFAULT : scope;
+        final String stream = m.group(5);
+        tags[3] = stream == null ? TAG_DEFAULT : stream;
+        tags[5] = m.group(6);
+        final String epoch = m.group(8);
+        tags[7] = epoch == null ? "0" : epoch;
         return tags;
     }
 
