@@ -35,7 +35,7 @@ public final class StreamSegmentNameUtils {
     static final String TAG_DEFAULT = "default";
     static final String TAG_WRITER = "writer";
     static final Pattern SEGMENT_TAGS_PATTERN =
-        Pattern.compile("((([\\w\\-\\\\.]+)/)?(([\\w\\-\\\\.]+)/))?(\\d+)(\\.#epoch\\.(\\d+))?");
+        Pattern.compile("((([\\w\\-\\\\.]+)/)?(([\\w\\-\\\\.]+)/))?(\\w+)(\\.#epoch\\.(\\d+))?");
 
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its extended attributes.
