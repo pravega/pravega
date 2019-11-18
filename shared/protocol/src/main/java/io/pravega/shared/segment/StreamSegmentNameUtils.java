@@ -34,8 +34,6 @@ public final class StreamSegmentNameUtils {
     static final String TAG_EPOCH = "epoch";
     static final String TAG_DEFAULT = "default";
     static final String TAG_WRITER = "writer";
-    static final Pattern SEGMENT_TAGS_PATTERN =
-        Pattern.compile("((([\\w\\-\\\\.]+)/)?(([\\w\\-\\\\.]+)/))?(\\w+)(\\.#epoch\\.(\\d+))?");
 
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its extended attributes.
@@ -88,7 +86,14 @@ public final class StreamSegmentNameUtils {
     private static final String TABLES = "_tables";
     private static final String MARK = "_MARK";
 
-    //endregion
+    /**
+	 * This is used to parse the segment name.
+	 */
+	static final Pattern SEGMENT_TAGS_PATTERN =
+        Pattern.compile("((([\\w\\-\\\\.]+)/)?(([\\w\\-\\\\.]+)/))?(\\w+)(" + Pattern.quote(EPOCH_DELIMITER) + "(\\d+))?");
+
+
+	//endregion
 
     /**
      * Returns the transaction name for a TransactionStreamSegment based on the name of the current Parent StreamSegment, and the transactionId.
