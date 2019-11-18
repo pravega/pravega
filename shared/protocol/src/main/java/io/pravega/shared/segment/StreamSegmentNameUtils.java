@@ -87,13 +87,13 @@ public final class StreamSegmentNameUtils {
     private static final String MARK = "_MARK";
 
     /**
-	 * This is used to parse the segment name.
-	 */
-	static final Pattern SEGMENT_TAGS_PATTERN =
+     * This is used to parse the segment name.
+     */
+    static final Pattern SEGMENT_TAGS_PATTERN =
         Pattern.compile("((([\\w\\-\\\\.]+)/)?(([\\w\\-\\\\.]+)/))?(\\w+)(" + Pattern.quote(EPOCH_DELIMITER) + "(\\d+))?");
 
 
-	//endregion
+    //endregion
 
     /**
      * Returns the transaction name for a TransactionStreamSegment based on the name of the current Parent StreamSegment, and the transactionId.
