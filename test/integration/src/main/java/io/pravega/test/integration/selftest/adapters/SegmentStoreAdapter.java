@@ -14,6 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -33,14 +34,16 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.storage.filesystem.FileSystemStorageConfig;
+import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
+import java.io.File;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Collections;
@@ -70,7 +73,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     private final TestConfig config;
     private final ServiceBuilderConfig builderConfig;
     private final ServiceBuilder serviceBuilder;
-    private final AtomicReference<Storage> storage;
+    private final AtomicReference<SingletonStorageFactory> storageFactory;
     private final AtomicReference<ScheduledExecutorService> storeExecutor;
     private final Thread stopBookKeeperProcess;
     private Process bookKeeperService;
@@ -94,7 +97,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         this.config = Preconditions.checkNotNull(testConfig, "testConfig");
         this.builderConfig = Preconditions.checkNotNull(builderConfig, "builderConfig");
-        this.storage = new AtomicReference<>();
+        this.storageFactory = new AtomicReference<>();
         this.storeExecutor = new AtomicReference<>();
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
         this.serviceBuilder = attachDataLogFactory(ServiceBuilder
@@ -102,8 +105,8 @@ class SegmentStoreAdapter extends StoreAdapter {
                 .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
-                    SingletonStorageFactory factory = new SingletonStorageFactory(setup.getStorageExecutor());
-                    this.storage.set(factory.createStorageAdapter());
+                    SingletonStorageFactory factory = new SingletonStorageFactory(config.getStorageDir(), setup.getStorageExecutor());
+                    this.storageFactory.set(factory);
 
                     // A bit hack-ish, but we need to get a hold of the Store Executor, so we can request snapshots for it.
                     this.storeExecutor.set(setup.getCoreExecutor());
@@ -173,6 +176,11 @@ class SegmentStoreAdapter extends StoreAdapter {
             this.statsProvider = null;
         }
 
+        SingletonStorageFactory storageFactory = this.storageFactory.getAndSet(null);
+        if (storageFactory != null) {
+            storageFactory.close();
+        }
+
         Runtime.getRuntime().removeShutdownHook(this.stopBookKeeperProcess);
     }
 
@@ -190,7 +198,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public StoreReader createReader() {
         ensureRunning();
-        return new SegmentStoreReader(this.config, this.streamSegmentStore, this.storage.get(), this.testExecutor);
+        return new SegmentStoreReader(this.config, this.streamSegmentStore, this.storageFactory.get().createStorageAdapter(), this.testExecutor);
     }
 
     @Override
@@ -362,11 +370,14 @@ class SegmentStoreAdapter extends StoreAdapter {
     //region SingletonStorageFactory
 
     private static class SingletonStorageFactory implements StorageFactory, AutoCloseable {
+        private final String storageDir;
         private final AtomicBoolean closed;
         private final Storage storage;
 
-        SingletonStorageFactory(ScheduledExecutorService executor) {
-            this.storage = new InMemoryStorageFactory(executor).createStorageAdapter();
+        SingletonStorageFactory(String storageDir, ScheduledExecutorService executor) {
+            this.storageDir = storageDir;
+            this.storage = new FileSystemStorageFactory(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, storageDir).build(),
+                    executor).createStorageAdapter();
             this.storage.initialize(1);
             this.closed = new AtomicBoolean();
         }
@@ -381,6 +392,7 @@ class SegmentStoreAdapter extends StoreAdapter {
         public void close() {
             if (!this.closed.get()) {
                 this.storage.close();
+                FileHelpers.deleteFileOrDirectory(new File(this.storageDir));
                 this.closed.set(true);
             }
         }

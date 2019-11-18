@@ -14,6 +14,9 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import java.util.ServiceLoader;
 import java.util.concurrent.ScheduledExecutorService;
+
+import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
+import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -21,15 +24,23 @@ import lombok.extern.slf4j.Slf4j;
  * for this purpose.
  * The custom storage implementation is required to implement {@link StorageFactoryCreator} interface.
  *
+ * If storageextra.storageNoOpMode is set to true, then instance of NoOpStorageFactory is returned which wraps the storage implementation factory.
  */
 @Slf4j
 public class StorageLoader {
     public StorageFactory load(ConfigSetup setup, String storageImplementation, ScheduledExecutorService executor) {
         ServiceLoader<StorageFactoryCreator> loader = ServiceLoader.load(StorageFactoryCreator.class);
-        for (StorageFactoryCreator factory : loader) {
-            log.info("Loading {}, trying {}", storageImplementation, factory.getName());
-            if (factory.getName().equals(storageImplementation)) {
-                return factory.createFactory(setup, executor);
+        StorageExtraConfig noOpConfig = setup.getConfig(StorageExtraConfig::builder);
+        for (StorageFactoryCreator factoryCreator : loader) {
+            log.info("Loading {}, trying {}", storageImplementation, factoryCreator.getName());
+            if (factoryCreator.getName().equals(storageImplementation)) {
+                StorageFactory factory = factoryCreator.createFactory(setup, executor);
+                if (!noOpConfig.isStorageNoOpMode()) {
+                    return factory;
+                } else { //The specified storage implementation is in No-Op mode.
+                    log.warn("{} IS IN NO-OP MODE: DATA LOSS WILL HAPPEN! MAKE SURE IT IS BY FULL INTENTION FOR TESTING PURPOSE!", storageImplementation);
+                    return new NoOpStorageFactory(noOpConfig, executor, factory, null);
+                }
             }
         }
         return null;

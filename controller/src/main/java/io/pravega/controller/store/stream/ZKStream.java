@@ -497,6 +497,7 @@ class ZKStream extends PersistentStreamBase {
         return super.getAllOrderedCommittingTxnsHelper(txnCommitOrderer);
     }
 
+    @Override
     CompletableFuture<Version> createNewTransaction(final int epoch, final UUID txId, final ActiveTxnRecord txnRecord) {
         final String activePath = getActiveTxPath(epoch, txId.toString());
         // we will always create parent if needed so that transactions are created successfully even if the epoch znode

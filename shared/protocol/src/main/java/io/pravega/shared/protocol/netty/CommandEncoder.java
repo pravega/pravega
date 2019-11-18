@@ -18,16 +18,15 @@ import io.netty.handler.codec.MessageToByteEncoder;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
-import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import java.io.IOException;
 import java.util.AbstractMap.SimpleImmutableEntry;
-import java.util.UUID;
-import java.util.Map;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.ArrayList;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -378,8 +377,14 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (isChannelFree()) {
             return;
         }
-        writeMessage(new Padding(bytesLeftInBlock), out);
+        writePadding(out);
         completeAppend(null, out);
+    }
+    
+    private void writePadding(ByteBuf out) {
+        out.writeInt(WireCommandType.PADDING.getCode());
+        out.writeInt(bytesLeftInBlock);
+        out.writeZero(bytesLeftInBlock);
     }
 
     @SneakyThrows(IOException.class)
