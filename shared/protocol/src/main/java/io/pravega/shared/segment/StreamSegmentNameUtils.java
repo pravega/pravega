@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.segment;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
@@ -89,6 +90,7 @@ public final class StreamSegmentNameUtils {
     /**
      * This is used to parse the segment name.
      */
+    @VisibleForTesting
     static final Pattern SEGMENT_TAGS_PATTERN =
         Pattern.compile("((([\\w\\-\\\\.]+)/)?(([\\w\\-\\\\.]+)/))?(\\w+)(" + Pattern.quote(EPOCH_DELIMITER) + "(\\d+))?");
 
