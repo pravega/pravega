@@ -1188,14 +1188,14 @@ public interface StreamMetadataStore extends AutoCloseable {
 
     /**
      * Method to get epoch in which a segment was sealed.
-     * Returns a negative number if segment is not sealed.  
      *
      * @param scope      stream scope.
      * @param streamName stream name.
      * @param segmentId  segment id.
      * @param context    operation context.
      * @param executor   callers executor.
-     * @return Completable future that, upon completion, holds the epoch in which the segment was sealed.
+     * @return Completable future that, upon completion, holds the epoch in which the segment was sealed OR
+     * a negative number if segment is not sealed.
      */
     CompletableFuture<Integer> getSegmentSealedEpoch(final String scope, final String streamName, final long segmentId,
                                                      final OperationContext context, final Executor executor);

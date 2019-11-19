@@ -22,7 +22,9 @@ import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.RecordHelper;
+import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -1539,5 +1541,66 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(mark.getPosition().size(), 1);
         assertTrue(mark.getPosition().containsKey(0L));
         assertEquals(mark.getPosition().get(0L).longValue(), 1L);
+    }
+    
+    @Test
+    public void testHistoryTimeSeriesChunk() throws Exception {
+        String scope = "history";
+        String stream = "history";
+        createAndScaleStream(store, scope, stream, 2);
+        HistoryTimeSeries chunk = store.getHistoryTimeSeriesChunk(scope, stream, 0, null, executor).join();
+        assertEquals(chunk.getLatestRecord().getEpoch(), 2);
+    }
+    
+    @Test
+    public void testSealedSegmentSizeMapShard() throws Exception {
+        String scope = "sealedMap";
+        String stream = "sealedMap";
+        createAndScaleStream(store, scope, stream, 2);
+        SealedSegmentsMapShard shard = store.getSealedSegmentSizeMapShard(scope, stream, 0, null, executor).join();
+        assertEquals(shard.getSize(StreamSegmentNameUtils.computeSegmentId(0, 0)).longValue(), 0L);
+        assertEquals(shard.getSize(StreamSegmentNameUtils.computeSegmentId(1, 1)).longValue(), 1L);
+        assertNull(shard.getSize(StreamSegmentNameUtils.computeSegmentId(2, 2)));
+    }
+    
+    @Test
+    public void testSegmentSealedEpoch() throws Exception {
+        String scope = "sealedMap";
+        String stream = "sealedMap";
+        createAndScaleStream(store, scope, stream, 2);
+        long segmentId = StreamSegmentNameUtils.computeSegmentId(0, 0);
+        int epoch = store.getSegmentSealedEpoch(scope, stream, segmentId, null, executor).join();
+        assertEquals(epoch, 1);
+        segmentId = StreamSegmentNameUtils.computeSegmentId(1, 1);
+        epoch = store.getSegmentSealedEpoch(scope, stream, segmentId, null, executor).join();
+        assertEquals(epoch, 2);
+        segmentId = StreamSegmentNameUtils.computeSegmentId(2, 2);
+        epoch = store.getSegmentSealedEpoch(scope, stream, segmentId, null, executor).join();
+        assertEquals(epoch, -1);
+    }
+    
+    private void createAndScaleStream(StreamMetadataStore store, String scope, String stream, int times) {
+        long time = System.currentTimeMillis();
+        store.createScope(scope).join();
+        store.createStream(scope, stream, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
+                                                             .build(), time, null, executor).join();
+        VersionedMetadata<State> state = store.getVersionedState(scope, stream, null, executor).join();
+        store.updateVersionedState(scope, stream, State.ACTIVE, state, null, executor).join();
+
+        for (int i = 0; i < times; i++) {
+            long scaleTs = time + i;
+            List<Long> sealedSegments = Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(i, i));
+            VersionedMetadata<EpochTransitionRecord> etr = store.submitScale(scope, stream, sealedSegments,
+                    Collections.singletonList(new SimpleEntry<>(0.0, 1.0)), scaleTs, null, null, executor).join();
+            state = store.getVersionedState(scope, stream, null, executor).join();
+            state = store.updateVersionedState(scope, stream, State.SCALING, state, null, executor).join();
+            etr = store.startScale(scope, stream, false, etr, state, null, executor).join();
+            store.scaleCreateNewEpochs(scope, stream, etr, null, executor).join();
+            long size = i;
+            store.scaleSegmentsSealed(scope, stream, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> size)), etr,
+                    null, executor).join();
+            store.completeScale(scope, stream, etr, null, executor).join();
+            store.setState(scope, stream, State.ACTIVE, null, executor).join();
+        }
     }
 }
