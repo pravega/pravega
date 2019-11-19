@@ -91,7 +91,7 @@ public final class StreamSegmentNameUtils {
      * This is used to parse the segment name.
      */
     @VisibleForTesting
-    private static final Pattern SEGMENT_TAGS_PATTERN =
+    static final Pattern SEGMENT_TAGS_PATTERN =
         Pattern.compile("((([\\w\\-\\\\.]+)/)?(([\\w\\-\\\\.]+)/))?(\\w+)(" + Pattern.quote(EPOCH_DELIMITER) + "(\\d+))?");
 
 
