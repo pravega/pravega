@@ -1223,12 +1223,12 @@ public abstract class PersistentStreamBase implements Stream {
      * transaction record for which a writer with time and position information is available. 
      */
     CompletableFuture<Void> generateMarksForTransactions(CommittingTransactionsRecord committingTransactionsRecord) {
-        // Ignore data not found exceptions. DataNotFound Exceptions can be thrown because transaction record no longer 
-        // exists and this is an idempotent case. DataNotFound can also be thrown because writer's mark was deleted 
-        // as we attempted to update an existing record. Note: Delete can be triggered by writer explicitly calling
-        // removeWriter api. 
         val getTransactionsFuture = Futures.allOfWithResults(committingTransactionsRecord.getTransactionsToCommit().stream().map(txId -> {
             int epoch = RecordHelper.getTransactionEpoch(txId);
+            // Ignore data not found exceptions. DataNotFound Exceptions can be thrown because transaction record no longer 
+            // exists and this is an idempotent case. DataNotFound can also be thrown because writer's mark was deleted 
+            // as we attempted to update an existing record. Note: Delete can be triggered by writer explicitly calling
+            // removeWriter api. 
             return Futures.exceptionallyExpecting(getActiveTx(epoch, txId), DATA_NOT_FOUND_PREDICATE, null);
         }).collect(Collectors.toList()));
         
