@@ -51,7 +51,7 @@ public class JwtTokenProviderImplTest {
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 token, mock(Controller.class), "somescope", "somestream");
-        assertEquals(token, objectUnderTest.retrieveToken());
+        assertEquals(token, objectUnderTest.retrieveToken().join());
     }
 
     @Test
@@ -131,7 +131,7 @@ public class JwtTokenProviderImplTest {
                 token, mockController, "somescope", "somestream");
 
         // Act
-        String newToken = objectUnderTest.retrieveToken();
+        String newToken = objectUnderTest.retrieveToken().join();
         log.debug("new token: {}", newToken);
 
         assertTrue(newToken.startsWith("newtokenheader"));
@@ -139,13 +139,15 @@ public class JwtTokenProviderImplTest {
 
     @Test
     public void testRetrievesSameTokenOutsideOfTokenRefreshThresholdWhenTokenIsNull() {
+
+        final String token = String.format("newtokenheader.%s.signature", createJwtBody(
+                JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         // Setup mock
         Controller mockController = mock(Controller.class);
         CompletableFuture<String> future = CompletableFuture.supplyAsync(new Supplier<String>() {
             @Override
             public String get() {
-                return String.format("newtokenheader.%s.signature", createJwtBody(
-                        JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
+                return token;
             }
         });
         when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
@@ -155,9 +157,7 @@ public class JwtTokenProviderImplTest {
         DelegationTokenProvider objectUnderTest = new JwtTokenProviderImpl(mockController,
                 "somescope", "somestream");
 
-        // Act
-        String token = objectUnderTest.retrieveToken();
-        assertEquals(token, objectUnderTest.retrieveToken());
+        assertEquals(token, objectUnderTest.retrieveToken().join());
     }
 
     @Test
@@ -191,7 +191,7 @@ public class JwtTokenProviderImplTest {
 
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(token, dummyController, "testscope",
                 "teststream");
-        assertEquals(token, objectUnderTest.retrieveToken());
+        assertEquals(token, objectUnderTest.retrieveToken().join());
     }
 
     @Test
@@ -254,7 +254,7 @@ public class JwtTokenProviderImplTest {
         DelegationTokenProvider objectUnderTest = new JwtTokenProviderImpl(mockController, "somescope", "somestream");
 
         // Act
-        String token = objectUnderTest.retrieveToken();
+        String token = objectUnderTest.retrieveToken().join();
         log.debug(token);
 
         assertTrue(token.startsWith("newtokenheader"));

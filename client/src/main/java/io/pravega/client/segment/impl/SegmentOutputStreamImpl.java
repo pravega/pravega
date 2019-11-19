@@ -39,6 +39,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -566,43 +567,56 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                              t -> log.warn(writerId + " Failed to connect: ", t))
                  .runAsync(() -> {
                      log.debug("Running reconnect for segment {} writer {}", segmentName, writerId);
+
                      if (state.isClosed() || state.needSuccessors.get()) {
                          // stop reconnect when writer is closed or resend inflight to successors has been triggered.
                          return CompletableFuture.completedFuture(null);
                      }
                      Preconditions.checkState(state.getConnection() == null);
                      log.info("Fetching endpoint for segment {}, writer {}", segmentName, writerId);
-                     return controller.getEndpointForSegment(segmentName).thenComposeAsync((PravegaNodeUri uri) -> {
-                         log.info("Establishing connection to {} for {}, writerID: {}", uri, segmentName, writerId);
-                         return establishConnection(uri);
-                     }, connectionFactory.getInternalExecutor()).thenComposeAsync(connection -> {
-                         CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
-                         SetupAppend cmd = new SetupAppend(requestId, writerId, segmentName, tokenProvider.retrieveToken());
-                         try {
-                             connection.send(cmd);
-                         } catch (ConnectionFailedException e1) {
-                             // This needs to be invoked here because call to failConnection from netty may occur before state.newConnection above.
-                             state.failConnection(e1);
-                             throw Exceptions.sneakyThrow(e1);
-                         }
-                         return connectionSetupFuture.exceptionally(t -> {
-                             Throwable exception = Exceptions.unwrap(t);
-                             if (exception instanceof TokenException) {
-                                 log.info("Ending reconnect attempts on writer {} to {} because token verification failed",
-                                         writerId, segmentName);
-                                 return null;
+
+                     return controller.getEndpointForSegment(segmentName)
+                         // Establish and return a connection to segment store
+                         .thenComposeAsync((PravegaNodeUri uri) -> {
+                             log.info("Establishing connection to {} for {}, writerID: {}", uri, segmentName, writerId);
+                             return establishConnection(uri);
+                         }, connectionFactory.getInternalExecutor())
+
+                         .thenCombineAsync(tokenProvider.retrieveToken(), AbstractMap.SimpleEntry<ClientConnection, String>::new,
+                                 connectionFactory.getInternalExecutor())
+
+                         .thenComposeAsync(pair -> {
+                             ClientConnection connection = pair.getKey();
+                             String token = pair.getValue();
+
+                             CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
+                             SetupAppend cmd = new SetupAppend(requestId, writerId, segmentName, token);
+                             try {
+                                 connection.send(cmd);
+                             } catch (ConnectionFailedException e1) {
+                                 // This needs to be invoked here because call to failConnection from netty may occur before state.newConnection above.
+                                 state.failConnection(e1);
+                                 throw Exceptions.sneakyThrow(e1);
                              }
-                             if (exception instanceof SegmentSealedException) {
-                                 log.info("Ending reconnect attempts on writer {} to {} because segment is sealed", writerId, segmentName);
-                                 return null;
-                             }
-                             if (exception instanceof NoSuchSegmentException) {
-                                 log.info("Ending reconnect attempts on writer {} to {} because segment is truncated", writerId, segmentName);
-                                 return null;
-                             }
-                             throw Exceptions.sneakyThrow(t);
-                         });
-                     }, connectionFactory.getInternalExecutor());
+                             return connectionSetupFuture.exceptionally(t -> {
+                                 Throwable exception = Exceptions.unwrap(t);
+                                 if (exception instanceof TokenException) {
+                                     log.info("Ending reconnect attempts on writer {} to {} because token verification failed",
+                                             writerId, segmentName);
+                                     return null;
+                                 }
+                                 if (exception instanceof SegmentSealedException) {
+                                     log.info("Ending reconnect attempts on writer {} to {} because segment is sealed", writerId, segmentName);
+                                     return null;
+                                 }
+                                 if (exception instanceof NoSuchSegmentException) {
+                                     log.info("Ending reconnect attempts on writer {} to {} because segment is truncated", writerId, segmentName);
+                                     return null;
+                                 }
+                                 throw Exceptions.sneakyThrow(t);
+                             });
+
+                         }, connectionFactory.getInternalExecutor());
                  }, connectionFactory.getInternalExecutor());
         }, new CompletableFuture<ClientConnection>());
     }

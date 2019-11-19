@@ -87,9 +87,9 @@ public class ConnectionTracker {
      * @return True if the connection should continue reading, false if it should pause.
      */
     private boolean shouldContinueReading(long deltaBytes, long connectionOutstandingBytes) {
-        // Perform quick sanity checks as assertions: these should pop up during tests but since this method is invoked
-        // very frequently we do not want them enabled for production use.
-        // Sanity Check #1: If a connection increased by an amount, its total outstanding should be at least that value.
+        // Perform a sanity check as an assertion: it should pop up during tests but since this method is invoked
+        // very frequently we do not want it enabled for production use.
+        // If a connection increased by an amount, its total outstanding should be at least that value.
         assert deltaBytes <= connectionOutstandingBytes : "connection delta greater than connection outstanding";
         long total = this.totalOutstanding.updateAndGet(p -> Math.max(0, p + deltaBytes));
         if (total >= this.allConnectionsLimit) {
@@ -97,8 +97,6 @@ public class ConnectionTracker {
             return false;
         }
 
-        // Sanity check #2: No connection may have more outstanding than the total.
-        assert connectionOutstandingBytes <= total : "single connection outstanding greater than total outstanding";
         return connectionOutstandingBytes < LOW_WATERMARK
                 || connectionOutstandingBytes < (this.singleConnectionDoubleLimit - total);
     }
