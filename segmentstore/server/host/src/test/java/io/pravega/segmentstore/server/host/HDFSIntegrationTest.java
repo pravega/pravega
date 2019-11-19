@@ -34,6 +34,7 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     /**
      * Starts BookKeeper and HDFS MiniCluster.
      */
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -47,6 +48,7 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     /**
      * Shuts down BookKeeper and HDFS MiniCluster.
      */
+    @Override
     @After
     public void tearDown() throws Exception {
         val hdfs = this.hdfsCluster;
