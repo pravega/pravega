@@ -114,20 +114,33 @@ public class StreamMetadataTasks extends TaskBase {
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
     private final GrpcAuthHelper authHelper;
     private final RequestTracker requestTracker;
+    private final ScheduledExecutorService eventExecutor;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
-                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
+                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
+                               final ScheduledExecutorService eventExecutor, final String hostId,
                                GrpcAuthHelper authHelper, RequestTracker requestTracker) {
-        this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, new Context(hostId),
+        this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, eventExecutor, new Context(hostId),
                 authHelper, requestTracker);
+    }
+
+    @VisibleForTesting
+    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                               BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
+                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
+                               final String hostId, GrpcAuthHelper authHelper, RequestTracker requestTracker) {
+        this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, executor, new Context(hostId),
+             authHelper, requestTracker);
     }
 
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                 BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
-                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final Context context,
+                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
+                                final ScheduledExecutorService eventExecutor, final Context context,
                                 GrpcAuthHelper authHelper, RequestTracker requestTracker) {
         super(taskMetadataStore, executor, context);
+        this.eventExecutor = eventExecutor;
         this.streamMetadataStore = streamMetadataStore;
         this.bucketStore = bucketStore;
         this.segmentHelper = segmentHelper;
@@ -407,7 +420,7 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 })
                 .exceptionally(ex -> {
-                    log.warn(requestId, "Exception thrown in trying to update stream configuration {}", ex);
+                    log.warn(requestId, "Exception thrown in trying to update stream configuration", ex);
                     return handleUpdateStreamError(ex, requestId);
                 });
     }
@@ -710,23 +723,25 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
-        writerInitFuture.thenCompose(v -> requestEventWriterRef.get().writeEvent(event.getKey(), event)).whenComplete((r, e) -> {
-            if (e != null) {
-                log.warn("exception while posting event {} {}", e.getClass().getName(), e.getMessage());
-                if (e instanceof TaskExceptions.ProcessingDisabledException) {
-                    result.completeExceptionally(e);
-                } else {
-                    // transform any other event write exception to retryable exception
-                    result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event", e));
-                }
-            } else {
-                log.info("event posted successfully");
-                result.complete(null);
-            }
-        });
-
+        writerInitFuture.thenComposeAsync(v -> requestEventWriterRef.get().writeEvent(event.getKey(), event),
+                                          eventExecutor)
+                        .whenComplete((r, e) -> {
+                            if (e != null) {
+                                log.warn("exception while posting event {} {}", e.getClass().getName(), e.getMessage());
+                                if (e instanceof TaskExceptions.ProcessingDisabledException) {
+                                    result.completeExceptionally(e);
+                                } else {
+                                    // transform any other event write exception to retryable
+                                    // exception
+                                    result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event",
+                                                                                                       e));
+                                }
+                            } else {
+                                log.info("event posted successfully");
+                                result.complete(null);
+                            }
+                        });
         return result;
-
     }
 
     @VisibleForTesting
@@ -1028,6 +1043,7 @@ public class StreamMetadataTasks extends TaskBase {
                 taskMetadataStore,
                 segmentHelper,
                 executor,
+                eventExecutor,
                 context,
                 authHelper,
                 requestTracker);
