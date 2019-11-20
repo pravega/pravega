@@ -15,12 +15,16 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import java.util.concurrent.CancellationException;
 import java.util.function.BiFunction;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Represents a Read Result from a Stream Segment. This is essentially an Iterator over smaller, continuous ReadResultEntries.
  */
 @Slf4j
+@ThreadSafe
 class StreamSegmentReadResult implements ReadResult {
     //region Members
 
@@ -28,9 +32,13 @@ class StreamSegmentReadResult implements ReadResult {
     private final long streamSegmentStartOffset;
     private final int maxResultLength;
     private final NextEntrySupplier getNextItem;
+    @GuardedBy("this")
     private CompletableReadResultEntry lastEntry;
+    @GuardedBy("this")
     private int consumedLength;
+    @GuardedBy("this")
     private boolean canRead;
+    @GuardedBy("this")
     private boolean closed;
 
     //endregion
@@ -47,11 +55,9 @@ class StreamSegmentReadResult implements ReadResult {
      * @throws NullPointerException     If getNextItem is null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, NextEntrySupplier getNextItem, String traceObjectId) {
+    StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, @NonNull NextEntrySupplier getNextItem, String traceObjectId) {
         Exceptions.checkArgument(streamSegmentStartOffset >= 0, "streamSegmentStartOffset", "streamSegmentStartOffset must be a non-negative number.");
         Exceptions.checkArgument(maxResultLength >= 0, "maxResultLength", "maxResultLength must be a non-negative number.");
-        Preconditions.checkNotNull(getNextItem, "getNextItem");
-
         this.traceObjectId = traceObjectId;
         this.streamSegmentStartOffset = streamSegmentStartOffset;
         this.maxResultLength = maxResultLength;
@@ -75,18 +81,18 @@ class StreamSegmentReadResult implements ReadResult {
     }
 
     @Override
-    public int getConsumedLength() {
+    public synchronized int getConsumedLength() {
         return this.consumedLength;
     }
 
     @Override
-    public boolean isClosed() {
+    public synchronized boolean isClosed() {
         return this.closed || !hasNext();
     }
 
     @Override
     public String toString() {
-        return String.format("Offset = %d, MaxLength = %d, Consumed = %d", this.streamSegmentStartOffset, this.maxResultLength, this.consumedLength);
+        return String.format("Offset = %d, MaxLength = %d, Consumed = %d", this.streamSegmentStartOffset, this.maxResultLength, getConsumedLength());
     }
 
     //endregion
@@ -95,17 +101,21 @@ class StreamSegmentReadResult implements ReadResult {
 
     @Override
     public void close() {
-        if (!this.closed) {
-            this.closed = true;
-
-            // If we have already returned a result but it hasn't been consumed yet, cancel it.
-            CompletableReadResultEntry lastEntry = this.lastEntry;
-            if (lastEntry != null && !lastEntry.isDone()) {
-                lastEntry.fail(new CancellationException(String.format("ReadResult[%s] closed.", this.traceObjectId)));
+        CompletableReadResultEntry lastEntry = null;
+        synchronized (this) {
+            if (!this.closed) {
+                this.closed = true;
+                lastEntry = this.lastEntry;
                 this.lastEntry = null;
+                log.trace("{}.ReadResult[{}]: Closed.", this.traceObjectId, this.streamSegmentStartOffset);
             }
+        }
 
-            log.trace("{}.ReadResult[{}]: Closed.", this.traceObjectId, this.streamSegmentStartOffset);
+        // If we have already returned a result but it hasn't been consumed yet, cancel it, but make sure we do it
+        // outside of the lock.
+        if (lastEntry != null && !lastEntry.isDone()) {
+            lastEntry.fail(new CancellationException(String.format("ReadResult[%s] closed.", this.traceObjectId)));
+            log.trace("{}.ReadResult[{}]: Cancelled last entry '{}'.", this.traceObjectId, this.streamSegmentStartOffset, lastEntry);
         }
     }
 
@@ -122,7 +132,7 @@ class StreamSegmentReadResult implements ReadResult {
      * </ul>
      */
     @Override
-    public boolean hasNext() {
+    public synchronized boolean hasNext() {
         return !this.closed && this.canRead && this.consumedLength < this.maxResultLength;
     }
 
@@ -141,7 +151,7 @@ class StreamSegmentReadResult implements ReadResult {
      * @throws IllegalStateException If we have more elements, but the last element returned hasn't finished processing.
      */
     @Override
-    public ReadResultEntry next() {
+    public synchronized ReadResultEntry next() {
         Exceptions.checkNotClosed(this.closed, this);
 
         // If the previous entry hasn't finished yet, we cannot proceed.
