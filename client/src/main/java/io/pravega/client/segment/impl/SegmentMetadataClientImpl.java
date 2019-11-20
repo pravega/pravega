@@ -239,7 +239,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             truncateSegmentAsync(segmentId, offset, tokenProvider).exceptionally(t -> {
                 final Throwable ex = Exceptions.unwrap(t);
                 if (ex.getCause() instanceof SegmentTruncatedException) {
-                    log.debug("Segment already truncated at offset " + offset, ex.getCause());
+                    log.debug("Segment already truncated at offset {}. Details: {}", offset, ex.getCause().getMessage());
                     return null;
                 }
                 throw new CompletionException(ex);
