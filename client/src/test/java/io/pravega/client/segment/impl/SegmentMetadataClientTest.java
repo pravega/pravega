@@ -137,6 +137,36 @@ public class SegmentMetadataClientTest {
         Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")),
                                              Mockito.any(ClientConnection.CompletedCallback.class));
     }
+
+    @Test(timeout = 10000)
+    public void testTruncateNoSuchSegmentError() {
+        Segment segment = new Segment("scope", "testTruncate", 4);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
+        @Cleanup
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
+        client.getConnection();
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        AtomicLong requestId = new AtomicLong();
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.TruncateSegment truncateSegment = invocation.getArgument(0);
+                processor.process(new WireCommands.NoSuchSegment(truncateSegment.getRequestId(), segment.getScopedName(), "", 123L));
+                requestId.set(truncateSegment.getRequestId());
+                return null;
+            }
+        }).when(connection).sendAsync(any(WireCommands.TruncateSegment.class), Mockito.any(ClientConnection.CompletedCallback.class));
+        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> client.truncateSegment(123L));
+        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")),
+                                             Mockito.any(ClientConnection.CompletedCallback.class));
+    }
     
     @Test(timeout = 10000)
     public void testSeal() {
