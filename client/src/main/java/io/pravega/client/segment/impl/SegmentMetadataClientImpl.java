@@ -134,28 +134,33 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         log.debug("Getting segment info for segment: {}", segmentId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId, new GetStreamSegmentInfo(
-                requestId, segmentId.getScopedName(), tokenProvider.retrieveToken()))
-                         .thenApply(r -> transformReply(r, StreamSegmentInfo.class));
+
+        return tokenProvider.retrieveToken()
+                .thenCompose(token -> connection.sendRequest(requestId, new GetStreamSegmentInfo(
+                        requestId, segmentId.getScopedName(), token)))
+                .thenApply(r -> transformReply(r, StreamSegmentInfo.class));
     }
     
     private CompletableFuture<WireCommands.SegmentAttribute> getPropertyAsync(UUID attributeId) {
         log.debug("Getting segment attribute: {}", attributeId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId, new GetSegmentAttribute(requestId, segmentId.getScopedName(),
-                                                    attributeId, tokenProvider.retrieveToken()))
-                         .thenApply(r -> transformReply(r, WireCommands.SegmentAttribute.class));
+
+        return tokenProvider.retrieveToken()
+                .thenCompose(token -> connection.sendRequest(requestId, new GetSegmentAttribute(requestId,
+                        segmentId.getScopedName(), attributeId, token)))
+                .thenApply(r -> transformReply(r, WireCommands.SegmentAttribute.class));
     }
 
     private CompletableFuture<SegmentAttributeUpdated> updatePropertyAsync(UUID attributeId, long expected, long value) {
         log.trace("Updating segment attribute: {}", attributeId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId,
-                                      new UpdateSegmentAttribute(requestId, segmentId.getScopedName(), attributeId,
-                                                                 value, expected, tokenProvider.retrieveToken()))
-                         .thenApply(r -> transformReply(r, SegmentAttributeUpdated.class));
+
+        return tokenProvider.retrieveToken()
+                .thenCompose(token -> connection.sendRequest(requestId, new UpdateSegmentAttribute(requestId,
+                        segmentId.getScopedName(), attributeId, value, expected, token)))
+                .thenApply(r -> transformReply(r, SegmentAttributeUpdated.class));
     }
 
     private CompletableFuture<SegmentTruncated> truncateSegmentAsync(Segment segment, long offset,
@@ -163,16 +168,22 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         log.trace("Truncating segment: {}", segment);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId, new TruncateSegment(requestId, segment.getScopedName(), offset, tokenProvider.retrieveToken()))
-                         .thenApply(r -> transformReply(r, SegmentTruncated.class));
+
+        return tokenProvider.retrieveToken()
+                .thenCompose(token -> connection.sendRequest(requestId,
+                        new TruncateSegment(requestId, segment.getScopedName(), offset, token)))
+                .thenApply(r -> transformReply(r, SegmentTruncated.class));
     }
     
     private CompletableFuture<SegmentSealed> sealSegmentAsync(Segment segment, DelegationTokenProvider tokenProvider) {
         log.trace("Sealing segment: {}", segment);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId, new SealSegment(requestId, segment.getScopedName(), tokenProvider.retrieveToken()))
-                         .thenApply(r -> transformReply(r, SegmentSealed.class));
+
+        return tokenProvider.retrieveToken()
+                .thenCompose(token -> connection.sendRequest(requestId, new SealSegment(requestId,
+                        segment.getScopedName(), token)))
+                .thenApply(r -> transformReply(r, SegmentSealed.class));
     }
 
     @Override

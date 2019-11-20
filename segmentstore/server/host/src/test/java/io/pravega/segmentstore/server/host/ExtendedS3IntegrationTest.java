@@ -43,6 +43,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
     /**
      * Starts BookKeeper.
      */
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -56,6 +57,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
                 .with(ExtendedS3StorageConfig.URI, endpoint));
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

@@ -30,7 +30,7 @@ public class DelegationTokenProviderFactoryTest {
     @Test
     public void testCreateWithEmptyToken() {
        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.createWithEmptyToken();
-       assertEquals("", tokenProvider.retrieveToken());
+       assertEquals("", tokenProvider.retrieveToken().join());
        assertFalse(tokenProvider.populateToken("new-token"));
     }
 
@@ -77,11 +77,11 @@ public class DelegationTokenProviderFactoryTest {
         String nonJwtDelegationToken = "non-jwt-token";
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(nonJwtDelegationToken,
                 dummyController, new Segment("test-scope", "test-stream", 1));
-        assertEquals(nonJwtDelegationToken, tokenProvider.retrieveToken());
+        assertEquals(nonJwtDelegationToken, tokenProvider.retrieveToken().join());
 
         String newNonJwtDelegationToken = "new-non-jwt-token";
         tokenProvider.populateToken(newNonJwtDelegationToken);
-        assertEquals("new-non-jwt-token", tokenProvider.retrieveToken());
+        assertEquals("new-non-jwt-token", tokenProvider.retrieveToken().join());
     }
 
     @Test
@@ -90,7 +90,7 @@ public class DelegationTokenProviderFactoryTest {
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(jwtDelegationToken,
                 dummyController, new Segment("test-scope", "test-stream", 1));
-        assertEquals(jwtDelegationToken, tokenProvider.retrieveToken());
+        assertEquals(jwtDelegationToken, tokenProvider.retrieveToken().join());
     }
 
     @Test

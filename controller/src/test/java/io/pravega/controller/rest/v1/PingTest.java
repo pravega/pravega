@@ -146,6 +146,7 @@ public abstract class PingTest {
                                        .build();
         }
 
+        @Override
         @Test
         public void test() {
             AssertExtensions.assertThrows(ProcessingException.class, () -> {
