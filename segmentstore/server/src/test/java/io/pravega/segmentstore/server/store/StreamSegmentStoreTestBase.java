@@ -159,6 +159,16 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testEndToEnd() throws Exception {
+        endToEndProcess(true);
+    }
+
+    /**
+     * End to end test to verify segment store process.
+     *
+     * @param verifySegmentContent whether it's needed to read segment content for verification.
+     * @throws Exception If an exception occurred.
+     */
+    void endToEndProcess(boolean verifySegmentContent) throws Exception {
         ArrayList<String> segmentNames;
         HashMap<String, ArrayList<String>> transactionsBySegment;
         HashMap<String, Long> lengths = new HashMap<>();
@@ -237,19 +247,21 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             checkReads(segmentContents, segmentStore);
             log.info("Finished checking reads.");
 
-            // Wait for all the data to move to Storage.
-            waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore)
-                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            log.info("Finished waiting for segments in Storage.");
+            if (verifySegmentContent) {
+                // Wait for all the data to move to Storage.
+                waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore)
+                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                log.info("Finished waiting for segments in Storage.");
 
-            checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
-            log.info("Finished Storage check.");
+                checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
+                log.info("Finished Storage check.");
 
-            checkReadsWhileTruncating(segmentContents, startOffsets, segmentStore);
-            log.info("Finished checking reads while truncating.");
+                checkReadsWhileTruncating(segmentContents, startOffsets, segmentStore);
+                log.info("Finished checking reads while truncating.");
 
-            checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
-            log.info("Finished Phase 3.");
+                checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
+                log.info("Finished Phase 3.");
+            }
         }
 
         // Phase 4: Force a recovery, seal segments and then delete them.
@@ -265,9 +277,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
             checkSegmentStatus(lengths, startOffsets, true, false, expectedAttributeValue, segmentStore);
 
-            waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore)
-                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            log.info("Finished waiting for segments in Storage.");
+            if (verifySegmentContent) {
+                waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore)
+                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                log.info("Finished waiting for segments in Storage.");
+            }
 
             // Deletes.
             deleteSegments(segmentNames, segmentStore).join();
@@ -289,6 +303,16 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testEndToEndWithFencing() throws Exception {
+        endToEndProcessWithFencing(true);
+    }
+
+    /**
+     * End to end test to verify segment store process with fencing.
+     *
+     * @param verifySegmentContent whether it's needed to read segment content for verification.
+     * @throws Exception If an exception occurred.
+     */
+    public void endToEndProcessWithFencing(boolean verifySegmentContent) throws Exception {
         log.info("Starting.");
         try (val context = new FencingTestContext()) {
             // Create first instance (this is a one-off so we can bootstrap the test).
@@ -320,14 +344,16 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // Wait for the instance creations to be done (this will help surface any exceptions coming from this).
             context.awaitAllInitializations().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-            // Check reads.
-            checkReads(segmentContents, context.getActiveStore());
-            log.info("Finished checking reads.");
+            if (verifySegmentContent) {
+                // Check reads.
+                checkReads(segmentContents, context.getActiveStore());
+                log.info("Finished checking reads.");
 
-            try (val readOnlyBuilder = createReadOnlyBuilder(Integer.MAX_VALUE - 1)) {
-                waitForSegmentsInStorage(segmentNames, context.getActiveStore(), readOnlyBuilder.createStreamSegmentService())
-                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                log.info("Finished waiting for segments in Storage.");
+                try (val readOnlyBuilder = createReadOnlyBuilder(Integer.MAX_VALUE - 1)) {
+                    waitForSegmentsInStorage(segmentNames, context.getActiveStore(), readOnlyBuilder.createStreamSegmentService())
+                            .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    log.info("Finished waiting for segments in Storage.");
+                }
             }
 
             // Delete everything.

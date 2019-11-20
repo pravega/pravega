@@ -17,4 +17,12 @@ public interface StorageFactory {
      * Creates a new instance of a Storage adapter.
      */
     Storage createStorageAdapter();
+
+    /**
+     * Expose the underlying SyncStorage implementation to provide testing flexibility.
+     * @return a new instance of a SyncStorage implementation, without adapter.
+     */
+    default SyncStorage createSyncStorage() {
+        throw new UnsupportedOperationException("By default the underlying SyncStorage implementation is encapsulated.");
+    }
 }
