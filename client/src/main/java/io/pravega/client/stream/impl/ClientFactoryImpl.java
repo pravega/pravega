@@ -144,6 +144,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String writerId, String streamName, Serializer<T> s,
                                                       EventWriterConfig config) {
+        NameUtils.validateWriterId(writerId);
         log.info("Creating writer: {} for stream: {} with configuration: {}", writerId, streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
         ThreadPoolExecutor retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
@@ -155,6 +156,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String writerId, String streamName,
                                                                                 Serializer<T> s,
                                                                                 EventWriterConfig config) {
+        NameUtils.validateWriterId(writerId);
         log.info("Creating transactional writer:{} for stream: {} with configuration: {}", writerId, streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
         return new TransactionalEventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, connectionFactory.getInternalExecutor());
@@ -176,6 +178,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     @VisibleForTesting
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config,
                                           Supplier<Long> nanoTime, Supplier<Long> milliTime) {
+        NameUtils.validateReaderId(readerId);
         log.info("Creating reader: {} under readerGroup: {} with configuration: {}", readerId, readerGroup, config);
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(

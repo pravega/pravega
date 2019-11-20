@@ -553,6 +553,26 @@ public final class NameUtils {
         return validateUserStreamName(name);
     }
 
+    /**
+     * Validates a readerId.
+     *
+     * @param name ReaderId to validate.
+     * @return The name in the case is valid.
+     */
+    public static String validateReaderId(String readerId) {
+        return validateUserStreamName(readerId);
+    }
+
+    /**
+     * Validates a writerId.
+     *
+     * @param name ReaderId to validate.
+     * @return The name in the case is valid.
+     */
+    public static String validateWriterId(String writerId) {
+        return validateUserStreamName(writerId);
+    }
+    
     // region watermark
     public static String getMarkStreamForStream(String stream) {
         StringBuffer sb = new StringBuffer();
