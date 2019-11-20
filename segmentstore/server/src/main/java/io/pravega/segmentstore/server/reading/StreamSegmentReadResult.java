@@ -184,7 +184,11 @@ class StreamSegmentReadResult implements ReadResult {
                 this.canRead = false;
             } else {
                 // After the previous entry is done, update the consumedLength value.
-                entry.setCompletionCallback(length -> this.consumedLength += length);
+                entry.setCompletionCallback(length -> {
+                    synchronized (StreamSegmentReadResult.this) {
+                        this.consumedLength += length;
+                    }
+                });
                 this.lastEntry = entry;
 
                 // Check, again, if we are closed. It is possible that this Result was closed after the last check
