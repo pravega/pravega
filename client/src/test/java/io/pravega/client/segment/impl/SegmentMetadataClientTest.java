@@ -23,6 +23,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentIsTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.test.common.AssertExtensions;
@@ -98,6 +99,36 @@ public class SegmentMetadataClientTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 WireCommands.TruncateSegment truncateSegment = invocation.getArgument(0);
                 processor.process(new SegmentTruncated(truncateSegment.getRequestId(), segment.getScopedName()));
+                requestId.set(truncateSegment.getRequestId());
+                return null;
+            }
+        }).when(connection).sendAsync(any(WireCommands.TruncateSegment.class), Mockito.any(ClientConnection.CompletedCallback.class));
+        client.truncateSegment(123L);
+        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")),
+                                             Mockito.any(ClientConnection.CompletedCallback.class));
+    }
+
+    @Test(timeout = 10000)
+    public void testTruncateError() {
+        Segment segment = new Segment("scope", "testTruncate", 4);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
+        @Cleanup
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
+        client.getConnection();
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        AtomicLong requestId = new AtomicLong();
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.TruncateSegment truncateSegment = invocation.getArgument(0);
+                processor.process(new SegmentIsTruncated(truncateSegment.getRequestId(), segment.getScopedName(), 124L, "", 124L));
                 requestId.set(truncateSegment.getRequestId());
                 return null;
             }
