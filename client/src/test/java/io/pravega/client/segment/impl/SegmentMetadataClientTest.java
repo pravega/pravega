@@ -109,7 +109,7 @@ public class SegmentMetadataClientTest {
     }
 
     @Test(timeout = 10000)
-    public void testTruncateError() {
+    public void testTruncateWithSegmentTruncationException() {
         Segment segment = new Segment("scope", "testTruncate", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup
