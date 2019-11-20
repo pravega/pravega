@@ -653,7 +653,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     public CompletableFuture<Void> writeCommitEvent(CommitEvent event) {
         return commitWriterFuture
-                .thenCompose(commitWriter -> commitWriter.writeEvent(event.getKey(), event));
+                .thenComposeAsync(commitWriter -> commitWriter.writeEvent(event.getKey(), event), eventExecutor);
     }
 
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
@@ -672,7 +672,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     public CompletableFuture<Void> writeAbortEvent(AbortEvent event) {
         return abortWriterFuture
-                .thenCompose(abortWriter -> abortWriter.writeEvent(event.getKey(), event));
+                .thenComposeAsync(abortWriter -> abortWriter.writeEvent(event.getKey(), event), eventExecutor);
     }
 
     CompletableFuture<TxnStatus> writeAbortEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
