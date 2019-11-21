@@ -1222,24 +1222,37 @@ public abstract class PersistentStreamBase implements Stream {
      * transaction record for which a writer with time and position information is available. 
      */
     CompletableFuture<Void> generateMarksForTransactions(CommittingTransactionsRecord committingTransactionsRecord) {
-        return Futures.allOf(committingTransactionsRecord.getTransactionsToCommit().stream().map(txId -> {
+        val getTransactionsFuture = Futures.allOfWithResults(committingTransactionsRecord.getTransactionsToCommit().stream().map(txId -> {
             int epoch = RecordHelper.getTransactionEpoch(txId);
             // Ignore data not found exceptions. DataNotFound Exceptions can be thrown because transaction record no longer 
             // exists and this is an idempotent case. DataNotFound can also be thrown because writer's mark was deleted 
             // as we attempted to update an existing record. Note: Delete can be triggered by writer explicitly calling
             // removeWriter api. 
-            CompletableFuture<Void> future = getActiveTx(epoch, txId).thenCompose(txnRecord -> {
-                if (txnRecord != null && !Strings.isNullOrEmpty(txnRecord.getObject().getWriterId())
-                        && txnRecord.getObject().getCommitTime() >= 0L && !txnRecord.getObject().getCommitOffsets().isEmpty()) {
-                    ActiveTxnRecord record = txnRecord.getObject();
-                    return Futures.toVoid(noteWriterMark(record.getWriterId(), record.getCommitTime(), record.getCommitOffsets()));
-                } else {
-                    return CompletableFuture.completedFuture(null);
-                }
-            });
-            
-            return Futures.exceptionallyExpecting(future, DATA_NOT_FOUND_PREDICATE, null);
+            return Futures.exceptionallyExpecting(getActiveTx(epoch, txId), DATA_NOT_FOUND_PREDICATE, null);
         }).collect(Collectors.toList()));
+        
+        return getTransactionsFuture
+                .thenCompose(txnRecords -> {
+                    // Filter transactions for which either writer id is not present of time/position is not reported
+                    // Then group transactions by writer ids
+                    val groupedByWriters = txnRecords.stream().filter(x ->
+                            x != null && !Strings.isNullOrEmpty(x.getObject().getWriterId()) &&
+                                    x.getObject().getCommitTime() >= 0L && !x.getObject().getCommitOffsets().isEmpty())
+                                                     .collect(Collectors.groupingBy(x -> x.getObject().getWriterId()));
+
+                    // For each writerId we will take the transaction with the time and position pair (which is to take
+                    // max of all transactions for the said writer). 
+                    // Note: if multiple transactions from same writer have same time, we will take any one arbitrarily and
+                    // use its position for watermarks. Other positions and times would be ignored. 
+                    val noteTimeFutures = groupedByWriters.entrySet().stream().map(groupEntry -> {
+                        ActiveTxnRecord latest = groupEntry.getValue().stream().max(Comparator.comparingLong(x -> x.getObject().getCommitTime()))
+                                                           .get().getObject();
+                        return Futures.exceptionallyExpecting(
+                                noteWriterMark(latest.getWriterId(), latest.getCommitTime(), latest.getCommitOffsets()),
+                                DATA_NOT_FOUND_PREDICATE, null);
+                    }).collect(Collectors.toList());
+                    return Futures.allOf(noteTimeFutures);
+                });
     }
 
     @VisibleForTesting
