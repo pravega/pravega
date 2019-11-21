@@ -74,10 +74,11 @@ public interface CacheStorage extends AutoCloseable {
      * @param address        An integer representing the address to append to.
      * @param expectedLength The currently known length of this entry.
      * @param data           A {@link BufferView} representing the data to append.
-     * @return An integer representing the number of bytes to append. If 0, then either the address points to an invalid
-     * entry (does not exist) or the entry at this address may not be appended to (i.e., it may already be fully aligned
-     * to a block).
+     * @return An integer representing the number of bytes that were appended. If 0, then the entry at the given address
+     * is already at its max capacity (its length equals {@link #getMaxEntryLength()}.
      * @throws IncorrectCacheEntryLengthException If `expectedLength` does not match the current length of the entry.
+     * @throws IllegalArgumentException If address does not point to a valid entry or the given {@link BufferView} is
+     * too long to fit into the given entry (use {@link #getAppendableLength} to determine maximum length).
      */
     int append(int address, int expectedLength, @NonNull BufferView data);
 

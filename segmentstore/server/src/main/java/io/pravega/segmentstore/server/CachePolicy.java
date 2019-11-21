@@ -22,11 +22,11 @@ public class CachePolicy {
     /**
      * Unless specified via the constructor, defines the default value for {@link #getMaxUtilization()}.
      */
-    public static final double DEFAULT_TARGET_UTILIZATION = 0.85;
+    public static final double DEFAULT_TARGET_UTILIZATION = 0.75;
     /**
      * Unless specified via the constructor, defines the default value for {@link #getMaxUtilization()}.
      */
-    public static final double DEFAULT_MAX_UTILIZATION = 0.98;
+    public static final double DEFAULT_MAX_UTILIZATION = 0.9;
     /**
      * The maximum size of the cache.
      */

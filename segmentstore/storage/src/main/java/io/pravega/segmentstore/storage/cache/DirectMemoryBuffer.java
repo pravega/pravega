@@ -196,6 +196,7 @@ class DirectMemoryBuffer implements AutoCloseable {
      *                       method will be used to transfer the data to the appropriate Buffer Block.
      * @return The number of bytes appended.
      * @throws IncorrectCacheEntryLengthException If `expectedLastBlockLength` differs from the last block's length.
+     * @throws IllegalArgumentException If blockId does not point to an allocated Block.
      */
     synchronized int tryAppend(int blockId, int expectedLength, BufferView data) {
         validateBlockId(blockId, false);
@@ -203,9 +204,8 @@ class DirectMemoryBuffer implements AutoCloseable {
         ByteBuf metadataBuf = getMetadataBlock();
         int bufIndex = blockId * this.layout.blockMetadataSize();
         long blockMetadata = metadataBuf.getLong(bufIndex);
-        if (blockId == CacheLayout.NO_BLOCK_ID || !this.layout.isUsedBlock(blockMetadata)) {
-            return 0;
-        }
+        Preconditions.checkArgument(blockId != CacheLayout.NO_BLOCK_ID && this.layout.isUsedBlock(blockMetadata),
+                "Given blockId is not allocated.");
 
         // Validate that the given length matches the actual one.
         int blockLength = this.layout.getLength(blockMetadata);

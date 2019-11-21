@@ -265,22 +265,20 @@ public class DirectMemoryCache implements CacheStorage {
     @Override
     public int append(int address, int expectedLength, BufferView data) {
         Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkArgument(address != CacheLayout.NO_ADDRESS, "Invalid address.");
 
         // We can only append to fill the last block. For anything else a new write will be needed.
         int appendedBytes = 0;
-        if (address != CacheLayout.NO_ADDRESS) {
-            int expectedLastBlockLength = this.layout.blockSize() - getAppendableLength(expectedLength);
-            Preconditions.checkArgument(expectedLastBlockLength + data.getLength() <= this.layout.blockSize(),
-                    "data is too long; use getAppendableLength() to determine how much data can be appended.");
+        int expectedLastBlockLength = this.layout.blockSize() - getAppendableLength(expectedLength);
+        Preconditions.checkArgument(expectedLastBlockLength + data.getLength() <= this.layout.blockSize(),
+                "data is too long; use getAppendableLength() to determine how much data can be appended.");
 
-            int bufferId = this.layout.getBufferId(address);
-            int blockId = this.layout.getBlockId(address);
-            appendedBytes = this.buffers[bufferId].tryAppend(blockId, expectedLastBlockLength, data);
+        int bufferId = this.layout.getBufferId(address);
+        int blockId = this.layout.getBlockId(address);
+        appendedBytes = this.buffers[bufferId].tryAppend(blockId, expectedLastBlockLength, data);
 
-            this.storedBytes.addAndGet(appendedBytes);
-            CacheMetrics.append(appendedBytes);
-        }
-
+        this.storedBytes.addAndGet(appendedBytes);
+        CacheMetrics.append(appendedBytes);
         return appendedBytes;
     }
 

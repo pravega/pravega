@@ -33,7 +33,7 @@ import org.junit.Test;
  */
 public class DirectMemoryCacheTests {
     private static final CacheLayout LAYOUT = new CacheLayout.DefaultLayout();
-    private static final long REQUESTED_MAX_SIZE = 11 * 1024 * 1024; // 1MB
+    private static final long REQUESTED_MAX_SIZE = 11 * 1024 * 1024; // 11MB
     private static final long ACTUAL_MAX_SIZE = REQUESTED_MAX_SIZE - REQUESTED_MAX_SIZE % LAYOUT.bufferSize() + LAYOUT.bufferSize();
     private static final int BUFFER_COUNT = (int) (ACTUAL_MAX_SIZE / LAYOUT.bufferSize());
     private final Random rnd = new Random(0);

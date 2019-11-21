@@ -21,7 +21,7 @@ abstract class CacheLayout {
     /**
      * The maximum number of bytes that can be stored in a {@link CacheStorage} using this type of layout.
      */
-    static final long MAX_TOTAL_SIZE = 64 * 1024 * 1024 * 1024L;
+    static final long MAX_TOTAL_SIZE = 256 * 1024 * 1024 * 1024L;
     /**
      * The maximum size (in bytes) of any {@link CacheStorage} entry.
      */
@@ -229,7 +229,7 @@ abstract class CacheLayout {
      * Metadata Layout (8 Bytes)
      * - Bit 0: Used Flag.
      * - Bits 1-7: Not used.
-     * - Bits 8-17: Next Free Block Id (10 bits. NO_BLOCK_ID if Used=1)
+     * - Bits 8-17: Next Free Block Id (10 bits. {@link #NO_BLOCK_ID} if Used=1)
      * - Bits 18-31: Block Length (up to 16383, 14 bits)
      * - Bits 32-63: Predecessor Address.
      */
