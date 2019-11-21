@@ -13,15 +13,19 @@ import io.pravega.test.common.AssertExtensions;
 import java.util.List;
 import java.util.Stack;
 import java.util.UUID;
+import java.util.regex.Matcher;
+
 import org.junit.Assert;
 import org.junit.Test;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.SEGMENT_TAGS_PATTERN;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_EPOCH;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_SCOPE;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_SEGMENT;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_STREAM;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_WRITER;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -36,7 +40,7 @@ public class StreamSegmentNameUtilsTests {
         int transactionCount = 100;
         String segmentName = "foo";
         String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(segmentName);
-        Assert.assertNull("getParentStreamSegmentName() extracted a parent name when none was expected.", parentName);
+        assertNull("getParentStreamSegmentName() extracted a parent name when none was expected.", parentName);
 
         for (int i = 0; i < transactionCount; i++) {
             String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
@@ -72,7 +76,7 @@ public class StreamSegmentNameUtilsTests {
             lastName = expectedName;
         }
 
-        Assert.assertNull("Unexpected parent name when none was expected.", StreamSegmentNameUtils.getParentStreamSegmentName(lastName));
+        assertNull("Unexpected parent name when none was expected.", StreamSegmentNameUtils.getParentStreamSegmentName(lastName));
     }
 
     @Test
@@ -330,5 +334,53 @@ public class StreamSegmentNameUtilsTests {
         assertEquals("writer-01", tags[1]);
         // validate error conditions.
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> StreamSegmentNameUtils.writerTags(""));
+    }
+
+    @Test
+    public void testUpdateSegmentTagsPattern() {
+
+        final String segmentName1 = "scope1/20191115.114403.995/0.#epoch.0";
+        final Matcher m1 = SEGMENT_TAGS_PATTERN.matcher(segmentName1);
+        assertTrue(m1.find());
+        assertEquals(8, m1.groupCount());
+        assertEquals("scope1", m1.group(3));
+        assertEquals("20191115.114403.995", m1.group(5));
+        assertEquals("0", m1.group(6));
+        assertEquals("0", m1.group(8));
+
+        final String segmentName2 = "scope1/20191115.114403.995/0";
+        final Matcher m2 = SEGMENT_TAGS_PATTERN.matcher(segmentName2);
+        assertTrue(m2.find());
+        assertEquals(8, m2.groupCount());
+        assertEquals("scope1", m2.group(3));
+        assertEquals("20191115.114403.995", m2.group(5));
+        assertEquals("0", m2.group(6));
+
+        final String segmentName3 = "20191115.114403.995/0.#epoch.0";
+        final Matcher m3 = SEGMENT_TAGS_PATTERN.matcher(segmentName3);
+        assertTrue(m3.find());
+        assertEquals(8, m3.groupCount());
+        assertNull(m3.group(3));
+        assertEquals("20191115.114403.995", m3.group(5));
+        assertEquals("0", m3.group(6));
+        assertEquals("0", m3.group(8));
+
+        final String segmentName4 = "0.#epoch.0";
+        final Matcher m4 = SEGMENT_TAGS_PATTERN.matcher(segmentName4);
+        assertTrue(m4.find());
+        assertEquals(8, m4.groupCount());
+        assertNull(m4.group(3));
+        assertNull(m4.group(5));
+        assertEquals("0", m4.group(6));
+        assertEquals("0", m4.group(8));
+
+        final String segmentName5 = "0";
+        final Matcher m5 = SEGMENT_TAGS_PATTERN.matcher(segmentName5);
+        assertTrue(m5.find());
+        assertEquals(8, m5.groupCount());
+        assertNull(m5.group(3));
+        assertNull(m5.group(5));
+        assertEquals("0", m5.group(6));
+        assertNull(m5.group(8));
     }
 }
