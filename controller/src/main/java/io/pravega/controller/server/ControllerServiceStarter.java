@@ -84,6 +84,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private final String objectId;
 
     private ScheduledExecutorService controllerExecutor;
+    private ScheduledExecutorService eventExecutor;
     private ScheduledExecutorService retentionExecutor;
     private ScheduledExecutorService watermarkingExecutor;
 
@@ -164,6 +165,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             //Initialize the executor service.
             controllerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
                                                                                "controllerpool");
+            eventExecutor = ExecutorServiceHelpers.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
+                                                                               "eventprocessor");
 
             retentionExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.RETENTION_THREAD_POOL_SIZE,
                                                                                "retentionpool");
@@ -225,9 +228,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamStore = streamMetadataStoreRef.orElse(StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, host.getHostId(), authHelper, requestTracker);
+                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
+                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
 
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000);
             Duration executionDurationRetention = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
@@ -282,12 +285,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
                         bucketStore, connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
-                        controllerExecutor);
+                        eventExecutor);
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
                 eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks)
-                        .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), controllerExecutor);
+                        .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventExecutor);
             }
 
             // Setup and start controller cluster listener after all sweepers have been initialized.
@@ -437,8 +440,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // lingering threads that prevent our process from exiting.
 
             // Next stop all executors
-            log.info("Stopping controller executor");
-            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor, watermarkingExecutor);
+            log.info("Stopping controller executors");
+            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor, watermarkingExecutor, eventExecutor);
 
             if (cluster != null) {
                 log.info("Closing controller cluster instance");
