@@ -116,7 +116,8 @@ public abstract class ReadResultEntryBase implements CompletableReadResultEntry 
      *
      * @param exception The exception to set.
      */
-    protected void fail(Throwable exception) {
+    @Override
+    public void fail(Throwable exception) {
         Preconditions.checkState(!this.contents.isDone(), "ReadResultEntry has already had its result set.");
         this.contents.completeExceptionally(exception);
     }
