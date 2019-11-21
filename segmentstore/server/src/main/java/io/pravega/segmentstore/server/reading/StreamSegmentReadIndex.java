@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
@@ -286,6 +287,16 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      */
     long getSegmentLength() {
         return this.metadata.getLength();
+    }
+
+    /**
+     * Gets a value representing the number of registered {@link FutureReadResultEntry} instances.
+     *
+     * @return The count.
+     */
+    @VisibleForTesting
+    int getFutureReadCount() {
+        return this.futureReads.size();
     }
 
     //endregion
