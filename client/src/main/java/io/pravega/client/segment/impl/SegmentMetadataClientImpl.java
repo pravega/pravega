@@ -36,6 +36,7 @@ import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
@@ -115,6 +116,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             throw new NoSuchSegmentException(reply.toString());
         } else if (reply instanceof WrongHost) {
             throw new ConnectionFailedException(reply.toString());
+        } else if (reply instanceof WireCommands.SegmentIsTruncated) {
+            throw new ConnectionFailedException(new SegmentTruncatedException(reply.toString()));
         } else if (reply instanceof WireCommands.AuthTokenCheckFailed) {
             WireCommands.AuthTokenCheckFailed authTokenCheckReply = (WireCommands.AuthTokenCheckFailed) reply;
             if (authTokenCheckReply.isTokenExpired()) {
@@ -233,7 +236,14 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     @Override
     public void truncateSegment(long offset) {
         RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(NoSuchSegmentException.class).run(() -> {
-            truncateSegmentAsync(segmentId, offset, tokenProvider).join();
+            truncateSegmentAsync(segmentId, offset, tokenProvider).exceptionally(t -> {
+                final Throwable ex = Exceptions.unwrap(t);
+                if (ex.getCause() instanceof SegmentTruncatedException) {
+                    log.debug("Segment already truncated at offset {}. Details: {}", offset, ex.getCause().getMessage());
+                    return null;
+                }
+                throw new CompletionException(ex);
+            }).join();
             return null;
         });
     }
