@@ -118,6 +118,11 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
         return getActiveEntry().getCompletionCallback();
     }
 
+    @Override
+    public void fail(Throwable ex) {
+        throw new UnsupportedOperationException("fail() not supported on " + this.getClass().getSimpleName());
+    }
+
     //endregion
 
     //region Helpers
