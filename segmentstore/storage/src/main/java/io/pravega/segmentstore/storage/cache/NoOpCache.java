@@ -67,8 +67,8 @@ public class NoOpCache implements CacheStorage {
     }
 
     @Override
-    public CacheSnapshot getSnapshot() {
-        return new CacheSnapshot(0, 0, 0, 0, CacheLayout.MAX_TOTAL_SIZE);
+    public CacheState getState() {
+        return new CacheState(0, 0, 0, 0, CacheLayout.MAX_TOTAL_SIZE);
     }
 
     @Override

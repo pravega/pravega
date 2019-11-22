@@ -708,7 +708,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             this.storage.close();
             this.memoryStorage.close();
             AssertExtensions.assertEventuallyEquals("MEMORY LEAK: Attribute Index did not delete all CacheStorage entries after closing.",
-                    0L, () -> this.cacheStorage.getSnapshot().getStoredBytes(), 10, TIMEOUT.toMillis());
+                    0L, () -> this.cacheStorage.getState().getStoredBytes(), 10, TIMEOUT.toMillis());
             this.cacheManager.close();
             this.cacheStorage.close();
         }

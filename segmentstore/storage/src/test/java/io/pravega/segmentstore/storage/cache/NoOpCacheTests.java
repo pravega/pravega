@@ -31,7 +31,7 @@ public class NoOpCacheTests {
         Assert.assertEquals(c.getBlockAlignment() - 1, c.getAppendableLength(1));
         c.delete(b);
         Assert.assertNull(c.get(a));
-        val s = c.getSnapshot();
+        val s = c.getState();
         Assert.assertEquals(0, s.getStoredBytes() + s.getUsedBytes() + s.getReservedBytes() + s.getAllocatedBytes());
         Assert.assertEquals(CacheLayout.MAX_TOTAL_SIZE, s.getMaxBytes());
     }

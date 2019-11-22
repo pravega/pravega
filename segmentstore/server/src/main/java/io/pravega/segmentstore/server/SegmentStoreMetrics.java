@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
-import io.pravega.segmentstore.storage.cache.CacheSnapshot;
+import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -46,7 +46,7 @@ public final class SegmentStoreMetrics {
      * CacheManager metrics.
      */
     public final static class CacheManager {
-        public void report(CacheSnapshot snapshot, int generationSpread) {
+        public void report(CacheState snapshot, int generationSpread) {
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_STORED_SIZE_BYTES, snapshot.getStoredBytes());
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_USED_SIZE_BYTES, snapshot.getUsedBytes());
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_ALLOC_SIZE_BYTES, snapshot.getAllocatedBytes());

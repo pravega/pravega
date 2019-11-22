@@ -29,7 +29,7 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.cache.CacheSnapshot;
+import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -1592,7 +1592,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         public void close() {
             this.readIndex.close();
             AssertExtensions.assertEventuallyEquals("MEMORY LEAK: Read Index did not delete all CacheStorage entries after closing.",
-                    0L, () -> this.cacheStorage.getSnapshot().getStoredBytes(), 10, TIMEOUT.toMillis());
+                    0L, () -> this.cacheStorage.getState().getStoredBytes(), 10, TIMEOUT.toMillis());
             this.storage.close();
             this.cacheManager.close();
             this.cacheStorage.close();
@@ -1651,10 +1651,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CacheSnapshot getSnapshot() {
-            val s = super.getSnapshot();
+        public CacheState getState() {
+            val s = super.getState();
             if (this.usedBytesSameAsStoredBytes) {
-                return new CacheSnapshot(s.getStoredBytes(), s.getStoredBytes(), s.getReservedBytes(), s.getAllocatedBytes(), s.getMaxBytes());
+                return new CacheState(s.getStoredBytes(), s.getStoredBytes(), s.getReservedBytes(), s.getAllocatedBytes(), s.getMaxBytes());
             } else {
                 return s;
             }

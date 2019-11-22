@@ -34,6 +34,9 @@ abstract class CacheLayout {
      * Null (inexistent) Buffer-Block id.
      */
     static final int NO_BLOCK_ID = 0; // 0 is the same as Metadata Block Id, so it's OK to use it.
+    private final int bufferSize;
+    private final int blockSize;
+    private final int blockMetadataSize;
     private final int maxBufferCount;
     private final int blocksPerBuffer;
 
@@ -43,18 +46,24 @@ abstract class CacheLayout {
 
     /**
      * Creates a new instance of the {@link CacheLayout} class and performs any necessary sanity checks.
+     * @param bufferSize        The size, in bytes, of a Buffer.
+     * @param blockSize         The size, in bytes, of a Block in a Buffer.
+     * @param blockMetadataSize The size, in bytes, of the metadata for each Buffer-Block.
      */
-    CacheLayout() {
-        Preconditions.checkState(MAX_TOTAL_SIZE % bufferSize() == 0,
-                "MAX_TOTAL_SIZE (%s) must be a multiple of bufferSize()(%s).", MAX_TOTAL_SIZE, bufferSize());
-        this.maxBufferCount = (int) (MAX_TOTAL_SIZE / bufferSize());
+    CacheLayout(int bufferSize, int blockSize, int blockMetadataSize) {
+        Preconditions.checkArgument(MAX_TOTAL_SIZE % bufferSize == 0,
+                "MAX_TOTAL_SIZE (%s) must be a multiple of bufferSize()(%s).", MAX_TOTAL_SIZE, bufferSize);
+        this.bufferSize = bufferSize;
+        this.maxBufferCount = (int) (MAX_TOTAL_SIZE / this.bufferSize);
 
-        Preconditions.checkState(bufferSize() % blockSize() == 0,
-                "bufferSize() (%s) must be a multiple of blockSize()(%s).", bufferSize(), blockSize());
-        this.blocksPerBuffer = bufferSize() / blockSize();
+        Preconditions.checkArgument(bufferSize % blockSize == 0,
+                "bufferSize() (%s) must be a multiple of blockSize()(%s).", bufferSize, blockSize);
+        this.blockSize = blockSize;
+        this.blocksPerBuffer = this.bufferSize / this.blockSize;
 
-        Preconditions.checkState(this.blocksPerBuffer * blockMetadataSize() == blockSize(),
+        Preconditions.checkArgument(this.blocksPerBuffer * blockMetadataSize == this.blockSize,
                 "All block metadata must fit exactly into a single block.");
+        this.blockMetadataSize = blockMetadataSize;
     }
 
     //endregion
@@ -84,21 +93,27 @@ abstract class CacheLayout {
      *
      * @return The Buffer Size, in bytes.
      */
-    abstract int bufferSize();
+    int bufferSize() {
+        return this.bufferSize;
+    }
 
     /**
      * Gets a value indicating the size, in bytes, of a Block in a Buffer.
      *
      * @return The Buffer-Block size, in bytes.
      */
-    abstract int blockSize();
+    int blockSize() {
+        return this.blockSize;
+    }
 
     /**
      * Gets a value indicating the size, in bytes, of the metadata for each Buffer-Block.
      *
      * @return The size of the Buffer-Block metadata, in bytes.
      */
-    abstract int blockMetadataSize();
+    int blockMetadataSize() {
+        return this.blockMetadataSize;
+    }
 
     /**
      * Gets the Id of the Buffer from the given address.
@@ -249,19 +264,8 @@ abstract class CacheLayout {
         private static final long NEXT_FREE_BLOCK_ID_CLEAR_MASK = 0xFF00_3FFF_FFFF_FFFFL; // Clear 10 bits in middle
         private static final int BLOCK_ID_MASK = 0x3FF;
 
-        @Override
-        int bufferSize() {
-            return BUFFER_SIZE;
-        }
-
-        @Override
-        int blockSize() {
-            return BLOCK_SIZE;
-        }
-
-        @Override
-        int blockMetadataSize() {
-            return Long.BYTES;
+        DefaultLayout() {
+            super(BUFFER_SIZE, BLOCK_SIZE, Long.BYTES);
         }
 
         @Override

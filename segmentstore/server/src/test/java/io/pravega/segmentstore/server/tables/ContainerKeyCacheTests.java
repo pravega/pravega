@@ -51,7 +51,7 @@ public class ContainerKeyCacheTests {
 
     @After
     public void tearDown() {
-        val s = this.cacheStorage.getSnapshot();
+        val s = this.cacheStorage.getState();
         Assert.assertEquals("MEMORY LEAK: Expected CacheStorage to be empty upon closing: " + s, 0, s.getStoredBytes());
         this.cacheStorage.close();
     }

@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.storage.cache.CacheSnapshot;
+import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.cache.NoOpCache;
 import io.pravega.test.common.AssertExtensions;
@@ -275,7 +275,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
         @Cleanup
         val cache = new DirectMemoryCache(policy.getMaxSize());
-        int maxCacheSize = (int) cache.getSnapshot().getMaxBytes();
+        int maxCacheSize = (int) cache.getState().getMaxBytes();
 
         @Cleanup
         TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
@@ -302,7 +302,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         // Verify we were asked to cleanup.
         Assert.assertEquals("Unexpected number of cleanup requests.", 1, cleanupRequestCount.get());
         Assert.assertEquals("New entry was not inserted.", length2, cache.get(write2).getLength());
-        Assert.assertEquals("Unexpected number of stored bytes.", length2, cache.getSnapshot().getStoredBytes());
+        Assert.assertEquals("Unexpected number of stored bytes.", length2, cache.getState().getStoredBytes());
     }
 
     /**
@@ -314,7 +314,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
         @Cleanup
         val cache = new DirectMemoryCache(policy.getMaxSize());
-        int maxCacheSize = (int) cache.getSnapshot().getMaxBytes();
+        int maxCacheSize = (int) cache.getState().getMaxBytes();
 
         @Cleanup
         TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
@@ -459,9 +459,9 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         private final long maxBytes;
 
         @Override
-        public CacheSnapshot getSnapshot() {
-            val s = super.getSnapshot();
-            return new CacheSnapshot(this.storedBytes, this.usedBytes, 0, 0, this.maxBytes);
+        public CacheState getState() {
+            val s = super.getState();
+            return new CacheState(this.storedBytes, this.usedBytes, 0, 0, this.maxBytes);
         }
     }
 }

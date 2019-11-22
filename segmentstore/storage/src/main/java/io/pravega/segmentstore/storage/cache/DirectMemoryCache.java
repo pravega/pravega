@@ -80,7 +80,7 @@ import lombok.val;
  * --- 2KB was estimated as an average of 0B and 4095B; 0KB excess is when an Entry's length is a multiple of
  * {@link CacheLayout#blockSize()} and 4095 is when an entry's length exceeds a multiple of {@link CacheLayout#blockSize()}
  * by 1 byte.
- * -- Use {@link #getSnapshot()} to get insights into memory usage.
+ * -- Use {@link #getState()} to get insights into memory usage.
  */
 @ThreadSafe
 public class DirectMemoryCache implements CacheStorage {
@@ -299,13 +299,13 @@ public class DirectMemoryCache implements CacheStorage {
             DirectMemoryBuffer.DeleteResult result = b.delete(blockId);
             address = result.getPredecessorAddress();
             deletedLength += result.getDeletedLength();
-            if (wasFull) {
+            if (wasFull && b.hasCapacity()) {
                 synchronized (this.availableBufferIds) {
-                    if (b.hasCapacity()) {
-                        // This block was full before, but it no longer is now. Add it to the pool of available buffer ids
-                        // so we can reuse it if we need to.
-                        this.availableBufferIds.addLast(b.getId());
-                    }
+                    // This block was full before, but it no longer is now. Add it to the pool of available buffer ids
+                    // so we can reuse it if we need to. There is a slim chance that this buffer becomes full in the
+                    // time before we checked above and entering this block, but #getNextAvailableBuffer() can handle
+                    // that situation.
+                    this.availableBufferIds.addLast(b.getId());
                 }
             }
         }
@@ -343,7 +343,7 @@ public class DirectMemoryCache implements CacheStorage {
     }
 
     @Override
-    public CacheSnapshot getSnapshot() {
+    public CacheState getState() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         int allocatedBufferCount = 0;
         int blockCount = 0;
@@ -354,7 +354,7 @@ public class DirectMemoryCache implements CacheStorage {
             }
         }
 
-        return new CacheSnapshot(
+        return new CacheState(
                 this.storedBytes.get(),
                 (long) blockCount * this.layout.blockSize(),
                 (long) allocatedBufferCount * this.layout.blockSize(),
@@ -402,7 +402,7 @@ public class DirectMemoryCache implements CacheStorage {
         } while (++attempts <= MAX_CLEANUP_ATTEMPTS && tryCleanup());
 
         // Unable to reuse any existing buffer or find a new one to allocate and upstream code could not free up data.
-        throw new CacheFullException(String.format("%s full: %s.", DirectMemoryCache.class.getSimpleName(), getSnapshot()));
+        throw new CacheFullException(String.format("%s full: %s.", DirectMemoryCache.class.getSimpleName(), getState()));
     }
 
     private boolean tryCleanup() {

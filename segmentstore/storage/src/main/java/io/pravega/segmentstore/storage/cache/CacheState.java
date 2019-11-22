@@ -17,7 +17,7 @@ import lombok.RequiredArgsConstructor;
  */
 @RequiredArgsConstructor
 @Getter
-public class CacheSnapshot {
+public class CacheState {
     /**
      * The total number of bytes inserted ({@link CacheStorage#insert} or appended ({@link CacheStorage#append}).
      */

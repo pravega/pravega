@@ -16,7 +16,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
-import io.pravega.segmentstore.storage.cache.CacheSnapshot;
+import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import java.util.ArrayList;
@@ -57,7 +57,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     @GuardedBy("lock")
     private int oldestGeneration;
     @GuardedBy("lock")
-    private CacheSnapshot lastSnapshot;
+    private CacheState lastCacheState;
     private final CachePolicy policy;
     private final AtomicBoolean closed;
     private final SegmentStoreMetrics.CacheManager metrics;
@@ -98,7 +98,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         this.oldestGeneration = 0;
         this.currentGeneration = 0;
         this.closed = new AtomicBoolean();
-        this.lastSnapshot = this.cacheStorage.getSnapshot();
+        this.lastCacheState = this.cacheStorage.getState();
         this.metrics = new SegmentStoreMetrics.CacheManager();
         this.cleanupListeners = new HashSet<>();
     }
@@ -155,7 +155,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         // We use the total number of used bytes, which includes any overhead. This will provide a more accurate
         // representation of the utilization than just the Stored Bytes.
         synchronized (this.lock) {
-            return (double) this.lastSnapshot.getUsedBytes() / this.policy.getMaxSize();
+            return (double) this.lastCacheState.getUsedBytes() / this.policy.getMaxSize();
         }
     }
 
@@ -277,8 +277,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     private boolean applyCachePolicyInternal() {
         // Run through all the active clients and gather status.
         CacheStatus currentStatus = collectStatus();
-        fetchSnapshot();
-        if (currentStatus == null || this.lastSnapshot.getStoredBytes() == 0) {
+        fetchCacheState();
+        if (currentStatus == null || this.lastCacheState.getStoredBytes() == 0) {
             // We either have no clients or we have clients and they do not have any data stored.
             return false;
         }
@@ -301,13 +301,13 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         do {
             reducedInIteration = updateClients();
             if (reducedInIteration) {
-                fetchSnapshot();
+                fetchCacheState();
                 logCurrentStatus(currentStatus);
                 oldestChanged = adjustOldestGeneration(currentStatus);
                 reducedOverall = true;
             }
         } while (reducedInIteration && oldestChanged);
-        this.metrics.report(this.lastSnapshot, currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
+        this.metrics.report(this.lastCacheState, currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
         return reducedOverall;
     }
 
@@ -347,8 +347,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     }
 
     @GuardedBy("lock")
-    private void fetchSnapshot() {
-        this.lastSnapshot = this.cacheStorage.getSnapshot();
+    private void fetchCacheState() {
+        this.lastCacheState = this.cacheStorage.getState();
     }
 
     @GuardedBy("lock")
@@ -417,7 +417,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         // We need to increment the OldestGeneration only if any of the following conditions occurred:
         // 1. We currently exceed the maximum usable size as defined by the cache policy.
         // 2. The oldest generation reported by the clients is older than the oldest permissible generation.
-        return this.lastSnapshot.getUsedBytes() > this.policy.getEvictionThreshold()
+        return this.lastCacheState.getUsedBytes() > this.policy.getEvictionThreshold()
                 || currentStatus.getOldestGeneration() < getOldestPermissibleGeneration();
     }
 
@@ -428,7 +428,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     @GuardedBy("lock")
     private void logCurrentStatus(CacheStatus status) {
-        log.info("{} Gen: {}-{}, Clients: {}, Cache: {}.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration, this.clients.size(), this.lastSnapshot);
+        log.info("{} Gen: {}-{}, Clients: {}, Cache: {}.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration, this.clients.size(), this.lastCacheState);
     }
 
     private void notifyCleanupListeners() {

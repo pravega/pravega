@@ -131,7 +131,7 @@ class DirectMemoryBuffer implements AutoCloseable {
      * @param predecessorAddress The address of the Buffer-Block that precedes the write to this Buffer. If none, this
      *                           should be set to {@link  CacheLayout#NO_ADDRESS}.
      * @return A {@link WriteResult} representing the result of the write, or null if {@link #hasCapacity()} is false.
-     * If all the data has been written, then  {@link WriteResult#getRemainingLength()} will be 0.
+     * If all the data has been written, then {@link WriteResult#getWrittenLength()} ()} will equal data.getLength().
      */
     synchronized WriteResult write(BufferView data, int predecessorAddress) {
         if (this.usedBlockCount >= this.layout.blocksPerBuffer()) {
@@ -231,12 +231,14 @@ class DirectMemoryBuffer implements AutoCloseable {
     }
 
     /**
-     * Reads from the buffer starting at the given Buffer-Block Id and moving backwards (following
-     * {@link CacheLayout#getPredecessorAddress} for each encountered block.
+     * Reads from the buffer starting at the given Buffer-Block Id and following {@link CacheLayout#getPredecessorAddress}
+     * for each encountered block. The result is accumulated in the given readBuffers list. Since the blocks are always
+     * pointing to their predecessors, the result will contain the read buffers in reverse order.
      *
      * @param blockId     The id of the Buffer-Block to begin reading from.
-     * @param readBuffers A list of {@link ByteBuf} to add read data to. The {@link ByteBuf}s will be added in reverse
-     *                    order (from last to first).
+     * @param readBuffers A list of {@link ByteBuf} to add read data to. The existing buffers in this list will not be
+     *                    modified or rearranged. New, read-only {@link ByteBuf}s will be added at the end of the list,
+     *                    in reverse order (from last to first).
      * @return The address of the previous Buffer-Block in the sequence, or {@link CacheLayout#NO_ADDRESS} if we have
      * reached the beginning of this entry.
      */

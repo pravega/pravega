@@ -95,8 +95,8 @@ public class DirectMemoryCacheTests {
         val c = new TestCache();
 
         // Insert until we can no longer insert.
-        CacheSnapshot cs = c.getSnapshot();
-        while ((cs = c.getSnapshot()).getUsedBytes() < ACTUAL_MAX_SIZE) {
+        CacheState cs = c.getState();
+        while ((cs = c.getState()).getUsedBytes() < ACTUAL_MAX_SIZE) {
             int offset = rnd.nextInt(data.length - 1);
             int length = (int) Math.min(cs.getMaxBytes() - cs.getUsedBytes(), rnd.nextInt(data.length - offset));
             int address = c.insert(new ByteArraySegment(data, offset, length));
@@ -199,7 +199,7 @@ public class DirectMemoryCacheTests {
         long storedBytes = 0;
         for (int i = 0; i < iterations; i++) {
             // Add with 60% probability, but only if we have capacity or are empty.
-            val s = c.getSnapshot();
+            val s = c.getState();
             val freeBytes = s.getMaxBytes() - s.getUsedBytes();
             boolean add = freeBytes > 0 && rnd.nextInt(100) < 60 || addresses.isEmpty();
             if (add) {
@@ -355,7 +355,7 @@ public class DirectMemoryCacheTests {
     }
 
     private void checkSnapshot(TestCache c, Long storedBytes, Long usedBytes, Long reservedBytes, Long allocatedBytes, Long maxBytes) {
-        val s = c.getSnapshot();
+        val s = c.getState();
         if (storedBytes != null) {
             Assert.assertEquals("Unexpected Snapshot.getStoredBytes().", (long) storedBytes, s.getStoredBytes());
         }

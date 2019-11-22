@@ -100,11 +100,11 @@ public interface CacheStorage extends AutoCloseable {
     BufferView get(int address);
 
     /**
-     * Returns a {@link CacheSnapshot} representing the current state of the {@link CacheStorage}.
+     * Returns a {@link CacheState} representing the current state of the {@link CacheStorage}.
      *
-     * @return A new {@link CacheSnapshot} instance.
+     * @return A new {@link CacheState} instance.
      */
-    CacheSnapshot getSnapshot();
+    CacheState getState();
 
     /**
      * Sets a callback that will be invoked during {@link #insert} if there is insufficient capacity to add more entries.
