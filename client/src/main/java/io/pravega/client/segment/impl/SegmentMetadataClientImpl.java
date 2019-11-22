@@ -36,6 +36,7 @@ import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
@@ -115,6 +116,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             throw new NoSuchSegmentException(reply.toString());
         } else if (reply instanceof WrongHost) {
             throw new ConnectionFailedException(reply.toString());
+        } else if (reply instanceof WireCommands.SegmentIsTruncated) {
+            throw new ConnectionFailedException(new SegmentTruncatedException(reply.toString()));
         } else if (reply instanceof WireCommands.AuthTokenCheckFailed) {
             WireCommands.AuthTokenCheckFailed authTokenCheckReply = (WireCommands.AuthTokenCheckFailed) reply;
             if (authTokenCheckReply.isTokenExpired()) {
@@ -134,28 +137,33 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         log.debug("Getting segment info for segment: {}", segmentId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId, new GetStreamSegmentInfo(
-                requestId, segmentId.getScopedName(), tokenProvider.retrieveToken()))
-                         .thenApply(r -> transformReply(r, StreamSegmentInfo.class));
+
+        return tokenProvider.retrieveToken()
+                .thenCompose(token -> connection.sendRequest(requestId, new GetStreamSegmentInfo(
+                        requestId, segmentId.getScopedName(), token)))
+                .thenApply(r -> transformReply(r, StreamSegmentInfo.class));
     }
     
     private CompletableFuture<WireCommands.SegmentAttribute> getPropertyAsync(UUID attributeId) {
         log.debug("Getting segment attribute: {}", attributeId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId, new GetSegmentAttribute(requestId, segmentId.getScopedName(),
-                                                    attributeId, tokenProvider.retrieveToken()))
-                         .thenApply(r -> transformReply(r, WireCommands.SegmentAttribute.class));
+
+        return tokenProvider.retrieveToken()
+                .thenCompose(token -> connection.sendRequest(requestId, new GetSegmentAttribute(requestId,
+                        segmentId.getScopedName(), attributeId, token)))
+                .thenApply(r -> transformReply(r, WireCommands.SegmentAttribute.class));
     }
 
     private CompletableFuture<SegmentAttributeUpdated> updatePropertyAsync(UUID attributeId, long expected, long value) {
         log.trace("Updating segment attribute: {}", attributeId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId,
-                                      new UpdateSegmentAttribute(requestId, segmentId.getScopedName(), attributeId,
-                                                                 value, expected, tokenProvider.retrieveToken()))
-                         .thenApply(r -> transformReply(r, SegmentAttributeUpdated.class));
+
+        return tokenProvider.retrieveToken()
+                .thenCompose(token -> connection.sendRequest(requestId, new UpdateSegmentAttribute(requestId,
+                        segmentId.getScopedName(), attributeId, value, expected, token)))
+                .thenApply(r -> transformReply(r, SegmentAttributeUpdated.class));
     }
 
     private CompletableFuture<SegmentTruncated> truncateSegmentAsync(Segment segment, long offset,
@@ -163,16 +171,22 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         log.trace("Truncating segment: {}", segment);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId, new TruncateSegment(requestId, segment.getScopedName(), offset, tokenProvider.retrieveToken()))
-                         .thenApply(r -> transformReply(r, SegmentTruncated.class));
+
+        return tokenProvider.retrieveToken()
+                .thenCompose(token -> connection.sendRequest(requestId,
+                        new TruncateSegment(requestId, segment.getScopedName(), offset, token)))
+                .thenApply(r -> transformReply(r, SegmentTruncated.class));
     }
     
     private CompletableFuture<SegmentSealed> sealSegmentAsync(Segment segment, DelegationTokenProvider tokenProvider) {
         log.trace("Sealing segment: {}", segment);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId, new SealSegment(requestId, segment.getScopedName(), tokenProvider.retrieveToken()))
-                         .thenApply(r -> transformReply(r, SegmentSealed.class));
+
+        return tokenProvider.retrieveToken()
+                .thenCompose(token -> connection.sendRequest(requestId, new SealSegment(requestId,
+                        segment.getScopedName(), token)))
+                .thenApply(r -> transformReply(r, SegmentSealed.class));
     }
 
     @Override
@@ -222,7 +236,14 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     @Override
     public void truncateSegment(long offset) {
         RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(NoSuchSegmentException.class).run(() -> {
-            truncateSegmentAsync(segmentId, offset, tokenProvider).join();
+            truncateSegmentAsync(segmentId, offset, tokenProvider).exceptionally(t -> {
+                final Throwable ex = Exceptions.unwrap(t);
+                if (ex.getCause() instanceof SegmentTruncatedException) {
+                    log.debug("Segment already truncated at offset {}. Details: {}", offset, ex.getCause().getMessage());
+                    return null;
+                }
+                throw new CompletionException(ex);
+            }).join();
             return null;
         });
     }

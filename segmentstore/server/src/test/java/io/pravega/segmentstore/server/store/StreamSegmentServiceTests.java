@@ -48,7 +48,7 @@ public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
                              .withDataLogFactory(setup -> this.durableDataLogFactory);
     }
 
-    private static class PermanentDurableDataLogFactory extends InMemoryDurableDataLogFactory {
+    public static class PermanentDurableDataLogFactory extends InMemoryDurableDataLogFactory {
         PermanentDurableDataLogFactory(ScheduledExecutorService executorService) {
             super(executorService);
         }
