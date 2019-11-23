@@ -214,7 +214,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 }
             }
             if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException
-                    || (throwable instanceof TokenException && !(throwable instanceof TokenExpiredException))) {
+                    || isTokenExceptionUnrelatedToExpiry(throwable)) {
                 setupConnection.releaseExceptionally(throwable);
             } else if (failSetupConnection) {
                 setupConnection.releaseExceptionallyAndReset(throwable);
@@ -600,7 +600,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                              }
                              return connectionSetupFuture.exceptionally(t -> {
                                  Throwable exception = Exceptions.unwrap(t);
-                                 if (exception instanceof TokenException && !(exception instanceof TokenExpiredException)) {
+                                 if (isTokenExceptionUnrelatedToExpiry(exception)) {
                                      log.info("Ending reconnect attempts on writer {} to {} because token verification failed",
                                              writerId, segmentName);
                                      return null;
@@ -650,6 +650,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     public long getLastObservedWriteOffset() {
         return state.getLastSegmentLength();
     }
-    
-    
+
+    @VisibleForTesting
+    static boolean isTokenExceptionUnrelatedToExpiry(Throwable e)  {
+        return (e instanceof TokenException) && !(e instanceof TokenExpiredException);
+    }
 }

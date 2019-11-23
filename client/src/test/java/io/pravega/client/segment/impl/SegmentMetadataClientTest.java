@@ -393,6 +393,39 @@ public class SegmentMetadataClientTest {
     }
 
     @Test(timeout = 10000)
+    public void testTokenCheckFailed() {
+        Segment segment = new Segment("scope", "testRetry", 4);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
+        @Cleanup
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
+        client.getConnection();
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+
+                WireCommands.GetStreamSegmentInfo getStreamInfo = invocation.getArgument(0);
+                processor.process(new WireCommands.AuthTokenCheckFailed(getStreamInfo.getRequestId(), "server-stacktrace",
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
+                return null;
+            }
+        }).when(connection).sendAsync(any(WireCommands.GetStreamSegmentInfo.class),
+                Mockito.any(ClientConnection.CompletedCallback.class));
+
+        AssertExtensions.assertThrows("TokenException was not thrown or server stacktrace contained unexpected content.",
+                () -> client.fetchCurrentSegmentLength(),
+                e -> e instanceof TokenException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
+    }
+
+    @Test(timeout = 10000)
     public void testTokenCheckFailure() {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
