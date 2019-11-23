@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -122,7 +123,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             WireCommands.AuthTokenCheckFailed authTokenCheckReply = (WireCommands.AuthTokenCheckFailed) reply;
             if (authTokenCheckReply.isTokenExpired()) {
                 log.info("Delegation token expired");
-                throw new TokenExpiredException(authTokenCheckReply.toString());
+                // We want to have the request retried by the client in this case.
+                throw new ConnectionFailedException(new TokenExpiredException(authTokenCheckReply.toString()));
             } else {
                 log.info("Delegation token invalid");
                 throw new TokenException(authTokenCheckReply.toString());
@@ -133,7 +135,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
     }
 
-    private CompletableFuture<StreamSegmentInfo> getStreamSegmentInfo() {
+    @VisibleForTesting
+    CompletableFuture<StreamSegmentInfo> getStreamSegmentInfo() {
         log.debug("Getting segment info for segment: {}", segmentId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();

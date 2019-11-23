@@ -11,7 +11,6 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.auth.TokenException;
-import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
@@ -388,9 +387,9 @@ public class SegmentMetadataClientTest {
         }).when(connection).sendAsync(any(WireCommands.GetStreamSegmentInfo.class),
                 Mockito.any(ClientConnection.CompletedCallback.class));
 
-        AssertExtensions.assertThrows("TokenExpiredException was not thrown or server stacktrace contained unexpected content.",
-                () -> client.fetchCurrentSegmentLength(),
-                e -> e instanceof TokenExpiredException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
+        AssertExtensions.assertThrows("ConnectionFailedException was not thrown or server stacktrace contained unexpected content.",
+                () -> client.getStreamSegmentInfo().join(),
+                e -> e instanceof ConnectionFailedException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
     }
 
     @Test(timeout = 10000)
