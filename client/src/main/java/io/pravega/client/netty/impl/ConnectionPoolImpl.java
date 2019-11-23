@@ -211,9 +211,9 @@ public class ConnectionPoolImpl implements ConnectionPool {
             connectionComplete.completeExceptionally(new ConnectionFailedException(e));
         }
         return connectionComplete.thenCompose(v ->  {
-            CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //to track channel registration.
-            handler.completeWhenRegistered(channelRegisteredFuture);
-            return channelRegisteredFuture;
+            CompletableFuture<Void> channelReadyFuture = new CompletableFuture<>(); //to track channel registration.
+            handler.completeWhenReady(channelReadyFuture);
+            return channelReadyFuture;
         });
     }
 

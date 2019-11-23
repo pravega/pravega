@@ -183,24 +183,22 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     }
 
     /**
-     * This function completes the input future when the channel is registered.
+     * This function completes the input future when the channel is ready.
      *
-     * @param future CompletableFuture which will be completed once the channel is registered.
+     * @param future CompletableFuture which will be completed once the channel is ready.
      */
-    void completeWhenRegistered(final CompletableFuture<Void> future) {
+    void completeWhenReady(final CompletableFuture<Void> future) {
         Preconditions.checkNotNull(future, "future");
         registeredFutureLatch.register(future);
     }
 
     @Override
-    public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
-        super.channelRegistered(ctx);
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        super.channelActive(ctx);
         Channel ch = ctx.channel();
         channel.set(ch);
         log.info("Connection established with endpoint {} on channel {}", connectionName, ch);
-        ctx.executor().execute(() -> {
-            ch.writeAndFlush(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), ch.voidPromise());
-        });
+        ch.writeAndFlush(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), ch.voidPromise());
         registeredFutureLatch.release(null); //release all futures waiting for channel registration to complete.
         // WireCommands.KeepAlive messages are sent for every network connection to a SegmentStore.
         ScheduledFuture<?> old = keepAliveFuture.getAndSet(ch.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));
