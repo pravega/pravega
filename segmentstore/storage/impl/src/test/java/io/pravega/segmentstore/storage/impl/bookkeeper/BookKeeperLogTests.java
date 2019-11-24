@@ -39,7 +39,8 @@ import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.bookkeeper.client.BKException;
+import org.apache.bookkeeper.client.BKException.BKLedgerClosedException;
+import org.apache.bookkeeper.client.BKException.ZKException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -183,7 +184,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         AssertExtensions.assertThrows("",
                 factory::initialize,
                 ex -> ex instanceof DataLogNotAvailableException &&
-                        ex.getCause() instanceof BKException.ZKException
+                        ex.getCause() instanceof ZKException
         );
     }
 
@@ -415,7 +416,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     private static boolean isLedgerClosedException(Throwable ex) {
-        return ex instanceof WriteFailureException && ex.getCause() instanceof BKException.BKLedgerClosedException;
+        return ex instanceof WriteFailureException && ex.getCause() instanceof BKLedgerClosedException;
     }
 
     //endregion

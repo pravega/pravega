@@ -20,7 +20,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -155,7 +155,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         }
         config.setMetadataServiceUri(metadataServiceUri);
 
-        return new BookKeeper(config);
+        return BookKeeper.newBuilder(config)
+                         .build();
     }
 
     //endregion

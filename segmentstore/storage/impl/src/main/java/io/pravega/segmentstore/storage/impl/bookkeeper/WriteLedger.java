@@ -12,14 +12,14 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
-import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.client.api.WriteHandle;
 
 /**
  * LedgerHandle-LedgerMetadata pair.
  */
 @RequiredArgsConstructor
 class WriteLedger {
-    final LedgerHandle ledger;
+    final WriteHandle ledger;
     final LedgerMetadata metadata;
 
     /**

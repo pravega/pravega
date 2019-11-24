@@ -24,8 +24,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.client.api.BookKeeper;
+import org.apache.bookkeeper.client.api.ReadHandle;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
@@ -106,7 +106,7 @@ public class DebugLogWrapper implements AutoCloseable {
      * @return A BookKeeper LedgerHandle representing the ledger.
      * @throws DurableDataLogException If an exception occurred.
      */
-    public LedgerHandle openLedgerNoFencing(LedgerMetadata ledgerMetadata) throws DurableDataLogException {
+    public ReadHandle openLedgerNoFencing(LedgerMetadata ledgerMetadata) throws DurableDataLogException {
         return Ledgers.openRead(ledgerMetadata.getLedgerId(), this.bkClient, this.config);
     }
 
