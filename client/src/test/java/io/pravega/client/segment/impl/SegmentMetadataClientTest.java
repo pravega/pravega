@@ -10,7 +10,7 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.auth.TokenException;
+import io.pravega.auth.InvalidTokenException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
@@ -422,7 +422,7 @@ public class SegmentMetadataClientTest {
 
         AssertExtensions.assertThrows("TokenException was not thrown or server stacktrace contained unexpected content.",
                 () -> client.fetchCurrentSegmentLength(),
-                e -> e instanceof TokenException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
+                e -> e instanceof InvalidTokenException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
     }
 
     @Test(timeout = 10000)
@@ -455,6 +455,6 @@ public class SegmentMetadataClientTest {
 
         AssertExtensions.assertThrows("TokenException was not thrown or server stacktrace contained unexpected content.",
                 () -> client.fetchCurrentSegmentLength(),
-                e -> e instanceof TokenException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
+                e -> e instanceof InvalidTokenException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
     }
 }

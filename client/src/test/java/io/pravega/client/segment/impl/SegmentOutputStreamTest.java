@@ -13,8 +13,6 @@ import com.google.common.collect.ImmutableList;
 import io.netty.buffer.Unpooled;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
-import io.pravega.auth.TokenException;
-import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ClientConnection.CompletedCallback;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -1177,13 +1175,6 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
 
         sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1);
         verifyNoMoreInteractions(connection);
-    }
-
-    @Test
-    public void testIsTokenExceptionUnrelatedToExpiry() {
-        assertTrue(SegmentOutputStreamImpl.isTokenExceptionUnrelatedToExpiry(new TokenException("Token exception")));
-        assertFalse(SegmentOutputStreamImpl.isTokenExceptionUnrelatedToExpiry(new TokenExpiredException("Token expiry exception")));
-        assertFalse(SegmentOutputStreamImpl.isTokenExceptionUnrelatedToExpiry(new Exception("Exception")));
     }
 
     private static class MockControllerWithTokenTask extends MockController {

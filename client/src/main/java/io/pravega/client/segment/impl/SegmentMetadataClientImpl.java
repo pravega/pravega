@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -127,7 +128,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
                 throw new ConnectionFailedException(new TokenExpiredException(authTokenCheckReply.toString()));
             } else {
                 log.info("Delegation token invalid");
-                throw new TokenException(authTokenCheckReply.toString());
+                throw new InvalidTokenException(authTokenCheckReply.toString());
             }
         } else {
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting a "
