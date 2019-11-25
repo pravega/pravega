@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -34,8 +33,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 /**
  * As the package + name might suggest, this class is intended to hold integration tests for verifying delegation token
@@ -53,15 +53,6 @@ public class DelegationTokenTest {
     public void testWriteSucceedsWhenTokenTtlIsMinusOne() throws ExecutionException, InterruptedException {
         // A Token TTL -1 indicates to the Controller to not set any expiry on the delegation token.
         writeAnEvent(-1);
-    }
-
-    @Test(timeout = 30000)
-    public void testWriteFailsWhenTokenExpires() {
-        // To ensure the token is certainly expired when it reaches the segment store, we are setting Controller TTL
-        // as 0, so that the token expiry is set as the same time as the time it is issued in the Controller.
-        assertThrows("Token expiration didn't cause write failure.",
-                () -> writeAnEvent(0),
-                e -> e instanceof TokenExpiredException);
     }
 
     private void writeAnEvent(int tokenTtlInSeconds) throws ExecutionException, InterruptedException {
