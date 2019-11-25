@@ -460,6 +460,77 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 10000)
+    public void testReconnectSendsSetupAppendOnTokenExpiration() throws ConnectionFailedException {
+        UUID writerId = UUID.randomUUID();
+        PravegaNodeUri segmentStoreUri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+
+        MockConnectionFactoryImpl mockConnectionFactory = spy(new MockConnectionFactoryImpl());
+
+        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        mockConnectionFactory.setExecutor(executor);
+
+        MockController controller = new MockController(segmentStoreUri.getEndpoint(),
+                segmentStoreUri.getPort(), mockConnectionFactory, true);
+        ClientConnection mockConnection = mock(ClientConnection.class);
+
+        mockConnectionFactory.provideConnection(segmentStoreUri, mockConnection);
+
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller,
+                mockConnectionFactory, writerId, segmentSealedCallback,  RETRY_SCHEDULE,
+                DelegationTokenProviderFactory.createWithEmptyToken());
+
+        output.reconnect();
+        verify(mockConnection).send(new SetupAppend(output.getRequestId(), writerId, SEGMENT, ""));
+
+        reset(mockConnection);
+
+        // Simulate token expiry
+        WireCommands.AuthTokenCheckFailed authTokenCheckFailed = new WireCommands.AuthTokenCheckFailed(
+                1, "server-stacktrace", WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED);
+        mockConnectionFactory.getProcessor(segmentStoreUri).authTokenCheckFailed(authTokenCheckFailed);
+
+        // Upon token expiry we expect that the SetupAppend will occur again.
+        verify(mockConnection).send(new SetupAppend(output.getRequestId(), writerId, SEGMENT, ""));
+    }
+
+    @Test(timeout = 10000)
+    public void testReconnectDoesNotSetupAppendOnTokenCheckFailure() throws ConnectionFailedException {
+        UUID writerId = UUID.randomUUID();
+        PravegaNodeUri segmentStoreUri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+
+        MockConnectionFactoryImpl mockConnectionFactory = spy(new MockConnectionFactoryImpl());
+
+        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        mockConnectionFactory.setExecutor(executor);
+
+        MockController controller = new MockController(segmentStoreUri.getEndpoint(),
+                segmentStoreUri.getPort(), mockConnectionFactory, true);
+        ClientConnection mockConnection = mock(ClientConnection.class);
+
+        mockConnectionFactory.provideConnection(segmentStoreUri, mockConnection);
+
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller,
+                mockConnectionFactory, writerId, segmentSealedCallback,  RETRY_SCHEDULE,
+                DelegationTokenProviderFactory.createWithEmptyToken());
+
+        output.reconnect();
+        verify(mockConnection).send(new SetupAppend(output.getRequestId(), writerId, SEGMENT, ""));
+
+        reset(mockConnection);
+
+        // Simulate token check failure
+        WireCommands.AuthTokenCheckFailed authTokenCheckFailed = new WireCommands.AuthTokenCheckFailed(
+                1, "server-stacktrace", WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED);
+        mockConnectionFactory.getProcessor(segmentStoreUri).authTokenCheckFailed(authTokenCheckFailed);
+
+        // Verify that SetupAppend is NOT sent. We expect the client to get an exception.
+        verify(mockConnection, times(0)).send(
+                new SetupAppend(output.getRequestId(), writerId, SEGMENT, ""));
+    }
+
+    @Test(timeout = 10000)
     public void testReconnectOnBadAcks() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);

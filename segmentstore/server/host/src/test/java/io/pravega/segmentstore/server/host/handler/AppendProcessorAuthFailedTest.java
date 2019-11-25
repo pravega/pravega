@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
-import io.pravega.auth.TokenException;
+import io.pravega.auth.InvalidTokenException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -33,7 +33,7 @@ public class AppendProcessorAuthFailedTest {
 
         processor = new AppendProcessor(store, connection, new FailingRequestProcessor(),
                 (resource, token, expectedLevel) -> {
-                    throw new TokenException("Token verification failed.");
+                    throw new InvalidTokenException("Token verification failed.");
                 });
     }
 
