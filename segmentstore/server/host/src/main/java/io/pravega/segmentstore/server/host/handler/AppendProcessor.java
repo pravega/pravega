@@ -182,7 +182,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         Timer timer = new Timer();
         storeAppend(append, previousEventNumber)
                 .whenComplete((newLength, ex) -> {
-                    handleAppendResult(append, newLength, ex, timer);
+                    handleAppendResult(append, newLength, ex, state, timer);
                     LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, ex);
                 })
                 .whenComplete((v, e) -> {
@@ -208,14 +208,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
-    private void handleAppendResult(final Append append, Long newWriteOffset, Throwable exception, Timer elapsedTimer) {
+    private void handleAppendResult(final Append append, Long newWriteOffset, Throwable exception, WriterState state, Timer elapsedTimer) {
+        Preconditions.checkNotNull(state, "state");
         boolean success = exception == null;
         try {
             boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
 
-            WriterState state = this.writerStates.getOrDefault(Pair.of(append.getSegment(), append.getWriterId()), null);
+            //WriterState state = this.writerStates.getOrDefault(Pair.of(append.getSegment(), append.getWriterId()), null);
             if (success) {
-                Preconditions.checkState(state != null, "Synchronization error while processing append: %s. Unable to send ack.", append);
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
                     long previousLastAcked = state.appendSuccessful(append.getEventNumber());
@@ -228,12 +228,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 }
             } else {
                 if (conditionalFailed) {
+                    // Revert the state to the last known good one. This is needed because we do not close the connection
+                    // for offset-conditional append failures, hence we must revert the effects of the failed append.
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
-                    if (state != null) {
-                        // Revert the state to the last known good one. This is needed because we do not close the connection
-                        // for offset-conditional append failures, hence we must revert the effects of the failed append.
-                        state.conditionalAppendFailed();
-                    }
+                    state.conditionalAppendFailed();
                     connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber(), append.getRequestId()));
                 } else {
                     // Clear the state in case of error.
