@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.logs;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.test.common.AssertExtensions;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.val;
@@ -102,8 +101,27 @@ public class ThrottlerCalculatorTests {
               });
     }
 
+    @Test
+    public void testDurableDataLog() {
+        val fillRatio = 0.5;
+        val thresholdMillis = ThrottlerCalculator.DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS;
+        val queueStats = new AtomicReference<QueueStats>(null);
+        val tc = ThrottlerCalculator.builder().durableDataLogThrottler(queueStats::get).build();
+        val noThrottling = new QueueStats[]{
+                new QueueStats(1, fillRatio, thresholdMillis - 1),
+                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD + 1, fillRatio, thresholdMillis),
+                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_COUNT_THRESHOLD, fillRatio, thresholdMillis + 1)};
+        val gradualThrottling = new QueueStats[]{
+                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_COUNT_THRESHOLD + 1, fillRatio, thresholdMillis + 1),
+                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_COUNT_THRESHOLD + 5, fillRatio, thresholdMillis + 1),
+                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD, fillRatio, thresholdMillis + 1)};
+        val maxThrottling = new QueueStats[]{
+                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD + 1, fillRatio, thresholdMillis + 1),
+                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD * 2, fillRatio, thresholdMillis + 1)};
+        testThrottling(tc, queueStats, noThrottling, gradualThrottling, maxThrottling);
+    }
 
-    private <T extends Comparable<T>> void testThrottling(ThrottlerCalculator tc, AtomicReference<T> inputValue, T[] noThrottleValues, T[] gradualThrottleValues, T[] maxThrottleValues) {
+    private <T> void testThrottling(ThrottlerCalculator tc, AtomicReference<T> inputValue, T[] noThrottleValues, T[] gradualThrottleValues, T[] maxThrottleValues) {
         // Test for values where we don't expect throttling.
         Arrays.stream(noThrottleValues)
                 .forEach(v -> {
@@ -119,8 +137,7 @@ public class ThrottlerCalculatorTests {
         AtomicInteger lastValue = new AtomicInteger();
         Arrays.stream(gradualThrottleValues)
                 .forEach(v -> {
-                    // For this test, we want our test values to be pre-sorted.
-                    Assert.assertTrue("Test setup failure: non-increasing test value.", Comparator.<T>naturalOrder().compare(inputValue.get(), v) < 0);
+                    // For this test, we need our test values to be pre-sorted in ascending order of throttling size.
                     inputValue.set(v);
                     Assert.assertTrue("Unexpected value from isThrottlingRequired() when throttling is expected: " + v,
                             tc.isThrottlingRequired());
