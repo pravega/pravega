@@ -71,12 +71,12 @@ class ThrottlerCalculator {
      * DurableDataLog queue size at or above which the maximum throttling will apply.
      */
     @VisibleForTesting
-    static final int DURABLE_DATALOG_COUNT_THRESHOLD = 10;
+    static final int DURABLE_DATALOG_COUNT_THRESHOLD = 20;
     /**
      * DurableDataLog queue size at or above which the maximum throttling will apply.
      */
     @VisibleForTesting
-    static final int DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD = 100;
+    static final int DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD = 250;
     @VisibleForTesting
     static final int DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS = 1000;
 
@@ -295,7 +295,10 @@ class ThrottlerCalculator {
         @Override
         int getDelayMillis() {
             QueueStats stats = this.getQueueStats.get();
-            return isThrottlingRequired(stats) ? getDelayMultiplier(stats.getSize()) * BASE_DELAY : 0;
+            if (isThrottlingRequired(stats)) {
+                return getDelayMultiplier(stats.getSize()) * BASE_DELAY;
+            }
+            return 0;
         }
 
         static int getDelayMultiplier(int queueSize) {

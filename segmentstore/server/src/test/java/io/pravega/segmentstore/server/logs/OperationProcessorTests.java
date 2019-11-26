@@ -42,6 +42,7 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -666,6 +667,11 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Override
         public QueueStats getQueueStatistics() {
             return QueueStats.DEFAULT;
+        }
+
+        @Override
+        public void registerQueueStateChangeListener(ThrottleSourceListener listener) {
+
         }
 
         @Override

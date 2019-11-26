@@ -105,6 +105,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 .build();
         this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, executor, this.metrics);
         this.stateUpdater.registerCleanupListener(this.throttler);
+        durableDataLog.registerQueueStateChangeListener(this.throttler);
     }
 
     //endregion

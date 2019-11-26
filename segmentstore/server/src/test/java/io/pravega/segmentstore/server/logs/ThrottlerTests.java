@@ -128,7 +128,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the case when {@link Throttler#throttle()} returns a delay that can be interrupted using {@link Throttler#cacheCleanupComplete()}.
+     * Tests the case when {@link Throttler#throttle()} returns a delay that can be interrupted using {@link Throttler#notifyThrottleSourceChanged()} ()}.
      */
     @Test
     public void testInterruptedCacheDelay() throws Exception {
@@ -153,7 +153,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         // currently running throttle cycle and request the next throttling value.
         for (int i = 1; i < suppliedDelays.size(); i++) {
             // Interrupt the current throttle cycle.
-            t.cacheCleanupComplete();
+            t.notifyThrottleSourceChanged();
             Assert.assertFalse("Not expected throttle future to be completed yet.", t1.isDone());
 
             // Wait for the new cycle to begin (we use the recordDelay consumer above to figure this out).

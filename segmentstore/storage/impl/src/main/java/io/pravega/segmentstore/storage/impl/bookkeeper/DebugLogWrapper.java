@@ -16,6 +16,7 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -168,6 +169,11 @@ public class DebugLogWrapper implements AutoCloseable {
         @Override
         public QueueStats getQueueStatistics() {
             return null;
+        }
+
+        @Override
+        public void registerQueueStateChangeListener(ThrottleSourceListener listener) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
