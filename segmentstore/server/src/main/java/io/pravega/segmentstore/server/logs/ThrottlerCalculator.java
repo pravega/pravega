@@ -284,15 +284,18 @@ class ThrottlerCalculator {
 
         @Override
         boolean isThrottlingRequired() {
-            return this.getQueueStats.get().getExpectedProcessingTimeMillis() > DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS;
+            return isThrottlingRequired(this.getQueueStats.get());
+        }
+
+        private boolean isThrottlingRequired(QueueStats stats) {
+            return stats.getExpectedProcessingTimeMillis() > DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS
+                    && stats.getSize() > DURABLE_DATALOG_COUNT_THRESHOLD;
         }
 
         @Override
         int getDelayMillis() {
             QueueStats stats = this.getQueueStats.get();
-            return stats.getExpectedProcessingTimeMillis() > DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS
-                    ? getDelayMultiplier(stats.getSize())
-                    : 0;
+            return isThrottlingRequired(stats) ? getDelayMultiplier(stats.getSize()) * BASE_DELAY : 0;
         }
 
         static int getDelayMultiplier(int queueSize) {
