@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.MathHelpers;
 import io.pravega.segmentstore.storage.QueueStats;
 import java.util.List;
-import java.util.Queue;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import lombok.AccessLevel;
