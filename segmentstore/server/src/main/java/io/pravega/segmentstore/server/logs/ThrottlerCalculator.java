@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.MathHelpers;
 import io.pravega.segmentstore.storage.QueueStats;
 import java.util.List;
+import java.util.Queue;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import lombok.AccessLevel;
@@ -67,6 +68,18 @@ class ThrottlerCalculator {
      */
     @VisibleForTesting
     static final int COMMIT_BACKLOG_COUNT_FULL_THROTTLE_THRESHOLD = 500;
+    /**
+     * DurableDataLog queue size at or above which the maximum throttling will apply.
+     */
+    @VisibleForTesting
+    static final int DURABLE_DATALOG_COUNT_THRESHOLD = 10;
+    /**
+     * DurableDataLog queue size at or above which the maximum throttling will apply.
+     */
+    @VisibleForTesting
+    static final int DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD = 100;
+    @VisibleForTesting
+    static final int DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS = 1000;
 
     @Singular
     private final List<Throttler> throttlers;
@@ -263,6 +276,36 @@ class ThrottlerCalculator {
         }
     }
 
+    @RequiredArgsConstructor
+    private static class DurableDataLogThrottler extends Throttler {
+        private static final int BASE_DELAY =
+                calculateBaseDelay(DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD, DurableDataLogThrottler::getDelayMultiplier);
+        @NonNull
+        private final Supplier<QueueStats> getQueueStats;
+
+        @Override
+        boolean isThrottlingRequired() {
+            return this.getQueueStats.get().getExpectedProcessingTimeMillis() > DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS;
+        }
+
+        @Override
+        int getDelayMillis() {
+            QueueStats stats = this.getQueueStats.get();
+            return stats.getExpectedProcessingTimeMillis() > DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS
+                    ? getDelayMultiplier(stats.getSize())
+                    : 0;
+        }
+
+        static int getDelayMultiplier(int queueSize) {
+            return queueSize - DURABLE_DATALOG_COUNT_THRESHOLD;
+        }
+
+        @Override
+        ThrottlerName getName() {
+            return ThrottlerName.DurableDataLog;
+        }
+    }
+
     //endregion
 
     //region Builder
@@ -304,6 +347,10 @@ class ThrottlerCalculator {
          */
         ThrottlerCalculatorBuilder commitBacklogThrottler(Supplier<Integer> getCommitBacklogCount) {
             return throttler(new CommitBacklogThrottler(getCommitBacklogCount));
+        }
+
+        ThrottlerCalculatorBuilder durableDataLogThrottler(Supplier<QueueStats> getQueueStats) {
+            return throttler(new DurableDataLogThrottler(getQueueStats));
         }
     }
 
@@ -366,7 +413,8 @@ class ThrottlerCalculator {
         /**
          * Throttling is required due to excessive size of the Commit (Memory) Backlog Queue.
          */
-        CommitBacklog
+        CommitBacklog,
+        DurableDataLog,
     }
 
     //endregion
