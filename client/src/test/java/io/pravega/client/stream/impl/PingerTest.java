@@ -38,12 +38,12 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @RunWith(MockitoJUnitRunner.class)
 @Slf4j
 public class PingerTest {
 
-    private static final double PING_INTERVAL_FACTOR = 0.5;
     private EventWriterConfig config;
     private Stream stream;
     @Mock
@@ -80,9 +80,8 @@ public class PingerTest {
         Pinger pinger = new Pinger(config, stream, controller, executor);
 
         pinger.startPing(txnID);
-        long expectedKeepAliveInterval = (long) (PING_INTERVAL_FACTOR * config.getTransactionTimeoutTime());
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
-                eq(expectedKeepAliveInterval), eq(TimeUnit.MILLISECONDS));
+                longThat(i -> i <= config.getTransactionTimeoutTime()), eq(TimeUnit.MILLISECONDS));
         verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID), eq(config.getTransactionTimeoutTime()));
     }
 
@@ -97,7 +96,7 @@ public class PingerTest {
         pinger.startPing(txnID);
 
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
-                eq(SECONDS.toMillis(10)), eq(TimeUnit.MILLISECONDS));
+                longThat(l -> l > 0 && l <= 10000), eq(TimeUnit.MILLISECONDS));
         verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID),
                 eq(smallTxnLeaseTime.getTransactionTimeoutTime()));
     }
@@ -114,9 +113,8 @@ public class PingerTest {
         Pinger pinger = new Pinger(config, stream, controller, executor);
         pinger.startPing(txnID);
 
-        long expectedKeepAliveInterval = (long) (PING_INTERVAL_FACTOR * config.getTransactionTimeoutTime());
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
-                eq(expectedKeepAliveInterval), eq(TimeUnit.MILLISECONDS));
+                                                       longThat(l -> l > 0 && l <= 10000), eq(TimeUnit.MILLISECONDS));
         verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID), eq(config.getTransactionTimeoutTime()));
     }
 
@@ -129,9 +127,8 @@ public class PingerTest {
 
         pinger.startPing(txnID1);
         pinger.startPing(txnID2);
-        long expectedKeepAliveInterval = (long) (PING_INTERVAL_FACTOR * config.getTransactionTimeoutTime());
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
-                eq(expectedKeepAliveInterval), eq(TimeUnit.MILLISECONDS));
+                                                       longThat(l -> l > 0 && l <= 10000), eq(TimeUnit.MILLISECONDS));
     }
 
     @Test

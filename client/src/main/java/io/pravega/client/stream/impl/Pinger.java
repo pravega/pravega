@@ -36,9 +36,6 @@ import static io.pravega.common.Exceptions.unwrap;
  */
 @Slf4j
 public class Pinger implements AutoCloseable {
-    private static final double PING_INTERVAL_FACTOR = 0.5; //ping interval = factor * txn lease time.
-    private static final long MINIMUM_PING_INTERVAL_MS = TimeUnit.SECONDS.toMillis(10);
-
     private final Stream stream;
     private final Controller controller;
     private final long txnLeaseMillis;
@@ -76,12 +73,10 @@ public class Pinger implements AutoCloseable {
     }
 
     private long getPingInterval(long txnLeaseMillis) {
-        double pingInterval = txnLeaseMillis * PING_INTERVAL_FACTOR;
-        if (pingInterval < MINIMUM_PING_INTERVAL_MS) {
-            log.warn("Transaction ping interval is less than 10 seconds(lower bound)");
-        }
-        //Ping interval cannot be less than KeepAlive task interval of 10seconds.
-        return Math.max(MINIMUM_PING_INTERVAL_MS, (long) pingInterval);
+        //Provides a good number of attempts: 1 for <4s, 2 for <9s, 3 for <16s, 4 for <25s, ... 10 for <100s
+        //while at the same time allowing the interval to grow as the timeout gets larger.
+        double targetNumPings = Math.sqrt(txnLeaseMillis / 1000.0);
+        return (long) (txnLeaseMillis / targetNumPings);
     }
 
     private void startPeriodicPingTxn() {
