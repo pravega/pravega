@@ -214,7 +214,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         try {
             boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
 
-            //WriterState state = this.writerStates.getOrDefault(Pair.of(append.getSegment(), append.getWriterId()), null);
             if (success) {
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
@@ -236,8 +235,21 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 } else {
                     // Clear the state in case of error.
                     this.writerStates.remove(Pair.of(append.getSegment(), append.getWriterId()));
-                    handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
-                            "appending data", exception);
+
+                    // Record the exception handling into the Writer State. It will be executed once all the in-flight
+                    // appends are drained.
+                    state.appendFailed(() ->
+                            handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
+                                    "appending data", exception));
+                }
+            }
+
+            // After every append completes, check if we are done with this WriterState, and if we were asked to execute
+            // something after that happens.
+            Runnable runWhenAllComplete = state.getRunWhenAllComplete();
+            if (runWhenAllComplete != null) {
+                synchronized (state.getAckLock()) {
+                    runWhenAllComplete.run();
                 }
             }
         } catch (Throwable e) {
@@ -326,6 +338,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         private long lastAckedEventNumber;
         @GuardedBy("this")
         private long inFlightCount;
+        @GuardedBy("this")
+        private Runnable whenAllComplete;
 
         WriterState(long initialEventNumber) {
             this.inFlightCount = 0;
@@ -340,6 +354,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
          * @return The previously attempted Event Number.
          */
         synchronized long beginAppend(long eventNumber) {
+            Preconditions.checkState(this.whenAllComplete == null, "Connection closed. Cannot begin new appends.");
             long previousEventNumber = this.lastStoredEventNumber;
             Preconditions.checkState(eventNumber >= previousEventNumber, "Event was already appended.");
             this.lastStoredEventNumber = eventNumber;
@@ -383,9 +398,25 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             return previousLastAcked;
         }
 
+        Runnable getRunWhenAllComplete() {
+            synchronized (this) {
+                return this.inFlightCount == 0 ? this.whenAllComplete : null;
+            }
+        }
+
+        /**
+         * TODO: javadoc if this works well.
+         *
+         * @param runWhenAllComplete
+         */
+        synchronized void appendFailed(Runnable runWhenAllComplete) {
+            this.inFlightCount--;
+            this.whenAllComplete = runWhenAllComplete;
+        }
+
         @Override
         public synchronized String toString() {
-            return String.format("Stored=%s, Acked=%s", this.lastStoredEventNumber, this.lastAckedEventNumber);
+            return String.format("Stored=%s, Acked=%s, InFlight=%s", this.lastStoredEventNumber, this.lastAckedEventNumber, this.inFlightCount);
         }
     }
 
