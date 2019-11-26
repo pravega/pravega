@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.base.Strings;
 import io.grpc.Server;
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
@@ -642,6 +643,10 @@ public class ControllerImplTest {
                         responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.ABORTED).build());
                         responseObserver.onCompleted();
                         break;
+                    case "stream8":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.UNKNOWN).build());
+                        responseObserver.onCompleted();
+                        break;
                     default:
                         responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                         break;
@@ -1215,6 +1220,12 @@ public class ControllerImplTest {
         // controller fails with internal exception causing the controller client to retry.
         transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream7"), UUID.randomUUID(), 0);
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, t -> t instanceof RetriesExhaustedException);
+
+        // controller returns error with status UNKNOWN
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream8"), UUID.randomUUID(), 0);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, 
+                t -> Exceptions.unwrap(t) instanceof StatusRuntimeException 
+                        && ((StatusRuntimeException) Exceptions.unwrap(t)).getStatus().equals(Status.NOT_FOUND));
     }
 
     @Test

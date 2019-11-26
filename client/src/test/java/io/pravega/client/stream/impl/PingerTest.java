@@ -9,10 +9,13 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.InlineExecutor;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -142,6 +145,7 @@ public class PingerTest {
         final UUID txnID2 = UUID.randomUUID();
         final UUID txnID3 = UUID.randomUUID();
         final UUID txnID4 = UUID.randomUUID();
+        final UUID txnID5 = UUID.randomUUID();
 
         @Cleanup("shutdown")
         InlineExecutor pingExecutor = new InlineExecutor();
@@ -157,6 +161,9 @@ public class PingerTest {
         failedPingFuture.completeExceptionally(new RuntimeException("error"));
         when(controller.pingTransaction(any(Stream.class), eq(txnID4), anyLong()))
                 .thenReturn(failedPingFuture);
+        when(controller.pingTransaction(eq(stream), eq(txnID5), anyLong()))
+                .thenReturn(Futures.failedFuture(new StatusRuntimeException(Status.NOT_FOUND)));
+
         @Cleanup
         Pinger pinger = new Pinger(config, stream, controller, pingExecutor);
 
@@ -164,11 +171,13 @@ public class PingerTest {
         pinger.startPing(txnID2);
         pinger.startPing(txnID3);
         pinger.startPing(txnID4);
+        pinger.startPing(txnID5);
 
         verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID1), eq(config.getTransactionTimeoutTime()));
         verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID2), eq(config.getTransactionTimeoutTime()));
         verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID3), eq(config.getTransactionTimeoutTime()));
         verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID4), eq(config.getTransactionTimeoutTime()));
-        assertEquals(2, pinger.getCompletedTxns().size());
+        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID5), eq(config.getTransactionTimeoutTime()));
+        assertEquals(3, pinger.getCompletedTxns().size());
     }
 }
