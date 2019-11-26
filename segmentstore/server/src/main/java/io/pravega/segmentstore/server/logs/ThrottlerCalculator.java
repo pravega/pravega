@@ -71,15 +71,14 @@ class ThrottlerCalculator {
      * DurableDataLog queue size at or above which the maximum throttling will apply.
      */
     @VisibleForTesting
-    static final int DURABLE_DATALOG_COUNT_THRESHOLD = 20;
+    static final int DURABLE_DATALOG_COUNT_THRESHOLD = 10;
     /**
      * DurableDataLog queue size at or above which the maximum throttling will apply.
      */
     @VisibleForTesting
-    static final int DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD = 250;
+    static final int DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD = 200;
     @VisibleForTesting
-    static final int DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS = 1000;
-
+    static final int DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS = 500;
     @Singular
     private final List<Throttler> throttlers;
 
