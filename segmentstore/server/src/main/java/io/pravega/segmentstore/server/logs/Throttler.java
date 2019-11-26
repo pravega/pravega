@@ -139,9 +139,11 @@ class Throttler implements CacheUtilizationProvider.CleanupListener, AutoCloseab
 
     private CompletableFuture<Void> throttleOnce(ThrottlerCalculator.DelayResult delay) {
         this.metrics.processingDelay(delay.getDurationMillis());
-        if (delay.isMaximum() || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.CommitBacklog) {
+        if (delay.isMaximum()
+                || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.CommitBacklog
+                || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.DurableDataLog) {
             // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
-            // processing of operations) or if this is due to the Commit Processor not being able to keep up.
+            // processing of operations) or if this is due to us not being able to ingest items quickly enough.
             log.warn("{}: Processing delay = {}.", this.traceObjectId, delay);
         } else {
             log.debug("{}: Processing delay = {}.", this.traceObjectId, delay);
