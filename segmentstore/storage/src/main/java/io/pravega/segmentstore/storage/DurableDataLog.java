@@ -150,6 +150,8 @@ public interface DurableDataLog extends AutoCloseable {
      */
     QueueStats getQueueStatistics();
 
+    void registerQueueStateChangeListener(ThrottleSourceListener listener);
+
     /**
      * Closes this instance of a DurableDataLog and releases any resources it holds.
      */

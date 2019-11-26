@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
+
 /**
  * Defines an object that can provide information about the Cache utilization.
  */
@@ -46,30 +48,11 @@ public interface CacheUtilizationProvider {
     double getCacheMaxUtilization();
 
     /**
-     * Registers the given {@link CleanupListener}, which will be notified of all subsequent Cache Cleanup events that
+     * Registers the given {@link ThrottleSourceListener}, which will be notified of all subsequent Cache Cleanup events that
      * result in at least one entry being evicted from the cache.
      *
-     * @param listener The {@link CleanupListener} to register. This will be auto-unregistered on the first Cache Cleanup
-     *                 run that detects {@link CleanupListener#isClosed()} to be true.
+     * @param listener The {@link ThrottleSourceListener} to register. This will be auto-unregistered on the first Cache Cleanup
+     *                 run that detects {@link ThrottleSourceListener#isClosed()} to be true.
      */
-    void registerCleanupListener(CleanupListener listener);
-
-    /**
-     * Defines a listener that will be notified by the {@link CacheManager} after every normally scheduled Cache Cleanup
-     * event that resulted in at least one entry being evicted from the cache.
-     */
-    interface CleanupListener {
-        /**
-         * Notifies this {@link CleanupListener} that a normally scheduled Cache Cleanup event that resulted in at least
-         * one entry being evicted from the cache has just finished.
-         */
-        void cacheCleanupComplete();
-
-        /**
-         * Gets a value indicating whether this {@link CleanupListener} is closed and should be unregistered.
-         *
-         * @return True if need to be unregistered (no further notifications will be sent), false otherwise.
-         */
-        boolean isClosed();
-    }
+    void registerCleanupListener(ThrottleSourceListener listener);
 }
