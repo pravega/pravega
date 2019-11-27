@@ -30,6 +30,7 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.WriteFailureException;
+import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.segmentstore.storage.WriteTooLongException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -295,8 +296,8 @@ class BookKeeperLog implements DurableDataLog {
     public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
         ensurePreconditions();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "append", data.getLength());
-        if (data.getLength() > getMaxAppendLength()) {
-            return Futures.failedFuture(new WriteTooLongException(data.getLength(), getMaxAppendLength()));
+        if (data.getLength() > BookKeeperConfig.MAX_APPEND_LENGTH) {
+            return Futures.failedFuture(new WriteTooLongException(data.getLength(), BookKeeperConfig.MAX_APPEND_LENGTH));
         }
 
         Timer timer = new Timer();
@@ -335,8 +336,10 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     @Override
-    public int getMaxAppendLength() {
-        return BookKeeperConfig.MAX_APPEND_LENGTH;
+    public WriteSettings getWriteSettings() {
+        return new WriteSettings(BookKeeperConfig.MAX_APPEND_LENGTH,
+                Duration.ofMillis(this.config.getBkWriteTimeoutMillis()),
+                this.config.getMaxOutstandingBytes());
     }
 
     @Override

@@ -10,7 +10,9 @@
 package io.pravega.segmentstore.server.logs;
 
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.test.common.AssertExtensions;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -103,21 +105,27 @@ public class ThrottlerCalculatorTests {
 
     @Test
     public void testDurableDataLog() {
-        val fillRatio = 0.5;
-        val thresholdMillis = ThrottlerCalculator.DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS;
+        val halfRatio = 0.5;
+        val maxWriteSize = 12345;
+        val maxQueueCount = 123;
+        val maxOutstandingBytes = maxWriteSize * maxQueueCount;
+        val minThrottleThreshold = (int) (maxOutstandingBytes * ThrottlerCalculator.DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION / maxWriteSize);
+        val maxThrottleThreshold = (int) ((double) maxOutstandingBytes / maxWriteSize);
+        val writeSettings = new WriteSettings(maxWriteSize, Duration.ofMillis(1234), maxOutstandingBytes);
+        val thresholdMillis = (int) (writeSettings.getMaxWriteTimeout().toMillis() * ThrottlerCalculator.DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
         val queueStats = new AtomicReference<QueueStats>(null);
-        val tc = ThrottlerCalculator.builder().durableDataLogThrottler(queueStats::get).build();
+        val tc = ThrottlerCalculator.builder().durableDataLogThrottler(writeSettings, queueStats::get).build();
         val noThrottling = new QueueStats[]{
-                new QueueStats(1, fillRatio, thresholdMillis - 1),
-                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD + 1, fillRatio, thresholdMillis),
-                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_COUNT_THRESHOLD, fillRatio, thresholdMillis + 1)};
+                new QueueStats(1, halfRatio, thresholdMillis - 1),
+                new QueueStats(minThrottleThreshold + 1, 1.0, thresholdMillis),
+                new QueueStats(maxThrottleThreshold * 2, 1.0, thresholdMillis)};
         val gradualThrottling = new QueueStats[]{
-                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_COUNT_THRESHOLD + 1, fillRatio, thresholdMillis + 1),
-                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_COUNT_THRESHOLD + 5, fillRatio, thresholdMillis + 1),
-                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD, fillRatio, thresholdMillis + 1)};
+                new QueueStats((int) (minThrottleThreshold / halfRatio) + 2, halfRatio, thresholdMillis + 1),
+                new QueueStats((int) (minThrottleThreshold / halfRatio) + 10, halfRatio, thresholdMillis + 1),
+                new QueueStats((int) (maxOutstandingBytes / halfRatio), halfRatio, thresholdMillis + 1)};
         val maxThrottling = new QueueStats[]{
-                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD + 1, fillRatio, thresholdMillis + 1),
-                new QueueStats(ThrottlerCalculator.DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD * 2, fillRatio, thresholdMillis + 1)};
+                new QueueStats((int) (maxOutstandingBytes / halfRatio) + 1, halfRatio, thresholdMillis + 1),
+                new QueueStats((int) (maxOutstandingBytes / halfRatio) * 2, halfRatio, thresholdMillis + 1)};
         testThrottling(tc, queueStats, noThrottling, gradualThrottling, maxThrottling);
     }
 

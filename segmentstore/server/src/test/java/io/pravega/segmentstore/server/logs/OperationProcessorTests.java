@@ -43,6 +43,7 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.ThrottleSourceListener;
+import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -655,8 +656,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
         }
 
         @Override
-        public int getMaxAppendLength() {
-            return 1024 * 1024;
+        public WriteSettings getWriteSettings() {
+            return new WriteSettings(1024 * 1024, Duration.ofMinutes(1), Integer.MAX_VALUE);
         }
 
         @Override
