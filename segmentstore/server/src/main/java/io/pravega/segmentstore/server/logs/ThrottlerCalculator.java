@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.MathHelpers;
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.WriteSettings;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -68,17 +69,12 @@ class ThrottlerCalculator {
     @VisibleForTesting
     static final int COMMIT_BACKLOG_COUNT_FULL_THROTTLE_THRESHOLD = 500;
     /**
-     * DurableDataLog queue size at or above which the maximum throttling will apply.
+     * A multiplier (fraction) that will be applied to {@link WriteSettings#getMaxWriteTimeout()} to determine the
+     * DurableDataLog's append latency threshold that will trigger throttling and {@link WriteSettings#getMaxOutstandingBytes()}
+     * to determine the minimum amount of outstanding data for which throttling will be performed.
      */
     @VisibleForTesting
-    static final int DURABLE_DATALOG_COUNT_THRESHOLD = 10;
-    /**
-     * DurableDataLog queue size at or above which the maximum throttling will apply.
-     */
-    @VisibleForTesting
-    static final int DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD = 200;
-    @VisibleForTesting
-    static final int DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS = 500;
+    static final double DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION = 0.1;
     @Singular
     private final List<Throttler> throttlers;
 
@@ -274,12 +270,24 @@ class ThrottlerCalculator {
         }
     }
 
-    @RequiredArgsConstructor
+    /**
+     * Calculates the amount of time to wait before processing more operations from the queue in order to relieve pressure
+     * from the DurableDataLog. This is based on static information from the DurableDataLog's {@link WriteSettings} and dynamic
+     * information from its {@link QueueStats}.
+     */
     private static class DurableDataLogThrottler extends Throttler {
-        private static final int BASE_DELAY =
-                calculateBaseDelay(DURABLE_DATALOG_FULL_THROTTLE_THRESHOLD, DurableDataLogThrottler::getDelayMultiplier);
-        @NonNull
+        private final int thresholdMillis;
+        private final int baseDelay;
+        private final int minThrottleThreshold;
         private final Supplier<QueueStats> getQueueStats;
+
+        DurableDataLogThrottler(@NonNull WriteSettings writeSettings, @NonNull Supplier<QueueStats> getQueueStats) {
+            this.thresholdMillis = (int) Math.floor(writeSettings.getMaxWriteTimeout().toMillis() * DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
+            int maxThrottleThreshold = writeSettings.getMaxOutstandingBytes() / writeSettings.getMaxWriteLength();
+            this.minThrottleThreshold = (int) Math.floor(maxThrottleThreshold * DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
+            this.baseDelay = calculateBaseDelay(maxThrottleThreshold, this::getDelayMultiplier);
+            this.getQueueStats = getQueueStats;
+        }
 
         @Override
         boolean isThrottlingRequired() {
@@ -287,21 +295,21 @@ class ThrottlerCalculator {
         }
 
         private boolean isThrottlingRequired(QueueStats stats) {
-            return stats.getExpectedProcessingTimeMillis() > DURABLE_DATALOG_PROCESSING_TIME_THROTTLE_THRESHOLD_MILLIS
-                    && stats.getSize() > DURABLE_DATALOG_COUNT_THRESHOLD;
+            return stats.getExpectedProcessingTimeMillis() > this.thresholdMillis;
         }
 
         @Override
         int getDelayMillis() {
             QueueStats stats = this.getQueueStats.get();
             if (isThrottlingRequired(stats)) {
-                return getDelayMultiplier(stats.getSize()) * BASE_DELAY;
+                int outstandingBytes = (int) (stats.getSize() * stats.getAverageItemFillRatio());
+                return getDelayMultiplier(outstandingBytes) * this.baseDelay;
             }
             return 0;
         }
 
-        static int getDelayMultiplier(int queueSize) {
-            return queueSize - DURABLE_DATALOG_COUNT_THRESHOLD;
+        private int getDelayMultiplier(int outstandingBytes) {
+            return outstandingBytes - this.minThrottleThreshold;
         }
 
         @Override
@@ -353,8 +361,8 @@ class ThrottlerCalculator {
             return throttler(new CommitBacklogThrottler(getCommitBacklogCount));
         }
 
-        ThrottlerCalculatorBuilder durableDataLogThrottler(Supplier<QueueStats> getQueueStats) {
-            return throttler(new DurableDataLogThrottler(getQueueStats));
+        ThrottlerCalculatorBuilder durableDataLogThrottler(WriteSettings writeSettings, Supplier<QueueStats> getQueueStats) {
+            return throttler(new DurableDataLogThrottler(writeSettings, getQueueStats));
         }
     }
 

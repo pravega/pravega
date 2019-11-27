@@ -68,7 +68,7 @@ class DataFrameBuilder<T extends SequencedItemList.Element> implements AutoClose
         this.args = Preconditions.checkNotNull(args, "args");
         Preconditions.checkNotNull(args.commitSuccess, "args.commitSuccess");
         Preconditions.checkNotNull(args.commitFailure, "args.commitFailure");
-        this.outputStream = new DataFrameOutputStream(targetLog.getMaxAppendLength(), this::handleDataFrameComplete);
+        this.outputStream = new DataFrameOutputStream(targetLog.getWriteSettings().getMaxWriteLength(), this::handleDataFrameComplete);
         this.lastSerializedSequenceNumber = -1;
         this.lastStartedSequenceNumber = -1;
         this.failureCause = new AtomicReference<>();

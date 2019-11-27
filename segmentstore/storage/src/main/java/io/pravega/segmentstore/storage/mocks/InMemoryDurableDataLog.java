@@ -23,6 +23,7 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.ThrottleSourceListener;
+import io.pravega.segmentstore.storage.WriteSettings;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
@@ -121,8 +122,8 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public int getMaxAppendLength() {
-        return this.entries.getMaxAppendSize();
+    public WriteSettings getWriteSettings() {
+        return new WriteSettings(this.entries.getMaxAppendSize(), Duration.ofMinutes(1), Integer.MAX_VALUE);
     }
 
     @Override
