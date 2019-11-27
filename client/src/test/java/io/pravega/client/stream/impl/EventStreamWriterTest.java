@@ -386,7 +386,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         StreamImpl stream = new StreamImpl(scope, streamName);
         Segment segment = new Segment(scope, streamName, 0);
         UUID txid = UUID.randomUUID();
-        EventWriterConfig config = EventWriterConfig.builder().transactionTimeoutTime(0).build();
+        EventWriterConfig config = EventWriterConfig.builder().build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
@@ -421,7 +421,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         StreamImpl stream = new StreamImpl(scope, streamName);
         Segment segment = new Segment(scope, streamName, 0);
         UUID txid = UUID.randomUUID();
-        EventWriterConfig config = EventWriterConfig.builder().transactionTimeoutTime(0).build();
+        EventWriterConfig config = EventWriterConfig.builder().build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));

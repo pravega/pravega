@@ -12,9 +12,9 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
+import io.pravega.common.Exceptions;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -24,8 +24,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
-
-import io.pravega.common.Exceptions;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -55,8 +53,8 @@ public class Pinger implements AutoCloseable {
     private final AtomicBoolean isStarted = new AtomicBoolean();
     private final AtomicReference<ScheduledFuture<?>> scheduledFuture = new AtomicReference<>();
 
-    Pinger(EventWriterConfig config, Stream stream, Controller controller, ScheduledExecutorService executor) {
-        this.txnLeaseMillis = config.getTransactionTimeoutTime();
+    Pinger(long txnLeaseMillis, Stream stream, Controller controller, ScheduledExecutorService executor) {
+        this.txnLeaseMillis = txnLeaseMillis;
         this.pingIntervalMillis = getPingInterval();
         this.stream = stream;
         this.controller = controller;
