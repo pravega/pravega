@@ -10,6 +10,8 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
@@ -22,6 +24,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
+
+import io.pravega.common.Exceptions;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -102,6 +106,12 @@ public class Pinger implements AutoCloseable {
                     controller.pingTransaction(stream, uuid, txnLeaseMillis)
                               .whenComplete((status, e) -> {
                                   if (e != null) {
+                                      Throwable unwrap = Exceptions.unwrap(e);
+                                      if (unwrap instanceof StatusRuntimeException && 
+                                              ((StatusRuntimeException) unwrap).getStatus().equals(Status.NOT_FOUND)) {
+                                          log.info("Ping Transaction for txn ID:{} did not find the transaction");
+                                          completedTxns.add(uuid);
+                                      }
                                       log.warn("Ping Transaction for txn ID:{} failed", uuid, unwrap(e));
                                   } else if (Transaction.PingStatus.ABORTED.equals(status) || Transaction.PingStatus.COMMITTED.equals(status)) {
                                       completedTxns.add(uuid);
