@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream;
 
+import com.google.common.base.Preconditions;
 import java.io.Serializable;
 
 import lombok.Builder;
@@ -65,9 +66,13 @@ public class EventWriterConfig implements Serializable {
         private boolean enableConnectionPooling = false;
         
         public EventWriterConfig build() {
+            Preconditions.checkArgument(transactionTimeoutTime >= MIN_TRANSACTION_TIMEOUT_TIME, "Transaction time must be at least 10 seconds.");
+            Preconditions.checkArgument(initalBackoffMillis >= 0, "Backoff times must be positive numbers");
+            Preconditions.checkArgument(maxBackoffMillis >= 0, "Backoff times must be positive numbers");
+            Preconditions.checkArgument(retryAttempts >= 0, "Retry attempts must be a positive number");
             return new EventWriterConfig(initalBackoffMillis, maxBackoffMillis, retryAttempts, backoffMultiple,
                                          enableConnectionPooling,
-                                         Math.max(this.transactionTimeoutTime, MIN_TRANSACTION_TIMEOUT_TIME),
+                                         transactionTimeoutTime,
                                          automaticallyNoteTime);
         }
     }
