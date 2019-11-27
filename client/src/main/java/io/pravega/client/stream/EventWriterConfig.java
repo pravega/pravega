@@ -54,6 +54,7 @@ public class EventWriterConfig implements Serializable {
     private final boolean automaticallyNoteTime;
 
     public static final class EventWriterConfigBuilder {
+        private static final long MIN_TRANSACTION_TIMEOUT_TIME = 10000;
         private int initalBackoffMillis = 1;
         private int maxBackoffMillis = 20000;
         private int retryAttempts = 10;
@@ -62,5 +63,12 @@ public class EventWriterConfig implements Serializable {
         private boolean automaticallyNoteTime = false; 
         // connection pooling for event writers is disabled by default.
         private boolean enableConnectionPooling = false;
+        
+        public EventWriterConfig build() {
+            return new EventWriterConfig(initalBackoffMillis, maxBackoffMillis, retryAttempts, backoffMultiple,
+                                         enableConnectionPooling,
+                                         Math.max(this.transactionTimeoutTime, MIN_TRANSACTION_TIMEOUT_TIME),
+                                         automaticallyNoteTime);
+        }
     }
 }
