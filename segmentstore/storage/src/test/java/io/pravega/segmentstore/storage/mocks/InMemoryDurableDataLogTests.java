@@ -46,6 +46,12 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
     }
 
     @Override
+    @Test
+    public void testRegisterQueueStateListener() {
+        // Nothing to test as this functionality is not implemented here.
+    }
+
+    @Override
     protected DurableDataLog createDurableDataLog() {
         return this.factory.createDurableDataLog(this.nextContainerId.get());
     }
