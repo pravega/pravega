@@ -53,6 +53,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 
 public class EventStreamWriterTest extends ThreadPooledTestSuite {
@@ -385,13 +386,13 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         StreamImpl stream = new StreamImpl(scope, streamName);
         Segment segment = new Segment(scope, streamName, 0);
         UUID txid = UUID.randomUUID();
-        EventWriterConfig config = EventWriterConfig.builder().transactionTimeoutTime(0).build();
+        EventWriterConfig config = EventWriterConfig.builder().build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
         FakeSegmentOutputStream bad = new FakeSegmentOutputStream(segment);
-        Mockito.when(controller.createTransaction(stream, 0))
+        Mockito.when(controller.createTransaction(eq(stream), anyLong()))
                .thenReturn(CompletableFuture.completedFuture(new TxnSegments(getSegments(segment), txid)));
         Mockito.when(streamFactory.createOutputStreamForTransaction(eq(segment), eq(txid), any(), any()))
                 .thenReturn(outputStream);
@@ -420,13 +421,13 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         StreamImpl stream = new StreamImpl(scope, streamName);
         Segment segment = new Segment(scope, streamName, 0);
         UUID txid = UUID.randomUUID();
-        EventWriterConfig config = EventWriterConfig.builder().transactionTimeoutTime(0).build();
+        EventWriterConfig config = EventWriterConfig.builder().build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
         FakeSegmentOutputStream bad = new FakeSegmentOutputStream(segment);
-        Mockito.when(controller.createTransaction(stream, 0))
+        Mockito.when(controller.createTransaction(eq(stream), anyLong()))
                .thenReturn(CompletableFuture.completedFuture(new TxnSegments(getSegments(segment), txid)));
         Mockito.when(streamFactory.createOutputStreamForTransaction(eq(segment), eq(txid), any(), any()))
                 .thenReturn(outputStream);

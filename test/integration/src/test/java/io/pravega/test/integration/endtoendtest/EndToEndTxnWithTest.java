@@ -209,10 +209,12 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         EventWriterConfig validConfig = EventWriterConfig.builder().transactionTimeoutTime(10000).build();
         assertNotNull(createTxn(clientFactory, validConfig, "test"));
 
-        EventWriterConfig lowTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(1000).build();
         AssertExtensions.assertThrows("low timeout period not honoured",
-                () -> createTxn(clientFactory, lowTimeoutConfig, "test"),
-                e -> Exceptions.unwrap(e.getCause()) instanceof IllegalArgumentException);
+                () -> {
+                    EventWriterConfig lowTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(1000).build();
+                    createTxn(clientFactory, lowTimeoutConfig, "test");
+                },
+                e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
 
         EventWriterConfig highTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(200 * 1000).build();
         AssertExtensions.assertThrows("high timeouot period not honoured",

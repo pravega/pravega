@@ -60,7 +60,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         this.outputStreamFactory = Preconditions.checkNotNull(outputStreamFactory);
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
-        this.pinger = new Pinger(config, stream, controller, executor);
+        this.pinger = new Pinger(config.getTransactionTimeoutTime(), stream, controller, executor);
     }
 
     @RequiredArgsConstructor
