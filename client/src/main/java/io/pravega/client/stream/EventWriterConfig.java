@@ -68,6 +68,7 @@ public class EventWriterConfig implements Serializable {
         public EventWriterConfig build() {
             Preconditions.checkArgument(transactionTimeoutTime >= MIN_TRANSACTION_TIMEOUT_TIME_MILLIS, "Transaction time must be at least 10 seconds.");
             Preconditions.checkArgument(initalBackoffMillis >= 0, "Backoff times must be positive numbers");
+            Preconditions.checkArgument(backoffMultiple >= 0, "Backoff multiple must be positive numbers");
             Preconditions.checkArgument(maxBackoffMillis >= 0, "Backoff times must be positive numbers");
             Preconditions.checkArgument(retryAttempts >= 0, "Retry attempts must be a positive number");
             return new EventWriterConfig(initalBackoffMillis, maxBackoffMillis, retryAttempts, backoffMultiple,
