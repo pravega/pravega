@@ -383,6 +383,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
     /**
      * Tests the ability to register a {@link ThrottleSourceListener} and notify it of updates.
+     * @throws Exception If an error occurred.
      */
     @Test
     public void testRegisterQueueStateListener() throws Exception {
