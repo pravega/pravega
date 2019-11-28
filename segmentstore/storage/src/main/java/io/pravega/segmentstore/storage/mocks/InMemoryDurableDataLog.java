@@ -24,6 +24,7 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.WriteSettings;
+import io.pravega.segmentstore.storage.WriteTooLongException;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
@@ -148,6 +149,10 @@ class InMemoryDurableDataLog implements DurableDataLog {
     @Override
     public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
         ensurePreconditions();
+        if (data.getLength() > getWriteSettings().getMaxWriteLength()) {
+            return Futures.failedFuture(new WriteTooLongException(data.getLength(), getWriteSettings().getMaxWriteLength()));
+        }
+
         CompletableFuture<LogAddress> result;
         try {
             Entry entry = new Entry(data);
