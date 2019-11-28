@@ -214,12 +214,25 @@ class WriteQueue {
 
     //endregion
 
+    //region CleanupResult
+
+    /**
+     * The result of a call to {@link #removeFinishedWrites()}.
+     */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     @Getter
     static class CleanupResult {
+        /**
+         * The final status of the queue.
+         */
         private final CleanupStatus status;
+        /**
+         * The number of removed writes.
+         */
         private final int removedCount;
     }
+
+    //endregion
 
     //region CleanupStatus
 
