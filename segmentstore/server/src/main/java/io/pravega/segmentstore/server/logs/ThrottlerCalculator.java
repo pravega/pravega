@@ -274,6 +274,14 @@ class ThrottlerCalculator {
      * Calculates the amount of time to wait before processing more operations from the queue in order to relieve pressure
      * from the DurableDataLog. This is based on static information from the DurableDataLog's {@link WriteSettings} and dynamic
      * information from its {@link QueueStats}.
+     *
+     * In order to perform efficient comparisons, the {@link WriteSettings} information (reported in bytes) needs to be
+     * converted into the same unit as what's reported by {@link QueueStats} (number of items in the queue and average fill ratio):
+     * - The max throttling threshold is obtained by dividing the {@link WriteSettings#getMaxOutstandingBytes()} by {@link WriteSettings#getMaxWriteLength()}.
+     * - The min throttling threshold is a fraction of the max threshold ({@link #DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION}).
+     * - The adjusted queue size is obtained by multiplying {@link QueueStats#getSize()} by {@link QueueStats#getAverageItemFillRatio()}.
+     *
+     * This allows us to compare adjusted queue size directly with min-max throttling thresholds.
      */
     private static class DurableDataLogThrottler extends Throttler {
         private final int thresholdMillis;
@@ -282,7 +290,10 @@ class ThrottlerCalculator {
         private final Supplier<QueueStats> getQueueStats;
 
         DurableDataLogThrottler(@NonNull WriteSettings writeSettings, @NonNull Supplier<QueueStats> getQueueStats) {
+            // Calculate the latency threshold as a fraction of the WriteSettings' Max Write Timeout.
             this.thresholdMillis = (int) Math.floor(writeSettings.getMaxWriteTimeout().toMillis() * DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
+
+            // Calculate max and min throttling thresholds (see Javadoc above for explanation).
             int maxThrottleThreshold = writeSettings.getMaxOutstandingBytes() / writeSettings.getMaxWriteLength();
             this.minThrottleThreshold = (int) Math.floor(maxThrottleThreshold * DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
             this.baseDelay = calculateBaseDelay(maxThrottleThreshold, this::getDelayMultiplier);
@@ -302,14 +313,15 @@ class ThrottlerCalculator {
         int getDelayMillis() {
             QueueStats stats = this.getQueueStats.get();
             if (isThrottlingRequired(stats)) {
-                int outstandingBytes = (int) (stats.getSize() * stats.getAverageItemFillRatio());
-                return getDelayMultiplier(outstandingBytes) * this.baseDelay;
+                // Calculate the adjusted queue size (see Javadoc above for explanation).
+                int adjustedQueueSize = (int) (stats.getSize() * stats.getAverageItemFillRatio());
+                return getDelayMultiplier(adjustedQueueSize) * this.baseDelay;
             }
             return 0;
         }
 
-        private int getDelayMultiplier(int outstandingBytes) {
-            return outstandingBytes - this.minThrottleThreshold;
+        private int getDelayMultiplier(int adjustedQueueSize) {
+            return adjustedQueueSize - this.minThrottleThreshold;
         }
 
         @Override
@@ -426,6 +438,9 @@ class ThrottlerCalculator {
          * Throttling is required due to excessive size of the Commit (Memory) Backlog Queue.
          */
         CommitBacklog,
+        /**
+         * Throttlign is required due to excessive size of DurableDataLog's in-flight queue.
+         */
         DurableDataLog,
     }
 
