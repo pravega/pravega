@@ -14,7 +14,7 @@ import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.InvalidPropertyValueException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import lombok.Getter;
@@ -34,8 +34,9 @@ public class BookKeeperConfig {
     public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("bkEnsembleSize", 3);
     public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 2);
     public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("bkWriteQuorumSize", 3);
-    public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("bkWriteTimeoutMillis", 5000);
-    public static final Property<Integer> BK_READ_TIMEOUT = Property.named("readTimeoutMillis", 5000);
+    public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("bkWriteTimeoutMillis", 60000);
+    public static final Property<Integer> BK_READ_TIMEOUT = Property.named("readTimeoutMillis", 30000);
+    public static final Property<Integer> MAX_OUTSTANDING_BYTES = Property.named("maxOutstandingBytes", 256 * 1024 * 1024);
     public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("bkLedgerMaxSize", 1024 * 1024 * 1024);
     public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
     public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
@@ -127,6 +128,13 @@ public class BookKeeperConfig {
     private final int bkReadTimeoutMillis;
 
     /**
+     * The maximum number of bytes that can be outstanding per BookKeeperLog at any given time. This value should be used
+     * for throttling purposes.
+     */
+    @Getter
+    private final int maxOutstandingBytes;
+
+    /**
      * The Maximum size of a ledger, in bytes. On or around this value the current ledger is closed and a new one
      * is created. By design, this property cannot be larger than Int.MAX_VALUE, since we want Ledger Entry Ids to be
      * representable with an Int.
@@ -176,8 +184,9 @@ public class BookKeeperConfig {
 
         this.bkWriteTimeoutMillis = properties.getInt(BK_WRITE_TIMEOUT);
         this.bkReadTimeoutMillis = properties.getInt(BK_READ_TIMEOUT);
+        this.maxOutstandingBytes = properties.getInt(MAX_OUTSTANDING_BYTES);
         this.bkLedgerMaxSize = properties.getInt(BK_LEDGER_MAX_SIZE);
-        this.bkPassword = properties.get(BK_PASSWORD).getBytes(Charset.forName("UTF-8"));
+        this.bkPassword = properties.get(BK_PASSWORD).getBytes(StandardCharsets.UTF_8);
         this.isTLSEnabled = properties.getBoolean(BK_TLS_ENABLED);
         this.tlsTrustStore = properties.get(TLS_TRUST_STORE_PATH);
         this.tlsTrustStorePasswordPath = properties.get(TLS_TRUST_STORE_PASSWORD_PATH);

@@ -10,9 +10,10 @@
 package io.pravega.segmentstore.server.logs;
 
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.test.common.AssertExtensions;
+import java.time.Duration;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.val;
@@ -102,8 +103,33 @@ public class ThrottlerCalculatorTests {
               });
     }
 
+    @Test
+    public void testDurableDataLog() {
+        val halfRatio = 0.5;
+        val maxWriteSize = 12345;
+        val maxQueueCount = 123;
+        val maxOutstandingBytes = maxWriteSize * maxQueueCount;
+        val minThrottleThreshold = (int) (maxOutstandingBytes * ThrottlerCalculator.DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION / maxWriteSize);
+        val maxThrottleThreshold = (int) ((double) maxOutstandingBytes / maxWriteSize);
+        val writeSettings = new WriteSettings(maxWriteSize, Duration.ofMillis(1234), maxOutstandingBytes);
+        val thresholdMillis = (int) (writeSettings.getMaxWriteTimeout().toMillis() * ThrottlerCalculator.DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
+        val queueStats = new AtomicReference<QueueStats>(null);
+        val tc = ThrottlerCalculator.builder().durableDataLogThrottler(writeSettings, queueStats::get).build();
+        val noThrottling = new QueueStats[]{
+                new QueueStats(1, halfRatio, thresholdMillis - 1),
+                new QueueStats(minThrottleThreshold + 1, 1.0, thresholdMillis),
+                new QueueStats(maxThrottleThreshold * 2, 1.0, thresholdMillis)};
+        val gradualThrottling = new QueueStats[]{
+                new QueueStats((int) (minThrottleThreshold / halfRatio) + 2, halfRatio, thresholdMillis + 1),
+                new QueueStats((int) (minThrottleThreshold / halfRatio) + 10, halfRatio, thresholdMillis + 1),
+                new QueueStats((int) (maxOutstandingBytes / halfRatio), halfRatio, thresholdMillis + 1)};
+        val maxThrottling = new QueueStats[]{
+                new QueueStats((int) (maxOutstandingBytes / halfRatio) + 1, halfRatio, thresholdMillis + 1),
+                new QueueStats((int) (maxOutstandingBytes / halfRatio) * 2, halfRatio, thresholdMillis + 1)};
+        testThrottling(tc, queueStats, noThrottling, gradualThrottling, maxThrottling);
+    }
 
-    private <T extends Comparable<T>> void testThrottling(ThrottlerCalculator tc, AtomicReference<T> inputValue, T[] noThrottleValues, T[] gradualThrottleValues, T[] maxThrottleValues) {
+    private <T> void testThrottling(ThrottlerCalculator tc, AtomicReference<T> inputValue, T[] noThrottleValues, T[] gradualThrottleValues, T[] maxThrottleValues) {
         // Test for values where we don't expect throttling.
         Arrays.stream(noThrottleValues)
                 .forEach(v -> {
@@ -119,8 +145,7 @@ public class ThrottlerCalculatorTests {
         AtomicInteger lastValue = new AtomicInteger();
         Arrays.stream(gradualThrottleValues)
                 .forEach(v -> {
-                    // For this test, we want our test values to be pre-sorted.
-                    Assert.assertTrue("Test setup failure: non-increasing test value.", Comparator.<T>naturalOrder().compare(inputValue.get(), v) < 0);
+                    // For this test, we need our test values to be pre-sorted in ascending order of throttling size.
                     inputValue.set(v);
                     Assert.assertTrue("Unexpected value from isThrottlingRequired() when throttling is expected: " + v,
                             tc.isThrottlingRequired());

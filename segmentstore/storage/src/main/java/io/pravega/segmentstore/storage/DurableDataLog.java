@@ -123,9 +123,10 @@ public interface DurableDataLog extends AutoCloseable {
     CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException;
 
     /**
-     * Gets the maximum number of bytes allowed for a single append.
+     * Gets a {@link WriteSettings} containing limitations for appends.
+     * @return A new {@link WriteSettings} object.
      */
-    int getMaxAppendLength();
+    WriteSettings getWriteSettings();
 
     /**
      * Gets a value indicating the current Epoch of this DurableDataLog.
@@ -149,6 +150,15 @@ public interface DurableDataLog extends AutoCloseable {
      * @return The result.
      */
     QueueStats getQueueStatistics();
+
+    /**
+     * Registers a {@link ThrottleSourceListener} that will be invoked every time the internal queue state changes by having
+     * added or removed from it.
+     *
+     * @param listener The {@link ThrottleSourceListener} to register. This listener will be unregistered when its
+     *                 {@link ThrottleSourceListener#isClosed()} is determined to be true.
+     */
+    void registerQueueStateChangeListener(ThrottleSourceListener listener);
 
     /**
      * Closes this instance of a DurableDataLog and releases any resources it holds.

@@ -22,7 +22,9 @@ import java.util.List;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
  * A specialized queue for BookKeeper writes. Provides methods for adding new items, determining the next items to execute,
@@ -168,11 +170,11 @@ class WriteQueue {
      * Removes all the completed writes (whether successful or failed) from the beginning of the queue, until the first
      * non-completed item is encountered or the queue is empty.
      *
-     * @return A CleanupStatus representing the state of the Operation. If there were failed writes, this will be WriteFailed,
-     * otherwise it will be one of QueueEmpty or QueueNotEmpty, depending on the final state of the queue when this method
-     * finishes.
+     * @return A CleanupResult representing the result of the Operation. If there were failed writes, {@link CleanupResult#getStatus()}
+     * will be {@link CleanupStatus#WriteFailed), otherwise it will be one of {@link CleanupStatus#QueueEmpty} or
+     * {@link CleanupStatus#QueueNotEmpty}, depending on the final state of the queue when this method finishes.
      */
-    synchronized CleanupStatus removeFinishedWrites() {
+    synchronized CleanupResult removeFinishedWrites() {
         Exceptions.checkNotClosed(this.closed, this);
         long currentTime = this.timeSupplier.get();
         long totalElapsed = 0;
@@ -190,9 +192,10 @@ class WriteQueue {
             this.lastDurationMillis = (int) (totalElapsed / removedCount / AbstractTimer.NANOS_TO_MILLIS);
         }
 
-        return failedWrite
+        CleanupStatus status = failedWrite
                 ? CleanupStatus.WriteFailed
                 : this.writes.isEmpty() ? CleanupStatus.QueueEmpty : CleanupStatus.QueueNotEmpty;
+        return new CleanupResult(status, removedCount);
     }
 
     /**
@@ -207,6 +210,26 @@ class WriteQueue {
         } else {
             return 0;
         }
+    }
+
+    //endregion
+
+    //region CleanupResult
+
+    /**
+     * The result of a call to {@link #removeFinishedWrites()}.
+     */
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    @Getter
+    static class CleanupResult {
+        /**
+         * The final status of the queue.
+         */
+        private final CleanupStatus status;
+        /**
+         * The number of removed writes.
+         */
+        private final int removedCount;
     }
 
     //endregion

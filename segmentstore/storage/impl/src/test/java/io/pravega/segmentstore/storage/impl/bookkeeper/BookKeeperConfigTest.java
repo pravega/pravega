@@ -33,8 +33,9 @@ public class BookKeeperConfigTest {
         Assert.assertEquals(3, cfg.getBkEnsembleSize());
         Assert.assertEquals(2, cfg.getBkAckQuorumSize());
         Assert.assertEquals(3, cfg.getBkWriteQuorumSize());
-        Assert.assertEquals(5000, cfg.getBkWriteTimeoutMillis());
-        Assert.assertEquals(5000, cfg.getBkReadTimeoutMillis());
+        Assert.assertEquals(60000, cfg.getBkWriteTimeoutMillis());
+        Assert.assertEquals(30000, cfg.getBkReadTimeoutMillis());
+        Assert.assertEquals(256 * 1024 * 1024, cfg.getMaxOutstandingBytes());
         Assert.assertEquals(1024 * 1024 * 1024, cfg.getBkLedgerMaxSize());
         Assert.assertEquals(0, cfg.getBKPassword().length);
         Assert.assertEquals("", cfg.getBkLedgerPath());
