@@ -11,6 +11,8 @@ package io.pravega.segmentstore.storage;
 
 import io.pravega.test.common.AssertExtensions;
 import java.time.Duration;
+import lombok.val;
+import org.junit.Assert;
 import org.junit.Test;
 
 /**
@@ -33,6 +35,10 @@ public class WriteSettingsTests {
                 ex -> ex instanceof IllegalArgumentException);
 
         // Verify valid args work.
-        new WriteSettings(1, Duration.ofMillis(1), 1);
+        val ws = new WriteSettings(1, Duration.ofMillis(2), 3);
+        Assert.assertEquals(1, ws.getMaxWriteLength());
+        Assert.assertEquals(2, ws.getMaxWriteTimeout().toMillis());
+        Assert.assertEquals(3, ws.getMaxOutstandingBytes());
+        ws.toString();
     }
 }

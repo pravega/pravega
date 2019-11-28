@@ -263,6 +263,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         cm.runOneIteration();
         Assert.assertEquals("Expected cleanup listener to be invoked the second time.", 2, l1.getCallCount());
         Assert.assertEquals("Not expecting cleanup listener to be invoked the second time for closed listener.", 1, l2.getCallCount());
+        cm.registerCleanupListener(l2); // This should have no effect.
     }
 
     private static class TestCleanupListener implements ThrottleSourceListener {

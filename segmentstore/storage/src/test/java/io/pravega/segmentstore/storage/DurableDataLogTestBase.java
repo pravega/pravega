@@ -63,6 +63,12 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
             log.initialize(TIMEOUT);
 
+            // Check that we cannot append data exceeding the max limit.
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "append() worked with buffer exceeding max size",
+                    () -> log.append(new ByteArraySegment(new byte[log.getWriteSettings().getMaxWriteLength() + 1]), TIMEOUT),
+                    ex -> ex instanceof WriteTooLongException);
+
             // Only verify sequence number monotonicity. We'll verify reads in its own test.
             LogAddress prevAddress = null;
             int writeCount = getWriteCount();
