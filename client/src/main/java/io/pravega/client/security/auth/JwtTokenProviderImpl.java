@@ -227,7 +227,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         long traceEnterId = LoggerHelpers.traceEnter(log, "refreshToken", this.scopeName, this.streamName);
         CompletableFuture<Void> currentRefreshFuture = tokenRefreshFuture.get();
         if (currentRefreshFuture == null) {
-            log.debug("Initiated token refresh for scope {} and stream {}", this.scopeName, this.streamName);
+            log.debug("Initiating token refresh for scope {} and stream {}", this.scopeName, this.streamName);
             currentRefreshFuture = this.recreateToken();
             this.tokenRefreshFuture.compareAndSet(null, currentRefreshFuture);
         } else {
