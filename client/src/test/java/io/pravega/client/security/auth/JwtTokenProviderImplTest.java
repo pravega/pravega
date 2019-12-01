@@ -9,13 +9,19 @@
  */
 package io.pravega.client.security.auth;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.Controller;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Test;
-
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.common.util.RetriesExhaustedException;
+import java.net.URI;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executors;
 import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
 
 import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
 import static io.pravega.client.security.auth.JwtTestUtils.dummyToken;
@@ -307,5 +313,59 @@ public class JwtTokenProviderImplTest {
                 JwtTestUtils.createJwtBody(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
                 "base64-encoded-signature");
         assertTrue(objectUnderTest.populateToken(newToken));
+    }
+
+    @Test(expected = CompletionException.class)
+    public void testRetrieveTokenFailsWhenClientCallToControllerFails() {
+        Controller mockController = mock(Controller.class);
+
+        CompletableFuture<String> tokenFuture = new CompletableFuture<>();
+        tokenFuture.completeExceptionally(new CompletionException(new RuntimeException("Failed to connect to server")));
+
+        when(mockController.getOrRefreshDelegationTokenFor("test-scope", "test-stream"))
+                .thenReturn(tokenFuture);
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(mockController, "test-scope", "test-stream");
+        try {
+            tokenProvider.retrieveToken().join();
+        } catch (CompletionException e) {
+            assertEquals(RuntimeException.class.getName(), e.getCause().getClass().getName());
+            throw e;
+        }
+    }
+
+    @Test(expected = CompletionException.class)
+    public void testRefreshTokenCompletesUponFailure() {
+        ClientConfig config = ClientConfig.builder().controllerURI(URI.create("tcp://non-existent-cluster:9090")).build();
+        Controller controllerClient = new ControllerImpl(
+                ControllerImplConfig.builder().clientConfig(config).retryAttempts(3).build(),
+                Executors.newScheduledThreadPool(3));
+
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controllerClient, "bob-0", "bob-0");
+        try {
+            tokenProvider.retrieveToken().join();
+        } catch (CompletionException e) {
+            assertEquals(RetriesExhaustedException.class.getName(), e.getCause().getClass().getName());
+            throw e;
+        }
+    }
+
+    @Test(expected = CompletionException.class)
+    public void testRefreshTokenCompletesUponFailureUponAConcurrentRefresh() throws InterruptedException {
+        ClientConfig config = ClientConfig.builder().controllerURI(
+                URI.create("tcp://non-existent-cluster:9090")).build();
+
+        Controller controllerClient = new ControllerImpl(
+                ControllerImplConfig.builder().clientConfig(config).retryAttempts(3).build(),
+                Executors.newScheduledThreadPool(3));
+
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controllerClient, "bob-0", "bob-0");
+        try {
+            tokenProvider.retrieveToken();
+            Thread.sleep(20);
+            tokenProvider.retrieveToken().join();
+        } catch (CompletionException e) {
+            assertEquals(RetriesExhaustedException.class.getName(), e.getCause().getClass().getName());
+            throw e;
+        }
     }
 }
