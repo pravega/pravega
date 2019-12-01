@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -239,6 +240,12 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
                     this.tokenRefreshFuture.compareAndSet(handleToCurrentRefreshFuture, null);
                     LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
                     return delegationToken.get().getValue();
+                })
+                .exceptionally(ex -> {
+                    this.tokenRefreshFuture.compareAndSet(handleToCurrentRefreshFuture, null);
+                    log.warn("Encountered an exception in refreshToken", ex);
+                    LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
+                    throw ex instanceof CompletionException ? (CompletionException)ex: new CompletionException(ex);
                 });
     }
 
