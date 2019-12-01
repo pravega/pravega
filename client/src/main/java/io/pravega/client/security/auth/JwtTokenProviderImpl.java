@@ -245,7 +245,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
                     this.tokenRefreshFuture.compareAndSet(handleToCurrentRefreshFuture, null);
                     log.warn("Encountered an exception in refreshToken", ex);
                     LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
-                    throw ex instanceof CompletionException ? (CompletionException)ex: new CompletionException(ex);
+                    throw ex instanceof CompletionException ? (CompletionException) ex : new CompletionException(ex);
                 });
     }
 
