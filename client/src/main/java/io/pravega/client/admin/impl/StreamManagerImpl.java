@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -111,6 +111,13 @@ public class StreamManagerImpl implements StreamManager {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Creating scope: {}", scopeName);
         return  Futures.getThrowingException(controller.createScope(scopeName));
+    }
+
+    @Override
+    public boolean createEvent(String eventName) {
+        NameUtils.validateUserScopeName(eventName);
+        log.info("Adding event to stream: {}", eventName);
+        return  Futures.getThrowingException(controller.createEvent(eventName));
     }
 
     @Override
