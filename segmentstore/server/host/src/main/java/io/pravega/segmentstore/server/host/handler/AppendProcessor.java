@@ -175,7 +175,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         long traceId = LoggerHelpers.traceEnter(log, "append", append);
         UUID id = append.getWriterId();
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
-        Preconditions.checkState(state != null, "Data from unexpected connection: %s.", id);
+        Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
         adjustOutstandingBytes(appendLength);
@@ -230,23 +230,26 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     // Revert the state to the last known good one. This is needed because we do not close the connection
                     // for offset-conditional append failures, hence we must revert the effects of the failed append.
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
-                    state.conditionalAppendFailed();
-                    connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber(), append.getRequestId()));
+                    synchronized (state.getAckLock()) {
+                        state.conditionalAppendFailed();
+                        connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber(), append.getRequestId()));
+                    }
                 } else {
-                    // Clear the state in case of error.
-                    this.writerStates.remove(Pair.of(append.getSegment(), append.getWriterId()));
-
                     // Record the exception handling into the Writer State. It will be executed once all the in-flight
                     // appends are drained.
-                    state.appendFailed(() ->
-                            handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
-                                    "appending data", exception));
+                    state.appendFailed(() -> {
+                        handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
+                                "appending data", exception);
+
+                        // Clear the state in case of error.
+                        this.writerStates.remove(Pair.of(append.getSegment(), append.getWriterId()));
+                    });
                 }
             }
 
             // After every append completes, check if we are done with this WriterState, and if we were asked to execute
             // something after that happens.
-            Runnable runWhenAllComplete = state.getRunWhenAllComplete();
+            Runnable runWhenAllComplete = state.fetchRunWhenAllComplete();
             if (runWhenAllComplete != null) {
                 synchronized (state.getAckLock()) {
                     runWhenAllComplete.run();
@@ -339,10 +342,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         @GuardedBy("this")
         private long inFlightCount;
         @GuardedBy("this")
+        private boolean closed;
+        @GuardedBy("this")
         private Runnable whenAllComplete;
 
         WriterState(long initialEventNumber) {
             this.inFlightCount = 0;
+            this.closed = false;
             this.lastStoredEventNumber = initialEventNumber;
             this.lastAckedEventNumber = initialEventNumber;
         }
@@ -354,7 +360,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
          * @return The previously attempted Event Number.
          */
         synchronized long beginAppend(long eventNumber) {
-            Preconditions.checkState(this.whenAllComplete == null, "Connection closed. Cannot begin new appends.");
+            Preconditions.checkState(!isClosed(), "Connection closed. Cannot begin new appends.");
             long previousEventNumber = this.lastStoredEventNumber;
             Preconditions.checkState(eventNumber >= previousEventNumber, "Event was already appended.");
             this.lastStoredEventNumber = eventNumber;
@@ -398,9 +404,19 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             return previousLastAcked;
         }
 
-        Runnable getRunWhenAllComplete() {
+        Runnable fetchRunWhenAllComplete() {
             synchronized (this) {
-                return this.inFlightCount == 0 ? this.whenAllComplete : null;
+                if (this.inFlightCount == 0) {
+                    Runnable result = this.whenAllComplete;
+                    this.whenAllComplete = null;
+                    if (result != null) {
+                        this.closed = true;
+                    }
+
+                    return result;
+                } else {
+                    return null;
+                }
             }
         }
 
@@ -412,6 +428,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         synchronized void appendFailed(Runnable runWhenAllComplete) {
             this.inFlightCount--;
             this.whenAllComplete = runWhenAllComplete;
+        }
+
+        @GuardedBy("this")
+        private boolean isClosed() {
+            return this.closed || this.whenAllComplete != null;
         }
 
         @Override
