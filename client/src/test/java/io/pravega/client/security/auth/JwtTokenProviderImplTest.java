@@ -25,7 +25,13 @@ import org.junit.Test;
 
 import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
 import static io.pravega.client.security.auth.JwtTestUtils.dummyToken;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -353,7 +359,7 @@ public class JwtTokenProviderImplTest {
                 ControllerImplConfig.builder().clientConfig(config).retryAttempts(1).build(),
                 Executors.newScheduledThreadPool(1));
 
-        JwtTokenProviderImpl tokenProvider = (JwtTokenProviderImpl)DelegationTokenProviderFactory.create(controllerClient,
+        JwtTokenProviderImpl tokenProvider = (JwtTokenProviderImpl) DelegationTokenProviderFactory.create(controllerClient,
                 "bob-0", "bob-0");
 
         try {
@@ -365,7 +371,7 @@ public class JwtTokenProviderImplTest {
         }
         try {
             tokenProvider.retrieveToken().join();
-        } catch(CompletionException e) {
+        } catch (CompletionException e) {
             log.info("Encountered CompletionException as expected");
             assertNull("Expected a null tokenRefreshFuture", tokenProvider.getTokenRefreshFuture().get());
         }
