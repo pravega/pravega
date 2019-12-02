@@ -28,6 +28,7 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.InputStream;
@@ -282,7 +283,7 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public void registerCleanupListener(CleanupListener listener) {
+        public void registerCleanupListener(ThrottleSourceListener listener) {
             throw new UnsupportedOperationException();
         }
 

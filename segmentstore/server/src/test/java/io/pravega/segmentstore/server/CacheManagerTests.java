@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server;
 
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -235,7 +236,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability to register, invoke and auto-unregister {@link CacheUtilizationProvider.CleanupListener} instances.
+     * Tests the ability to register, invoke and auto-unregister {@link ThrottleSourceListener} instances.
      */
     @Test
     public void testCleanupListeners() {
@@ -262,9 +263,10 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         cm.runOneIteration();
         Assert.assertEquals("Expected cleanup listener to be invoked the second time.", 2, l1.getCallCount());
         Assert.assertEquals("Not expecting cleanup listener to be invoked the second time for closed listener.", 1, l2.getCallCount());
+        cm.registerCleanupListener(l2); // This should have no effect.
     }
 
-    private static class TestCleanupListener implements CacheUtilizationProvider.CleanupListener {
+    private static class TestCleanupListener implements ThrottleSourceListener {
         @Getter
         private int callCount = 0;
         @Setter
@@ -272,7 +274,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         private boolean closed;
 
         @Override
-        public void cacheCleanupComplete() {
+        public void notifyThrottleSourceChanged() {
             this.callCount++;
         }
     }
