@@ -237,18 +237,17 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         }
 
         final CompletableFuture<Void> handleToCurrentRefreshFuture  = currentRefreshFuture;
-        return currentRefreshFuture.thenApply(v -> {
-                    // Token is already refreshed, so resetting the future to null.
-                    this.tokenRefreshFuture.compareAndSet(handleToCurrentRefreshFuture, null);
-                    LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
-                    return delegationToken.get().getValue();
-                })
-                .exceptionally(ex -> {
-                    this.tokenRefreshFuture.compareAndSet(handleToCurrentRefreshFuture, null);
-                    log.warn("Encountered an exception in refreshToken", ex);
-                    LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
-                    throw ex instanceof CompletionException ? (CompletionException) ex : new CompletionException(ex);
-                });
+        return currentRefreshFuture.handle((v, ex) -> {
+            this.tokenRefreshFuture.compareAndSet(handleToCurrentRefreshFuture, null);
+            LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
+            if (ex != null) {
+                log.warn("Encountered an exception in when refreshing token for scope {} and stream {}",
+                        this.scopeName, this.streamName, Exceptions.unwrap(ex));
+                throw ex instanceof CompletionException ? (CompletionException) ex : new CompletionException(ex);
+            } else {
+                return delegationToken.get().getValue();
+            }
+        });
     }
 
     private CompletableFuture<Void> recreateToken() {
