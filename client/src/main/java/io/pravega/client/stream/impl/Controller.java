@@ -30,21 +30,6 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public interface Controller extends AutoCloseable {
 
-    /**
-     * API to add a raw event to a stream. The future completes with true in the case the event did not get written
-     * when the controller executed the operation. In the case of a re-attempt to create the
-     * same event, the future completes with false to indicate that the event existed when the
-     * controller executed the operation.
-     *
-     * @param routingKey routing Key
-     * @param scopeName scope Name
-     * @param streamName stream Name
-     * @param message the raw message of the stream
-     * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     *         indicate that the event was added because it did not already exist.
-     */
-    CompletableFuture<Boolean> createEvent(final String routingKey, final String scopeName, final String streamName, final String message);
-
     // Controller Apis for administrative action for streams
 
     /**

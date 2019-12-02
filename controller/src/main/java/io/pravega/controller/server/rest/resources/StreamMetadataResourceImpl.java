@@ -37,7 +37,6 @@ import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
 import io.pravega.controller.server.rpc.auth.RESTAuthHelper;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -747,24 +746,5 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             }
         }).thenApply(asyncResponse::resume)
                 .thenAccept(x -> LoggerHelpers.traceLeave(log, "getScalingEvents", traceId));
-    }
-
-        controllerService.createEvent(createEventRequest.getRoutingKey(), createEventRequest.getScopeName(), createEventRequest.getStreamName(), createEventRequest.getMessage()).thenApply(eventStatus -> {
-            if (eventStatus.getStatus() == CreateScopeStatus.Status.SUCCESS) {
-                log.info("Successfully created new event: {}", createEventRequest.getEventName());
-                return Response.status(Status.CREATED).
-                        entity(new ScopeProperty().scopeName(createEventRequest.getEventName())).build();
-            } else if (eventStatus.getStatus() == CreateScopeStatus.Status.EVENT_EXISTS) {
-                log.warn("Event name: {} already exists", createEventRequest.getEventName());
-                return Response.status(Status.CONFLICT).build();
-            } else {
-                log.warn("Failed to create event: {}", createEventRequest.getEventName());
-                return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-            }
-        }).exceptionally(exception -> {
-            log.warn("createEvent for event: {} failed, exception: {}", createEventRequest.getEventName(), exception);
-            return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-        }).thenApply(asyncResponse::resume)
-                .thenAccept(x -> LoggerHelpers.traceLeave(log, "createEvent", traceId));
     }
 }
