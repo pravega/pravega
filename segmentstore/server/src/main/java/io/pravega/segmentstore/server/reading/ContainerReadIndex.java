@@ -22,6 +22,7 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -333,7 +334,7 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
-    public void registerCleanupListener(CleanupListener listener) {
+    public void registerCleanupListener(ThrottleSourceListener listener) {
         this.cacheManager.registerCleanupListener(listener);
     }
 

@@ -102,9 +102,11 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 .cacheThrottler(stateUpdater::getCacheUtilization, stateUpdater.getCacheTargetUtilization(), stateUpdater.getCacheMaxUtilization())
                 .commitBacklogThrottler(this.commitQueue::size)
                 .batchingThrottler(durableDataLog::getQueueStatistics)
+                .durableDataLogThrottler(durableDataLog.getWriteSettings(), durableDataLog::getQueueStatistics)
                 .build();
         this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, executor, this.metrics);
         this.stateUpdater.registerCleanupListener(this.throttler);
+        durableDataLog.registerQueueStateChangeListener(this.throttler);
     }
 
     //endregion

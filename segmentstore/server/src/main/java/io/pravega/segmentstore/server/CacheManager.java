@@ -19,6 +19,7 @@ import io.pravega.common.concurrent.Services;
 import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -62,7 +63,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     private final AtomicBoolean closed;
     private final SegmentStoreMetrics.CacheManager metrics;
     @GuardedBy("cleanupListeners")
-    private final HashSet<CleanupListener> cleanupListeners;
+    private final HashSet<ThrottleSourceListener> cleanupListeners;
     @Getter
     private final CacheStorage cacheStorage;
     private final Object lock = new Object();
@@ -170,9 +171,9 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     }
 
     @Override
-    public void registerCleanupListener(@NonNull CleanupListener listener) {
+    public void registerCleanupListener(@NonNull ThrottleSourceListener listener) {
         if (listener.isClosed()) {
-            log.warn("{} Attempted to register a closed Cleanup Listener ({}).", TRACE_OBJECT_ID, listener);
+            log.warn("{} Attempted to register a closed ThrottleSourceListener ({}).", TRACE_OBJECT_ID, listener);
             return;
         }
 
@@ -432,10 +433,10 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     }
 
     private void notifyCleanupListeners() {
-        ArrayList<CacheUtilizationProvider.CleanupListener> toNotify = new ArrayList<>();
-        ArrayList<CacheUtilizationProvider.CleanupListener> toRemove = new ArrayList<>();
+        ArrayList<ThrottleSourceListener> toNotify = new ArrayList<>();
+        ArrayList<ThrottleSourceListener> toRemove = new ArrayList<>();
         synchronized (this.cleanupListeners) {
-            for (CacheUtilizationProvider.CleanupListener l : this.cleanupListeners) {
+            for (ThrottleSourceListener l : this.cleanupListeners) {
                 if (l.isClosed()) {
                     toRemove.add(l);
                 } else {
@@ -446,9 +447,9 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             this.cleanupListeners.removeAll(toRemove);
         }
 
-        for (CacheUtilizationProvider.CleanupListener l : toNotify) {
+        for (ThrottleSourceListener l : toNotify) {
             try {
-                l.cacheCleanupComplete();
+                l.notifyThrottleSourceChanged();
             } catch (Throwable ex) {
                 if (Exceptions.mustRethrow(ex)) {
                     throw ex;

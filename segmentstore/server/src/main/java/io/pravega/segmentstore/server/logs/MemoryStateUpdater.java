@@ -25,6 +25,7 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.storage.cache.CacheFullException;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -83,7 +84,7 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
     }
 
     @Override
-    public void registerCleanupListener(CleanupListener listener) {
+    public void registerCleanupListener(ThrottleSourceListener listener) {
         this.readIndex.registerCleanupListener(listener);
     }
 
