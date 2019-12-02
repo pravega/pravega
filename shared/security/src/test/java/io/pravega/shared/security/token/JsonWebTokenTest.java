@@ -93,4 +93,11 @@ public class JsonWebTokenTest {
                 () ->  JsonWebToken.parseClaims("abx.mno.xyz", null)
         );
     }
+
+    @Test
+    public void testParseClaimsThrowsExceptionWhenSigningKeyIsInvalid() {
+        assertThrows(InvalidTokenException.class,
+                () ->  JsonWebToken.parseClaims("abx.mno.xyz", "abc".getBytes())
+        );
+    }
 }

@@ -83,6 +83,7 @@ import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
@@ -585,17 +586,40 @@ public class StreamTransactionMetadataTasksTest {
         streamStoreMock.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis(), null, executor).join();
         streamStoreMock.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
 
-        // Verify Ping transaction on committed transaction.
+        // Verify Ping transaction on committing transaction.
         Pair<VersionedTransactionData, List<StreamSegmentRecord>> txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, null).join();
         UUID txnId = txn.getKey().getId();
         txnTasks.commitTxn(SCOPE, STREAM, txnId, null).join();
         assertEquals(PingTxnStatus.Status.COMMITTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
 
-        // Verify Ping transaction on an aborted transaction.
+        // complete commit of transaction. 
+        streamStoreMock.startCommitTransactions(SCOPE, STREAM, null, executor).join();
+        val record = streamStoreMock.getVersionedCommittingTransactionsRecord(SCOPE, STREAM, null, executor).join();
+        streamStoreMock.completeCommitTransactions(SCOPE, STREAM, record, null, executor).join();
+
+        // verify that transaction is removed from active txn
+        AssertExtensions.assertFutureThrows("Fetching Active Txn record should throw DNF",
+                streamStoreMock.getTransactionData(SCOPE, STREAM, txnId, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        assertEquals(PingTxnStatus.Status.COMMITTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
+
+        // Verify Ping transaction on an aborting transaction.
         txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, null).join();
         txnId = txn.getKey().getId();
         txnTasks.abortTxn(SCOPE, STREAM, txnId, null, null).join();
         assertEquals(PingTxnStatus.Status.ABORTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
+
+        // now complete abort so that the transaction is removed from active txn and added to completed txn.
+        streamStoreMock.abortTransaction(SCOPE, STREAM, txnId, null, executor).join();
+        AssertExtensions.assertFutureThrows("Fetching Active Txn record should throw DNF", 
+                streamStoreMock.getTransactionData(SCOPE, STREAM, txnId, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        assertEquals(PingTxnStatus.Status.ABORTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
+
+        // try with a non existent transaction id 
+        assertEquals(PingTxnStatus.Status.UNKNOWN, 
+                txnTasks.pingTxn(SCOPE, STREAM, UUID.randomUUID(), 10000L, null).join().getStatus());
     }
     
     @Test(timeout = 10000)
