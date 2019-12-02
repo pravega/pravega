@@ -70,6 +70,8 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     private final AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
 
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final AtomicReference<CompletableFuture<Void>> tokenRefreshFuture = new AtomicReference<>();
 
     JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName) {
