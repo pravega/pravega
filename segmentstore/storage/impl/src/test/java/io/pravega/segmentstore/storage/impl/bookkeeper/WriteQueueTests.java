@@ -130,7 +130,7 @@ public class WriteQueueTests {
             if (!write.isDone()) {
                 val result1 = q.removeFinishedWrites();
                 Assert.assertEquals("Unexpected value from removeFinishedWrites when there were writes left in the queue.",
-                        WriteQueue.CleanupStatus.QueueNotEmpty, result1);
+                        WriteQueue.CleanupStatus.QueueNotEmpty, result1.getStatus());
                 val stats1 = q.getStatistics();
                 Assert.assertEquals("Unexpected size after removeFinishedWrites with no effect.", writes.size() + 1, stats1.getSize());
 
@@ -150,7 +150,7 @@ public class WriteQueueTests {
 
             val result2 = q.removeFinishedWrites();
             val expectedResult = writes.isEmpty() ? WriteQueue.CleanupStatus.QueueEmpty : WriteQueue.CleanupStatus.QueueNotEmpty;
-            Assert.assertEquals("Unexpected result from removeFinishedWrites.", expectedResult, result2);
+            Assert.assertEquals("Unexpected result from removeFinishedWrites.", expectedResult, result2.getStatus());
             val stats2 = q.getStatistics();
             Assert.assertEquals("Unexpected size after removeFinishedWrites.", writes.size(), stats2.getSize());
             Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis after clear.", expectedElapsed, stats2.getExpectedProcessingTimeMillis());
@@ -162,7 +162,7 @@ public class WriteQueueTests {
         w3.fail(new IntentionalException(), true);
         val result3 = q.removeFinishedWrites();
         Assert.assertEquals("Unexpected value from removeFinishedWrites when there were failed writes.",
-                WriteQueue.CleanupStatus.WriteFailed, result3);
+                WriteQueue.CleanupStatus.WriteFailed, result3.getStatus());
 
     }
 

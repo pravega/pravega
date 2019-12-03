@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -69,6 +70,8 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     private final AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
 
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final AtomicReference<CompletableFuture<Void>> tokenRefreshFuture = new AtomicReference<>();
 
     JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName) {
@@ -226,7 +229,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         long traceEnterId = LoggerHelpers.traceEnter(log, "refreshToken", this.scopeName, this.streamName);
         CompletableFuture<Void> currentRefreshFuture = tokenRefreshFuture.get();
         if (currentRefreshFuture == null) {
-            log.debug("Initiated token refresh for scope {} and stream {}", this.scopeName, this.streamName);
+            log.debug("Initiating token refresh for scope {} and stream {}", this.scopeName, this.streamName);
             currentRefreshFuture = this.recreateToken();
             this.tokenRefreshFuture.compareAndSet(null, currentRefreshFuture);
         } else {
@@ -234,12 +237,17 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         }
 
         final CompletableFuture<Void> handleToCurrentRefreshFuture  = currentRefreshFuture;
-        return currentRefreshFuture.thenApply(v -> {
-                    // Token is already refreshed, so resetting the future to null.
-                    this.tokenRefreshFuture.compareAndSet(handleToCurrentRefreshFuture, null);
-                    LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
-                    return delegationToken.get().getValue();
-                });
+        return currentRefreshFuture.handle((v, ex) -> {
+            this.tokenRefreshFuture.compareAndSet(handleToCurrentRefreshFuture, null);
+            LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
+            if (ex != null) {
+                log.warn("Encountered an exception in when refreshing token for scope {} and stream {}",
+                        this.scopeName, this.streamName, Exceptions.unwrap(ex));
+                throw ex instanceof CompletionException ? (CompletionException) ex : new CompletionException(ex);
+            } else {
+                return delegationToken.get().getValue();
+            }
+        });
     }
 
     private CompletableFuture<Void> recreateToken() {
