@@ -231,13 +231,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     // for offset-conditional append failures, hence we must revert the effects of the failed append.
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
                     synchronized (state.getAckLock()) {
-                        state.conditionalAppendFailed();
+                        state.conditionalAppendFailed(append.getEventNumber());
                         connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber(), append.getRequestId()));
                     }
                 } else {
                     // Record the exception handling into the Writer State. It will be executed once all the in-flight
                     // appends are drained.
-                    state.appendFailed(() -> {
+                    state.appendFailed(append.getEventNumber(), () -> {
                         handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
                                 "appending data", exception);
 
@@ -249,7 +249,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
             // After every append completes, check if we are done with this WriterState, and if we were asked to execute
             // something after that happens.
-            Runnable runWhenAllComplete = state.fetchRunWhenAllComplete();
+            Runnable runWhenAllComplete = state.getDelayedErrorHandlerIfEligible();
             if (runWhenAllComplete != null) {
                 synchronized (state.getAckLock()) {
                     runWhenAllComplete.run();
@@ -340,15 +340,12 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         @GuardedBy("this")
         private long lastAckedEventNumber;
         @GuardedBy("this")
-        private long inFlightCount;
+        private int inFlightCount;
         @GuardedBy("this")
-        private boolean closed;
-        @GuardedBy("this")
-        private Runnable whenAllComplete;
+        private ErrorContext errorContext;
 
         WriterState(long initialEventNumber) {
             this.inFlightCount = 0;
-            this.closed = false;
             this.lastStoredEventNumber = initialEventNumber;
             this.lastAckedEventNumber = initialEventNumber;
         }
@@ -360,7 +357,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
          * @return The previously attempted Event Number.
          */
         synchronized long beginAppend(long eventNumber) {
-            Preconditions.checkState(!isClosed(), "Connection closed. Cannot begin new appends.");
             long previousEventNumber = this.lastStoredEventNumber;
             Preconditions.checkState(eventNumber >= previousEventNumber, "Event was already appended.");
             this.lastStoredEventNumber = eventNumber;
@@ -371,11 +367,31 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         /**
          * Invoked when a conditional append has failed due to {@link BadOffsetException}. If no more appends are in the
          * pipeline, then the Last Stored Event Number is reverted to the Last (Successfully) Acked Event Number.
+         * @param eventNumber
          */
-        synchronized void conditionalAppendFailed() {
+        synchronized void conditionalAppendFailed(long eventNumber) {
             this.inFlightCount--;
             if (this.inFlightCount == 0) {
                 this.lastStoredEventNumber = this.lastAckedEventNumber;
+            }
+
+            if (this.errorContext != null) {
+                this.errorContext.appendComplete(eventNumber);
+            }
+        }
+
+        /**
+         * TODO: javadoc if this works well.
+         *
+         * @param eventNumber
+         * @param delayedErrorHandler
+         */
+        synchronized void appendFailed(long eventNumber, Runnable delayedErrorHandler) {
+            this.inFlightCount--;
+            if (this.errorContext == null) {
+                this.errorContext = new ErrorContext(this.lastStoredEventNumber, this.inFlightCount, delayedErrorHandler);
+            } else {
+                this.errorContext.appendComplete(eventNumber);
             }
         }
 
@@ -401,43 +417,54 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             this.inFlightCount--;
             long previousLastAcked = this.lastAckedEventNumber;
             this.lastAckedEventNumber = Math.max(previousLastAcked, eventNumber);
+            if (this.errorContext != null) {
+                this.errorContext.appendComplete(eventNumber);
+            }
+
             return previousLastAcked;
         }
 
-        Runnable fetchRunWhenAllComplete() {
+        Runnable getDelayedErrorHandlerIfEligible() {
             synchronized (this) {
-                if (this.inFlightCount == 0) {
-                    Runnable result = this.whenAllComplete;
-                    this.whenAllComplete = null;
-                    if (result != null) {
-                        this.closed = true;
-                    }
-
-                    return result;
-                } else {
+                if (this.errorContext == null) {
                     return null;
+                } else {
+                    return this.errorContext.getDelayedErrorHandlerIfEligible();
                 }
             }
-        }
-
-        /**
-         * TODO: javadoc if this works well.
-         *
-         * @param runWhenAllComplete
-         */
-        synchronized void appendFailed(Runnable runWhenAllComplete) {
-            this.inFlightCount--;
-            this.whenAllComplete = runWhenAllComplete;
-        }
-
-        @GuardedBy("this")
-        private boolean isClosed() {
-            return this.closed || this.whenAllComplete != null;
         }
 
         @Override
         public synchronized String toString() {
             return String.format("Stored=%s, Acked=%s, InFlight=%s", this.lastStoredEventNumber, this.lastAckedEventNumber, this.inFlightCount);
+        }
+
+        private static class ErrorContext {
+            private final long erroredEventNumber;
+            private int remainingInFlightCount;
+            private final Runnable delayedErrorHandler;
+
+            ErrorContext(long erroredEventNumber, int remainingInFlightCount, Runnable delayedErrorHandler) {
+                this.erroredEventNumber = erroredEventNumber;
+                this.remainingInFlightCount = remainingInFlightCount;
+                this.delayedErrorHandler = delayedErrorHandler;
+            }
+
+            void appendComplete(long eventNumber) {
+                if (eventNumber < this.erroredEventNumber) {
+                    this.remainingInFlightCount--;
+                    assert this.remainingInFlightCount >= 0;
+                }
+            }
+
+            Runnable getDelayedErrorHandlerIfEligible() {
+                if (this.remainingInFlightCount == 0) {
+                    return this.delayedErrorHandler;
+                }
+
+                return null;
+            }
+
         }
     }
 
