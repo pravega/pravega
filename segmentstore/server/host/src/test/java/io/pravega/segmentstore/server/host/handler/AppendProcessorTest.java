@@ -567,12 +567,15 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         store1.complete(100L);
         connectionVerifier.verify(connection).send(new DataAppended(requestId, clientId, 1, 0L, 100L));
 
-        // Verify that a SegmentIsSealed message is sent AFTER the ack from the first one.
+        // Verify that a SegmentIsSealed message is sent AFTER the ack from the first one (for the second append).
         connectionVerifier.verify(connection).send(new WireCommands.SegmentIsSealed(requestId, streamSegmentName, "", 2L));
+
+        // Verify that a second SegmentIsSealed is sent (for the third append).
+        connectionVerifier.verify(connection).send(new WireCommands.SegmentIsSealed(requestId, streamSegmentName, "", 3L));
         verify(tracker).updateOutstandingBytes(connection, -data3.length, data1.length);
         verify(tracker).updateOutstandingBytes(connection, -data1.length, 0);
 
-        val ac4 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 4, 3, 1), Futures.failedFuture(new IntentionalException(streamSegmentName)));
+        interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 4, 3, 1), Futures.failedFuture(new IntentionalException(streamSegmentName)));
         AssertExtensions.assertThrows(
                 "append() accepted a new request after sending a SegmentIsSealed message.",
                 () -> processor.append(new Append(streamSegmentName, clientId, 4, 1, Unpooled.wrappedBuffer(data1), null, requestId)),
