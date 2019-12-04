@@ -746,16 +746,6 @@ public class StreamTransactionMetadataTasksTest {
         }
 
         @Override
-        public Transaction<T> beginTxn() {
-            return null;
-        }
-
-        @Override
-        public Transaction<T> getTxn(UUID transactionId) {
-            return null;
-        }
-
-        @Override
         public EventWriterConfig getConfig() {
             return null;
         }

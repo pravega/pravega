@@ -10,9 +10,7 @@
 package io.pravega.client.stream;
 
 import com.google.common.annotations.Beta;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.stream.notifications.ReaderGroupNotificationListener;
-
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;

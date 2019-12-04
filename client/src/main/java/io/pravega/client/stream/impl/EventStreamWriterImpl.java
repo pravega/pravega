@@ -21,8 +21,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.Transaction.Status;
-import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -30,7 +28,6 @@ import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.common.util.Retry;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -56,7 +53,7 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
  */
 @Slf4j
 @ToString(of = { "stream", "closed" })
-public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, TransactionalEventStreamWriter<Type> {
+public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     /**
      * These two locks are used to enforce the following behavior:
@@ -332,52 +329,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
             }
         }
 
-    }
-
-    /**
-     * Moved to {@link TransactionalEventStreamWriterImpl}.
-     * @deprecated Moved to {@link TransactionalEventStreamWriterImpl}
-     */
-    @Override
-    @Deprecated
-    public Transaction<Type> beginTxn() {
-        TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime()),
-                RuntimeException::new);
-        UUID txnId = txnSegments.getTxnId();
-        Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        this.tokenProvider.populateToken(txnSegments.getStreamSegments().getDelegationToken());
-        for (Segment s : txnSegments.getStreamSegments().getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId, config, tokenProvider);
-            SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
-            transactions.put(s, impl);
-        }
-        pinger.startPing(txnId);
-        return new TransactionImpl<Type>(writerId, txnId, transactions, txnSegments.getStreamSegments(), controller, stream, pinger);
-    }
-    
-    /**
-     * Moved to {@link TransactionalEventStreamWriterImpl}.
-     * @deprecated Moved to {@link TransactionalEventStreamWriterImpl}
-     */
-    @Override
-    @Deprecated
-    public Transaction<Type> getTxn(UUID txId) {
-        StreamSegments segments = getAndHandleExceptions(
-                controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);
-        Status status = getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
-        if (status != Status.OPEN) {
-            return new TransactionImpl<>(writerId, txId, controller, stream);
-        }
-        
-        Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        this.tokenProvider.populateToken(segments.getDelegationToken());
-        for (Segment s : segments.getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config, tokenProvider);
-            SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
-            transactions.put(s, impl);
-        }
-        return new TransactionImpl<Type>(writerId, txId, transactions, segments, controller, stream, pinger);
-        
     }
 
     @Override

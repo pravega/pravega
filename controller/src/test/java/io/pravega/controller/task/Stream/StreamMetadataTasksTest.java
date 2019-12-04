@@ -1505,16 +1505,6 @@ public abstract class StreamMetadataTasksTest {
         }
 
         @Override
-        public Transaction<ControllerEvent> beginTxn() {
-            return null;
-        }
-
-        @Override
-        public Transaction<ControllerEvent> getTxn(UUID transactionId) {
-            return null;
-        }
-
-        @Override
         public EventWriterConfig getConfig() {
             return null;
         }

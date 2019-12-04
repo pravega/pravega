@@ -9,9 +9,7 @@
  */
 package io.pravega.client.stream;
 
-import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventWriterConfig.EventWriterConfigBuilder;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -77,26 +75,6 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * @param timestamp a timestamp that represents the current location in the stream.
      */
     void noteTime(long timestamp);
-
-    /**
-     * Start a new transaction on this stream. This allows events written to the transaction be written an committed atomically.
-     * Note that transactions can only be open for {@link StreamConfiguration#getTimestampAggregationTimeout()}.
-     * 
-     * @return A transaction through which multiple events can be written atomically.
-     * @deprecated Use {@link EventStreamClientFactory#createTransactionalEventWriter(String, String, Serializer, EventWriterConfig)} instead
-     */
-    @Deprecated
-    Transaction<Type> beginTxn();
-
-    /**
-     * Returns a previously created transaction.
-     * 
-     * @param transactionId The result retained from calling {@link Transaction#getTxnId()}
-     * @return Transaction object with given UUID
-     * @deprecated Use {@link EventStreamClientFactory#createTransactionalEventWriter(String, String, Serializer, EventWriterConfig)} instead
-     */
-    @Deprecated
-    Transaction<Type> getTxn(UUID transactionId);
 
     /**
      * Returns the configuration that this writer was create with.

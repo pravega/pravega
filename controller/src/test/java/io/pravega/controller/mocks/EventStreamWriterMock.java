@@ -40,16 +40,6 @@ public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
     }
 
     @Override
-    public Transaction<T> beginTxn() {
-        throw new NotImplementedException("beginTxn");
-    }
-
-    @Override
-    public Transaction<T> getTxn(UUID transactionId) {
-        throw new NotImplementedException("getTxn");
-    }
-
-    @Override
     public EventWriterConfig getConfig() {
         throw new NotImplementedException("getClientConfig");
     }
