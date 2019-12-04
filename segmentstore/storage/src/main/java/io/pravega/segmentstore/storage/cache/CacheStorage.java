@@ -45,7 +45,7 @@ public interface CacheStorage extends AutoCloseable {
     int insert(@NonNull BufferView data);
 
     /**
-     * Replaces the entry at the given address with a new contents.
+     * Replaces the entry at the given address with new content.
      *
      * @param address The address to replace. May be obtained via {@link #insert} or {@link #replace}. If there is no
      *                entry with this address, this method will act like {@link #insert}.
