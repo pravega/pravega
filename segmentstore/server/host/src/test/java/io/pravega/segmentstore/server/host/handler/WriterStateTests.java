@@ -75,7 +75,7 @@ public class WriterStateTests {
     }
 
     /**
-     * Tests {@link WriterState#appendFailed} and {@link WriterState#getDelayedErrorHandlerIfEligible}.
+     * Tests {@link WriterState#appendFailed} and {@link WriterState#fetchEligibleDelayedErrorHandler}.
      * We test the foll0wing scenario:
      * 1. Begin and successfully complete Event E1.
      * 2. Begin 2 events (E2 and E3), and fail the second one (E3).
@@ -106,12 +106,12 @@ public class WriterStateTests {
         val event3 = ++currentEventNumber;
         ws.beginAppend(event3);
 
-        Assert.assertNull("Not expecting a result yet from getDelayedErrorHandlerIfEligible().", ws.getDelayedErrorHandlerIfEligible());
+        Assert.assertNull("Not expecting a result yet from getDelayedErrorHandlerIfEligible().", ws.fetchEligibleDelayedErrorHandler());
 
         // Indicate that E3 failed.
         val callback1 = new AtomicBoolean();
         ws.appendFailed(event3, () -> Assert.assertTrue(callback1.compareAndSet(false, true)));
-        checkDelayedErrorHandler(ws.getDelayedErrorHandlerIfEligible(), 0, 1);
+        checkDelayedErrorHandler(ws.fetchEligibleDelayedErrorHandler(), 0, 1);
 
         // Begin two more events: E4 and E5.
         val event4 = ++currentEventNumber;
@@ -131,22 +131,22 @@ public class WriterStateTests {
         val callback3 = new AtomicBoolean();
         ws.appendFailed(event6, () -> Assert.assertTrue(callback3.compareAndSet(false, true)));
 
-        checkDelayedErrorHandler(ws.getDelayedErrorHandlerIfEligible(), 0, 3);
+        checkDelayedErrorHandler(ws.fetchEligibleDelayedErrorHandler(), 0, 3);
 
         // Complete E2 successfully. E3 is already failed, so we expect its callback to be invoked now
         ws.appendSuccessful(event2);
-        val deh1 = ws.getDelayedErrorHandlerIfEligible();
+        val deh1 = ws.fetchEligibleDelayedErrorHandler();
         checkDelayedErrorHandler(deh1, 1, 2);
-        deh1.getToRun().forEach(Runnable::run); // Run the callbacks to validate that we aren't invoking them multiple times.
+        deh1.getHandlersToExecute().forEach(Runnable::run); // Run the callbacks to validate that we aren't invoking them multiple times.
 
         // Fail E4. E5 and E6 are already failed, so we expect both their callbacks to be invoked now.
         val callback4 = new AtomicBoolean();
         ws.appendFailed(event4, () -> Assert.assertTrue(callback4.compareAndSet(false, true)));
-        val deh2 = ws.getDelayedErrorHandlerIfEligible();
+        val deh2 = ws.fetchEligibleDelayedErrorHandler();
         checkDelayedErrorHandler(deh2, 3, 0);
-        deh2.getToRun().forEach(Runnable::run); // Run the callbacks to validate that we aren't invoking them multiple times.
+        deh2.getHandlersToExecute().forEach(Runnable::run); // Run the callbacks to validate that we aren't invoking them multiple times.
 
-        checkDelayedErrorHandler(ws.getDelayedErrorHandlerIfEligible(), 0, 0);
+        checkDelayedErrorHandler(ws.fetchEligibleDelayedErrorHandler(), 0, 0);
 
         Arrays.asList(callback1, callback2, callback3, callback4)
                 .forEach(b -> Assert.assertTrue("At least one callback was not invoked.", b.get()));
@@ -154,7 +154,7 @@ public class WriterStateTests {
 
     private void checkDelayedErrorHandler(WriterState.DelayedErrorHandler deh, int expectedToRun, int expectedHandlersRemaining) {
         Assert.assertNotNull("Expecting a result from getDelayedErrorHandlerIfEligible()", deh);
-        Assert.assertEquals("Unexpected number of callbacks returned.", expectedToRun, deh.getToRun().size());
+        Assert.assertEquals("Unexpected number of callbacks returned.", expectedToRun, deh.getHandlersToExecute().size());
         Assert.assertEquals("Unexpected number of handlers remaining.", expectedHandlersRemaining, deh.getHandlersRemaining());
     }
 }

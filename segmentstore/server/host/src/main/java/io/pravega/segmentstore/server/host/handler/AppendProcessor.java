@@ -225,24 +225,23 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 }
             } else {
                 if (conditionalFailed) {
-                    // Revert the state to the last known good one. This is needed because we do not close the connection
-                    // for offset-conditional append failures, hence we must revert the effects of the failed append.
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
                     synchronized (state.getAckLock()) {
+                        // Revert the state to the last known good one. This is needed because we do not close the connection
+                        // for offset-conditional append failures, hence we must revert the effects of the failed append.
                         state.conditionalAppendFailed(append.getEventNumber());
                         connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber(), append.getRequestId()));
                     }
                 } else {
-                    // Record the exception handling into the Writer State. It will be executed once all the in-flight
-                    // appends are drained.
+                    // Record the exception handling into the Writer State. It will be executed  once all the current
+                    // in-flight appends are completed.
                     state.appendFailed(append.getEventNumber(), () ->
-                        handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
-                                "appending data", exception));
+                            handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
+                                    "appending data", exception));
                 }
             }
 
-            // After every append completes, check if we are done with this WriterState, and if we were asked to execute
-            // something after that happens.
+            // After every append completes, check the WriterState and trigger any error handlers that are now eligible for execution.
             executeDelayedErrorHandler(state, append);
         } catch (Throwable e) {
             success = false;
@@ -255,17 +254,31 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
+    /**
+     * Inquires the {@link WriterState} for any eligible {@link WriterState.DelayedErrorHandler} that can be executed
+     * right now. If so, invokes all eligible handlers synchronously. If there are no more handlers remaining after this,
+     * the {@link WriterState} is unregistered, which would essentially force the client to reinvoke {@link #setupAppend}.
+     *
+     * @param state  The {@link WriterState} to query.
+     * @param append The {@link Append} that triggered this.
+     */
     private void executeDelayedErrorHandler(WriterState state, Append append) {
-        WriterState.DelayedErrorHandler h = state.getDelayedErrorHandlerIfEligible();
-        if (h != null) {
-            synchronized (state.getAckLock()) {
-                try {
-                    h.getToRun().forEach(Runnable::run);
-                } finally {
-                    if (h.getHandlersRemaining() == 0) {
-                        // Clear the state in case of error.
-                        this.writerStates.remove(Pair.of(append.getSegment(), append.getWriterId()));
-                    }
+        WriterState.DelayedErrorHandler h = state.fetchEligibleDelayedErrorHandler();
+        if (h == null) {
+            // This WriterState is healthy - nothing to do.
+            return;
+        }
+
+        synchronized (state.getAckLock()) {
+            try {
+                // Execute all eligible delayed handlers. Note that this may be an empty list, which is OK - it means
+                // the WriterState is not healthy but there's nothing yet to execute.
+                h.getHandlersToExecute().forEach(Runnable::run);
+            } finally {
+                if (h.getHandlersRemaining() == 0) {
+                    // We've executed all handlers and have none remaining. Time to clean up this WriterState and force
+                    // the Client to reinitialize it via setupAppend().
+                    this.writerStates.remove(Pair.of(append.getSegment(), append.getWriterId()));
                 }
             }
         }

@@ -19,32 +19,68 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Maintains state for a Writer in the {@link AppendProcessor}.
+ * This class is tightly-coupled with the {@link AppendProcessor} behavior and should not be used for any other purpose.
+ */
 @ThreadSafe
 class WriterState {
+    //region Members
+
+    /**
+     * A mutex that can be used to ensure Acks to the Client are sent in order.
+     */
     @Getter
     private final Object ackLock = new Object();
+    /**
+     * The Event Number of the last Event that was appended to the Store (these events may not yet be complete yet).
+     */
     @GuardedBy("this")
     private long lastStoredEventNumber;
+    /**
+     * The Event Number of the last Event that was Acked to the Client.
+     */
     @GuardedBy("this")
     private long lastAckedEventNumber;
+    /**
+     * Number of Events that have been appended to the Store but not yet acked back from the Store.
+     */
     @GuardedBy("this")
     private int inFlightCount;
+    /**
+     * The {@link ErrorContext}s that have been recorded for this instance.
+     */
     @GuardedBy("this")
     private ArrayList<ErrorContext> errorContexts;
 
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the {@link WriterState} class.
+     *
+     * @param initialEventNumber The current Event Number on the Segment associated with this writer.
+     */
     WriterState(long initialEventNumber) {
         this.inFlightCount = 0;
         this.lastStoredEventNumber = initialEventNumber;
         this.lastAckedEventNumber = initialEventNumber;
     }
 
+    //endregion
+
+    //region Operations
+
     /**
      * Invoked when a new append is initiated.
      *
      * @param eventNumber The Append's Event Number.
      * @return The previously attempted Event Number.
+     * @throws IllegalStateException If eventNumber is less than the one for the previous attempt.
      */
     synchronized long beginAppend(long eventNumber) {
         long previousEventNumber = this.lastStoredEventNumber;
@@ -58,7 +94,7 @@ class WriterState {
      * Invoked when a conditional append has failed due to {@link BadOffsetException}. If no more appends are in the
      * pipeline, then the Last Stored Event Number is reverted to the Last (Successfully) Acked Event Number.
      *
-     * @param eventNumber
+     * @param eventNumber The Event Number of the Append that failed.
      */
     synchronized void conditionalAppendFailed(long eventNumber) {
         this.inFlightCount--;
@@ -66,31 +102,37 @@ class WriterState {
             this.lastStoredEventNumber = this.lastAckedEventNumber;
         }
 
+        // Update any existing ErrorContexts that an append has completed.
         updateErrorContexts(eventNumber);
     }
 
     /**
-     * TODO: javadoc if this works well.
+     * Invoked when an append failed for any reason other than a conditional failure (i.e. BadOffsetException).
      *
-     * @param eventNumber
-     * @param delayedErrorHandler
+     * @param eventNumber         The Event Number of the Append that failed.
+     * @param delayedErrorHandler A {@link Runnable} that will be made available via {@link #fetchEligibleDelayedErrorHandler()}
+     *                            when all appends with Event Numbers less than the current {@link #lastStoredEventNumber}
+     *                            are completed (successfully or not).
      */
-    synchronized void appendFailed(long eventNumber, Runnable delayedErrorHandler) {
+    synchronized void appendFailed(long eventNumber, @NonNull Runnable delayedErrorHandler) {
         this.inFlightCount--;
         if (this.errorContexts == null) {
             this.errorContexts = new ArrayList<>();
         }
 
+        // Update any existing ErrorContexts that an append has completed.
         updateErrorContexts(eventNumber);
+
+        // Record a new ErrorContext.
         this.errorContexts.add(new ErrorContext(this.lastStoredEventNumber, this.inFlightCount, delayedErrorHandler));
     }
 
     /**
      * Invoked when an append has been successfully stored and is about to be ack-ed to the Client.
-     * <p>
+     *
      * This method is designed to be invoked immediately before sending a {@link WireCommands.DataAppended} ack to the client,
      * however both its invocation and the ack must be sent atomically as the Client expects acks to arrive in order.
-     * <p>
+     *
      * When composing a {@link WireCommands.DataAppended} ack, the value passed to eventNumber should be passed as
      * {@link WireCommands.DataAppended#getEventNumber()} and the return value from this method should be passed as
      * {@link WireCommands.DataAppended#getPreviousEventNumber()}.
@@ -107,11 +149,26 @@ class WriterState {
         this.inFlightCount--;
         long previousLastAcked = this.lastAckedEventNumber;
         this.lastAckedEventNumber = Math.max(previousLastAcked, eventNumber);
-        updateErrorContexts(eventNumber);
+        updateErrorContexts(eventNumber); // Update any existing ErrorContexts that an append has completed.
         return previousLastAcked;
     }
 
-    synchronized DelayedErrorHandler getDelayedErrorHandlerIfEligible() {
+    /**
+     * Gets a {@link DelayedErrorHandler} based on the following rules:
+     * - If no call has been made to {@link #appendFailed}, this will return null.
+     * - If {@link #appendFailed} has been invoked at least once, this will return a {@link DelayedErrorHandler} with
+     * the following contents:
+     * -- {@link DelayedErrorHandler#getHandlersToExecute()} will contain those handlers that were passed to {@link #appendFailed}
+     * which are eligible to execute (all appends with Event Numbers less than their trigger have been completed).
+     * -- {@link DelayedErrorHandler#getHandlersRemaining()} will indicate the number of handlers that are not yet
+     * eligible for execution but which may be in a future call.
+     *
+     * This method is not idempotent. Any handlers for which {@link DelayedErrorHandler#getHandlersToExecute()} contains
+     * something will be unregistered and will not be served upon a subsequent request.
+     *
+     * @return A {@link DelayedErrorHandler} or null.
+     */
+    synchronized DelayedErrorHandler fetchEligibleDelayedErrorHandler() {
         if (this.errorContexts == null) {
             return null;
         }
@@ -130,6 +187,11 @@ class WriterState {
         return new DelayedErrorHandler(toRun, this.errorContexts.size());
     }
 
+    /**
+     * Updates any {@link ErrorContext}s with the fact that an append with the given EventNumber has completed.
+     *
+     * @param eventNumber The EventNumber of the append that completed.
+     */
     @GuardedBy("this")
     private void updateErrorContexts(long eventNumber) {
         if (this.errorContexts != null) {
@@ -142,31 +204,81 @@ class WriterState {
         return String.format("Stored=%s, Acked=%s, InFlight=%s", this.lastStoredEventNumber, this.lastAckedEventNumber, this.inFlightCount);
     }
 
+    //endregion
+
+    //region DelayedErrorHandler
+
+    /**
+     * Contains information about an Error Handler that should be executed.
+     */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     @Getter
     static class DelayedErrorHandler {
-        private final List<Runnable> toRun;
+        /**
+         * A list of {@link Runnable}s that should be executed. It is OK if this list is empty (it means there is nothing
+         * eligible to execute now, but there are outstanding handlers registered).
+         */
+        private final List<Runnable> handlersToExecute;
+        /**
+         * The number of handlers ({@link Runnable}s) that are still outstanding (but not yet eligible to execute).
+         */
         private final int handlersRemaining;
     }
 
+    //endregion
+
+    //region ErrorContext
+
+    /**
+     * Keeps track of the triggering context for a single error handler.
+     */
     private static class ErrorContext {
-        private final long erroredEventNumber;
+        /**
+         * The Event Number of the last Append that was sent to the Store.
+         */
+        private final long lastStoredEventNumber;
+        /**
+         * The number of Events with Event Number less than {@link #lastStoredEventNumber} that are still in flight.
+         */
         private int remainingInFlightCount;
+        /**
+         * A {@link Runnable} that should be invoked when {@link #remainingInFlightCount} reaches 0.
+         */
         private final Runnable delayedErrorHandler;
 
-        ErrorContext(long erroredEventNumber, int remainingInFlightCount, Runnable delayedErrorHandler) {
-            this.erroredEventNumber = erroredEventNumber;
+        /**
+         * Creates a new instance of the {@link ErrorContext} class.
+         *
+         * @param lastStoredEventNumber  The Event Number of the last Append that was sent to the Store.
+         * @param remainingInFlightCount The current number of in-flight appends with Event Number less than or equal to
+         *                               {@link #lastStoredEventNumber}.
+         * @param delayedErrorHandler    A {@link Runnable} that should be invoked.
+         */
+        ErrorContext(long lastStoredEventNumber, int remainingInFlightCount, Runnable delayedErrorHandler) {
+            this.lastStoredEventNumber = lastStoredEventNumber;
             this.remainingInFlightCount = remainingInFlightCount;
             this.delayedErrorHandler = delayedErrorHandler;
         }
 
+        /**
+         * Records the fact that an append has been completed (successfully or not).
+         *
+         * @param eventNumber The Event Number of the completed append. If this is less than {@link #lastStoredEventNumber},
+         *                    then {@link #remainingInFlightCount} will be decremented.
+         */
         void appendComplete(long eventNumber) {
-            if (eventNumber < this.erroredEventNumber) {
+            if (eventNumber < this.lastStoredEventNumber) {
                 this.remainingInFlightCount--;
-                assert this.remainingInFlightCount >= 0;
+                assert this.remainingInFlightCount >= 0; // sanity check, only for unit tests.
             }
         }
 
+        /**
+         * Gets the Delayed Error Handler.
+         *
+         * @return the {@link Runnable} passed into this instance's constructor, but only if all appends with Event Numbers
+         * less than {@link #lastStoredEventNumber} have been completed. Otherwise returns null.
+         */
         Runnable getDelayedErrorHandlerIfEligible() {
             if (this.remainingInFlightCount == 0) {
                 return this.delayedErrorHandler;
@@ -175,4 +287,6 @@ class WriterState {
             return null;
         }
     }
+
+    //endregion
 }
