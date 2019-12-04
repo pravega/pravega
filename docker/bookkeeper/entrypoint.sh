@@ -23,6 +23,7 @@ BK_DIR="/bk"
 BK_zkLedgersRootPath=${BK_LEDGERS_PATH}
 export BK_zkLedgersRootPath=${BK_LEDGERS_PATH}
 export BOOKIE_PORT=${BOOKIE_PORT}
+export SERVICE_PORT=${BOOKIE_PORT}
 export BK_bookiePort=${BK_bookiePort:-${BOOKIE_PORT}}
 export BK_zkServers=${BK_zkServers}
 export BK_metadataServiceUri=zk://${ZK_URL}${BK_LEDGERS_PATH}
