@@ -74,7 +74,7 @@ configure_bk() {
     if [ ! -z "$BK_useHostNameAsBookieID" ]; then
       sed -i "s|.*useHostNameAsBookieID=.*\$|useHostNameAsBookieID=${BK_useHostNameAsBookieID}|" ${BK_HOME}/conf/bk_server.conf
     fi
-    sed -i "s|.*bookiePort=.*\$|bookiePort=${BOOKIE_PORT}|" /opt/bookkeeper/conf/bk_server.conf
+    sed -i "s|.*bookiePort=.*\$|bookiePort=${BOOKIE_PORT}|" ${BK_HOME}/conf/bk_server.conf
 }
 
 # Init the cluster if required znodes not exist in Zookeeper.
