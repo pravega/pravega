@@ -12,21 +12,15 @@ FROM apache/bookkeeper:4.9.2
 ARG BK_VERSION=4.9.2
 ARG DISTRO_NAME=bookkeeper-all-${BK_VERSION}-bin
 
-# Public key for verifying the hash
-ARG GPG_KEY=A615D22C
-ARG GPG_KEY_2=AC055FD2
-
 RUN set -x \
     && yum install -y iproute wget \
     && cd /opt \
-    && curl -O "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz" \
-    && curl -O "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz.asc" \
-    && curl -O "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz.sha512" \
+    && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz" \
+    && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz.asc" \
+    && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz.sha512" \
     && sha512sum -c ${DISTRO_NAME}.tar.gz.sha512 \
-    && gpg --batch --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys "$GPG_KEY" || \
-       gpg --batch --keyserver hkp://ipv4.pool.sks-keyservers.net --recv-keys "$GPG_KEY" || \
-       gpg --batch --keyserver hkp://pgp.mit.edu:80 --recv-keys "$GPG_KEY" \
-    && gpg --keyserver pool.sks-keyservers.net --recv-keys "$GPG_KEY_2" \
+    && wget https://dist.apache.org/repos/dist/release/bookkeeper/KEYS \
+    && gpg --import KEYS \
     && gpg --batch --verify "$DISTRO_NAME.tar.gz.asc" "$DISTRO_NAME.tar.gz" \
     && tar -xzf "$DISTRO_NAME.tar.gz" \
     && cp -r bookkeeper-all-${BK_VERSION}/* /opt/bookkeeper/ \
