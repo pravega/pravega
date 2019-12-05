@@ -48,6 +48,7 @@ public class WriterStateTests {
         // Ack Event 2. The previous ack was 3, so return that.
         val ack2 = ws.appendSuccessful(event2);
         Assert.assertEquals("appendSuccessful(2) returned unexpected PreviousLastAcked.", event3, ack2);
+        Assert.assertEquals(WriterState.NO_FAILED_EVENT_NUMBER, ws.getLowestFailedEventNumber());
     }
 
     /**
@@ -72,6 +73,7 @@ public class WriterStateTests {
         long event3 = event2 + 1;
         val begin3 = ws.beginAppend(event3);
         Assert.assertEquals("beginAppend(3) returned unexpected LastStoredEventNumber.", event1, begin3);
+        Assert.assertEquals(WriterState.NO_FAILED_EVENT_NUMBER, ws.getLowestFailedEventNumber());
     }
 
     /**
@@ -111,6 +113,7 @@ public class WriterStateTests {
         // Indicate that E3 failed.
         val callback1 = new AtomicBoolean();
         ws.appendFailed(event3, () -> Assert.assertTrue(callback1.compareAndSet(false, true)));
+        Assert.assertEquals("Unexpected value from getLowestFailedEventNumber", event3, ws.getLowestFailedEventNumber());
         checkDelayedErrorHandler(ws.fetchEligibleDelayedErrorHandler(), 0, 1);
 
         // Begin two more events: E4 and E5.
@@ -122,6 +125,7 @@ public class WriterStateTests {
         // ... and then indicate that E5 failed (nothing yet on E4).
         val callback2 = new AtomicBoolean();
         ws.appendFailed(event5, () -> Assert.assertTrue(callback2.compareAndSet(false, true)));
+        Assert.assertEquals("Unexpected value from getLowestFailedEventNumber", event3, ws.getLowestFailedEventNumber());
 
         // Begin one more event (E6)...
         val event6 = ++currentEventNumber;
@@ -130,6 +134,7 @@ public class WriterStateTests {
         // .. and then indicate it failed.
         val callback3 = new AtomicBoolean();
         ws.appendFailed(event6, () -> Assert.assertTrue(callback3.compareAndSet(false, true)));
+        Assert.assertEquals("Unexpected value from getLowestFailedEventNumber", event3, ws.getLowestFailedEventNumber());
 
         checkDelayedErrorHandler(ws.fetchEligibleDelayedErrorHandler(), 0, 3);
 
@@ -142,6 +147,7 @@ public class WriterStateTests {
         // Fail E4. E5 and E6 are already failed, so we expect both their callbacks to be invoked now.
         val callback4 = new AtomicBoolean();
         ws.appendFailed(event4, () -> Assert.assertTrue(callback4.compareAndSet(false, true)));
+        Assert.assertEquals("Unexpected value from getLowestFailedEventNumber", event3, ws.getLowestFailedEventNumber());
         val deh2 = ws.fetchEligibleDelayedErrorHandler();
         checkDelayedErrorHandler(deh2, 3, 0);
         deh2.getHandlersToExecute().forEach(Runnable::run); // Run the callbacks to validate that we aren't invoking them multiple times.

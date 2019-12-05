@@ -223,6 +223,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         connection.send(dataAppendedAck);
                     }
                 }
+
+                if (append.getEventNumber() > state.getLowestFailedEventNumber()) {
+                    // The Store should not be successfully completing an Append that followed a failed one. If somehow
+                    // this happened, record it in the log.
+                    log.warn("Acknowledged a successful append after a failed one. Segment={}, WriterId={}, FailedEventNumber={}, AppendEventNumber={}",
+                            append.getSegment(), append.getWriterId(), state.getLowestFailedEventNumber(), append.getEventNumber());
+                }
             } else {
                 if (conditionalFailed) {
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());

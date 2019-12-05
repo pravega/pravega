@@ -29,7 +29,10 @@ import lombok.RequiredArgsConstructor;
 @ThreadSafe
 class WriterState {
     //region Members
-
+    /**
+     * An Event Number that is used for {@link #getLowestFailedEventNumber} to indicate there is no failure yet.
+     */
+    static final long NO_FAILED_EVENT_NUMBER = Long.MAX_VALUE;
     /**
      * A mutex that can be used to ensure Acks to the Client are sent in order.
      */
@@ -51,6 +54,11 @@ class WriterState {
     @GuardedBy("this")
     private int inFlightCount;
     /**
+     * The Event Number of the earliest Event that was failed.
+     */
+    @GuardedBy("this")
+    private long smallestFailedEventNumber;
+    /**
      * The {@link ErrorContext}s that have been recorded for this instance.
      */
     @GuardedBy("this")
@@ -67,6 +75,7 @@ class WriterState {
      */
     WriterState(long initialEventNumber) {
         this.inFlightCount = 0;
+        this.smallestFailedEventNumber = NO_FAILED_EVENT_NUMBER; // Nothing failed yet.
         this.lastStoredEventNumber = initialEventNumber;
         this.lastAckedEventNumber = initialEventNumber;
     }
@@ -116,6 +125,7 @@ class WriterState {
      */
     synchronized void appendFailed(long eventNumber, @NonNull Runnable delayedErrorHandler) {
         this.inFlightCount--;
+        this.smallestFailedEventNumber = Math.min(eventNumber, this.smallestFailedEventNumber);
         if (this.errorContexts == null) {
             this.errorContexts = new ArrayList<>();
         }
@@ -151,6 +161,15 @@ class WriterState {
         this.lastAckedEventNumber = Math.max(previousLastAcked, eventNumber);
         updateErrorContexts(eventNumber); // Update any existing ErrorContexts that an append has completed.
         return previousLastAcked;
+    }
+
+    /**
+     * Gets the Event Number of the earliest Event failure recorded via {@link #appendFailed}.
+     *
+     * @return The earliest failed Event Number, or {@link #NO_FAILED_EVENT_NUMBER} if {@link #appendFailed} has not been invoked.
+     */
+    synchronized long getLowestFailedEventNumber() {
+        return this.smallestFailedEventNumber;
     }
 
     /**
