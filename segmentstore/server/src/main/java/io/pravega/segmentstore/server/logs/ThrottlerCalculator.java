@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.MathHelpers;
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.WriteSettings;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -67,7 +68,13 @@ class ThrottlerCalculator {
      */
     @VisibleForTesting
     static final int COMMIT_BACKLOG_COUNT_FULL_THROTTLE_THRESHOLD = 500;
-
+    /**
+     * A multiplier (fraction) that will be applied to {@link WriteSettings#getMaxWriteTimeout()} to determine the
+     * DurableDataLog's append latency threshold that will trigger throttling and {@link WriteSettings#getMaxOutstandingBytes()}
+     * to determine the minimum amount of outstanding data for which throttling will be performed.
+     */
+    @VisibleForTesting
+    static final double DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION = 0.1;
     @Singular
     private final List<Throttler> throttlers;
 
@@ -263,6 +270,66 @@ class ThrottlerCalculator {
         }
     }
 
+    /**
+     * Calculates the amount of time to wait before processing more operations from the queue in order to relieve pressure
+     * from the DurableDataLog. This is based on static information from the DurableDataLog's {@link WriteSettings} and dynamic
+     * information from its {@link QueueStats}.
+     *
+     * In order to perform efficient comparisons, the {@link WriteSettings} information (reported in bytes) needs to be
+     * converted into the same unit as what's reported by {@link QueueStats} (number of items in the queue and average fill ratio):
+     * - The max throttling threshold is obtained by dividing the {@link WriteSettings#getMaxOutstandingBytes()} by {@link WriteSettings#getMaxWriteLength()}.
+     * - The min throttling threshold is a fraction of the max threshold ({@link #DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION}).
+     * - The adjusted queue size is obtained by multiplying {@link QueueStats#getSize()} by {@link QueueStats#getAverageItemFillRatio()}.
+     *
+     * This allows us to compare adjusted queue size directly with min-max throttling thresholds.
+     */
+    private static class DurableDataLogThrottler extends Throttler {
+        private final int thresholdMillis;
+        private final int baseDelay;
+        private final int minThrottleThreshold;
+        private final Supplier<QueueStats> getQueueStats;
+
+        DurableDataLogThrottler(@NonNull WriteSettings writeSettings, @NonNull Supplier<QueueStats> getQueueStats) {
+            // Calculate the latency threshold as a fraction of the WriteSettings' Max Write Timeout.
+            this.thresholdMillis = (int) Math.floor(writeSettings.getMaxWriteTimeout().toMillis() * DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
+
+            // Calculate max and min throttling thresholds (see Javadoc above for explanation).
+            int maxThrottleThreshold = writeSettings.getMaxOutstandingBytes() / writeSettings.getMaxWriteLength();
+            this.minThrottleThreshold = (int) Math.floor(maxThrottleThreshold * DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION);
+            this.baseDelay = calculateBaseDelay(maxThrottleThreshold, this::getDelayMultiplier);
+            this.getQueueStats = getQueueStats;
+        }
+
+        @Override
+        boolean isThrottlingRequired() {
+            return isThrottlingRequired(this.getQueueStats.get());
+        }
+
+        private boolean isThrottlingRequired(QueueStats stats) {
+            return stats.getExpectedProcessingTimeMillis() > this.thresholdMillis;
+        }
+
+        @Override
+        int getDelayMillis() {
+            QueueStats stats = this.getQueueStats.get();
+            if (isThrottlingRequired(stats)) {
+                // Calculate the adjusted queue size (see Javadoc above for explanation).
+                int adjustedQueueSize = (int) (stats.getSize() * stats.getAverageItemFillRatio());
+                return getDelayMultiplier(adjustedQueueSize) * this.baseDelay;
+            }
+            return 0;
+        }
+
+        private int getDelayMultiplier(int adjustedQueueSize) {
+            return adjustedQueueSize - this.minThrottleThreshold;
+        }
+
+        @Override
+        ThrottlerName getName() {
+            return ThrottlerName.DurableDataLog;
+        }
+    }
+
     //endregion
 
     //region Builder
@@ -304,6 +371,10 @@ class ThrottlerCalculator {
          */
         ThrottlerCalculatorBuilder commitBacklogThrottler(Supplier<Integer> getCommitBacklogCount) {
             return throttler(new CommitBacklogThrottler(getCommitBacklogCount));
+        }
+
+        ThrottlerCalculatorBuilder durableDataLogThrottler(WriteSettings writeSettings, Supplier<QueueStats> getQueueStats) {
+            return throttler(new DurableDataLogThrottler(writeSettings, getQueueStats));
         }
     }
 
@@ -366,7 +437,11 @@ class ThrottlerCalculator {
         /**
          * Throttling is required due to excessive size of the Commit (Memory) Backlog Queue.
          */
-        CommitBacklog
+        CommitBacklog,
+        /**
+         * Throttlign is required due to excessive size of DurableDataLog's in-flight queue.
+         */
+        DurableDataLog,
     }
 
     //endregion
