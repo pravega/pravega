@@ -68,7 +68,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final Stream stream;
     private final String writerId;
     private final Serializer<Type> serializer;
-    private final SegmentOutputStreamFactory outputStreamFactory;
     private final Controller controller;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventWriterConfig config;
@@ -86,7 +85,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         this.stream = Preconditions.checkNotNull(stream);
         this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
-        this.outputStreamFactory = Preconditions.checkNotNull(outputStreamFactory);
         this.tokenProvider = DelegationTokenProviderFactory.create(this.controller, this.stream.getScope(), this.stream.getStreamName());
         this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config, tokenProvider);
         this.serializer = Preconditions.checkNotNull(serializer);
