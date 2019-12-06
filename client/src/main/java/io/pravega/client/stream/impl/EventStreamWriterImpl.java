@@ -20,8 +20,6 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ByteBufferUtils;
@@ -30,7 +28,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -42,8 +39,6 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-
-import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 /**
  * This class takes in events, finds out which segment they belong to and then calls write on the appropriate segment.
@@ -213,122 +208,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             }
             toResend = unsent;
         }
-    }
-
-    private static class TransactionImpl<Type> implements Transaction<Type> {
-        private final String writerId;
-        private final Map<Segment, SegmentTransaction<Type>> inner;
-        private final UUID txId;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
-        private final Controller controller;
-        private final Stream stream;
-        private final Pinger pinger;
-        private StreamSegments segments;
-
-        TransactionImpl(String writerId, UUID txId, Map<Segment, SegmentTransaction<Type>> transactions, StreamSegments segments,
-                Controller controller, Stream stream, Pinger pinger) {
-            this.writerId = writerId;
-            this.txId = txId;
-            this.inner = transactions;
-            this.segments = segments;
-            this.controller = controller;
-            this.stream = stream;
-            this.pinger = pinger;
-        }
-        
-        /**
-         * Create closed transaction
-         */
-        TransactionImpl(String writerId, UUID txId, Controller controller, Stream stream) {
-            this.writerId = writerId;
-            this.txId = txId;
-            this.inner = null;
-            this.segments = null;
-            this.controller = controller;
-            this.stream = stream;
-            this.pinger = null;
-            this.closed.set(true);
-        }
-
-        /**
-         * Uses the transactionId to generate the routing key so that we only need to use one segment.
-         */
-        @Override
-        public void writeEvent(Type event) throws TxnFailedException {
-            writeEvent(txId.toString(), event);
-        }
-        
-        @Override
-        public void writeEvent(String routingKey, Type event) throws TxnFailedException {
-            Preconditions.checkNotNull(event);
-            throwIfClosed();
-            Segment s = segments.getSegmentForKey(routingKey);
-            SegmentTransaction<Type> transaction = inner.get(s);
-            transaction.writeEvent(event);
-        }
-
-        @Override
-        public void commit() throws TxnFailedException {
-            throwIfClosed();
-            for (SegmentTransaction<Type> tx : inner.values()) {
-                tx.close();
-            }
-            getAndHandleExceptions(controller.commitTransaction(stream, writerId, null, txId), TxnFailedException::new);
-            pinger.stopPing(txId);
-            closed.set(true);
-        }
-        
-        @Override
-        public void commit(long timestamp) throws TxnFailedException {
-            throwIfClosed();
-            for (SegmentTransaction<Type> tx : inner.values()) {
-                tx.close();
-            }
-            getAndHandleExceptions(controller.commitTransaction(stream, writerId, timestamp, txId), TxnFailedException::new);
-            pinger.stopPing(txId);
-            closed.set(true);
-        }
-
-        @Override
-        public void abort() {
-            if (!closed.get()) {
-                for (SegmentTransaction<Type> tx : inner.values()) {
-                    try {
-                        tx.close();
-                    } catch (TxnFailedException e) {
-                        log.debug("Got exception while writing to transaction on abort: {}", e.getMessage());
-                    }
-                }
-                pinger.stopPing(txId);
-                getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
-                closed.set(true);
-            }
-        }
-
-        @Override
-        public Status checkStatus() {
-            return getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
-        }
-
-        @Override
-        public void flush() throws TxnFailedException {
-            throwIfClosed();
-            for (SegmentTransaction<Type> tx : inner.values()) {
-                tx.flush();
-            }
-        }
-
-        @Override
-        public UUID getTxnId() {
-            return txId;
-        }
-        
-        private void throwIfClosed() throws TxnFailedException {
-            if (closed.get()) {
-                throw new TxnFailedException();
-            }
-        }
-
     }
 
     @Override
