@@ -224,6 +224,8 @@ public class ControllerImplTest {
                             .setStatus(UpdateStreamStatus.Status.UNRECOGNIZED)
                             .build());
                     responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("deadline")) {
+                    // dont send any response
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -257,6 +259,8 @@ public class ControllerImplTest {
                             .setStatus(UpdateStreamStatus.Status.UNRECOGNIZED)
                             .build());
                     responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("deadline")) {
+                    // dont send any response
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -284,6 +288,8 @@ public class ControllerImplTest {
                                                     .setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND)
                                                     .build());
                     responseObserver.onCompleted();
+                } else if (request.getStream().equals("deadline")) {
+                    // dont send any response
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -312,6 +318,8 @@ public class ControllerImplTest {
                             .setStatus(DeleteStreamStatus.Status.STREAM_NOT_SEALED)
                             .build());
                     responseObserver.onCompleted();
+                } else if (request.getStream().equals("deadline")) {
+                    // dont send any response
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -496,6 +504,8 @@ public class ControllerImplTest {
                                                     .setEpoch(0)
                                                     .build());
                     responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("deadline")) {
+                    // dont send response
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -1380,5 +1390,61 @@ public class ControllerImplTest {
         createCount.acquire();
         ExecutorServiceHelpers.shutdown(executorService);
         assertTrue(success.get());
+    }
+
+    @Test
+    public void testDeadline() {
+        @Cleanup
+        final ControllerImpl controller = new ControllerImpl( ControllerImplConfig.builder()
+                                                                   .clientConfig(
+                                                                           ClientConfig.builder()
+                                                                                       .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
+                                                                                       .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                                                                                       .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                                                                                       .build())
+                                                                                  .deadline(100)
+                                                                   .retryAttempts(1).build(), executor);
+        CompletableFuture<Boolean> updateFuture = controller.updateStream("scope", "deadline", StreamConfiguration.builder().build());
+        AssertExtensions.assertFutureThrows("", updateFuture, e -> {
+                    RetriesExhaustedException unwrap = (RetriesExhaustedException) Exceptions.unwrap(e);
+                    StatusRuntimeException exception = (StatusRuntimeException) Exceptions.unwrap(unwrap.getCause());
+                    Status.Code code = exception.getStatus().getCode();
+                    return code.equals(Status.Code.DEADLINE_EXCEEDED);
+                }
+        );
+        CompletableFuture<Boolean> scaleFuture = controller.scaleStream(Stream.of("scope", "deadline"),
+                Collections.emptyList(), Collections.emptyMap(), executor).getFuture();
+        AssertExtensions.assertFutureThrows("", scaleFuture, e -> {
+                    RetriesExhaustedException unwrap = (RetriesExhaustedException) Exceptions.unwrap(e);
+                    StatusRuntimeException exception = (StatusRuntimeException) Exceptions.unwrap(unwrap.getCause());
+                    Status.Code code = exception.getStatus().getCode();
+                    return code.equals(Status.Code.DEADLINE_EXCEEDED);
+                }
+        );
+        CompletableFuture<Boolean> truncateFuture = controller.truncateStream("scope", "deadline", 
+                new StreamCutImpl(Stream.of("scope", "deadline"), Collections.emptyMap()));
+        AssertExtensions.assertFutureThrows("", truncateFuture, e -> {
+                    RetriesExhaustedException unwrap = (RetriesExhaustedException) Exceptions.unwrap(e);
+                    StatusRuntimeException exception = (StatusRuntimeException) Exceptions.unwrap(unwrap.getCause());
+                    Status.Code code = exception.getStatus().getCode();
+                    return code.equals(Status.Code.DEADLINE_EXCEEDED);
+                }
+        );
+        CompletableFuture<Boolean> sealFuture = controller.sealStream("scope", "deadline");
+        AssertExtensions.assertFutureThrows("", sealFuture, e -> {
+                    RetriesExhaustedException unwrap = (RetriesExhaustedException) Exceptions.unwrap(e);
+                    StatusRuntimeException exception = (StatusRuntimeException) Exceptions.unwrap(unwrap.getCause());
+                    Status.Code code = exception.getStatus().getCode();
+                    return code.equals(Status.Code.DEADLINE_EXCEEDED);
+                }
+        );
+        CompletableFuture<Boolean> deleteFuture = controller.deleteStream("scope", "deadline");
+        AssertExtensions.assertFutureThrows("", deleteFuture, e -> {
+                    RetriesExhaustedException unwrap = (RetriesExhaustedException) Exceptions.unwrap(e);
+                    StatusRuntimeException exception = (StatusRuntimeException) Exceptions.unwrap(unwrap.getCause());
+                    Status.Code code = exception.getStatus().getCode();
+                    return code.equals(Status.Code.DEADLINE_EXCEEDED);
+                }
+        );
     }
 }
