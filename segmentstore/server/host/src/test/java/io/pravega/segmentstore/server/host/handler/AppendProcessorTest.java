@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
@@ -519,6 +520,69 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         store1.complete(50L);
         verify(tracker).updateOutstandingBytes(connection, -data1.length, 0);
         verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+    }
+
+    @Test(timeout = 15 * 1000)
+    public void testAppendPipeliningWithSeal() {
+        String streamSegmentName = "scope/stream/testAppendSegment";
+        UUID clientId = UUID.randomUUID();
+        byte[] data1 = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        byte[] data2 = new byte[]{1, 2, 3, 4, 5};
+        byte[] data3 = new byte[]{1, 2, 3};
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        AppendProcessor processor = AppendProcessor.defaultBuilder().store(store).connection(connection).connectionTracker(tracker).build();
+        InOrder connectionVerifier = Mockito.inOrder(connection);
+
+        setupGetAttributes(streamSegmentName, clientId, store);
+        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
+        connectionVerifier.verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+
+        // Initiate one append.
+        val store1 = new CompletableFuture<Long>();
+        val ac1 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 1, 0, 1), store1);
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data1), null, requestId));
+        verifyStoreAppend(ac1, data1);
+        verify(tracker).updateOutstandingBytes(connection, data1.length, data1.length);
+
+        // Second append will fail with StreamSegmentSealedException (this simulates having one append, immediately followed
+        // by a Seal, then another append).
+        val ac2 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 2, 1, 1), Futures.failedFuture(new StreamSegmentSealedException(streamSegmentName)));
+        processor.append(new Append(streamSegmentName, clientId, 2, 1, Unpooled.wrappedBuffer(data2), null, requestId));
+        verifyStoreAppend(ac2, data2);
+        verify(tracker).updateOutstandingBytes(connection, data2.length, data1.length + data2.length);
+        verify(tracker).updateOutstandingBytes(connection, -data2.length, data1.length);
+
+        // Third append should fail just like the second one. However this will have a higher event number than that one
+        // and we use it to verify it won't prevent sending the SegmentIsSealed message or send it multiple times.
+        val ac3 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 3, 2, 1), Futures.failedFuture(new StreamSegmentSealedException(streamSegmentName)));
+        processor.append(new Append(streamSegmentName, clientId, 3, 1, Unpooled.wrappedBuffer(data3), null, requestId));
+        verifyStoreAppend(ac3, data3);
+        verify(tracker).updateOutstandingBytes(connection, data3.length, data1.length + data3.length);
+
+        // Complete the first one and verify it is acked properly.
+        store1.complete(100L);
+        connectionVerifier.verify(connection).send(new DataAppended(requestId, clientId, 1, 0L, 100L));
+
+        // Verify that a SegmentIsSealed message is sent AFTER the ack from the first one (for the second append).
+        connectionVerifier.verify(connection).send(new WireCommands.SegmentIsSealed(requestId, streamSegmentName, "", 2L));
+
+        // Verify that a second SegmentIsSealed is sent (for the third append).
+        connectionVerifier.verify(connection).send(new WireCommands.SegmentIsSealed(requestId, streamSegmentName, "", 3L));
+        verify(tracker).updateOutstandingBytes(connection, -data3.length, data1.length);
+        verify(tracker).updateOutstandingBytes(connection, -data1.length, 0);
+
+        interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 4, 3, 1), Futures.failedFuture(new IntentionalException(streamSegmentName)));
+        AssertExtensions.assertThrows(
+                "append() accepted a new request after sending a SegmentIsSealed message.",
+                () -> processor.append(new Append(streamSegmentName, clientId, 4, 1, Unpooled.wrappedBuffer(data1), null, requestId)),
+                ex -> ex instanceof IllegalStateException);
+
+        // Verify no more messages are sent over the connection.
+        connectionVerifier.verifyNoMoreInteractions();
         verifyNoMoreInteractions(store);
     }
 
