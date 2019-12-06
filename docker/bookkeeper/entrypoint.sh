@@ -93,22 +93,29 @@ function init_cluster() {
     if [ $? -eq 0 ]; then
         echo "Metadata of cluster already exists, no need format"
     else
+        echo "Sleep for a random time"
+        sleep $[ ( $RANDOM % 10 )  + 1 ]s
         # create ephemeral zk node bkInitLock, initiator who this node, then do init; other initiators will wait.
-        zk-shell --run-once "create ${BK_CLUSTER_ROOT_PATH}/bkInitLock '' true false false" ${BK_zkServers}
-        if [ $? -eq 0 ]; then
+        lock=`zk-shell --run-once "create ${BK_CLUSTER_ROOT_PATH}/bkInitLock1 '' true false false" ${BK_zkServers}`
+        echo "output of zk-shell create bkInitLock"
+        echo $lock
+        if [ -z "$lock" ]; then
             # bkInitLock created success, this is the successor to do znode init
             echo "Bookkeeper znodes not exist in Zookeeper, do the init to create them."
             /opt/bookkeeper/bin/bookkeeper shell initnewcluster
             if [ $? -eq 0 ]; then
                 echo "Bookkeeper znodes init success."
             else
+                echo "Exit status of initnewcluster"
+                echo $?
                 echo "Bookkeeper znodes init failed. please check the reason."
+                sleep 1000
                 exit
             fi
         else
             echo "Other docker instance is doing initialize at the same time, will wait in this instance."
             tenSeconds=1
-            while [ ${tenSeconds} -lt 10 ]
+            while [ ${tenSeconds} -lt 1000 ]
             do
                 sleep 10
                 zk-shell --run-once "ls ${BK_zkLedgersRootPath}/available/readonly" ${BK_zkServers}
@@ -122,13 +129,14 @@ function init_cluster() {
                 fi
             done
 
-            if [ ${tenSeconds} -eq 10 ]; then
-                echo "Waited 100 seconds for bookkeeper cluster init, something wrong, please check"
+            if [ ${tenSeconds} -eq 1000 ]; then
+                echo "Waited 1000 seconds for bookkeeper cluster init, something wrong, please check"
                 exit
             fi
         fi
     fi
 }
+
 
 format_bookie_data_and_metadata() {
     if [ `find $BK_journalDirectory $BK_ledgerDirectories $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
