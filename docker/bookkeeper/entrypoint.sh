@@ -86,6 +86,14 @@ configure_bk() {
     fi
 }
 
+disable_bk_ipv6_check() {
+   # This check done in "common.sh" in the Bookeeper image fails in environments where IPV6 is not enabled.
+   # We are disabling it TEMPORARILY. This needs to be reverted back/tackled in a better way, by modifying the
+   # check instead to also make sure that the file "/proc/sys/net/ipv6/bindv6only" exists, before it executes the
+   # "/sbin/sysctl -n net.ipv6.bindv6only" command.
+   sed -i "s|/sbin/sysctl|/sbin/sysctl2|" ${BK_HOME}/bin/common.sh
+}
+
 # Init the cluster if required znodes not exist in Zookeeper.
 # Use ephemeral zk node as lock to keep initialize atomic.
 function init_cluster() {
@@ -164,6 +172,8 @@ echo "Creating Zookeeper root"
 create_zk_root
 
 configure_bk
+
+disable_bk_ipv6_check
 
 format_bookie_data_and_metadata
 
