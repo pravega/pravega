@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import javax.annotation.concurrent.GuardedBy;
@@ -39,7 +40,7 @@ class WriterState {
     @Getter
     private final Object ackLock = new Object();
     /**
-     * The Event Number of the last Event that was appended to the Store (these events may not yet be complete yet).
+     * The Event Number of the last Append that was sent to the Store (these events may not yet be complete yet).
      */
     @GuardedBy("this")
     private long lastStoredEventNumber;
@@ -49,12 +50,12 @@ class WriterState {
     @GuardedBy("this")
     private long lastAckedEventNumber;
     /**
-     * Number of Events that have been appended to the Store but not yet acked back from the Store.
+     * Number of Appends that have been sent to the Store but not yet acked back from the Store.
      */
     @GuardedBy("this")
     private int inFlightCount;
     /**
-     * The Event Number of the earliest Event that was failed.
+     * The Event Number of the earliest Append that was failed.
      */
     @GuardedBy("this")
     private long smallestFailedEventNumber;
@@ -134,7 +135,11 @@ class WriterState {
         updateErrorContexts(eventNumber);
 
         // Record a new ErrorContext.
-        this.errorContexts.add(new ErrorContext(this.lastStoredEventNumber, this.inFlightCount, delayedErrorHandler));
+        this.errorContexts.add(new ErrorContext(eventNumber, this.lastStoredEventNumber, this.inFlightCount, delayedErrorHandler));
+
+        // Ensure all error contexts are sorted by their failed Event Number. That will ensure that they will be executed
+        // in the correct order.
+        this.errorContexts.sort(Comparator.comparingLong(ErrorContext::getFailedEventNumber));
     }
 
     /**
@@ -253,6 +258,11 @@ class WriterState {
      */
     private static class ErrorContext {
         /**
+         * The Event Number of the Append that failed.
+         */
+        @Getter
+        private final long failedEventNumber;
+        /**
          * The Event Number of the last Append that was sent to the Store.
          */
         private final long lastStoredEventNumber;
@@ -268,12 +278,14 @@ class WriterState {
         /**
          * Creates a new instance of the {@link ErrorContext} class.
          *
+         * @param failedEventNumber      The Event Number of the Append that failed.
          * @param lastStoredEventNumber  The Event Number of the last Append that was sent to the Store.
          * @param remainingInFlightCount The current number of in-flight appends with Event Number less than or equal to
          *                               {@link #lastStoredEventNumber}.
          * @param delayedErrorHandler    A {@link Runnable} that should be invoked.
          */
-        ErrorContext(long lastStoredEventNumber, int remainingInFlightCount, Runnable delayedErrorHandler) {
+        ErrorContext(long failedEventNumber, long lastStoredEventNumber, int remainingInFlightCount, Runnable delayedErrorHandler) {
+            this.failedEventNumber = failedEventNumber;
             this.lastStoredEventNumber = lastStoredEventNumber;
             this.remainingInFlightCount = remainingInFlightCount;
             this.delayedErrorHandler = delayedErrorHandler;

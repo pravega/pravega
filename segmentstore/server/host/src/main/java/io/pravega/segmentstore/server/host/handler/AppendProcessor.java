@@ -249,7 +249,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             }
 
             // After every append completes, check the WriterState and trigger any error handlers that are now eligible for execution.
-            executeDelayedErrorHandler(state, append);
+            executeDelayedErrorHandler(state, append.getSegment(), append.getWriterId());
         } catch (Throwable e) {
             success = false;
             handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "handling append result", e);
@@ -266,10 +266,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * right now. If so, invokes all eligible handlers synchronously. If there are no more handlers remaining after this,
      * the {@link WriterState} is unregistered, which would essentially force the client to reinvoke {@link #setupAppend}.
      *
-     * @param state  The {@link WriterState} to query.
-     * @param append The {@link Append} that triggered this.
+     * @param state       The {@link WriterState} to query.
+     * @param segmentName The name of the Segment for which the append failed.
+     * @param writerId    The Writer Id of the Append.
      */
-    private void executeDelayedErrorHandler(WriterState state, Append append) {
+    private void executeDelayedErrorHandler(WriterState state, String segmentName, UUID writerId) {
         WriterState.DelayedErrorHandler h = state.fetchEligibleDelayedErrorHandler();
         if (h == null) {
             // This WriterState is healthy - nothing to do.
@@ -285,7 +286,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 if (h.getHandlersRemaining() == 0) {
                     // We've executed all handlers and have none remaining. Time to clean up this WriterState and force
                     // the Client to reinitialize it via setupAppend().
-                    this.writerStates.remove(Pair.of(append.getSegment(), append.getWriterId()));
+                    this.writerStates.remove(Pair.of(segmentName, writerId));
                 }
             }
         }

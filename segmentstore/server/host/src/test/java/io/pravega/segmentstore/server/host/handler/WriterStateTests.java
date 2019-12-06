@@ -9,8 +9,9 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import io.pravega.test.common.AssertExtensions;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -96,6 +97,7 @@ public class WriterStateTests {
         final long initialEventNumber = 1;
         long currentEventNumber = initialEventNumber;
         val ws = new WriterState(initialEventNumber);
+        val callbackOrders = new ArrayList<Long>();
 
         // Begin and complete an event E1.
         val event1 = ++currentEventNumber;
@@ -111,8 +113,7 @@ public class WriterStateTests {
         Assert.assertNull("Not expecting a result yet from getDelayedErrorHandlerIfEligible().", ws.fetchEligibleDelayedErrorHandler());
 
         // Indicate that E3 failed.
-        val callback1 = new AtomicBoolean();
-        ws.appendFailed(event3, () -> Assert.assertTrue(callback1.compareAndSet(false, true)));
+        setupAppendFailed(ws, event3, callbackOrders);
         Assert.assertEquals("Unexpected value from getLowestFailedEventNumber", event3, ws.getLowestFailedEventNumber());
         checkDelayedErrorHandler(ws.fetchEligibleDelayedErrorHandler(), 0, 1);
 
@@ -123,8 +124,7 @@ public class WriterStateTests {
         ws.beginAppend(event5);
 
         // ... and then indicate that E5 failed (nothing yet on E4).
-        val callback2 = new AtomicBoolean();
-        ws.appendFailed(event5, () -> Assert.assertTrue(callback2.compareAndSet(false, true)));
+        setupAppendFailed(ws, event5, callbackOrders);
         Assert.assertEquals("Unexpected value from getLowestFailedEventNumber", event3, ws.getLowestFailedEventNumber());
 
         // Begin one more event (E6)...
@@ -132,8 +132,7 @@ public class WriterStateTests {
         ws.beginAppend(event6);
 
         // .. and then indicate it failed.
-        val callback3 = new AtomicBoolean();
-        ws.appendFailed(event6, () -> Assert.assertTrue(callback3.compareAndSet(false, true)));
+        setupAppendFailed(ws, event6, callbackOrders);
         Assert.assertEquals("Unexpected value from getLowestFailedEventNumber", event3, ws.getLowestFailedEventNumber());
 
         checkDelayedErrorHandler(ws.fetchEligibleDelayedErrorHandler(), 0, 3);
@@ -145,8 +144,7 @@ public class WriterStateTests {
         deh1.getHandlersToExecute().forEach(Runnable::run); // Run the callbacks to validate that we aren't invoking them multiple times.
 
         // Fail E4. E5 and E6 are already failed, so we expect both their callbacks to be invoked now.
-        val callback4 = new AtomicBoolean();
-        ws.appendFailed(event4, () -> Assert.assertTrue(callback4.compareAndSet(false, true)));
+        setupAppendFailed(ws, event4, callbackOrders);
         Assert.assertEquals("Unexpected value from getLowestFailedEventNumber", event3, ws.getLowestFailedEventNumber());
         val deh2 = ws.fetchEligibleDelayedErrorHandler();
         checkDelayedErrorHandler(deh2, 3, 0);
@@ -154,8 +152,12 @@ public class WriterStateTests {
 
         checkDelayedErrorHandler(ws.fetchEligibleDelayedErrorHandler(), 0, 0);
 
-        Arrays.asList(callback1, callback2, callback3, callback4)
-                .forEach(b -> Assert.assertTrue("At least one callback was not invoked.", b.get()));
+        AssertExtensions.assertListEquals("Callbacks not invoked in correct order.",
+                Arrays.asList(event3, event4, event5, event6), callbackOrders, Long::equals);
+    }
+
+    private void setupAppendFailed(WriterState ws, long eventNumber, ArrayList<Long> callbackOrders) {
+        ws.appendFailed(eventNumber, () -> callbackOrders.add(eventNumber));
     }
 
     private void checkDelayedErrorHandler(WriterState.DelayedErrorHandler deh, int expectedToRun, int expectedHandlersRemaining) {
