@@ -24,6 +24,7 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -170,6 +171,11 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return null on success and exception on failure.
      */
     CompletableFuture<CreateScopeStatus> createScope(final String scopeName);
+
+    CompletableFuture<CreateEventStatus> createEvent(String routingKey,
+                                                     String scopeName,
+                                                     String streamName,
+                                                     String message);
 
     /**
      * Deletes a Scope if contains no streams.

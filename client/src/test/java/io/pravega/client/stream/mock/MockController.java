@@ -77,6 +77,15 @@ public class MockController implements Controller {
     private final Map<Stream, StreamConfiguration> createdStreams = new HashMap<>();
     private final Supplier<Long> idGenerator = () -> Flow.create().asLong();
     private final boolean callServer;
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Boolean> createEvent(final String routingKey,
+                                                  final String scopeName,
+                                                  final String streamName,
+                                                  final String message) {
+        return null;
+    }
     
     @Override
     @Synchronized
@@ -580,4 +589,3 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(null);
     }
 }
-

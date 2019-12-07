@@ -66,6 +66,11 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> createEvent(String routingKey, String scopeName, String streamName, String message) {
+        return null;
+    }
+
+    @Override
     public CompletableFuture<Boolean> createScope(final String scopeName) {
         return this.controller.createScope(scopeName).thenApply(x -> {
             switch (x.getStatus()) {

@@ -43,6 +43,7 @@ import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ContinuationToken;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -225,6 +226,45 @@ public class ControllerImpl implements Controller {
                         return false;
                     }
                 });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> createEvent(String routingKey, String scopeName, String streamName, String message) {
+            Exceptions.checkNotClosed(closed.get(), this);
+            final long requestId = requestIdGenerator.get();
+            // long traceId = LoggerHelpers.traceEnter(log, "createEvent", routingKey, scopeName, streamName, message, requestId);
+
+            final CompletableFuture<CreateEventStatus> result = this.retryConfig.runAsync(() -> {
+                RPCAsyncCallback<CreateEventStatus> callback = new RPCAsyncCallback<>(requestId, "createEvent");
+//                new ControllerClientTagger(client).withTag(requestId, "createEvent", scopeName)
+//                        .createEvent(routingKey, scopeName, streamName, message);
+                return callback.getFuture();
+            }, this.executor);
+            return result.thenApply(x -> {
+                switch (x.getStatus()) {
+                    case FAILURE:
+                        log.warn(requestId, "Failed to create scope: {}", scopeName);
+                        throw new ControllerFailureException("Failed to create scope: " + scopeName);
+                    case INVALID_SCOPE_NAME:
+                        log.warn(requestId, "Illegal scope name: {}", scopeName);
+                        throw new IllegalArgumentException("Illegal scope name: " + scopeName);
+                    case SCOPE_EXISTS:
+                        log.warn(requestId, "Scope already exists: {}", scopeName);
+                        return false;
+                    case SUCCESS:
+                        log.info(requestId, "Scope created successfully: {}", scopeName);
+                        return true;
+                    case UNRECOGNIZED:
+                    default:
+                        throw new ControllerFailureException("Unknown return status creating event "
+                                + " " + x.getStatus());
+                }
+            }).whenComplete((x, e) -> {
+                if (e != null) {
+                    log.warn(requestId, "createEvent failed: ", e);
+                }
+                // LoggerHelpers.traceLeave(log, "createEvent", traceId, routingKey, scopeName, streamName, message, requestId);
+            });
     }
 
     @Override
@@ -1188,6 +1228,10 @@ public class ControllerImpl implements Controller {
         public void createScope(ScopeInfo scopeInfo, RPCAsyncCallback<CreateScopeStatus> callback) {
             clientStub.createScope(scopeInfo, callback);
         }
+
+//        public void createEvent(String routingKey, String scopeName, String streamName, String message, RPCAsyncCallback<CreateScopeStatus> callback) {
+//            clientStub.createEvent(routingKey, scopeName, streamName, message, callback);
+//        }
 
         public void listStreamsInScope(io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest request, 
                                        RPCAsyncCallback<StreamsInScopeResponse> callback) {

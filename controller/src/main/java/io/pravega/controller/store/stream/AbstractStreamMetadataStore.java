@@ -35,6 +35,7 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -224,6 +225,24 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             }
         });
     }
+
+    /**
+     * Appends an event to the stream.
+     *
+     * @param routingKey Name of routingKey to be used.
+     * @param scopeName Name of scope to be used.
+     * @param streamName Name of stream to be used.
+     * @param message raw data to be appended to stream.
+     * @return CreateEventStatus future.
+     */
+    @Override
+    public CompletableFuture<CreateEventStatus> createEvent(final String  routingKey,
+                                                            final String scopeName,
+                                                            final String streamName,
+                                                            final String message) {
+        return null;
+    }
+
 
     /**
      * Delete a scope with given name.
@@ -926,4 +945,3 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     abstract Version parseVersionData(byte[] data);
 }
-
