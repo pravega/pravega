@@ -371,6 +371,8 @@ public class ControllerImplTest {
                                                                                                      1.0))
                                                     .build());
                     responseObserver.onCompleted();
+                } else if (request.getStream().equals("deadline")) {
+                    // dont send any response
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -1402,49 +1404,34 @@ public class ControllerImplTest {
                                                                                        .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                                                                                        .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                                                                                        .build())
-                                                                                  .deadline(100)
+                                                                                  .timeoutMillis(100)
                                                                    .retryAttempts(1).build(), executor);
-        CompletableFuture<Boolean> updateFuture = controller.updateStream("scope", "deadline", StreamConfiguration.builder().build());
-        AssertExtensions.assertFutureThrows("", updateFuture, e -> {
-                    RetriesExhaustedException unwrap = (RetriesExhaustedException) Exceptions.unwrap(e);
-                    StatusRuntimeException exception = (StatusRuntimeException) Exceptions.unwrap(unwrap.getCause());
-                    Status.Code code = exception.getStatus().getCode();
-                    return code.equals(Status.Code.DEADLINE_EXCEEDED);
-                }
-        );
+        Predicate<Throwable> deadlinePredicate = e -> {
+            RetriesExhaustedException unwrap = (RetriesExhaustedException) Exceptions.unwrap(e);
+            StatusRuntimeException exception = (StatusRuntimeException) Exceptions.unwrap(unwrap.getCause());
+            Status.Code code = exception.getStatus().getCode();
+            return code.equals(Status.Code.DEADLINE_EXCEEDED);
+        };
+        
+        CompletableFuture<StreamSegments> getSegmentFuture = controller.getCurrentSegments("scope", "deadline");
+        AssertExtensions.assertFutureThrows("", getSegmentFuture, deadlinePredicate);
+
+        CompletableFuture<Boolean> updateFuture = controller.updateStream("scope", "deadline", 
+                StreamConfiguration.builder().build());
+        AssertExtensions.assertFutureThrows("", updateFuture, deadlinePredicate);
+        
         CompletableFuture<Boolean> scaleFuture = controller.scaleStream(Stream.of("scope", "deadline"),
                 Collections.emptyList(), Collections.emptyMap(), executor).getFuture();
-        AssertExtensions.assertFutureThrows("", scaleFuture, e -> {
-                    RetriesExhaustedException unwrap = (RetriesExhaustedException) Exceptions.unwrap(e);
-                    StatusRuntimeException exception = (StatusRuntimeException) Exceptions.unwrap(unwrap.getCause());
-                    Status.Code code = exception.getStatus().getCode();
-                    return code.equals(Status.Code.DEADLINE_EXCEEDED);
-                }
-        );
+        AssertExtensions.assertFutureThrows("", scaleFuture, deadlinePredicate);
+        
         CompletableFuture<Boolean> truncateFuture = controller.truncateStream("scope", "deadline", 
                 new StreamCutImpl(Stream.of("scope", "deadline"), Collections.emptyMap()));
-        AssertExtensions.assertFutureThrows("", truncateFuture, e -> {
-                    RetriesExhaustedException unwrap = (RetriesExhaustedException) Exceptions.unwrap(e);
-                    StatusRuntimeException exception = (StatusRuntimeException) Exceptions.unwrap(unwrap.getCause());
-                    Status.Code code = exception.getStatus().getCode();
-                    return code.equals(Status.Code.DEADLINE_EXCEEDED);
-                }
-        );
+        AssertExtensions.assertFutureThrows("", truncateFuture, deadlinePredicate);
+        
         CompletableFuture<Boolean> sealFuture = controller.sealStream("scope", "deadline");
-        AssertExtensions.assertFutureThrows("", sealFuture, e -> {
-                    RetriesExhaustedException unwrap = (RetriesExhaustedException) Exceptions.unwrap(e);
-                    StatusRuntimeException exception = (StatusRuntimeException) Exceptions.unwrap(unwrap.getCause());
-                    Status.Code code = exception.getStatus().getCode();
-                    return code.equals(Status.Code.DEADLINE_EXCEEDED);
-                }
-        );
+        AssertExtensions.assertFutureThrows("", sealFuture, deadlinePredicate);
+        
         CompletableFuture<Boolean> deleteFuture = controller.deleteStream("scope", "deadline");
-        AssertExtensions.assertFutureThrows("", deleteFuture, e -> {
-                    RetriesExhaustedException unwrap = (RetriesExhaustedException) Exceptions.unwrap(e);
-                    StatusRuntimeException exception = (StatusRuntimeException) Exceptions.unwrap(unwrap.getCause());
-                    Status.Code code = exception.getStatus().getCode();
-                    return code.equals(Status.Code.DEADLINE_EXCEEDED);
-                }
-        );
+        AssertExtensions.assertFutureThrows("", deleteFuture, deadlinePredicate);
     }
 }

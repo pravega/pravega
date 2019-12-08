@@ -24,7 +24,7 @@ public class ControllerImplConfig implements Serializable {
     private final int maxBackoffMillis;
     private final int retryAttempts;
     private final int backoffMultiple;
-    private final long deadline;
+    private final long timeoutMillis;
     private final ClientConfig clientConfig;
 
     public static final class ControllerImplConfigBuilder {
@@ -32,7 +32,7 @@ public class ControllerImplConfig implements Serializable {
         private int maxBackoffMillis = 20000;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
-        private long deadline = Duration.ofMinutes(5).toMillis();
+        private long timeoutMillis = Duration.ofMinutes(5).toMillis();
         private ClientConfig config = ClientConfig.builder().controllerURI(null)
                                                   .credentials(null).trustStore("").build();
     }

@@ -130,8 +130,7 @@ public class ControllerImpl implements Controller {
 
     // Generate random numbers for request ids.
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
-    
-    private final long deadline;
+
     /**
      * Creates a new instance of the Controller client class.
      *
@@ -191,8 +190,7 @@ public class ControllerImpl implements Controller {
             PravegaCredentialsWrapper wrapper = new PravegaCredentialsWrapper(credentials);
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
         }
-        this.client = client;
-        this.deadline = config.getDeadline();
+        this.client = client.withDeadlineAfter(config.getTimeoutMillis(), TimeUnit.MILLISECONDS);
     }
 
     @SuppressWarnings("checkstyle:ReturnCount")
@@ -399,7 +397,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(requestId, "updateStream");
             new ControllerClientTagger(client).withTag(requestId, "updateStream", scope, streamName)
-                                              .updateStream(ModelHelper.decode(scope, streamName, streamConfig), deadline, callback);
+                                              .updateStream(ModelHelper.decode(scope, streamName, streamConfig), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -443,7 +441,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(requestId, "truncateStream");
             new ControllerClientTagger(client).withTag(requestId, "truncateStream", scope, stream)
-                                              .truncateStream(ModelHelper.decode(scope, stream, streamCut), deadline, callback);
+                                              .truncateStream(ModelHelper.decode(scope, stream, streamCut), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -595,7 +593,7 @@ public class ControllerImpl implements Controller {
                                                                                                            .setStart(x.getKey()).setEnd(x.getValue()).build())
                                                                        .collect(Collectors.toList()))
                                        .setScaleTimestamp(scaleTimestamp)
-                                       .build(), deadline,
+                                       .build(),
                             callback);
             return callback.getFuture();
         }, this.executor);
@@ -613,7 +611,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(requestId, "sealStream");
             new ControllerClientTagger(client).withTag(requestId, "sealStream", scope, streamName)
-                                              .sealStream(ModelHelper.createStreamInfo(scope, streamName), deadline, callback);
+                                              .sealStream(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -653,7 +651,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<DeleteStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DeleteStreamStatus> callback = new RPCAsyncCallback<>(requestId, "deleteStream");
             new ControllerClientTagger(client).withTag(requestId, "deleteStream", scope, streamName)
-                                              .deleteStream(ModelHelper.createStreamInfo(scope, streamName), deadline, callback);
+                                              .deleteStream(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -1163,6 +1161,7 @@ public class ControllerImpl implements Controller {
     private static class ControllerClientTagger {
 
         private ControllerServiceStub clientStub;
+
         ControllerClientTagger(ControllerServiceStub clientStub) {
             this.clientStub = clientStub;
         }
@@ -1203,25 +1202,25 @@ public class ControllerImpl implements Controller {
             clientStub.createStream(streamConfig, callback);
         }
 
-        public void scale(ScaleRequest scaleRequest, long deadline, RPCAsyncCallback<ScaleResponse> callback) {
-            clientStub.withDeadlineAfter(deadline, TimeUnit.MILLISECONDS).scale(scaleRequest, callback);
+        public void scale(ScaleRequest scaleRequest, RPCAsyncCallback<ScaleResponse> callback) {
+            clientStub.scale(scaleRequest, callback);
         }
 
-        public void updateStream(StreamConfig streamConfig, long deadline, RPCAsyncCallback<UpdateStreamStatus> callback) {
-            clientStub.withDeadlineAfter(deadline, TimeUnit.MILLISECONDS).updateStream(streamConfig, callback);
+        public void updateStream(StreamConfig streamConfig, RPCAsyncCallback<UpdateStreamStatus> callback) {
+            clientStub.updateStream(streamConfig, callback);
         }
 
-        public void truncateStream(io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut streamCut, long deadline,
+        public void truncateStream(io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut streamCut,
                                    RPCAsyncCallback<UpdateStreamStatus> callback) {
-            clientStub.withDeadlineAfter(deadline, TimeUnit.MILLISECONDS).truncateStream(streamCut, callback);
+            clientStub.truncateStream(streamCut, callback);
         }
 
-        public void sealStream(StreamInfo streamInfo, long deadline, RPCAsyncCallback<UpdateStreamStatus> callback) {
-            clientStub.withDeadlineAfter(deadline, TimeUnit.MILLISECONDS).sealStream(streamInfo, callback);
+        public void sealStream(StreamInfo streamInfo, RPCAsyncCallback<UpdateStreamStatus> callback) {
+            clientStub.sealStream(streamInfo, callback);
         }
 
-        public void deleteStream(StreamInfo streamInfo, long deadline, RPCAsyncCallback<DeleteStreamStatus> callback) {
-            clientStub.withDeadlineAfter(deadline, TimeUnit.MILLISECONDS).deleteStream(streamInfo, callback);
+        public void deleteStream(StreamInfo streamInfo, RPCAsyncCallback<DeleteStreamStatus> callback) {
+            clientStub.deleteStream(streamInfo, callback);
         }
     }
 }
