@@ -31,6 +31,7 @@ import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.fault.FailoverSweeper;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
@@ -100,23 +101,25 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
-                                     final ScheduledExecutorService executor) {
+                                     final ScheduledExecutorService executor,
+                                     final TransactionMetrics transactionMetrics) {
         this(host, config, controller, checkpointStore, streamMetadataStore, bucketStore, connectionFactory,
-                streamMetadataTasks, streamTransactionMetadataTasks, null, executor);
+                streamMetadataTasks, streamTransactionMetadataTasks, null, executor, transactionMetrics);
     }
 
     @VisibleForTesting
     ControllerEventProcessors(final String host,
-                                     final ControllerEventProcessorConfig config,
-                                     final Controller controller,
-                                     final CheckpointStore checkpointStore,
-                                     final StreamMetadataStore streamMetadataStore,
-                                     final BucketStore bucketStore,
-                                     final ConnectionFactory connectionFactory,
-                                     final StreamMetadataTasks streamMetadataTasks,
-                                     final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
-                                     final EventProcessorSystem system,
-                                     final ScheduledExecutorService executor) {
+                              final ControllerEventProcessorConfig config,
+                              final Controller controller,
+                              final CheckpointStore checkpointStore,
+                              final StreamMetadataStore streamMetadataStore,
+                              final BucketStore bucketStore,
+                              final ConnectionFactory connectionFactory,
+                              final StreamMetadataTasks streamMetadataTasks,
+                              final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                              final EventProcessorSystem system,
+                              final ScheduledExecutorService executor,
+                              final TransactionMetrics transactionMetrics) {
         this.objectId = "ControllerEventProcessors";
         this.config = config;
         this.checkpointStore = checkpointStore;
@@ -132,8 +135,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new TruncateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 streamMetadataStore,
                 executor);
-        this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
-        this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, executor);
+        this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                bucketStore, executor, transactionMetrics);
+        this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, executor, transactionMetrics);
         this.executor = executor;
     }
 

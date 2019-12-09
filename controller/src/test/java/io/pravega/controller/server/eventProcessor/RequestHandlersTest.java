@@ -19,6 +19,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -199,8 +200,10 @@ public abstract class RequestHandlersTest {
 
         StreamMetadataStore streamStore2 = getStore();
 
-        CommitRequestHandler requestHandler1 = new CommitRequestHandler(streamStore1Spied, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
-        CommitRequestHandler requestHandler2 = new CommitRequestHandler(streamStore2, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler requestHandler1 = new CommitRequestHandler(streamStore1Spied, streamMetadataTasks, streamTransactionMetadataTasks,
+                bucketStore, executor, new TransactionMetrics());
+        CommitRequestHandler requestHandler2 = new CommitRequestHandler(streamStore2, streamMetadataTasks, streamTransactionMetadataTasks,
+                bucketStore, executor, new TransactionMetrics());
         
         // create txn on epoch 0 and set it to committing
         UUID txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
@@ -302,8 +305,10 @@ public abstract class RequestHandlersTest {
 
         StreamMetadataStore streamStore2 = getStore();
 
-        CommitRequestHandler requestHandler1 = new CommitRequestHandler(streamStore1Spied, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
-        CommitRequestHandler requestHandler2 = new CommitRequestHandler(streamStore2, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler requestHandler1 = new CommitRequestHandler(streamStore1Spied, streamMetadataTasks, streamTransactionMetadataTasks,
+                bucketStore, executor, new TransactionMetrics());
+        CommitRequestHandler requestHandler2 = new CommitRequestHandler(streamStore2, streamMetadataTasks, streamTransactionMetadataTasks,
+                bucketStore, executor, new TransactionMetrics());
         ScaleOperationTask scaleRequesthandler = new ScaleOperationTask(streamMetadataTasks, streamStore2, executor);
 
         // create txn on epoch 0 and set it to committing
@@ -748,7 +753,8 @@ public abstract class RequestHandlersTest {
     
     @Test
     public void testCommitTxnIgnoreFairness() {
-        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                bucketStore, executor, new TransactionMetrics());
         String fairness = "fairness";
         streamStore.createScope(fairness).join();
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),

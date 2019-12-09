@@ -176,10 +176,12 @@ public final class MetricsNames {
     public static final String CREATE_TRANSACTION_LATENCY = PREFIX + "controller.transactions.created_latency_ms";                      // Histogram
     public static final String CREATE_TRANSACTION_SEGMENTS_LATENCY = PREFIX + "controller.transactions.created_segments_latency_ms";    // Histogram
     public static final String CREATE_TRANSACTION_FAILED = PREFIX + "controller.transactions.create_failed";                            // Counter and Per-stream Counter
+    public static final String COMMITTING_TRANSACTION_LATENCY = PREFIX + "controller.transactions.committing_latency_ms";               // Histogram
     public static final String COMMIT_TRANSACTION = PREFIX + "controller.transactions.committed";                                       // Counter and Per-stream Counter
     public static final String COMMIT_TRANSACTION_LATENCY = PREFIX + "controller.transactions.committed_latency_ms";                    // Histogram
     public static final String COMMIT_TRANSACTION_SEGMENTS_LATENCY = PREFIX + "controller.transactions.committed_segments_latency_ms";  // Histogram
     public static final String COMMIT_TRANSACTION_FAILED = PREFIX + "controller.transactions.commit_failed";                            // Counter, Per-stream Counter, Per-transaction Counter
+    public static final String ABORTING_TRANSACTION_LATENCY = PREFIX + "controller.transactions.aborting_latency_ms";                   // Histogram
     public static final String ABORT_TRANSACTION = PREFIX + "controller.transactions.aborted";                                          // Counter and Per-stream Counter
     public static final String ABORT_TRANSACTION_LATENCY = PREFIX + "controller.transactions.aborted_latency_ms";                       // Histogram
     public static final String ABORT_TRANSACTION_SEGMENTS_LATENCY = PREFIX + "controller.transactions.aborted_segments_latency_ms";     // Histogram

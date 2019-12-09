@@ -22,6 +22,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -276,7 +277,8 @@ public abstract class ScaleRequestHandlerTest {
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
                 null, null, null, null, streamStore, executor);
-        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                bucketStore, executor, new TransactionMetrics());
 
         // 1 create transaction on old epoch and set it to committing
         UUID txnIdOldEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();
@@ -347,7 +349,8 @@ public abstract class ScaleRequestHandlerTest {
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
                 null, null, null, null, streamStore, executor);
-        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                bucketStore, executor, new TransactionMetrics());
 
         // 1 create transaction on old epoch and set it to committing
         UUID txnIdOldEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();
@@ -405,7 +408,8 @@ public abstract class ScaleRequestHandlerTest {
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
                 null, null, null, null, streamStore, executor);
-        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                bucketStore, executor, new TransactionMetrics());
 
         // 1 create transaction on old epoch and set it to committing
         UUID txnIdOldEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();

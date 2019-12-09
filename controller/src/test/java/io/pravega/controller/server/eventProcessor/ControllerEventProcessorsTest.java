@@ -15,6 +15,7 @@ import io.pravega.client.EventStreamClientFactory;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
@@ -168,7 +169,7 @@ public class ControllerEventProcessorsTest {
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
-                system, executor);
+                system, executor, new TransactionMetrics());
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
@@ -233,7 +234,7 @@ public class ControllerEventProcessorsTest {
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
                 connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
-                system, executor);
+                system, executor, new TransactionMetrics());
 
         // call bootstrap on ControllerEventProcessors
         processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks);

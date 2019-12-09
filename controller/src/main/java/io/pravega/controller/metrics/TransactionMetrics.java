@@ -21,12 +21,14 @@ import static io.pravega.shared.MetricsTags.transactionTags;
  */
 public final class TransactionMetrics extends AbstractControllerMetrics implements AutoCloseable {
 
-    private final static OpStatsLogger createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
-    private final static OpStatsLogger createTransactionSegmentsLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_SEGMENTS_LATENCY);
-    private final static OpStatsLogger commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
-    private final static OpStatsLogger commitTransactionSegmentsLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_LATENCY);
-    private final static OpStatsLogger abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
-    private final static OpStatsLogger abortTransactionSegmentsLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_SEGMENTS_LATENCY);
+    private final OpStatsLogger createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
+    private final OpStatsLogger createTransactionSegmentsLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_SEGMENTS_LATENCY);
+    private final OpStatsLogger commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
+    private final OpStatsLogger commitTransactionSegmentsLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_LATENCY);
+    private final OpStatsLogger committingTransactionLatency = STATS_LOGGER.createStats(COMMITTING_TRANSACTION_LATENCY);
+    private final OpStatsLogger abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
+    private final OpStatsLogger abortTransactionSegmentsLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_SEGMENTS_LATENCY);
+    private final OpStatsLogger abortingTransactionLatency = STATS_LOGGER.createStats(ABORTING_TRANSACTION_LATENCY);
 
     /**
      * This method increments the global and Stream-related counters of created Transactions and reports the latency of
@@ -63,6 +65,15 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
     }
 
     /**
+     * This method accounts for the time taken for a client to set a Transaction to COMMITTING state.
+     *
+     * @param latency    Latency of the abort Transaction operation.
+     */
+    public void committingTransaction(Duration latency) {
+        abortingTransactionLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
      * This method increments the global and Stream-related counters of committed Transactions and reports the latency
      * of the operation.
      *
@@ -93,9 +104,28 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      * @param txnId      Transaction id.
      */
     public void commitTransactionFailed(String scope, String streamName, String txnId) {
+        commitTransactionFailed(scope, streamName);
+        DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION_FAILED, 1, transactionTags(scope, streamName, txnId));
+    }
+
+    /**
+     * This method increments the global, Stream-related counters of failed commit operations.
+     *
+     * @param scope      Scope.
+     * @param streamName Name of the Stream.
+     */
+    public void commitTransactionFailed(String scope, String streamName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(COMMIT_TRANSACTION_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION_FAILED, 1, streamTags(scope, streamName));
-        DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION_FAILED, 1, transactionTags(scope, streamName, txnId));
+    }
+
+    /**
+     * This method accounts for the time taken for a client to set a Transaction to ABORTING state.
+     *
+     * @param latency    Latency of the abort Transaction operation.
+     */
+    public void abortingTransaction(Duration latency) {
+        abortingTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
@@ -151,7 +181,9 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
         createTransactionSegmentsLatency.close();
         commitTransactionLatency.close();
         commitTransactionSegmentsLatency.close();
+        committingTransactionLatency.close();
         abortTransactionLatency.close();
         abortTransactionSegmentsLatency.close();
+        abortingTransactionLatency.close();
     }
 }

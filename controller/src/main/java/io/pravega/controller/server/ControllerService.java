@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -79,6 +80,7 @@ public class ControllerService {
     private final StreamMetrics streamMetrics;
     private final TransactionMetrics transactionMetrics;
 
+    @VisibleForTesting
     public ControllerService(StreamMetadataStore streamStore, BucketStore bucketStore, StreamMetadataTasks streamMetadataTasks,
                              StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
                              Executor executor, Cluster cluster) {
@@ -360,7 +362,7 @@ public class ControllerService {
                         transactionMetrics.commitTransactionFailed(scope, stream, txId.toString());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
-                        transactionMetrics.commitTransaction(scope, stream, timer.getElapsed());
+                        transactionMetrics.committingTransaction(timer.getElapsed());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });
@@ -380,7 +382,7 @@ public class ControllerService {
                         transactionMetrics.abortTransactionFailed(scope, stream, txId.toString());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
-                        transactionMetrics.abortTransaction(scope, stream, timer.getElapsed());
+                        transactionMetrics.abortingTransaction(timer.getElapsed());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });

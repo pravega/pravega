@@ -32,6 +32,7 @@ import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
@@ -348,9 +349,11 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, bucketStore, executor, processedCommitEvents), executor));
+                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks,
+                        bucketStore, executor, processedCommitEvents, new TransactionMetrics()), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
+                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor,
+                        processedAbortEvents, new TransactionMetrics()), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
@@ -429,9 +432,11 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, bucketStore, executor, processedCommitEvents), executor));
+                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks,
+                        bucketStore, executor, processedCommitEvents, new TransactionMetrics()), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
+                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor,
+                        processedAbortEvents, new TransactionMetrics()), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();

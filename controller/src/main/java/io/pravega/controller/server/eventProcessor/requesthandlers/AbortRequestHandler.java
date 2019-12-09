@@ -10,8 +10,10 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -38,27 +40,32 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
     private final ScheduledExecutorService executor;
 
     private final BlockingQueue<AbortEvent> processedEvents;
+    private final TransactionMetrics transactionMetrics;
 
     @VisibleForTesting
     public AbortRequestHandler(final StreamMetadataStore streamMetadataStore,
                                final StreamMetadataTasks streamMetadataTasks,
                                final ScheduledExecutorService executor,
-                               final BlockingQueue<AbortEvent> queue) {
+                               final BlockingQueue<AbortEvent> queue,
+                               final TransactionMetrics transactionMetrics) {
         super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.executor = executor;
         this.processedEvents = queue;
+        this.transactionMetrics = transactionMetrics;
     }
 
     public AbortRequestHandler(final StreamMetadataStore streamMetadataStore,
                                final StreamMetadataTasks streamMetadataTasks,
-                               final ScheduledExecutorService executor) {
+                               final ScheduledExecutorService executor,
+                               final TransactionMetrics transactionMetrics) {
         super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.executor = executor;
         this.processedEvents = null;
+        this.transactionMetrics = transactionMetrics;
     }
 
     @Override
@@ -67,6 +74,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
         String stream = event.getStream();
         int epoch = event.getEpoch();
         UUID txId = event.getTxid();
+        Timer timer = new Timer();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
@@ -79,12 +87,14 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                     if (error != null) {
                         log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
+                        transactionMetrics.abortTransactionFailed(scope, stream, event.getTxid().toString());
                     } else {
                         log.debug("Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
                         if (processedEvents != null) {
                             processedEvents.offer(event);
                         }
+                        transactionMetrics.abortTransaction(scope, stream, timer.getElapsed());
                     }
                 }));
     }
