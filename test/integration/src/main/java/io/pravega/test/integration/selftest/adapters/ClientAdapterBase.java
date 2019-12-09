@@ -62,6 +62,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     private final ConcurrentHashMap<String, List<TransactionalEventStreamWriter<byte[]>>> transactionalWriters;
     private final ConcurrentHashMap<String, UUID> transactionIds;
     private final AtomicReference<ClientReader> clientReader;
+    private final int writersPerStream;
 
     //endregion
 
@@ -80,6 +81,10 @@ abstract class ClientAdapterBase extends StoreAdapter {
         this.transactionalWriters = new ConcurrentHashMap<>();
         this.transactionIds = new ConcurrentHashMap<>();
         this.clientReader = new AtomicReference<>();
+        this.writersPerStream = testConfig.getClientWritersPerStream() > 0
+                ? testConfig.getClientWritersPerStream()
+                : Math.max(1, this.testConfig.getProducerCount() / this.testConfig.getStreamCount());
+
     }
 
     //endregion
@@ -132,16 +137,15 @@ abstract class ClientAdapterBase extends StoreAdapter {
                 throw new CompletionException(new StreamingException(String.format("Unable to create Stream '%s'.", streamName)));
             }
 
-            int writerCount = Math.max(1, this.testConfig.getProducerCount() / this.testConfig.getStreamCount());
-            List<EventStreamWriter<byte[]>> writers = new ArrayList<>(writerCount);
+            List<EventStreamWriter<byte[]>> writers = new ArrayList<>(this.writersPerStream);
             if (this.streamWriters.putIfAbsent(streamName, writers) == null) {
-                for (int i = 0; i < writerCount; i++) {
+                for (int i = 0; i < this.writersPerStream; i++) {
                     writers.add(getClientFactory().createEventWriter(streamName, SERIALIZER, WRITER_CONFIG));
                 }
             }
-            List<TransactionalEventStreamWriter<byte[]>> txnWriters = new ArrayList<>(writerCount);
+            List<TransactionalEventStreamWriter<byte[]>> txnWriters = new ArrayList<>(this.writersPerStream);
             if (this.transactionalWriters.putIfAbsent(streamName, txnWriters) == null) {
-                for (int i = 0; i < writerCount; i++) {
+                for (int i = 0; i < this.writersPerStream; i++) {
                     txnWriters.add(getClientFactory().createTransactionalEventWriter("writer", streamName, SERIALIZER, WRITER_CONFIG));
                 }
             }

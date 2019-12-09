@@ -11,15 +11,20 @@ package io.pravega.client.netty.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelPromise;
+import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
+import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +43,7 @@ public class ClientConnectionImpl implements ClientConnection {
     @Getter
     private final FlowHandler nettyHandler;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final Semaphore throttle = new Semaphore(AppendBatchSizeTracker.MAX_BATCH_SIZE);
 
     public ClientConnectionImpl(String connectionName, int flowId, FlowHandler nettyHandler) {
         this.connectionName = connectionName;
@@ -49,7 +55,7 @@ public class ClientConnectionImpl implements ClientConnection {
     public void send(WireCommand cmd) throws ConnectionFailedException {
         checkClientConnectionClosed();
         nettyHandler.setRecentMessage();
-        Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
+        write(cmd);
     }
 
     @Override
@@ -57,12 +63,52 @@ public class ClientConnectionImpl implements ClientConnection {
         Timer timer = new Timer();
         checkClientConnectionClosed();
         nettyHandler.setRecentMessage();
-        Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(append), ConnectionFailedException::new);
+        write(append);
         nettyHandler.getMetricNotifier()
                     .updateSuccessMetric(CLIENT_APPEND_LATENCY, segmentTags(append.getSegment(), append.getWriterId().toString()),
                                          timer.getElapsedMillis());
     }
 
+    private void write(Append cmd) throws ConnectionFailedException {
+        Channel channel = nettyHandler.getChannel();
+        EventLoop eventLoop = channel.eventLoop();
+        ChannelPromise promise = channel.newPromise();
+        promise.addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) {
+                throttle.release(cmd.getDataLength());
+                if (!future.isSuccess()) {
+                    future.channel().pipeline().fireExceptionCaught(future.cause());
+                    future.channel().close();
+                }
+            }
+        });
+        // Work around for https://github.com/netty/netty/issues/3246
+        eventLoop.execute(() -> {
+            channel.write(cmd, promise);
+        });
+        Exceptions.handleInterrupted(() -> throttle.acquire(cmd.getDataLength()));
+    }
+    
+    private void write(WireCommand cmd) throws ConnectionFailedException {
+        Channel channel = nettyHandler.getChannel();
+        EventLoop eventLoop = channel.eventLoop();
+        ChannelPromise promise = channel.newPromise();
+        promise.addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) {
+                if (!future.isSuccess()) {
+                    future.channel().pipeline().fireExceptionCaught(future.cause());
+                    future.channel().close();
+                }
+            }
+        });
+        // Work around for https://github.com/netty/netty/issues/3246
+        eventLoop.execute(() -> {
+            channel.write(cmd, promise);
+        });
+    }
+    
     @Override
     public void sendAsync(WireCommand cmd, CompletedCallback callback) {
         Channel channel = null;

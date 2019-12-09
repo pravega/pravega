@@ -18,6 +18,7 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogTestBase;
 import io.pravega.segmentstore.storage.LogAddress;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
@@ -360,6 +361,43 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                         ex -> true);
             }
         }
+    }
+
+    @Test
+    public void testWriteSettings() {
+        @Cleanup
+        val log = createDurableDataLog();
+        val ws = log.getWriteSettings();
+        Assert.assertEquals(BookKeeperConfig.MAX_APPEND_LENGTH, ws.getMaxWriteLength());
+        Assert.assertEquals(this.config.get().getMaxOutstandingBytes(), ws.getMaxOutstandingBytes());
+    }
+
+    /**
+     * Tests {@link BookKeeperLogFactory#createDebugLogWrapper}.
+     */
+    @Test
+    public void testDebugLogWrapper() throws Exception {
+        @Cleanup
+        val wrapper = this.factory.get().createDebugLogWrapper(0);
+        val readOnly = wrapper.asReadOnly();
+        val writeSettings = readOnly.getWriteSettings();
+        Assert.assertEquals(BookKeeperConfig.MAX_APPEND_LENGTH, writeSettings.getMaxWriteLength());
+        Assert.assertEquals((int) BookKeeperConfig.BK_WRITE_TIMEOUT.getDefaultValue(), writeSettings.getMaxWriteTimeout().toMillis());
+        Assert.assertEquals((int) BookKeeperConfig.MAX_OUTSTANDING_BYTES.getDefaultValue(), writeSettings.getMaxOutstandingBytes());
+        AssertExtensions.assertThrows(
+                "registerQueueStateChangeListener should not be implemented.",
+                () -> readOnly.registerQueueStateChangeListener(new ThrottleSourceListener() {
+                    @Override
+                    public void notifyThrottleSourceChanged() {
+
+                    }
+
+                    @Override
+                    public boolean isClosed() {
+                        return false;
+                    }
+                }),
+                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Override

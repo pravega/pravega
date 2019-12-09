@@ -420,11 +420,11 @@ public class AppendEncodeDecodeTest {
         Append msg = new Append("segment", writerId, 1, event, 1);
         CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
-        commandEncoder.encode(null, setupAppend, fakeNetwork);
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
         
         ArrayList<Object> received = new ArrayList<>();
-        commandEncoder.encode(null, msg, fakeNetwork);
+        commandEncoder.encode(ctx, msg, fakeNetwork);
         read(fakeNetwork, received);
         assertEquals(2, received.size());
         Append readAppend = (Append) received.get(1);
@@ -456,7 +456,7 @@ public class AppendEncodeDecodeTest {
             read(fakeNetwork, received);
         }
         KeepAlive keepAlive = new KeepAlive();
-        encoder.encode(null, keepAlive, fakeNetwork);
+        encoder.encode(ctx, keepAlive, fakeNetwork);
         read(fakeNetwork, received);
 
         assertEquals(expectedMessages + 1, received.size());
@@ -481,11 +481,11 @@ public class AppendEncodeDecodeTest {
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         ArrayList<Object> received = setupAppend(streamName, writerId, fakeNetwork);
 
-        append(streamName, writerId, size, 0, size, fakeNetwork);
+        append(streamName, writerId, 0, 0, size, fakeNetwork);
         read(fakeNetwork, received);
 
         KeepAlive keepAlive = new KeepAlive();
-        encoder.encode(null, keepAlive, fakeNetwork);
+        encoder.encode(ctx, keepAlive, fakeNetwork);
         read(fakeNetwork, received);
         assertEquals(2, received.size());
 
@@ -706,14 +706,14 @@ public class AppendEncodeDecodeTest {
                             writerId,
                             numEvents,
                             eventSize,
-                            numEvents );
+                            numEvents * (eventSize + TYPE_PLUS_LENGTH_SIZE) / appendBlockSize + 1);
     }
 
     @Test
     public void testAppendSpanningBlockBound() throws Exception {
         int numEvents = 4;
         int size = (appendBlockSize * 3) / numEvents;
-        sendAndVerifyEvents(streamName, writerId, numEvents, size, numEvents);
+        sendAndVerifyEvents(streamName, writerId, numEvents, size, 2);
     }
 
     @Test
@@ -741,7 +741,7 @@ public class AppendEncodeDecodeTest {
     public void testAlmostBlockSizeAppend16() throws Exception {
         int numEvents = 4;
         int size = appendBlockSize - 16;
-        sendAndVerifyEvents(streamName, writerId, numEvents, size, numEvents);
+        sendAndVerifyEvents(streamName, writerId, numEvents, size, 2);
     }
     
     @Test 
@@ -756,13 +756,13 @@ public class AppendEncodeDecodeTest {
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         SetupAppend setupAppend = new SetupAppend(1, writer1, streamName, "");
-        encoder.encode(null, setupAppend, fakeNetwork);
+        encoder.encode(ctx, setupAppend, fakeNetwork);
         setupAppend = new SetupAppend(1, writer2, streamName, "");
-        encoder.encode(null, setupAppend, fakeNetwork);
+        encoder.encode(ctx, setupAppend, fakeNetwork);
         Append msg1 = new Append(streamName, writer1, 1, new Event(Unpooled.wrappedBuffer(new byte[] { 1, 2, 3, 4 })), 1);
-        encoder.encode(null, msg1, fakeNetwork);
+        encoder.encode(ctx, msg1, fakeNetwork);
         Append msg2 = new Append(streamName, writer2, 1, new Event(Unpooled.wrappedBuffer(new byte[] { 1, 2, 3, 4 })), 1);
-        encoder.encode(null, msg2, fakeNetwork);
+        encoder.encode(ctx, msg2, fakeNetwork);
     }
     
     @Test
@@ -774,14 +774,14 @@ public class AppendEncodeDecodeTest {
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
-        encoder.encode(null, setupAppend, fakeNetwork);
+        encoder.encode(ctx, setupAppend, fakeNetwork);
         Append msg = new Append(streamName, writerId, 1, 1, Unpooled.EMPTY_BUFFER, null, 1);
         assertEquals(0, msg.data.readableBytes());
-        encoder.encode(null, msg, fakeNetwork);
+        encoder.encode(ctx, msg, fakeNetwork);
         Append msg2 = new Append(streamName, writerId, 2, 1, Unpooled.EMPTY_BUFFER, null, 1);
         Append msg3 = new Append(streamName, writerId, 3, 1, Unpooled.EMPTY_BUFFER, null, 1);
-        encoder.encode(null, msg2, fakeNetwork);
-        encoder.encode(null, msg3, fakeNetwork);
+        encoder.encode(ctx, msg2, fakeNetwork);
+        encoder.encode(ctx, msg3, fakeNetwork);
         ArrayList<Object> received = Lists.newArrayList();
         read(fakeNetwork, received);
         assertEquals(4, received.size());
@@ -800,22 +800,22 @@ public class AppendEncodeDecodeTest {
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
-        encoder.encode(null, setupAppend, fakeNetwork);
+        encoder.encode(ctx, setupAppend, fakeNetwork);
         Append msg = new Append(streamName, writerId, 1, 1, Unpooled.EMPTY_BUFFER, null, 1);
         assertEquals(0, msg.data.readableBytes());
-        encoder.encode(null, msg, fakeNetwork);
-        Append msg2 = new Append(streamName, writerId, 2, 2, Unpooled.EMPTY_BUFFER, null, 1);
-        Append msg3 = new Append(streamName, writerId, 3, 3, Unpooled.EMPTY_BUFFER, null, 1);
-        encoder.encode(null, msg2, fakeNetwork);
-        encoder.encode(null, msg3, fakeNetwork);
-        encoder.encode(null, new KeepAlive(), fakeNetwork);
+        encoder.encode(ctx, msg, fakeNetwork);
+        Append msg2 = new Append(streamName, writerId, 2, 1, Unpooled.EMPTY_BUFFER, null, 1);
+        Append msg3 = new Append(streamName, writerId, 3, 1, Unpooled.EMPTY_BUFFER, null, 1);
+        encoder.encode(ctx, msg2, fakeNetwork);
+        encoder.encode(ctx, msg3, fakeNetwork);
+        encoder.encode(ctx, new KeepAlive(), fakeNetwork);
         ArrayList<Object> received = Lists.newArrayList();
         read(fakeNetwork, received);
-        assertEquals(5, received.size());
+        assertEquals(3, received.size());
         assertEquals(setupAppend, received.get(0));
-        assertEquals(new Append(streamName, writerId, 3, 3, Unpooled.EMPTY_BUFFER, null, 1), received.get(3));
-        verifyNoExcessData(((Append) received.get(3)).getData());
-        assertEquals(new KeepAlive(), received.get(4));
+        assertEquals(new Append(streamName, writerId, 3, 3, Unpooled.EMPTY_BUFFER, null, 1), received.get(1));
+        verifyNoExcessData(((Append) received.get(1)).getData());
+        assertEquals(new KeepAlive(), received.get(2));
     }
 
     @Test
@@ -831,10 +831,10 @@ public class AppendEncodeDecodeTest {
 
         append(streamName, writerId, size + size / 2, 2, size / 2, fakeNetwork);
         read(fakeNetwork, received);
-        assertEquals(2, received.size());
+        assertEquals(1, received.size());
 
         KeepAlive keepAlive = new KeepAlive();
-        encoder.encode(null, keepAlive, fakeNetwork);
+        encoder.encode(ctx, keepAlive, fakeNetwork);
         read(fakeNetwork, received);
         assertEquals(3, received.size());
 
@@ -856,7 +856,7 @@ public class AppendEncodeDecodeTest {
 
     private ArrayList<Object> setupAppend(String testStream, UUID writerId, ByteBuf fakeNetwork) throws Exception {
         SetupAppend setupAppend = new SetupAppend(1, writerId, testStream, "");
-        encoder.encode(null, setupAppend, fakeNetwork);
+        encoder.encode(ctx, setupAppend, fakeNetwork);
         ArrayList<Object> received = new ArrayList<>();
         WireCommand command = CommandDecoder.parseCommand(fakeNetwork);
         assertTrue(appendDecoder.acceptInboundMessage(command));
@@ -871,7 +871,7 @@ public class AppendEncodeDecodeTest {
         Event event = new Event(Unpooled.wrappedBuffer(content, 0, length));
         Append msg = new Append(segment, writerId, messageNumber, event, 1);
         assertEquals(length + WireCommands.TYPE_PLUS_LENGTH_SIZE, msg.data.readableBytes());
-        encoder.encode(null, msg, out);
+        encoder.encode(ctx, msg, out);
         assertEquals(length + WireCommands.TYPE_PLUS_LENGTH_SIZE, msg.data.readableBytes());
         return offset + length;
     }
