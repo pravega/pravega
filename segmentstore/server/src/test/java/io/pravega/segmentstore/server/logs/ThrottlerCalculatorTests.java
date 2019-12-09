@@ -49,20 +49,6 @@ public class ThrottlerCalculatorTests {
     }
 
     /**
-     * Tests the ability to properly calculate throttling delays caused by commit log queue overflows.
-     */
-    @Test
-    public void testCommitBacklogThrottling() {
-        val maxU = ThrottlerCalculator.COMMIT_BACKLOG_COUNT_FULL_THROTTLE_THRESHOLD;
-        val commitLogCount = new AtomicReference<Integer>(0);
-        val tc = ThrottlerCalculator.builder().commitBacklogThrottler(commitLogCount::get).build();
-        testThrottling(tc, commitLogCount,
-                new Integer[]{-1, 0, ThrottlerCalculator.COMMIT_BACKLOG_COUNT_THRESHOLD / 2, ThrottlerCalculator.COMMIT_BACKLOG_COUNT_THRESHOLD},
-                new Integer[]{ThrottlerCalculator.COMMIT_BACKLOG_COUNT_THRESHOLD + 1, ThrottlerCalculator.COMMIT_BACKLOG_COUNT_THRESHOLD + 10, maxU},
-                new Integer[]{maxU, maxU + 1, maxU * 2, 10000});
-    }
-
-    /**
      * Tests the ability to properly calculate batching-related delays.
      */
     @Test
