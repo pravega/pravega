@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -41,9 +42,8 @@ class WriteQueue {
     @GuardedBy("this")
     private long totalLength;
     @GuardedBy("this")
-    private int lastDurationMillis;
-    @GuardedBy("this")
     private boolean closed;
+    private final AtomicReference<QueueStats> stats;
 
     //endregion
 
@@ -65,6 +65,7 @@ class WriteQueue {
     WriteQueue(Supplier<Long> timeSupplier) {
         this.timeSupplier = Preconditions.checkNotNull(timeSupplier, "timeSupplier");
         this.writes = new ArrayDeque<>();
+        this.stats = new AtomicReference<>(new QueueStats(0, 0, BookKeeperConfig.MAX_APPEND_LENGTH, 0));
     }
 
     //endregion
@@ -76,18 +77,20 @@ class WriteQueue {
      *
      * @return The snapshot, including Queue Size, Item Fill Rate and elapsed time of the oldest item.
      */
-    synchronized QueueStats getStatistics() {
-        int size = this.writes.size();
-        double fillRatio = calculateFillRatio(this.totalLength, size);
-        int processingTime = this.lastDurationMillis;
-        if (processingTime == 0 && size > 0) {
+    QueueStats getStatistics() {
+        return this.stats.get();
+    }
+
+    @GuardedBy("this")
+    private void updateStats(long lastDurationMillis) {
+        if (lastDurationMillis == 0 && this.writes.size() > 0) {
             // We get in here when this method is invoked prior to any operation being completed. Since lastDurationMillis
             // is only set when an item is completed, in this special case we just estimate based on the amount of time
             // the first item in the queue has been added.
-            processingTime = (int) ((this.timeSupplier.get() - this.writes.peekFirst().getQueueAddedTimestamp()) / AbstractTimer.NANOS_TO_MILLIS);
+            lastDurationMillis = (int) ((this.timeSupplier.get() - this.writes.peekFirst().getQueueAddedTimestamp()) / AbstractTimer.NANOS_TO_MILLIS);
         }
 
-        return new QueueStats(size, fillRatio, processingTime);
+        this.stats.set(new QueueStats(this.writes.size(), this.totalLength, BookKeeperConfig.MAX_APPEND_LENGTH, (int) lastDurationMillis));
     }
 
     /**
@@ -188,28 +191,13 @@ class WriteQueue {
             failedWrite |= w.getFailureCause() != null;
         }
 
-        if (removedCount > 0) {
-            this.lastDurationMillis = (int) (totalElapsed / removedCount / AbstractTimer.NANOS_TO_MILLIS);
-        }
+        long lastDurationMillis = removedCount == 0 ? 0 : (int) (totalElapsed / removedCount / AbstractTimer.NANOS_TO_MILLIS);
+        updateStats(lastDurationMillis);
 
         CleanupStatus status = failedWrite
                 ? CleanupStatus.WriteFailed
                 : this.writes.isEmpty() ? CleanupStatus.QueueEmpty : CleanupStatus.QueueNotEmpty;
         return new CleanupResult(status, removedCount);
-    }
-
-    /**
-     * Calculates the FillRatio, which is a number between [0, 1] that represents the average fill of each
-     * write with respect to the maximum BookKeeper write allowance.
-     * @param totalLength Total length of the writes.
-     * @param size Total number of writes.
-     */
-    private static double calculateFillRatio(long totalLength, int size) {
-        if (size > 0) {
-            return Math.min(1, (double) totalLength / size / BookKeeperConfig.MAX_APPEND_LENGTH);
-        } else {
-            return 0;
-        }
     }
 
     //endregion
