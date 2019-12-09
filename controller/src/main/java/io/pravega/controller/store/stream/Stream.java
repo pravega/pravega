@@ -14,7 +14,9 @@ import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.RetentionSet;
+import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
@@ -615,4 +617,29 @@ interface Stream {
      * This allows us reuse of stream object without having to recreate a new stream object for each new operation
      */
     void refresh();
+
+    /**
+     * Method to get the requested chunk of the HistoryTimeSeries.
+     *
+     * @param chunkNumber chunk number.
+     * @return Completable future that, upon completion, holds the requested HistoryTimeSeries chunk.
+     */
+    CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunk(int chunkNumber);
+
+    /**
+     * Method to get the requested shard of sealed segments map.
+     *
+     * @param shardNumber shard number.
+     * @return Completable future that, upon completion, holds the requested sealed segment map shard.
+     */
+    CompletableFuture<SealedSegmentsMapShard> getSealedSegmentSizeMapShard(int shardNumber);
+
+    /**
+     * Method to get epoch in which a segment was sealed.
+     * Returns a negative number if segment is not sealed.  
+     *
+     * @param segmentId  segment id.
+     * @return Completable future that, upon completion, holds the epoch in which the segment was sealed.
+     */
+    CompletableFuture<Integer> getSegmentSealedEpoch(long segmentId);
 }
