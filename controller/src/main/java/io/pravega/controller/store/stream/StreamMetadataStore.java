@@ -14,7 +14,9 @@ import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.RetentionSet;
+import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
@@ -1155,4 +1157,47 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return A completableFuture, which when completed, will contain map of writer to respective marks.  
      */
     CompletableFuture<Map<String, WriterMark>> getAllWriterMarks(String scope, String stream, OperationContext context, Executor executor);
+    
+    /**
+     * Method to get the requested chunk of the HistoryTimeSeries.
+     *
+     * @param scope      stream scope.
+     * @param streamName stream name.
+     * @param chunkNumber chunk number.
+     * @param context    operation context.
+     * @param executor   callers executor.
+     * @return Completable future that, upon completion, holds the requested HistoryTimeSeries chunk.
+     */
+    CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunk(final String scope, final String streamName,
+                                                                   final int chunkNumber, final OperationContext context,
+                                                                   final Executor executor);
+
+    /**
+     * Method to get the requested shard of sealed segments map.
+     *
+     * @param scope      stream scope.
+     * @param streamName stream name.
+     * @param shardNumber shard number.
+     * @param context    operation context.
+     * @param executor   callers executor.
+     * @return Completable future that, upon completion, holds the requested sealed segment map shard.
+     */
+    CompletableFuture<SealedSegmentsMapShard> getSealedSegmentSizeMapShard(final String scope, final String streamName,
+                                                                           final int shardNumber, final OperationContext context,
+                                                                           final Executor executor);
+
+    /**
+     * Method to get epoch in which a segment was sealed.
+     *
+     * @param scope      stream scope.
+     * @param streamName stream name.
+     * @param segmentId  segment id.
+     * @param context    operation context.
+     * @param executor   callers executor.
+     * @return Completable future that, upon completion, holds the epoch in which the segment was sealed OR
+     * a negative number if segment is not sealed.
+     */
+    CompletableFuture<Integer> getSegmentSealedEpoch(final String scope, final String streamName, final long segmentId,
+                                                     final OperationContext context, final Executor executor);
+
 }

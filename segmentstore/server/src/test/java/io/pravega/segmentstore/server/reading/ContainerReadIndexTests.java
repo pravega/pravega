@@ -569,6 +569,31 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof StreamSegmentSealedException);
     }
 
+
+    /**
+     * Tests the ability to auto-unregister Future Reads if they are cancelled externally.
+     */
+    @Test
+    public void testFutureReadsCancelled() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // Create an empty segment. This is the easiest way to ensure the Read Index is empty.
+        long segmentId = createSegment(0, context);
+        @Cleanup
+        val rr = context.readIndex.read(segmentId, 0, 1, TIMEOUT);
+        val futureReadEntry = rr.next();
+        Assert.assertEquals("Unexpected entry type.", ReadResultEntryType.Future, futureReadEntry.getType());
+        Assert.assertFalse("ReadResultEntry is completed.", futureReadEntry.getContent().isDone());
+
+        rr.close();
+        Assert.assertTrue(futureReadEntry.getContent().isCancelled());
+
+        AssertExtensions.assertEventuallyEquals("FutureReadResultEntry not unregistered after owning ReadResult closed.",
+                0, () -> context.readIndex.getIndex(segmentId).getFutureReadCount(),
+                10, TIMEOUT.toMillis());
+    }
+
     /**
      * Tests the handling of invalid operations. Scenarios include:
      * * Appends at wrong offsets
