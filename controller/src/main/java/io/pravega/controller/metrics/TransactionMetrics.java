@@ -12,17 +12,7 @@ package io.pravega.controller.metrics;
 import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
 
-import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION;
-import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION_FAILED;
-import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_FAILED;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_FAILED;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
-import static io.pravega.shared.MetricsNames.globalMetricName;
+import static io.pravega.shared.MetricsNames.*;
 import static io.pravega.shared.MetricsTags.streamTags;
 import static io.pravega.shared.MetricsTags.transactionTags;
 
@@ -32,8 +22,11 @@ import static io.pravega.shared.MetricsTags.transactionTags;
 public final class TransactionMetrics extends AbstractControllerMetrics implements AutoCloseable {
 
     private final OpStatsLogger createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
+    private final OpStatsLogger createTransactionSegmentsLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_SEGMENTS_LATENCY);
     private final OpStatsLogger commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
+    private final OpStatsLogger commitTransactionSegmentsLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_LATENCY);
     private final OpStatsLogger abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
+    private final OpStatsLogger abortTransactionSegmentsLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_SEGMENTS_LATENCY);
 
     /**
      * This method increments the global and Stream-related counters of created Transactions and reports the latency of
@@ -47,6 +40,15 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_TRANSACTION), 1);
         DYNAMIC_LOGGER.incCounterValue(CREATE_TRANSACTION, 1, streamTags(scope, streamName));
         createTransactionLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of managing segments for a particular create Transaction.
+     *
+     * @param latency      Time elapsed to create the segments related to the created transaction.
+     */
+    public void createTransactionSegments(Duration latency) {
+        createTransactionSegmentsLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
@@ -75,6 +77,15 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
     }
 
     /**
+     * This method reports the latency of managing segments for a particular commit Transaction.
+     *
+     * @param latency      Time elapsed to merge the segments related to the committed transaction.
+     */
+    public void commitTransactionSegments(Duration latency) {
+        commitTransactionSegmentsLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
      * This method increments the global, Stream-related and Transaction-related counters of failed commit operations.
      *
      * @param scope      Scope.
@@ -99,6 +110,15 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(ABORT_TRANSACTION), 1);
         DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION, 1, streamTags(scope, streamName));
         abortTransactionLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of managing segments for a particular abort Transaction.
+     *
+     * @param latency      Time elapsed to delete the segments related to the aborted transaction.
+     */
+    public void abortTransactionSegments(Duration latency) {
+        abortTransactionSegmentsLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**

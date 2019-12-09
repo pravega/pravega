@@ -14,7 +14,9 @@ import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -94,6 +96,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private final CompletableFuture<EventStreamWriter<CommitEvent>> commitWriterFuture;
     private final CompletableFuture<EventStreamWriter<AbortEvent>> abortWriterFuture;
 
+    private final TransactionMetrics transactionMetrics;
+
     @VisibleForTesting
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final SegmentHelper segmentHelper,
@@ -113,6 +117,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         readyLatch = new CountDownLatch(1);
         this.commitWriterFuture = new CompletableFuture<>();
         this.abortWriterFuture = new CompletableFuture<>();
+        this.transactionMetrics = new TransactionMetrics();
     }
 
     @VisibleForTesting
@@ -691,10 +696,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
                                                       final List<StreamSegmentRecord> segments, final UUID txnId) {
+        Timer timer = new Timer();
         return Futures.allOf(segments.stream()
                 .parallel()
                 .map(segment -> notifyTxnCreation(scope, stream, segment.segmentId(), txnId))
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()))
+                .thenRun(() -> transactionMetrics.createTransactionSegments(timer.getElapsed()));
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
@@ -735,6 +742,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             abortCloseFuture.join();
         } else {
             abortWriterFuture.cancel(true);
+        }
+        if (transactionMetrics != null) {
+            transactionMetrics.close();
         }
     }
 }
