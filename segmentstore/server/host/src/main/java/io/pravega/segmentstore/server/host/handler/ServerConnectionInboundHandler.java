@@ -65,15 +65,11 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
         Channel c = getChannel();
         // Work around for https://github.com/netty/netty/issues/3246
         EventLoop eventLoop = c.eventLoop();
-        if (eventLoop.inEventLoop()) {
-            eventLoop.execute(() -> writeAndFlush(c, cmd));
-        } else {
-            writeAndFlush(c, cmd);
-        }
+        eventLoop.execute(() -> write(c, cmd));
     }
 
-    private static void writeAndFlush(Channel channel, WireCommand data) {
-        channel.writeAndFlush(data).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+    private static void write(Channel channel, WireCommand data) {
+        channel.write(data).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
     }  
     
     @Override
@@ -86,7 +82,7 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
         Channel ch = channel.get();
         if (ch != null) {
             // wait for all messages to be sent before closing the channel.
-            ch.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
+            ch.eventLoop().execute(() -> ch.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE));
         }
     }
 
