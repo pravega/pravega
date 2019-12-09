@@ -28,6 +28,7 @@ import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -117,6 +118,31 @@ public class AppendTest {
     public void sendReceivingAppend() throws Exception {
         String segment = "123";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store);
+
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, ""));
+        assertEquals(segment, created.getSegment());
+
+        UUID uuid = UUID.randomUUID();
+        AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(2, uuid, segment, ""));
+
+        assertEquals(segment, setup.getSegment());
+        assertEquals(uuid, setup.getWriterId());
+
+        DataAppended ack = (DataAppended) sendRequest(channel,
+                                                      new Append(segment, uuid, data.readableBytes(), new Event(data), 1L));
+        assertEquals(uuid, ack.getWriterId());
+        assertEquals(data.readableBytes(), ack.getEventNumber());
+        assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
+    }
+    
+    @Test(timeout = 10000)
+    public void sendLargeAppend() throws Exception {
+        String segment = "123";
+        ByteBuf data = Unpooled.wrappedBuffer(new byte[Serializer.MAX_EVENT_SIZE]);
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
         @Cleanup
