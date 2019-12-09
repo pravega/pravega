@@ -1005,7 +1005,10 @@ public class StreamMetadataTasks extends TaskBase {
                 .parallel()
                 .map(segment -> notifyTxnCommit(scope, stream, segment, txnId))
                 .collect(Collectors.toList()))
-                .thenRun(() -> transactionMetrics.commitTransactionSegments(timer.getElapsed()));
+                .thenRun(() -> {
+                    transactionMetrics.commitTransactionSegments(timer.getElapsed());
+                    log.error("REPORTING COMMIT TRANSACTION SEGMENTS TIME ELAPSED: {}", timer.getElapsedMillis());
+                });
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyTxnCommit(final String scope, final String stream,
