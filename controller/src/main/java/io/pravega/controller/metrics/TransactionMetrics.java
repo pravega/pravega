@@ -148,7 +148,10 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
     @Override
     public void close() {
         createTransactionLatency.close();
+        createTransactionSegmentsLatency.close();
         commitTransactionLatency.close();
+        commitTransactionSegmentsLatency.close();
         abortTransactionLatency.close();
+        abortTransactionSegmentsLatency.close();
     }
 }
