@@ -89,6 +89,7 @@ public abstract class ControllerEventProcessorTest {
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
     private RequestTracker requestTracker = new RequestTracker(true);
+    private TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     @Before
     public void setUp() throws Exception {
@@ -105,11 +106,11 @@ public abstract class ControllerEventProcessorTest {
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, TaskStoreFactory.createInMemoryStore(executor),
-                segmentHelperMock, executor, "1", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                segmentHelperMock, executor, "1", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock,
                 executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, TaskStoreFactory.createInMemoryStore(executor),
-                segmentHelperMock, executor, "1", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                segmentHelperMock, executor, "1", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock,
                 executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
@@ -133,6 +134,7 @@ public abstract class ControllerEventProcessorTest {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         streamStore.close();
+        transactionMetrics.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
@@ -148,7 +150,7 @@ public abstract class ControllerEventProcessorTest {
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
 
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                bucketStore, executor, new TransactionMetrics());
+                bucketStore, executor, transactionMetrics);
         commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, txnData.getEpoch())).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
     }
@@ -197,7 +199,7 @@ public abstract class ControllerEventProcessorTest {
         // now attempt to commit the transaction on epoch 1. epoch in commit event is ignored and transactions on lowest epoch 
         // should be committed first. 
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                bucketStore, executor, new TransactionMetrics());
+                bucketStore, executor, transactionMetrics);
         commitEventProcessor.processEvent(new CommitEvent(SCOPE, stream, txnData1.getEpoch())).join();
         checkTransactionState(SCOPE, stream, txnData0.getId(), TxnStatus.COMMITTED);
         checkTransactionState(SCOPE, stream, txnData1.getId(), TxnStatus.COMMITTING);
@@ -237,7 +239,7 @@ public abstract class ControllerEventProcessorTest {
         List<VersionedTransactionData> txnDataList = createAndCommitTransactions(3);
         int epoch = txnDataList.get(0).getEpoch();
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                bucketStore, executor, new TransactionMetrics());
+                bucketStore, executor, transactionMetrics);
         commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
         for (VersionedTransactionData txnData : txnDataList) {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
@@ -264,7 +266,7 @@ public abstract class ControllerEventProcessorTest {
 
         streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                bucketStore, executor, new TransactionMetrics());
+                bucketStore, executor, transactionMetrics);
 
         commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
         for (VersionedTransactionData txnData : txnDataList1) {
@@ -290,7 +292,7 @@ public abstract class ControllerEventProcessorTest {
         EventStreamWriterMock<ControllerEvent> requestEventWriter = new EventStreamWriterMock<>();
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                bucketStore, executor, new TransactionMetrics());
+                bucketStore, executor, transactionMetrics);
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
                 null, null, null, null, streamStore, executor);
@@ -366,7 +368,7 @@ public abstract class ControllerEventProcessorTest {
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), false, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTING);
 
-        AbortRequestHandler abortRequestHandler = new AbortRequestHandler(streamStore, streamMetadataTasks, executor, new TransactionMetrics());
+        AbortRequestHandler abortRequestHandler = new AbortRequestHandler(streamStore, streamMetadataTasks, executor, transactionMetrics);
         abortRequestHandler.processEvent(new AbortEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId())).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTED);
     }
@@ -390,7 +392,7 @@ public abstract class ControllerEventProcessorTest {
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
 
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                bucketStore, executor, new TransactionMetrics());
+                bucketStore, executor, transactionMetrics);
         commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, txnData.getEpoch())).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
 

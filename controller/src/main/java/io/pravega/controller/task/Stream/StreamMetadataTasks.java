@@ -120,29 +120,29 @@ public class StreamMetadataTasks extends TaskBase {
 
     private final TransactionMetrics transactionMetrics;
 
-    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                               BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
-                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
-                               final ScheduledExecutorService eventExecutor, final String hostId,
-                               GrpcAuthHelper authHelper, RequestTracker requestTracker) {
+    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
+                               final TaskMetadataStore taskMetadataStore, final SegmentHelper segmentHelper,
+                               final ScheduledExecutorService executor, final ScheduledExecutorService eventExecutor,
+                               final String hostId, GrpcAuthHelper authHelper, RequestTracker requestTracker,
+                               TransactionMetrics transactionMetrics) {
         this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, eventExecutor, new Context(hostId),
-                authHelper, requestTracker);
+                authHelper, requestTracker, transactionMetrics);
     }
 
     @VisibleForTesting
-    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                               BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
-                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
-                               final String hostId, GrpcAuthHelper authHelper, RequestTracker requestTracker) {
+    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
+                               final TaskMetadataStore taskMetadataStore, final SegmentHelper segmentHelper,
+                               final ScheduledExecutorService executor, final String hostId, GrpcAuthHelper authHelper,
+                               RequestTracker requestTracker, TransactionMetrics transactionMetrics) {
         this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, executor, new Context(hostId),
-             authHelper, requestTracker);
+             authHelper, requestTracker, transactionMetrics);
     }
 
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                 BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
                                 final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
                                 final ScheduledExecutorService eventExecutor, final Context context,
-                                GrpcAuthHelper authHelper, RequestTracker requestTracker) {
+                                GrpcAuthHelper authHelper, RequestTracker requestTracker, TransactionMetrics transactionMetrics) {
         super(taskMetadataStore, executor, context);
         this.eventExecutor = eventExecutor;
         this.streamMetadataStore = streamMetadataStore;
@@ -150,7 +150,7 @@ public class StreamMetadataTasks extends TaskBase {
         this.segmentHelper = segmentHelper;
         this.authHelper = authHelper;
         this.requestTracker = requestTracker;
-        this.transactionMetrics = new TransactionMetrics();
+        this.transactionMetrics = transactionMetrics;
         this.setReady();
     }
 
@@ -1052,7 +1052,8 @@ public class StreamMetadataTasks extends TaskBase {
                 eventExecutor,
                 context,
                 authHelper,
-                requestTracker);
+                requestTracker,
+                transactionMetrics);
     }
 
     @Override

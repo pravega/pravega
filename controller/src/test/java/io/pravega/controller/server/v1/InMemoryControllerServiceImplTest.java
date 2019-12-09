@@ -13,6 +13,7 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -54,6 +55,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
     private RequestTracker requestTracker;
+    private TransactionMetrics transactionMetrics;
     
     @Override
     public void setup() throws Exception {
@@ -62,10 +64,11 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         requestTracker = new RequestTracker(true);
+        transactionMetrics = new TransactionMetrics();
 
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
@@ -97,5 +100,6 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
             streamTransactionMetadataTasks.close();
         }
         streamStore.close();
+        transactionMetrics.close();
     }
 }

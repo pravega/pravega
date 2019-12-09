@@ -54,6 +54,7 @@ import static org.mockito.Mockito.*;
 
 public class ControllerEventProcessorsTest {
     ScheduledExecutorService executor;
+    TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     @Before
     public void setUp() {
@@ -62,6 +63,7 @@ public class ControllerEventProcessorsTest {
 
     @After
     public void tearDown() {
+        transactionMetrics.close();
         executor.shutdown();
     }
     
@@ -169,7 +171,7 @@ public class ControllerEventProcessorsTest {
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
-                system, executor, new TransactionMetrics());
+                system, executor, transactionMetrics);
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
@@ -234,7 +236,7 @@ public class ControllerEventProcessorsTest {
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
                 connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
-                system, executor, new TransactionMetrics());
+                system, executor, transactionMetrics);
 
         // call bootstrap on ControllerEventProcessors
         processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks);

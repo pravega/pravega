@@ -70,7 +70,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      * @param latency    Latency of the abort Transaction operation.
      */
     public void committingTransaction(Duration latency) {
-        abortingTransactionLatency.reportSuccessValue(latency.toMillis());
+        committingTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**

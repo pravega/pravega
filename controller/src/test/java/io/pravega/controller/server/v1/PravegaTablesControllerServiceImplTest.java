@@ -15,6 +15,7 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -63,6 +64,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
     private Cluster cluster;
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
+    private TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     @Override
     public void setup() throws Exception {
@@ -83,7 +85,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
@@ -120,6 +122,9 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         }
         if (streamTransactionMetadataTasks != null) {
             streamTransactionMetadataTasks.close();
+        }
+        if (transactionMetrics != null) {
+            transactionMetrics.close();
         }
         streamStore.close();
         if (cluster != null) {

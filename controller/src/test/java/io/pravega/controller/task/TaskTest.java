@@ -13,6 +13,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
@@ -91,6 +92,7 @@ public abstract class TaskTest {
     private StreamMetadataTasks streamMetadataTasks;
     private SegmentHelper segmentHelperMock;
     private final RequestTracker requestTracker = new RequestTracker(true);
+    private final TransactionMetrics transactionMetrics = new TransactionMetrics();
     
     abstract StreamMetadataStore getStream();
 
@@ -105,8 +107,9 @@ public abstract class TaskTest {
         taskMetadataStore = TaskStoreFactory.createZKStore(cli, executor);
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore, segmentHelperMock,
-                executor, HOSTNAME, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(),
+                taskMetadataStore, segmentHelperMock, executor, HOSTNAME, GrpcAuthHelper.getDisabledAuthHelper(),
+                requestTracker, transactionMetrics);
 
         final String stream2 = "stream2";
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -165,6 +168,7 @@ public abstract class TaskTest {
         zkServer.stop();
         zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);
+        transactionMetrics.close();
     }
 
     @Test
@@ -227,8 +231,9 @@ public abstract class TaskTest {
 
         // Create objects.
         @Cleanup
-        StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore, segmentHelperMock,
-                executor, deadHost, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+        StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(),
+                taskMetadataStore, segmentHelperMock, executor, deadHost, GrpcAuthHelper.getDisabledAuthHelper(),
+                requestTracker, transactionMetrics);
         mockStreamTasks.setCreateIndexOnlyMode();
         TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
 

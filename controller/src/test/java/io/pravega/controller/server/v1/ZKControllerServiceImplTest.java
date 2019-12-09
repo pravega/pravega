@@ -17,6 +17,7 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -73,6 +74,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private Cluster cluster;
     private StreamMetadataStore streamStore;
+    private TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     @Override
     public void setup() throws Exception {
@@ -94,7 +96,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
@@ -135,6 +137,9 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         streamStore.close();
         if (cluster != null) {
             cluster.close();
+        }
+        if (transactionMetrics != null) {
+            transactionMetrics.close();
         }
         storeClient.close();
         zkClient.close();

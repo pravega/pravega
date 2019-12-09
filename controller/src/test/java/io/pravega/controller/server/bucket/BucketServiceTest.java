@@ -15,6 +15,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
@@ -52,6 +53,7 @@ public abstract class BucketServiceTest {
     private ConnectionFactoryImpl connectionFactory;
     private String hostId;
     private RequestTracker requestTracker = new RequestTracker(true);
+    private TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     @Before
     public void setup() throws Exception {
@@ -67,7 +69,7 @@ public abstract class BucketServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, taskMetadataStore, 
-                segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
         BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2);
         PeriodicRetention periodicRetention = new PeriodicRetention(streamMetadataStore, streamMetadataTasks, executor, requestTracker);
         retentionService = bucketStoreFactory.createRetentionService(Duration.ofMillis(5), periodicRetention::retention, executor);
@@ -89,6 +91,7 @@ public abstract class BucketServiceTest {
         retentionService.stopAsync();
         retentionService.awaitTerminated();
         connectionFactory.close();
+        transactionMetrics.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 

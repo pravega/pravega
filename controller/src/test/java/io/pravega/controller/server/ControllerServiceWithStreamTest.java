@@ -17,6 +17,7 @@ import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -93,6 +94,7 @@ public abstract class ControllerServiceWithStreamTest {
     private ConnectionFactoryImpl connectionFactory;
     private StreamMetadataStore streamStore;
     private RequestTracker requestTracker = new RequestTracker(true);
+    private TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     @Before
     public void setup() {
@@ -116,7 +118,7 @@ public abstract class ControllerServiceWithStreamTest {
         GrpcAuthHelper disabledAuthHelper = GrpcAuthHelper.getDisabledAuthHelper();
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", disabledAuthHelper, requestTracker);
+                executor, "host", disabledAuthHelper, requestTracker, transactionMetrics);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host", disabledAuthHelper);
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
@@ -141,6 +143,7 @@ public abstract class ControllerServiceWithStreamTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
+        transactionMetrics.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 

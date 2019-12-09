@@ -13,6 +13,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -81,6 +82,7 @@ public abstract class RequestSweeperTest {
     private EventStreamWriterMock<ControllerEvent> requestEventWriter;
     private SegmentHelper segmentHelperMock;
     private final RequestTracker requestTracker = new RequestTracker(true);
+    private TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     abstract StreamMetadataStore getStream();
 
@@ -96,7 +98,7 @@ public abstract class RequestSweeperTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(),
                 TaskStoreFactory.createInMemoryStore(executor), segmentHelperMock, executor, HOSTNAME, GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker);
+                requestTracker, transactionMetrics);
         requestEventWriter = spy(new EventStreamWriterMock<>());
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
@@ -118,6 +120,7 @@ public abstract class RequestSweeperTest {
         cli.close();
         zkServer.stop();
         zkServer.close();
+        transactionMetrics.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 

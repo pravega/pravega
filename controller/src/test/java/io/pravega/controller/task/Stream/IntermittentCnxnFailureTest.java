@@ -19,6 +19,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
@@ -76,6 +77,7 @@ public class IntermittentCnxnFailureTest {
     private SegmentHelper segmentHelperMock;
     private RequestTracker requestTracker = new RequestTracker(true);
     private ConnectionFactory connectionFactory;
+    private TransactionMetrics transactionMetrics = new TransactionMetrics();
     
     @Before
     public void setup() throws Exception {
@@ -97,7 +99,7 @@ public class IntermittentCnxnFailureTest {
                 anyString(), anyString(), anyInt());
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, segmentHelperMock, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
@@ -116,6 +118,7 @@ public class IntermittentCnxnFailureTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
+        transactionMetrics.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 

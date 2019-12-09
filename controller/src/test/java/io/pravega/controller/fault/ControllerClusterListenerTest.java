@@ -16,6 +16,7 @@ import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -73,6 +74,7 @@ public class ControllerClusterListenerTest {
     private CuratorFramework curatorClient;
     private ScheduledExecutorService executor;
     private ClusterZKImpl clusterZK;
+    private TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     private LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue<>();
     private LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue<>();
@@ -115,6 +117,7 @@ public class ControllerClusterListenerTest {
         ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), executor);
         curatorClient.close();
         zkServer.close();
+        transactionMetrics.close();
     }
 
     @Test(timeout = 60000L)
@@ -231,7 +234,7 @@ public class ControllerClusterListenerTest {
 
         // Create request sweeper.
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, mock(BucketStore.class), taskStore, segmentHelper, executor,
-                host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper(), new RequestTracker(true));
+                host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper(), new RequestTracker(true), transactionMetrics);
 
         RequestSweeper requestSweeper = spy(new RequestSweeper(streamStore, executor, streamMetadataTasks));
         // any attempt to sweep requests should have been ignored

@@ -136,6 +136,7 @@ public class StreamTransactionMetadataTasksTest {
     private ConnectionFactory connectionFactory;
 
     private RequestTracker requestTracker = new RequestTracker(true);
+    private TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     private static class SequenceAnswer<T> implements Answer<T> {
 
@@ -177,7 +178,7 @@ public class StreamTransactionMetadataTasksTest {
         connectionFactory = Mockito.mock(ConnectionFactory.class);
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
     }
 
     @After
@@ -188,6 +189,7 @@ public class StreamTransactionMetadataTasksTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
+        transactionMetrics.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
@@ -350,10 +352,10 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
                 () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks,
-                        bucketStore, executor, processedCommitEvents, new TransactionMetrics()), executor));
+                        bucketStore, executor, processedCommitEvents, transactionMetrics), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
                 () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor,
-                        processedAbortEvents, new TransactionMetrics()), executor));
+                        processedAbortEvents, transactionMetrics), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
@@ -433,10 +435,10 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
                 () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks,
-                        bucketStore, executor, processedCommitEvents, new TransactionMetrics()), executor));
+                        bucketStore, executor, processedCommitEvents, transactionMetrics), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
                 () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor,
-                        processedAbortEvents, new TransactionMetrics()), executor));
+                        processedAbortEvents, transactionMetrics), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
