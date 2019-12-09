@@ -26,11 +26,12 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.pravega.client.ClientConfig;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
@@ -185,7 +186,7 @@ public class ConnectionFactoryImplTest {
     }
 
     @Test
-    public void getActiveChannelTestWithoutConnectionPooling() throws InterruptedException, ConnectionFailedException {
+    public void getActiveChannelTestWithoutConnectionPooling() throws Exception {
         @Cleanup
         ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                               .controllerURI(URI.create("tcp://" + "localhost"))
@@ -210,8 +211,8 @@ public class ConnectionFactoryImplTest {
         // establish a connection with Flow.
         @Cleanup
         ClientConnectionImpl connection = (ClientConnectionImpl) factory.establishConnection(new PravegaNodeUri("localhost", port), rp).join();
-
-        assertEquals("Expected active channel count is 1", 1, factory.getActiveChannelCount());
+        AssertExtensions.assertEventuallyEquals("Expected active channel count is 1",
+                1, factory::getActiveChannelCount, 10, 10000);
 
         // add a listener to track the channel close.
         final CountDownLatch latch = new CountDownLatch(1);
