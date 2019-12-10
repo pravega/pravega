@@ -59,7 +59,7 @@ public class CacheIndexEntry extends ReadIndexEntry {
     }
 
     @Override
-    public synchronized String toString() {
+    public String toString() {
         return String.format("%s, Address = %d", super.toString(), this.cacheAddress);
     }
 }

@@ -142,7 +142,7 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
-    public void copyTo(ByteBuffer byteBuffer) {
+    public int copyTo(ByteBuffer byteBuffer) {
         throw new UnsupportedOperationException("copyTo() not supported.");
     }
 

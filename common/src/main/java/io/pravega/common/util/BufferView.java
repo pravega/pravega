@@ -72,7 +72,7 @@ public interface BufferView {
      * Copies the contents of this {@link BufferView} to the given {@link OutputStream}.
      *
      * @param target The {@link OutputStream} to write to.
-     * @throws IOException If an exception occurred.
+     * @throws IOException If an exception occurred while writing to the target {@link OutputStream}.
      */
     void copyTo(OutputStream target) throws IOException;
 
@@ -82,8 +82,9 @@ public interface BufferView {
      * @param byteBuffer The {@link ByteBuffer} to copy to. This buffer must have sufficient capacity to allow the entire
      *                   contents of the {@link BufferView} to be written. If less needs to be copied, consider using
      *                   {@link BufferView#slice} to select a sub-range of this {@link BufferView}.
+     * @return The number of bytes copied.
      */
-    void copyTo(ByteBuffer byteBuffer);
+    int copyTo(ByteBuffer byteBuffer);
 
     /**
      * When implemented in a derived class, notifies any wrapped buffer that this {@link BufferView} has a need for it.

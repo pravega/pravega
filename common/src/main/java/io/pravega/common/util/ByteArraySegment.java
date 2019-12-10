@@ -146,8 +146,10 @@ public class ByteArraySegment implements ArrayView {
     }
 
     @Override
-    public void copyTo(ByteBuffer target) {
-        target.put(this.array, this.startOffset, Math.min(this.length, target.remaining()));
+    public int copyTo(ByteBuffer target) {
+        int length = Math.min(this.length, target.remaining());
+        target.put(this.array, this.startOffset, length);
+        return length;
     }
 
     /**
