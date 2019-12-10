@@ -171,10 +171,8 @@ public class DebugLogWrapper implements AutoCloseable {
         // Load metadata and verify if disabled (metadata may be null if it doesn't exist).
         LogMetadata metadata = this.log.loadMetadata();
         final long highestLedgerId;
-        final long epoch;
         if (metadata != null) {
             Preconditions.checkState(!metadata.isEnabled(), "BookKeeperLog is enabled; cannot reconcile ledgers.");
-            epoch = metadata.getEpoch();
             int ledgerCount = metadata.getLedgers().size();
             if (ledgerCount > 0) {
                 // Get the highest Ledger id from the list of ledgers.
@@ -189,7 +187,6 @@ public class DebugLogWrapper implements AutoCloseable {
         } else {
             // No metadata.
             highestLedgerId = Ledgers.NO_LEDGER_ID;
-            epoch = 0;
         }
 
         // First, we filter out any Ledger that does not reference this Log as their owner or that are empty.
@@ -277,7 +274,7 @@ public class DebugLogWrapper implements AutoCloseable {
         }
 
         @Override
-        public CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException {
+        public CloseableIterator<ReadItem, DurableDataLogException> getReader() {
             return new LogReader(this.logId, this.logMetadata, DebugLogWrapper.this.bkClient, DebugLogWrapper.this.config);
         }
 
@@ -304,17 +301,17 @@ public class DebugLogWrapper implements AutoCloseable {
         }
 
         @Override
-        public void initialize(Duration timeout) throws DurableDataLogException {
+        public void initialize(Duration timeout) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public void enable() throws DurableDataLogException {
+        public void enable() {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public void disable() throws DurableDataLogException {
+        public void disable() {
             throw new UnsupportedOperationException();
         }
 
