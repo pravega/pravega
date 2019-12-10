@@ -22,10 +22,12 @@ import lombok.val;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
+@Ignore ("Short term mitigation for #3503 until HDFSIntegrationTest gets completely rewritten/replaced as part of PDP-34.")
 public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     //region Test Configuration and Setup
 
