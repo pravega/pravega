@@ -11,7 +11,15 @@ package io.pravega.client.state.impl;
 
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
-import io.pravega.client.segment.impl.*;
+import io.pravega.client.segment.impl.EventSegmentReader;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInfo;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
@@ -302,7 +310,7 @@ public class RevisionedStreamClientTest {
     }
 
     @Test
-    public void testTimeoutWithStreamIterator() throws SegmentTruncatedException, EndOfSegmentException {
+    public void testTimeoutWithStreamIterator() throws Exception {
         String scope = "scope";
         String stream = "stream";
         // Setup Environment
