@@ -261,7 +261,7 @@ class HDFSStorage implements SyncStorage {
     @Override
     public void unseal(SegmentHandle handle) throws StreamSegmentException {
         ensureInitializedAndNotClosed();
-        long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
+        long traceId = LoggerHelpers.traceEnter(log, "unseal", handle);
         try {
             FileStatus status = findStatusForSegment(handle.getSegmentName(), true);
             makeWrite(status);

@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
+
 /**
  * In-memory stream metadata store tests.
  */
@@ -17,7 +19,9 @@ public class InMemoryStreamMetadataStoreTest extends StreamMetadataStoreTest {
     @Override
     public void setupStore() throws Exception {
         store = StreamStoreFactory.createInMemoryStore(executor);
-        bucketStore = StreamStoreFactory.createInMemoryBucketStore(1);
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
+                BucketStore.ServiceType.WatermarkingService, 1);
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore(map);
     }
 
     @Override

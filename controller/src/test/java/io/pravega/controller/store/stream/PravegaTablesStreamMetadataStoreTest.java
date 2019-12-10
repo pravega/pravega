@@ -9,14 +9,21 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BitConverter;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -28,11 +35,13 @@ import org.junit.Test;
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,8 +52,12 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 /**
  * Zookeeper based stream metadata store tests.
@@ -64,8 +77,11 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
         segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(executor);
-        store = new PravegaTablesStreamMetadataStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(100), GrpcAuthHelper.getDisabledAuthHelper());
-        bucketStore = StreamStoreFactory.createZKBucketStore(1, cli, executor);
+        store = new PravegaTablesStreamMetadataStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(1), GrpcAuthHelper.getDisabledAuthHelper());
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
+                BucketStore.ServiceType.WatermarkingService, 1);
+
+        bucketStore = StreamStoreFactory.createZKBucketStore(map, cli, executor);
     }
 
     @Override
@@ -150,8 +166,8 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
 
         SimpleEntry<Long, Long> simpleEntrySplitsMerges = findSplitsAndMerges(scope, stream);
 
-        assertEquals("Number of splits ", new Long(0), simpleEntrySplitsMerges.getKey());
-        assertEquals("Number of merges", new Long(0), simpleEntrySplitsMerges.getValue());
+        assertEquals("Number of splits ", 0L, simpleEntrySplitsMerges.getKey().longValue());
+        assertEquals("Number of merges", 0L, simpleEntrySplitsMerges.getValue().longValue());
 
         // Case: Only splits, S0 split into S2, S3, S4 and S1 split into S5, S6,
         //  total splits = 2, total merges = 3
@@ -170,8 +186,8 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         assertEquals(scaleRecords.get(1).getMerges(), 0L);
         assertEquals(scaleRecords.size(), 2);
         SimpleEntry<Long, Long> simpleEntrySplitsMerges1 = findSplitsAndMerges(scope, stream);
-        assertEquals("Number of splits ", new Long(2), simpleEntrySplitsMerges1.getKey());
-        assertEquals("Number of merges", new Long(0), simpleEntrySplitsMerges1.getValue());
+        assertEquals("Number of splits ", 2L, simpleEntrySplitsMerges1.getKey().longValue());
+        assertEquals("Number of merges", 0L, simpleEntrySplitsMerges1.getValue().longValue());
 
         // Case: Splits and merges both, S2 and S3 merged to S7,  S4 and S5 merged to S8,  S6 split to S9 and S10
         // total splits = 3, total merges = 2
@@ -189,8 +205,8 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         assertEquals(scaleRecords.get(2).getMerges(), 2L);
 
         SimpleEntry<Long, Long> simpleEntrySplitsMerges2 = findSplitsAndMerges(scope, stream);
-        assertEquals("Number of splits ", new Long(3), simpleEntrySplitsMerges2.getKey());
-        assertEquals("Number of merges", new Long(2), simpleEntrySplitsMerges2.getValue());
+        assertEquals("Number of splits ", 3L, simpleEntrySplitsMerges2.getKey().longValue());
+        assertEquals("Number of merges", 2L, simpleEntrySplitsMerges2.getValue().longValue());
 
         // Case: Only merges , S7 and S8 merged to S11,  S9 and S10 merged to S12
         // total splits = 3, total merges = 4
@@ -206,8 +222,8 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         assertEquals(scaleRecords.get(3).getMerges(), 2L);
 
         SimpleEntry<Long, Long> simpleEntrySplitsMerges3 = findSplitsAndMerges(scope, stream);
-        assertEquals("Number of splits ", new Long(3), simpleEntrySplitsMerges3.getKey());
-        assertEquals("Number of merges", new Long(4), simpleEntrySplitsMerges3.getValue());
+        assertEquals("Number of splits ", 3L, simpleEntrySplitsMerges3.getKey().longValue());
+        assertEquals("Number of merges", 4L, simpleEntrySplitsMerges3.getValue().longValue());
     }
     
     @Test
@@ -383,6 +399,56 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         assertTrue(stale.isEmpty());
     }
 
+    @Test
+    public void testPartiallyCreatedScope() {
+        PravegaTablesStreamMetadataStore store = (PravegaTablesStreamMetadataStore) this.store;
+        PravegaTablesStoreHelper storeHelper = store.getStoreHelper();
+
+        String newScope = "newScope";
+        Controller.CreateScopeStatus status = store.createScope(newScope).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, status.getStatus());
+
+        status = store.createScope(newScope).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS, status.getStatus());
+
+        // now partially create a scope
+        String scopeName = "partial";
+        byte[] idBytes = new byte[2 * Long.BYTES];
+        UUID id = UUID.randomUUID();
+        BitConverter.writeUUID(idBytes, 0, id);
+
+        // add entry for a scope in scopes table 
+        storeHelper.addNewEntry(PravegaTablesStreamMetadataStore.SCOPES_TABLE, scopeName, idBytes).join();
+        
+        // verify that streams in scope table does not exist
+        PravegaTablesScope scope = (PravegaTablesScope) store.getScope(scopeName);
+        ByteBuf token = Unpooled.wrappedBuffer(Base64.getDecoder().decode(""));
+
+        Supplier<CompletableFuture<Map.Entry<ByteBuf, List<String>>>> tableCheckSupplier = 
+                () -> scope.getStreamsInScopeTableName()
+                           .thenCompose(tableName -> storeHelper.getKeysPaginated(tableName, token, 10));
+        AssertExtensions.assertFutureThrows("Table should not exist", tableCheckSupplier.get(), 
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        
+        status = store.createScope(scopeName).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS, status.getStatus());
+        
+        // verify that table is created. 
+        assertTrue(Futures.await(tableCheckSupplier.get()));
+        
+        // create scope idempotent
+        status = store.createScope(scopeName).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS, status.getStatus());
+
+        PravegaTablesStoreHelper spy = spy(storeHelper);
+        PravegaTablesScope scopeObj = new PravegaTablesScope("thirdScope", spy);
+        StoreException unknown = StoreException.create(StoreException.Type.UNKNOWN, "unknown");
+        doReturn(Futures.failedFuture(unknown)).when(spy).addNewEntry(anyString(), anyString(), any());
+        AssertExtensions.assertFutureThrows("Create scope should have thrown exception",
+                scopeObj.createScope(), 
+                e -> Exceptions.unwrap(e).equals(unknown));
+    }
+    
     private Set<Integer> getAllBatches(PravegaTablesStreamMetadataStore testStore) {
         Set<Integer> batches = new ConcurrentSkipListSet<>();
         testStore.getStoreHelper().getAllKeys(COMPLETED_TRANSACTIONS_BATCHES_TABLE)
@@ -406,7 +472,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
 
     private void createAndCommitTransaction(String scope, String stream, UUID txnId, PravegaTablesStreamMetadataStore testStore) {
         testStore.createTransaction(scope, stream, txnId, 10000L, 10000L, null, executor).join();
-        testStore.sealTransaction(scope, stream, txnId, true, Optional.empty(), null, executor).join();
+        testStore.sealTransaction(scope, stream, txnId, true, Optional.empty(), "", 0L, null, executor).join();
         VersionedMetadata<CommittingTransactionsRecord> record = testStore.startCommitTransactions(scope, stream, null, executor).join();
         testStore.completeCommitTransactions(scope, stream, record, null, executor).join();
     }

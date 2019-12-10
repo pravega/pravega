@@ -40,6 +40,7 @@ import org.junit.runner.RunWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 
@@ -94,6 +95,14 @@ public class FlowHandlerTest {
 
         when(ctx.channel()).thenReturn(ch);
         when(ch.eventLoop()).thenReturn(loop);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                Runnable run = invocation.getArgument(0);
+                run.run();
+                return null;
+            }
+        }).when(loop).execute(any(Runnable.class));
         when(ch.writeAndFlush(any(Object.class))).thenReturn(completedFuture);
         when(ch.write(any(Object.class))).thenReturn(completedFuture);
         when(ch.newPromise()).thenReturn(promise);
@@ -107,7 +116,7 @@ public class FlowHandlerTest {
         ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
         // channelRegistered is invoked before send is invoked.
         // No exceptions are expected here.
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         clientConnection.send(appendCmd);
     }
 
@@ -125,16 +134,16 @@ public class FlowHandlerTest {
         @Cleanup
         ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
         //any send after channelUnregistered should throw a ConnectionFailedException.
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         flowHandler.channelUnregistered(ctx);
         clientConnection.send(appendCmd);
     }
 
     @Test
     public void completeWhenRegisteredNormal() throws Exception {
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         CompletableFuture<Void> testFuture = new CompletableFuture<>();
-        flowHandler.completeWhenRegistered(testFuture);
+        flowHandler.completeWhenReady(testFuture);
         Assert.assertTrue(Futures.isSuccessful(testFuture));
     }
 
@@ -143,20 +152,20 @@ public class FlowHandlerTest {
         @Cleanup
         ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
         CompletableFuture<Void> testFuture = new CompletableFuture<>();
-        flowHandler.completeWhenRegistered(testFuture);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.completeWhenReady(testFuture);
+        flowHandler.channelActive(ctx);
         Assert.assertTrue(Futures.isSuccessful(testFuture));
     }
 
     @Test
     public void completeWhenRegisteredDelayedMultiple() throws Exception {
         CompletableFuture<Void> testFuture = new CompletableFuture<>();
-        flowHandler.completeWhenRegistered(testFuture);
+        flowHandler.completeWhenReady(testFuture);
 
         CompletableFuture<Void> testFuture1 = new CompletableFuture<>();
-        flowHandler.completeWhenRegistered(testFuture1);
+        flowHandler.completeWhenReady(testFuture1);
 
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
 
         Assert.assertTrue(Futures.isSuccessful(testFuture));
         testFuture1.get(); //wait until additional future is complete.
@@ -167,7 +176,7 @@ public class FlowHandlerTest {
     public void createDuplicateSession() throws Exception {
         Flow flow = new Flow(10, 0);
         ClientConnection connection1 = flowHandler.createFlow(flow, processor);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         connection1.send(appendCmd);
         // Creating a flow with the same flow id.
         flowHandler.createFlow(flow, processor);
@@ -177,7 +186,7 @@ public class FlowHandlerTest {
     public void testCloseSession() throws Exception {
         @Cleanup
         ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         clientConnection.send(appendCmd);
         flowHandler.closeFlow(clientConnection);
         assertEquals(0, flowHandler.getFlowIdReplyProcessorMap().size());
@@ -187,7 +196,7 @@ public class FlowHandlerTest {
     public void testCloseSessionHandler() throws Exception {
         @Cleanup
         ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
         clientConnection.sendAsync(cmd, e -> fail("Exception while invoking sendAsync"));
         flowHandler.close();
@@ -201,7 +210,7 @@ public class FlowHandlerTest {
     public void testCreateConnectionWithSessionDisabled() throws Exception {
         flow = new Flow(0, 10);
         flowHandler = new FlowHandler("testConnection1");
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         ClientConnection connection = flowHandler.createConnectionWithFlowDisabled(processor);
         connection.send(new Append("segment0", UUID.randomUUID(), 2, 1, buffer, 10L, flow.asLong()));
         assertThrows(IllegalStateException.class, () -> flowHandler.createFlow(flow, processor));
@@ -211,7 +220,7 @@ public class FlowHandlerTest {
     public void testChannelUnregistered() throws Exception {
         @Cleanup
         ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         clientConnection.send(appendCmd);
         //simulate a connection dropped
         flowHandler.channelUnregistered(ctx);
@@ -220,13 +229,17 @@ public class FlowHandlerTest {
         WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
         clientConnection.sendAsync(cmd, Assert::assertNotNull);
         clientConnection.sendAsync(Collections.singletonList(appendCmd), Assert::assertNotNull);
+        
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        flowHandler.completeWhenReady(result);
+        assertEquals(true, result.isCompletedExceptionally());
     }
 
     @Test
     public void testSendAsync() throws Exception {
         @Cleanup
         ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
         clientConnection.sendAsync(cmd, Assert::assertNotNull);
         clientConnection.sendAsync(Collections.singletonList(appendCmd), Assert::assertNotNull);
@@ -238,7 +251,7 @@ public class FlowHandlerTest {
         ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
         WireCommands.Hello helloCmd = new WireCommands.Hello(8, 4);
         InOrder order = inOrder(processor);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         flowHandler.channelRead(ctx, helloCmd);
         order.verify(processor, times(1)).hello(helloCmd);
     }
@@ -247,9 +260,9 @@ public class FlowHandlerTest {
     public void testChannelReadDataAppended() throws Exception {
         @Cleanup
         ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
-        WireCommands.DataAppended dataAppendedCmd = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1);
+        WireCommands.DataAppended dataAppendedCmd = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1, 0);
         InOrder order = inOrder(processor);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         flowHandler.channelRead(ctx, dataAppendedCmd);
         order.verify(processor, times(1)).process(dataAppendedCmd);
     }
@@ -261,7 +274,7 @@ public class FlowHandlerTest {
         ClientConnection connection1 = flowHandler.createFlow(new Flow(11, 0), errorProcessor);
         @Cleanup
         ClientConnection connection2 = flowHandler.createFlow(flow, processor);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         doAnswer((Answer<Void>) invocation -> {
             throw new RuntimeException("Reply processor error");
         }).when(errorProcessor).hello(any(WireCommands.Hello.class));
@@ -276,12 +289,12 @@ public class FlowHandlerTest {
     public void testProcessWithErrorReplyProcessor() throws Exception {
         @Cleanup
         ClientConnection connection = flowHandler.createFlow(flow, processor);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         doAnswer((Answer<Void>) invocation -> {
             throw new RuntimeException("ReplyProcessorError");
         }).when(processor).process(any(Reply.class));
-
-        WireCommands.DataAppended msg = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1);
+ 
+        WireCommands.DataAppended msg = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1, 0);
         flowHandler.channelRead(ctx, msg);
         verify(processor).process(msg);
         verify(processor).processingFailure(any(RuntimeException.class));
@@ -294,7 +307,7 @@ public class FlowHandlerTest {
         ClientConnection connection1 = flowHandler.createFlow(new Flow(11, 0), errorProcessor);
         @Cleanup
         ClientConnection connection2 = flowHandler.createFlow(flow, processor);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         doAnswer((Answer<Void>) invocation -> {
             throw new RuntimeException("Reply processor error");
         }).when(errorProcessor).processingFailure(any(ConnectionFailedException.class));
@@ -311,7 +324,7 @@ public class FlowHandlerTest {
         ClientConnection connection1 = flowHandler.createFlow(new Flow(11, 0), errorProcessor);
         @Cleanup
         ClientConnection connection2 = flowHandler.createFlow(flow, processor);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
         doAnswer((Answer<Void>) invocation -> {
             throw new RuntimeException("Reply processor error");
         }).when(errorProcessor).connectionDropped();
@@ -328,7 +341,7 @@ public class FlowHandlerTest {
         ClientConnection connection1 = flowHandler.createFlow(flow, processor);
         @Cleanup
         ClientConnection connection2 = flowHandler.createFlow(new Flow(11, 0), replyProcessor);
-        flowHandler.channelRegistered(ctx);
+        flowHandler.channelActive(ctx);
 
         // simulate a KeepAlive connection failure.
         flowHandler.close();

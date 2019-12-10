@@ -12,6 +12,7 @@ package io.pravega.client.segment.impl;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.Retry.RetryWithBackoff;
@@ -28,6 +29,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -49,7 +51,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     @GuardedBy("lock")
     private RawClient client = null;
     
-    private final String delegationToken;
+    private final DelegationTokenProvider tokenProvider;
     private final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
     private final RetryWithBackoff retrySchedule;
     
@@ -69,10 +71,13 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                             client = new RawClient(controller, connectionFactory, segmentId);
                             long requestId = client.getFlow().getNextSequenceNumber();
                             log.debug("Setting up append on segment: {}", segmentId);
-                            SetupAppend setup = new SetupAppend(requestId, writerId,
-                                                                segmentId.getScopedName(),
-                                                                delegationToken);
-                            val reply = client.sendRequest(requestId, setup);
+
+                            CompletableFuture<Reply> reply = tokenProvider.retrieveToken().thenCompose(token -> {
+                                SetupAppend setup = new SetupAppend(requestId, writerId,
+                                        segmentId.getScopedName(), token);
+                                return client.sendRequest(requestId, setup);
+                            });
+
                             AppendSetup appendSetup = transformAppendSetup(reply.join());
                             if (appendSetup.getLastEventNumber() >= appendSequence) {
                                 return true;

@@ -119,14 +119,16 @@ public class AuthHandlerManager {
      *
      * @return Returns true if the entity represented by the credentials has given level of access to the resource.
      *      Returns false if the entity does not have access.
-     * @throws AuthException if an authentication failure occurred.
+     * @throws AuthException if an authentication or authorization failure occurred.
      */
-    public boolean authorize(String resource, Principal principal, String credentials, AuthHandler.Permissions level) throws AuthException {
+    public boolean authorize(String resource, Principal principal, String credentials, AuthHandler.Permissions level)
+            throws AuthException {
         Preconditions.checkNotNull(credentials, "credentials");
-        String[] parts = extractMethodAndToken(credentials);
-        String method = parts[0];
+
+        String method = extractMethodAndToken(credentials)[0];
         AuthHandler handler = getHandler(method);
         Preconditions.checkNotNull( handler, "Can not find handler.");
+
         return handler.authorize(resource, principal).ordinal() >= level.ordinal();
     }
 

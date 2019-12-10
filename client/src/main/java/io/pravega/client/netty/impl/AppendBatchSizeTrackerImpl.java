@@ -12,7 +12,6 @@ package io.pravega.client.netty.impl;
 import io.pravega.common.ExponentialMovingAverage;
 import io.pravega.common.MathHelpers;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
-
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -30,7 +29,6 @@ import java.util.function.Supplier;
  */
 class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private static final int MAX_BATCH_TIME_MILLIS = 100;
-    private static final int MAX_BATCH_SIZE = 32 * 1024;
 
     private final Supplier<Long> clock;
     private final AtomicLong lastAppendNumber;
@@ -58,9 +56,11 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     }
 
     @Override
-    public void recordAck(long eventNumber) {
+    public long recordAck(long eventNumber) {
         lastAckNumber.getAndSet(eventNumber);
-        appendsOutstanding.addNewSample(lastAppendNumber.get() - eventNumber);
+        long outstandingAppendCount = lastAppendNumber.get() - eventNumber;
+        appendsOutstanding.addNewSample(outstandingAppendCount);
+        return outstandingAppendCount;
     }
 
     /**

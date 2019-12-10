@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -81,7 +82,7 @@ public class ScopeTest {
     }
 
     @Test(timeout = 30000)
-    public void testScale() throws Exception {
+    public void testListStreams() throws Exception {
         final String scope = "test";
         final String streamName1 = "test1";
         final String streamName2 = "test2";
@@ -90,6 +91,9 @@ public class ScopeTest {
         foundCount.put(streamName1, 0);
         foundCount.put(streamName2, 0);
         foundCount.put(streamName3, 0);
+        foundCount.put(NameUtils.getMarkStreamForStream(streamName1), 0);
+        foundCount.put(NameUtils.getMarkStreamForStream(streamName2), 0);
+        foundCount.put(NameUtils.getMarkStreamForStream(streamName3), 0);
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
@@ -121,11 +125,32 @@ public class ScopeTest {
         next = iterator.next();
         foundCount.computeIfPresent(next.getStreamName(), (x, y) -> ++y);
 
+        assertTrue(iterator.hasNext());
+        next = iterator.next();
+        foundCount.computeIfPresent(next.getStreamName(), (x, y) -> ++y);
+
+        assertTrue(iterator.hasNext());
+        next = iterator.next();
+        foundCount.computeIfPresent(next.getStreamName(), (x, y) -> ++y);
+
+        assertTrue(iterator.hasNext());
+        next = iterator.next();
+        foundCount.computeIfPresent(next.getStreamName(), (x, y) -> ++y);
+
         assertFalse(iterator.hasNext());
 
         assertTrue(foundCount.entrySet().stream().allMatch(x -> x.getValue() == 1));
 
         AsyncIterator<Stream> asyncIterator = controller.listStreams(scope);
+        next = asyncIterator.getNext().join();
+        foundCount.computeIfPresent(next.getStreamName(), (x, y) -> ++y);
+
+        next = asyncIterator.getNext().join();
+        foundCount.computeIfPresent(next.getStreamName(), (x, y) -> ++y);
+
+        next = asyncIterator.getNext().join();
+        foundCount.computeIfPresent(next.getStreamName(), (x, y) -> ++y);
+
         next = asyncIterator.getNext().join();
         foundCount.computeIfPresent(next.getStreamName(), (x, y) -> ++y);
 

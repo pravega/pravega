@@ -20,6 +20,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
@@ -27,6 +28,7 @@ import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -99,7 +101,7 @@ public class AppendTest {
         ResourceLeakDetector.setLevel(originalLevel);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testSetupOnNonExistentSegment() throws Exception {
         String segment = "123";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
@@ -112,10 +114,35 @@ public class AppendTest {
         assertEquals(segment, setup.getSegment());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void sendReceivingAppend() throws Exception {
         String segment = "123";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store);
+
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0, ""));
+        assertEquals(segment, created.getSegment());
+
+        UUID uuid = UUID.randomUUID();
+        AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(2, uuid, segment, ""));
+
+        assertEquals(segment, setup.getSegment());
+        assertEquals(uuid, setup.getWriterId());
+
+        DataAppended ack = (DataAppended) sendRequest(channel,
+                                                      new Append(segment, uuid, data.readableBytes(), new Event(data), 1L));
+        assertEquals(uuid, ack.getWriterId());
+        assertEquals(data.readableBytes(), ack.getEventNumber());
+        assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
+    }
+    
+    @Test(timeout = 10000)
+    public void sendLargeAppend() throws Exception {
+        String segment = "123";
+        ByteBuf data = Unpooled.wrappedBuffer(new byte[Serializer.MAX_EVENT_SIZE]);
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
         @Cleanup
@@ -194,11 +221,15 @@ public class AppendTest {
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
-        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, mock(TableStore.class), lsh), null));
+        lsh.setRequestProcessor(AppendProcessor.defaultBuilder()
+                                               .store(store)
+                                               .connection(lsh)
+                                               .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh))
+                                               .build());
         return channel;
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void appendThroughSegmentClient() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.getAvailableListenPort();
@@ -221,13 +252,14 @@ public class AppendTest {
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
-        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
+        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(),
+                DelegationTokenProviderFactory.createWithEmptyToken());
         CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(PendingEvent.withHeader(null, ByteBuffer.wrap(testString.getBytes()), ack));
         ack.get(5, TimeUnit.SECONDS);
     }
     
-    @Test
+    @Test(timeout = 10000)
     public void appendThroughConditionalClient() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.getAvailableListenPort();
@@ -250,12 +282,13 @@ public class AppendTest {
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
-        ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment, "", EventWriterConfig.builder().build());
+        ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.createWithEmptyToken(), EventWriterConfig.builder().build());
         
         assertTrue(out.write(ByteBuffer.wrap(testString.getBytes()), 0));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void appendThroughStreamingClient() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
@@ -278,7 +311,7 @@ public class AppendTest {
         ack.get(5, TimeUnit.SECONDS);
     }
     
-    @Test(timeout = 40000)
+    @Test(timeout = 20000)
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
@@ -298,11 +331,11 @@ public class AppendTest {
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         long blockingTime = timeWrites(testString, 200, producer, true);
-        long nonBlockingTime = timeWrites(testString, 1000, producer, false);
+        long nonBlockingTime = timeWrites(testString, 10000, producer, false);
         System.out.println("Blocking took: " + blockingTime + "ms.");
         System.out.println("Non blocking took: " + nonBlockingTime + "ms.");        
-        assertTrue(blockingTime < 15000);
-        assertTrue(nonBlockingTime < 15000);
+        assertTrue(blockingTime < 5000);
+        assertTrue(nonBlockingTime < 5000);
     }
 
     private long timeWrites(String testString, int number, EventStreamWriter<String> producer, boolean synchronous)

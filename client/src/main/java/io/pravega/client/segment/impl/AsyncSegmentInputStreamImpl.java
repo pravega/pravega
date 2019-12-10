@@ -15,6 +15,7 @@ import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
@@ -53,7 +54,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Controller controller;
-    private final String delegationToken;
+    private final DelegationTokenProvider tokenProvider;
     @VisibleForTesting
     @Getter
     private final long requestId = Flow.create().asLong();
@@ -140,9 +141,9 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, Segment segment,
-                                       String delegationToken) {
+                                       DelegationTokenProvider tokenProvider) {
         super(segment);
-        this.delegationToken = delegationToken;
+        this.tokenProvider = tokenProvider;
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(connectionFactory);
         Preconditions.checkNotNull(segment);
@@ -166,31 +167,34 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @Override
     public CompletableFuture<SegmentRead> read(long offset, int length) {
         Exceptions.checkNotClosed(closed.get(), this);
-        WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length,
-                                                                        this.delegationToken, requestId);
-        return backoffSchedule.retryWhen(t -> {
-            Throwable ex = Exceptions.unwrap(t);
-            if (closed.get()) {
-                log.debug("Exception while reading from Segment : {}", segmentId, ex);
-            } else {
-                log.warn("Exception while reading from Segment : {}", segmentId, ex);
-            }
-            return ex instanceof Exception && !(ex instanceof ConnectionClosedException) && !(ex instanceof SegmentTruncatedException);
-        }).runAsync(() -> {
-            return getConnection()
-                    .whenComplete((connection, ex) -> {
-                        if (ex != null) {
-                            log.warn("Exception while establishing connection with Pravega node", ex);
-                            closeConnection(new ConnectionFailedException(ex));
-                        }
-                    }).thenCompose(c -> sendRequestOverConnection(request, c)
-                            .whenComplete((reply, ex) -> {
-                                if (ex instanceof ConnectionFailedException) {
-                                    log.debug("ConnectionFailedException observed when sending request {}", request, ex);
-                                    closeConnection((ConnectionFailedException) ex);
-                                }
-                            })
-                    );
+
+        return this.tokenProvider.retrieveToken().thenComposeAsync(token -> {
+            WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length,
+                    token, requestId);
+            return backoffSchedule.retryWhen(t -> {
+                Throwable ex = Exceptions.unwrap(t);
+                if (closed.get()) {
+                    log.debug("Exception while reading from Segment : {}", segmentId, ex);
+                } else {
+                    log.warn("Exception while reading from Segment : {}", segmentId, ex);
+                }
+                return ex instanceof Exception && !(ex instanceof ConnectionClosedException) && !(ex instanceof SegmentTruncatedException);
+            }).runAsync(() -> {
+                return getConnection()
+                        .whenComplete((connection, ex) -> {
+                            if (ex != null) {
+                                log.warn("Exception while establishing connection with Pravega node", ex);
+                                closeConnection(new ConnectionFailedException(ex));
+                            }
+                        }).thenCompose(c -> sendRequestOverConnection(request, c)
+                                .whenComplete((reply, ex) -> {
+                                    if (ex instanceof ConnectionFailedException) {
+                                        log.debug("ConnectionFailedException observed when sending request {}", request, ex);
+                                        closeConnection((ConnectionFailedException) ex);
+                                    }
+                                })
+                        );
+            }, connectionFactory.getInternalExecutor());
         }, connectionFactory.getInternalExecutor());
     }
         

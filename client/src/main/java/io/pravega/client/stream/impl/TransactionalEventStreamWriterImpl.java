@@ -10,6 +10,8 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -42,6 +44,7 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEventStreamWriter<Type> {
 
     private final Stream stream;
+    private final String writerId;
     private final Serializer<Type> serializer;
     private final SegmentOutputStreamFactory outputStreamFactory;
     private final Controller controller;
@@ -49,19 +52,20 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
     private final EventWriterConfig config;
     private final Pinger pinger;
     
-    TransactionalEventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
-                                       Serializer<Type> serializer, EventWriterConfig config, ScheduledExecutorService executor) {
+    TransactionalEventStreamWriterImpl(Stream stream, String writerId, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
+            Serializer<Type> serializer, EventWriterConfig config, ScheduledExecutorService executor) {
         this.stream = Preconditions.checkNotNull(stream);
+        this.writerId = Preconditions.checkNotNull(writerId);
         this.controller = Preconditions.checkNotNull(controller);
         this.outputStreamFactory = Preconditions.checkNotNull(outputStreamFactory);
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
-        this.pinger = new Pinger(config, stream, controller, executor);
+        this.pinger = new Pinger(config.getTransactionTimeoutTime(), stream, controller, executor);
     }
 
     @RequiredArgsConstructor
     private static class TransactionImpl<Type> implements Transaction<Type> {
-
+        private final String writerId;
         @NonNull
         private final UUID txId;
         private final Map<Segment, SegmentTransaction<Type>> inner;
@@ -76,7 +80,8 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         /**
          * Create closed transaction
          */
-        TransactionImpl(UUID txId, Controller controller, Stream stream) {
+        TransactionImpl(String writerId, UUID txId, Controller controller, Stream stream) {
+            this.writerId = writerId;
             this.txId = txId;
             this.inner = null;
             this.segments = null;
@@ -110,7 +115,18 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.close();
             }
-            getAndHandleExceptions(controller.commitTransaction(stream, txId), TxnFailedException::new);
+            getAndHandleExceptions(controller.commitTransaction(stream, writerId, null, txId), TxnFailedException::new);
+            pinger.stopPing(txId);
+            closed.set(true);
+        }
+        
+        @Override
+        public void commit(long timestamp) throws TxnFailedException {
+            throwIfClosed();
+            for (SegmentTransaction<Type> tx : inner.values()) {
+                tx.close();
+            }
+            getAndHandleExceptions(controller.commitTransaction(stream, writerId, timestamp, txId), TxnFailedException::new);
             pinger.stopPing(txId);
             closed.set(true);
         }
@@ -162,14 +178,19 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
                 RuntimeException::new);
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        for (Segment s : txnSegments.getSteamSegments().getSegments()) {
+        DelegationTokenProvider tokenProvider = null;
+        for (Segment s : txnSegments.getStreamSegments().getSegments()) {
+            if (tokenProvider == null) {
+                tokenProvider = DelegationTokenProviderFactory.create(
+                        txnSegments.getStreamSegments().getDelegationToken(), controller, s);
+            }
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId,
-                    config, txnSegments.getSteamSegments().getDelegationToken());
+                    config, tokenProvider);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
         pinger.startPing(txnId);
-        return new TransactionImpl<Type>(txnId, transactions, txnSegments.getSteamSegments(), controller, stream, pinger);
+        return new TransactionImpl<Type>(writerId, txnId, transactions, txnSegments.getStreamSegments(), controller, stream, pinger);
     }
 
     @Override
@@ -178,16 +199,21 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
                 controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);
         Status status = getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
         if (status != Status.OPEN) {
-            return new TransactionImpl<>(txId, controller, stream);
+            return new TransactionImpl<>(writerId, txId, controller, stream);
         }
         
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
+        DelegationTokenProvider tokenProvider = null;
         for (Segment s : segments.getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config, segments.getDelegationToken());
+            if (tokenProvider == null) {
+                tokenProvider = DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, s);
+            }
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config,
+                    tokenProvider);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
-        return new TransactionImpl<Type>(txId, transactions, segments, controller, stream, pinger);
+        return new TransactionImpl<Type>(writerId, txId, transactions, segments, controller, stream, pinger);
     }
 
     @Override

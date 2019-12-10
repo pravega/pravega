@@ -26,6 +26,7 @@ import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
@@ -34,7 +35,6 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -329,9 +330,10 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> commitTransaction(Stream stream, UUID txnId) {
+    public CompletableFuture<Void> commitTransaction(Stream stream, final String writerId, final Long timestamp, UUID txnId) {
+        long time = Optional.ofNullable(timestamp).orElse(Long.MIN_VALUE);
         return controller
-                .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
+                .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId), writerId, time)
                 .thenApply(x -> null);
     }
 
@@ -424,5 +426,16 @@ public class LocalController implements Controller {
         }
         return streamCut.asImpl().getPositions().entrySet()
                 .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
+    }
+
+    @Override
+    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, WriterPosition lastWrittenPosition) {
+        Map<Long, Long> map = ModelHelper.createStreamCut(stream, lastWrittenPosition).getCutMap();
+        return Futures.toVoid(controller.noteTimestampFromWriter(stream.getScope(), stream.getStreamName(), writer, timestamp, map));
+    }
+
+    @Override
+    public CompletableFuture<Void> removeWriter(String writerId, Stream stream) {
+        return Futures.toVoid(controller.removeWriter(stream.getScope(), stream.getStreamName(), writerId));
     }
 }

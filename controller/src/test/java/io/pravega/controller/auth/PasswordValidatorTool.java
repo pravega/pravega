@@ -20,6 +20,6 @@ public class PasswordValidatorTool {
         String userPassword = args[1];
         String encryptedPassword = args[2];
         StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
-        System.out.println( passwordEncryptor.checkPassword(userPassword, encryptedPassword));
+        System.out.println( passwordEncryptor.checkPassword(userPassword.toCharArray(), encryptedPassword));
     }
 }

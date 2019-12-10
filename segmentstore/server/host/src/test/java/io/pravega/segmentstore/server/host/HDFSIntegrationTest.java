@@ -22,10 +22,12 @@ import lombok.val;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
+@Ignore ("Short term mitigation for #3503 until HDFSIntegrationTest gets completely rewritten/replaced as part of PDP-34.")
 public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     //region Test Configuration and Setup
 
@@ -34,6 +36,7 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     /**
      * Starts BookKeeper and HDFS MiniCluster.
      */
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -47,6 +50,7 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     /**
      * Shuts down BookKeeper and HDFS MiniCluster.
      */
+    @Override
     @After
     public void tearDown() throws Exception {
         val hdfs = this.hdfsCluster;

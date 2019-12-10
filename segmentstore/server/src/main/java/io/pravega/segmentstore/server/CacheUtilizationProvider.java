@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
+
 /**
  * Defines an object that can provide information about the Cache utilization.
  */
@@ -44,4 +46,13 @@ public interface CacheUtilizationProvider {
      * @return The maximum cache utilization.
      */
     double getCacheMaxUtilization();
+
+    /**
+     * Registers the given {@link ThrottleSourceListener}, which will be notified of all subsequent Cache Cleanup events that
+     * result in at least one entry being evicted from the cache.
+     *
+     * @param listener The {@link ThrottleSourceListener} to register. This will be auto-unregistered on the first Cache Cleanup
+     *                 run that detects {@link ThrottleSourceListener#isClosed()} to be true.
+     */
+    void registerCleanupListener(ThrottleSourceListener listener);
 }

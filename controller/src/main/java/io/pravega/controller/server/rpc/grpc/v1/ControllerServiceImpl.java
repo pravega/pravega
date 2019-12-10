@@ -9,10 +9,13 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
+import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.AuthorizationException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
@@ -180,11 +183,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(request.getScope(), request.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.getCurrentSegments(request.getScope(), request.getStream())
-                                       .thenApply(segmentRanges -> SegmentRanges.newBuilder()
-                                                                                .addAllSegmentRanges(segmentRanges)
-                                                                                .setDelegationToken(delegationToken)
-                                                                                .build()),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getCurrentSegments", request.getScope(), request.getStream());
+                    return controllerService.getCurrentSegments(request.getScope(), request.getStream())
+                            .thenApply(segmentRanges -> SegmentRanges.newBuilder()
+                                    .addAllSegmentRanges(segmentRanges)
+                                    .setDelegationToken(delegationToken)
+                                    .build());
+                },
                 responseObserver);
     }
 
@@ -196,19 +202,23 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.getSegmentsAtHead(request.getStreamInfo().getScope(),
-                        request.getStreamInfo().getStream())
-                                       .thenApply(segments -> {
-                                           SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder()
-                                                                                          .setDelegationToken(delegationToken);
-                                           for (Entry<SegmentId, Long> entry : segments.entrySet()) {
-                                               builder.addSegments(SegmentLocation.newBuilder()
-                                                                                  .setSegmentId(entry.getKey())
-                                                                                  .setOffset(entry.getValue())
-                                                                                  .build());
-                                           }
-                                           return builder.build();
-                                       }),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getSegments", request.getStreamInfo().getScope(),
+                            request.getStreamInfo().getStream());
+                    return controllerService.getSegmentsAtHead(request.getStreamInfo().getScope(),
+                            request.getStreamInfo().getStream())
+                            .thenApply(segments -> {
+                                SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder()
+                                        .setDelegationToken(delegationToken);
+                                for (Entry<SegmentId, Long> entry : segments.entrySet()) {
+                                    builder.addSegments(SegmentLocation.newBuilder()
+                                            .setSegmentId(entry.getKey())
+                                            .setOffset(entry.getValue())
+                                            .build());
+                                }
+                                return builder.build();
+                            });
+                },
                 responseObserver);
     }
 
@@ -241,10 +251,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String stream = request.getStreamInfo().getStream();
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ),
-                delegationToken -> controllerService.getSegmentsBetweenStreamCuts(request)
-                        .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
-                                segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.segmentId()))
-                                        .collect(Collectors.toList()), delegationToken)),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getSegmentsBetween", request.getStreamInfo().getScope(),
+                            request.getStreamInfo().getStream());
+                    return controllerService.getSegmentsBetweenStreamCuts(request)
+                            .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
+                                    segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.segmentId()))
+                                            .collect(Collectors.toList()), delegationToken));
+                },
                 responseObserver);
     }
 
@@ -349,7 +363,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId()),
+                        request.getTxnId(), request.getWriterId(), request.getTimestamp()),
                 responseObserver);
     }
 
@@ -477,19 +491,56 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(request.getScope(), request.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> CompletableFuture.completedFuture(Controller.DelegationToken
-                        .newBuilder()
-                        .setDelegationToken(delegationToken)
-                        .build()),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getDelegationToken", request.getScope(), request.getStream());
+                    return CompletableFuture.completedFuture(DelegationToken
+                            .newBuilder()
+                            .setDelegationToken(delegationToken)
+                            .build());
+                },
                 responseObserver);
+    }
+    // region watermarking apis
+    
+    @Override
+    public void noteTimestampFromWriter(Controller.TimestampFromWriter request, StreamObserver<Controller.TimestampResponse> responseObserver) {
+        StreamInfo streamInfo = request.getPosition().getStreamInfo();
+        log.info("noteWriterMark called for stream {}/{}, writer={} time={}", streamInfo.getScope(),
+                streamInfo.getStream(), request.getWriter(), request.getTimestamp());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                AuthResourceRepresentation.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken  -> controllerService.noteTimestampFromWriter(streamInfo.getScope(),
+                        streamInfo.getStream(), request.getWriter(), request.getTimestamp(), request.getPosition().getCutMap()),
+                responseObserver);
+    }
+
+    @Override
+    public void removeWriter(Controller.RemoveWriterRequest request, StreamObserver<Controller.RemoveWriterResponse> responseObserver) {
+        StreamInfo streamInfo = request.getStream();
+        log.info("writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
+                streamInfo.getStream(), request.getWriter());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                AuthResourceRepresentation.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken  -> controllerService.removeWriter(streamInfo.getScope(),
+                        streamInfo.getStream(), request.getWriter()),
+                responseObserver);
+    }
+    // endregion
+    
+    private void logIfEmpty(String delegationToken, String requestName, String scopeName, String streamName) {
+        if (isAuthEnabled() && Strings.isNullOrEmpty(delegationToken)) {
+            log.warn("Delegation token for request [{}] with scope [{}] and stream [{}], is: [{}]",
+                    requestName, scopeName, streamName, delegationToken);
+        }
     }
 
     // Convert responses from CompletableFuture to gRPC's Observer pattern.
     private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
                                                           final StreamObserver<T> streamObserver, RequestTag requestTag) {
         try {
-            String delegationToken;
-            delegationToken = authenticator.get();
+            String delegationToken = authenticator.get();
             CompletableFuture<T> result = call.apply(delegationToken);
             result.whenComplete(
                     (value, ex) -> {
@@ -497,8 +548,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);
                             logError(requestTag, cause);
-                            String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
-                            streamObserver.onError(Status.INTERNAL
+                            String stackTrace = "controllerStackTrace=" + Throwables.getStackTraceAsString(ex);
+                            String errorDescription = replyWithStackTraceOnError ? stackTrace : cause.getMessage();
+                            streamObserver.onError(getStatusFromException(cause)
                                     .withCause(cause)
                                     .withDescription(errorDescription)
                                     .asRuntimeException());
@@ -508,18 +560,53 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         }
                         logAndUntrackRequestTag(requestTag);
                     });
+        } catch (AuthenticationException e) {
+            // Empty credentials when Auth is enabled may lead to this exception here. When credentials are present in
+            // the client call but are incorrect, the client is returned the same status from AuthInterceptor.
+            handleException(e, streamObserver, requestTag, Status.UNAUTHENTICATED, "Authentication failed");
+        } catch (AuthorizationException e) {
+            handleException(e, streamObserver, requestTag, Status.PERMISSION_DENIED, "Authorization failed");
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
-            logAndUntrackRequestTag(requestTag);
-            streamObserver.onError(Status.UNAUTHENTICATED
-                    .withDescription("Authentication failed")
-                    .asRuntimeException());
+            handleException(e, streamObserver, requestTag, Status.INTERNAL, "Internal exception occurred");
         }
     }
 
     private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
                                                           final StreamObserver<T> streamObserver) {
         authenticateExecuteAndProcessResults(authenticator, call, streamObserver, null);
+    }
+
+    private void handleException(Exception e, final StreamObserver streamObserver, RequestTag requestTag,
+                                 Status status, String message) {
+        log.error("Encountered {} in authenticateExecuteAndProcessResults", e.getClass().getSimpleName(), e);
+        logAndUntrackRequestTag(requestTag);
+        streamObserver.onError(status.withDescription(message).asRuntimeException());
+    }
+    
+    @SuppressWarnings("checkstyle:ReturnCount")
+    private Status getStatusFromException(Throwable cause) {
+        if (cause instanceof StoreException.DataExistsException) {
+            return Status.ALREADY_EXISTS;
+        }
+        if (cause instanceof StoreException.DataNotFoundException) {
+            return Status.NOT_FOUND;
+        }
+        if (cause instanceof StoreException.DataNotEmptyException) {
+            return Status.FAILED_PRECONDITION;
+        }
+        if (cause instanceof StoreException.WriteConflictException) {
+            return Status.FAILED_PRECONDITION;
+        }
+        if (cause instanceof StoreException.IllegalStateException) {
+            return Status.INTERNAL;
+        }
+        if (cause instanceof StoreException.OperationNotAllowedException) {
+            return Status.PERMISSION_DENIED;
+        }
+        if (cause instanceof StoreException.StoreConnectionException) {
+            return Status.INTERNAL;
+        }
+        return Status.UNKNOWN;
     }
 
     private void logAndUntrackRequestTag(RequestTag requestTag) {
@@ -537,5 +624,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         } else {
             log.error("Controller API call with tag {} failed with error: ", tag, cause);
         }
+    }
+
+    private boolean isAuthEnabled() {
+        return this.grpcAuthHelper.isAuthEnabled();
     }
 }
