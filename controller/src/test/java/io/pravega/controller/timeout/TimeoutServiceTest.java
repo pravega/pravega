@@ -87,7 +87,7 @@ public abstract class TimeoutServiceTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StoreClient storeClient;
     private RequestTracker requestTracker = new RequestTracker(true);
-    private TransactionMetrics transactionMetrics;
+    private TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     @Before
     public void setUp() throws Exception {
