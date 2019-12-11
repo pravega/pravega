@@ -25,7 +25,9 @@ import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.RetentionSet;
+import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
@@ -214,8 +216,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             if (ex == null) {
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
             }
-            if (ex instanceof StoreException.DataExistsException ||
-                    ex.getCause() instanceof StoreException.DataExistsException) {
+            if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
             } else {
                 log.debug("Create scope failed due to ", ex);
@@ -802,6 +803,22 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Map<String, WriterMark>> getAllWriterMarks(String scope, String stream,
                                                                         OperationContext context, Executor executor) {
         return withCompletion(getStream(scope, stream, context).getAllWriterMarks(), executor);
+    }
+
+
+    @Override
+    public CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunk(String scope, String streamName, int chunkNumber, OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, streamName, context).getHistoryTimeSeriesChunk(chunkNumber), executor);
+    }
+
+    @Override
+    public CompletableFuture<SealedSegmentsMapShard> getSealedSegmentSizeMapShard(String scope, String streamName, int shardNumber, OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, streamName, context).getSealedSegmentSizeMapShard(shardNumber), executor);
+    }
+
+    @Override
+    public CompletableFuture<Integer> getSegmentSealedEpoch(String scope, String streamName, long segmentId, OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, streamName, context).getSegmentSealedEpoch(segmentId), executor);
     }
 
     protected Stream getStream(String scope, final String name, OperationContext context) {

@@ -120,6 +120,13 @@ allprojects {
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
             force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion 
             force "org.slf4j:slf4j-api:" + slf4jApiVersion
+            force "org.apache.zookeeper:zookeeper:" + apacheZookeeperVersion
+            force "io.netty:netty-transport:" + nettyVersion
+            force "io.netty:netty-handler:" + nettyVersion
+            force "io.netty:netty-transport-native-epoll:" + nettyVersion
+            force "io.netty:netty-all:" + nettyVersion
+            force "io.netty:netty:" + nettyAllVersion
+            force "io.netty:netty-tcnative-boringssl-static:" + nettyBoringSSLVersion
 
             dependencySubstitution {
                 substitute module("javax.ws.rs:jsr311-api") with module("javax.ws.rs:javax.ws.rs-api:" + javaxwsrsApiVersion)
@@ -311,7 +318,6 @@ project('segmentstore:storage:impl') {
         compile project(':shared:metrics')
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
-        compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
     }

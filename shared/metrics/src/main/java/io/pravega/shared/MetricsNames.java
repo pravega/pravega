@@ -27,7 +27,7 @@ package io.pravega.shared;
  * - segmentstore.bookkeeper: metrics related to bookkeeper (Tier 1)
  * - segmentstore.container: metrics for segment containers
  * - segmentstore.thread_pool: metrics for segmentstore thread pool
- * - segmentstore.cache: cache-related metrics (RocksDB)
+ * - segmentstore.cache: cache-related metrics
  * - controller.stream: metrics for operations on streams (e.g., number of streams created)
  * - controller.segments: metrics about segments, per stream (e.g., count, splits, merges)
  * - controller.transactions: metrics related to transactions (e.g., created, committed, aborted)
@@ -98,13 +98,15 @@ public final class MetricsNames {
     public static final String STORAGE_WRITE_BYTES = PREFIX + "segmentstore.storage.write_bytes";        // Counter
     public static final String STORAGE_CREATE_COUNT = PREFIX + "segmentstore.storage.create_count";      // Counter
 
-    // Cache (RocksDB) stats
-    public static final String CACHE_INSERT_LATENCY = PREFIX + "segmentstore.cache.insert_latency_ms";   // Histogram
-    public static final String CACHE_WRITE_BYTES = PREFIX + "segmentstore.cache.write_bytes";            // Counter
-    public static final String CACHE_GET_LATENCY = PREFIX + "segmentstore.cache.get_latency_ms";         // Histogram
-    public static final String CACHE_READ_BYTES = PREFIX + "segmentstore.cache.read_bytes";              // Counter
-    public static final String CACHE_TOTAL_SIZE_BYTES = PREFIX + "segmentstore.cache.size_bytes";        // Gauge
-    public static final String CACHE_GENERATION_SPREAD = PREFIX + "segmentstore.cache.gen";              // Histogram
+    // Cache stats
+    public static final String CACHE_WRITE_BYTES = PREFIX + "segmentstore.cache.write_bytes";               // Counter
+    public static final String CACHE_APPEND_BYTES = PREFIX + "segmentstore.cache.append_bytes";             // Counter
+    public static final String CACHE_READ_BYTES = PREFIX + "segmentstore.cache.read_bytes";                 // Counter
+    public static final String CACHE_DELETE_BYTES = PREFIX + "segmentstore.cache.delete_bytes";             // Counter
+    public static final String CACHE_STORED_SIZE_BYTES = PREFIX + "segmentstore.cache.stored_size_bytes";   // Gauge
+    public static final String CACHE_USED_SIZE_BYTES = PREFIX + "segmentstore.cache.used_size_bytes";       // Gauge
+    public static final String CACHE_ALLOC_SIZE_BYTES = PREFIX + "segmentstore.cache.allocated_size_bytes"; // Gauge
+    public static final String CACHE_GENERATION_SPREAD = PREFIX + "segmentstore.cache.gen";                 // Histogram
 
     // DurableDataLog (Tier1) stats
     public static final String BK_TOTAL_WRITE_LATENCY = PREFIX + "segmentstore.bookkeeper.total_write_latency_ms";   // Including Queue. Per-container Histogram

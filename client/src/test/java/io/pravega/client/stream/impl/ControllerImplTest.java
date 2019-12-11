@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.base.Strings;
 import io.grpc.Server;
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
@@ -83,6 +84,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import lombok.Cleanup;
 import lombok.val;
@@ -125,6 +127,7 @@ public class ControllerImplTest {
     private ControllerImpl controllerClient = null;
     private ScheduledExecutorService executor;
     private NettyServerBuilder serverBuilder;
+    private final AtomicReference<Object> lastRequest = new AtomicReference<>();
 
     @Before
     public void setup() throws IOException {
@@ -557,6 +560,8 @@ public class ControllerImplTest {
             @Override
             public void commitTransaction(TxnRequest request,
                     StreamObserver<Controller.TxnStatus> responseObserver) {
+                lastRequest.set(request);
+
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(Controller.TxnStatus.newBuilder()
                                                     .setStatus(Controller.TxnStatus.Status.SUCCESS)
@@ -636,6 +641,10 @@ public class ControllerImplTest {
                         break;
                     case "stream6":
                         responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.ABORTED).build());
+                        responseObserver.onCompleted();
+                        break;
+                    case "stream8":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.UNKNOWN).build());
                         responseObserver.onCompleted();
                         break;
                     default:
@@ -1138,9 +1147,13 @@ public class ControllerImplTest {
         CompletableFuture<Void> transaction;
         transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream1"), "writer", null, UUID.randomUUID());
         assertTrue(transaction.get() == null);
+        assertTrue(lastRequest.get() instanceof TxnRequest);
+        assertEquals(((TxnRequest) (lastRequest.get())).getTimestamp(), Long.MIN_VALUE);
         
         transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream1"), "writer", 100L, UUID.randomUUID());
         assertTrue(transaction.get() == null);
+        assertTrue(lastRequest.get() instanceof TxnRequest);
+        assertEquals(((TxnRequest) (lastRequest.get())).getTimestamp(), 100L);
 
         transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream2"), "writer", null, UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> throwable instanceof TxnFailedException);
@@ -1153,6 +1166,7 @@ public class ControllerImplTest {
 
         transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream5"), "writer", null, UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
+           
     }
 
     @Test
@@ -1206,6 +1220,12 @@ public class ControllerImplTest {
         // controller fails with internal exception causing the controller client to retry.
         transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream7"), UUID.randomUUID(), 0);
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, t -> t instanceof RetriesExhaustedException);
+
+        // controller returns error with status UNKNOWN
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream8"), UUID.randomUUID(), 0);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, 
+                t -> Exceptions.unwrap(t) instanceof StatusRuntimeException 
+                        && ((StatusRuntimeException) Exceptions.unwrap(t)).getStatus().equals(Status.NOT_FOUND));
     }
 
     @Test

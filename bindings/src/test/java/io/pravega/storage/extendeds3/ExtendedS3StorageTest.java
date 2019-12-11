@@ -14,6 +14,8 @@ import com.emc.object.s3.S3Config;
 import com.emc.object.s3.bean.ObjectKey;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.DeleteObjectsRequest;
+import io.pravega.common.util.ConfigBuilder;
+import io.pravega.common.util.Property;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
@@ -32,6 +34,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Unit tests for ExtendedS3Storage.
@@ -79,6 +83,23 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         }
     }
     //endregion
+
+    @Test
+    public void testConfigForTrailingCharInRoot() {
+        // Missing trailing '/'
+        ConfigBuilder<ExtendedS3StorageConfig> builder1 = ExtendedS3StorageConfig.builder();
+        builder1.with(Property.named("root"), "test");
+        ExtendedS3StorageConfig config1 = builder1.build();
+        assertTrue(config1.getRoot().endsWith("/"));
+        assertEquals("test/", config1.getRoot());
+
+        // Not missing '/'
+        ConfigBuilder<ExtendedS3StorageConfig> builder2 = ExtendedS3StorageConfig.builder();
+        builder2.with(Property.named("root"), "test/");
+        ExtendedS3StorageConfig config2 = builder2.build();
+        assertTrue(config2.getRoot().endsWith("/"));
+        assertEquals("test/", config2.getRoot());
+    }
 
     private static Storage createStorage(S3Client client, ExtendedS3StorageConfig adapterConfig, Executor executor) {
         // We can't use the factory here because we're setting our own (mock) client.

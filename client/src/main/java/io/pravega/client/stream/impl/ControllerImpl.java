@@ -951,6 +951,8 @@ public class ControllerImpl implements Controller {
                                                       .setTxnId(ModelHelper.decode(txId));
             if (timestamp != null) {
                 txnRequest.setTimestamp(timestamp);
+            } else {
+                txnRequest.setTimestamp(Long.MIN_VALUE);
             }
             client.commitTransaction(txnRequest.build(), callback);
             return callback.getFuture();
@@ -1107,9 +1109,9 @@ public class ControllerImpl implements Controller {
         return result.thenApply( token -> token.getDelegationToken())
         .whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("getCurrentSegments failed: ", e);
+                log.warn("getOrRefreshDelegationTokenFor failed: ", e);
             }
-            LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
+            LoggerHelpers.traceLeave(log, "getOrRefreshDelegationTokenFor", traceId);
         });
     }
 

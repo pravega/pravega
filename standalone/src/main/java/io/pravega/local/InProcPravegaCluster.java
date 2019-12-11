@@ -354,7 +354,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .trustStorePasswordPath(keyPasswordFile)
                 .build();
 
-        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
+        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withPravegaTablesClient(zkClientConfig);
 
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(true)
@@ -397,7 +397,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         }
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
-                .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
+                .threadPoolSize(Runtime.getRuntime().availableProcessors())
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
                 .controllerClusterListenerEnabled(false)

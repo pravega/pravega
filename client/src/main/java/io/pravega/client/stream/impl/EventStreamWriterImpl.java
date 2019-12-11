@@ -100,7 +100,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
         this.retransmitPool = Preconditions.checkNotNull(retransmitPool);
-        this.pinger = new Pinger(config, stream, controller, internalExecutor);
+        this.pinger = new Pinger(config.getTransactionTimeoutTime(), stream, controller, internalExecutor);
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         assert failedEvents.isEmpty() : "There should not be any events to have failed";
         if (config.isAutomaticallyNoteTime()) {
