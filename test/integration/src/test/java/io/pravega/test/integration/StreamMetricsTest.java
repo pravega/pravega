@@ -9,11 +9,13 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
@@ -27,15 +29,18 @@ import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,6 +51,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import static io.pravega.shared.MetricsTags.streamTags;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class StreamMetricsTest {
@@ -59,10 +65,12 @@ public class StreamMetricsTest {
     private StatsProvider statsProvider = null;
     private ServiceBuilder serviceBuilder = null;
     private AutoScaleMonitor monitor = null;
+    private int controllerPort;
+    private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     @Before
     public void setup() throws Exception {
-        final int controllerPort = TestUtils.getAvailableListenPort();
+        controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int servicePort = TestUtils.getAvailableListenPort();
         final int containerCount = 4;
@@ -134,12 +142,11 @@ public class StreamMetricsTest {
             this.zkTestServer.close();
             this.zkTestServer = null;
         }
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test(timeout = 30000)
     public void testSegmentSplitMerge() throws Exception {
-
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
         String scaleScopeName = "scaleScope";
         String scaleStreamName = "scaleStream";
 
@@ -178,5 +185,44 @@ public class StreamMetricsTest {
         assertEquals(2, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleScopeName, scaleStreamName)).value());
         assertEquals(1, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleScopeName, scaleStreamName)).value());
         assertEquals(1, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleScopeName, scaleStreamName)).value());
+    }
+
+    @Test(timeout = 30000)
+    public void testTransactionMetrics() throws Exception {
+        String txScopeName = "scopeTx";
+        String txStreamName = "streamTx";
+
+        controllerWrapper.getControllerService().createScope(txScopeName).get();
+        if (!controller.createStream(txScopeName, txStreamName, config).get()) {
+            log.error("Stream {} for tx testing already existed, exiting", txScopeName + "/" + txStreamName);
+            return;
+        }
+
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(txScopeName, ClientConfig.builder()
+                .controllerURI(URI.create("tcp://localhost:" + controllerPort)).build());
+        @Cleanup
+        TransactionalEventStreamWriter<String> writer = clientFactory.createTransactionalEventWriter(Stream.of(txScopeName, txStreamName).getStreamName(),
+                new JavaSerializer<>(), EventWriterConfig.builder().build());
+
+        Transaction<String> transaction = writer.beginTxn();
+
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
+
+        transaction.writeEvent("Test");
+        transaction.flush();
+        transaction.commit();
+
+        AssertExtensions.assertEventuallyEquals(true, () -> transaction.checkStatus().equals(Transaction.Status.COMMITTED), 10000);
+
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.COMMIT_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
+
+        Transaction<String> transaction2 = writer.beginTxn();
+        transaction2.writeEvent("Test");
+        transaction2.abort();
+
+        AssertExtensions.assertEventuallyEquals(true, () -> transaction2.checkStatus().equals(Transaction.Status.ABORTED), 10000);
+
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.ABORT_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
     }
 }
