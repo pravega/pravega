@@ -489,7 +489,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         // Step 3. Update txn node data in the store,thus updating its version
         //         and fencing other processes from tracking this txn's timeout.
         // Step 4. Add this txn to timeout service and start managing timeout for this txn.
-        return streamMetadataStore.getTransactionData(scope, stream, txnId, ctx, executor).thenComposeAsync(txnData -> {
+        CompletableFuture<PingTxnStatus> pingTxnFuture = streamMetadataStore.getTransactionData(scope, stream, txnId, ctx, executor).thenComposeAsync(txnData -> {
             final TxnStatus txnStatus = txnData.getStatus();
             if (!txnStatus.equals(TxnStatus.OPEN)) { // transaction is not open, dont ping it
                 return CompletableFuture.completedFuture(getPingTxnStatus(txnStatus));
@@ -546,6 +546,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 }, executor);
             }
         }, executor);
+        return Futures.exceptionallyComposeExpecting(pingTxnFuture,
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException,
+                () -> streamMetadataStore.transactionStatus(scope, stream, txnId, ctx, executor)
+                                   .thenApply(this::getPingTxnStatus)
+                );
     }
 
     private PingTxnStatus getPingTxnStatus(final TxnStatus txnStatus) {
