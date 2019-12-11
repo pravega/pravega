@@ -61,7 +61,6 @@ import io.pravega.controller.task.TaskBase;
 import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
@@ -86,7 +85,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
 import lombok.Synchronized;
 import org.apache.commons.lang3.NotImplementedException;
 import org.slf4j.LoggerFactory;
