@@ -1,11 +1,16 @@
 #
-# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
+#
+# This file contains source code copied from the Apache BookKeeper project (http://bookkeeper.apache.org).
+# Specifically, it contains source code copied from file `Dockerfile`, revisions `a14c8bf` and `a00f60d`:
+#    - https://github.com/apache/bookkeeper/blob/branch-4.7/docker/Dockerfile
+#    - https://github.com/apache/bookkeeper/blob/branch-4.9/docker/Dockerfile
 #
 FROM apache/bookkeeper:4.9.2
 

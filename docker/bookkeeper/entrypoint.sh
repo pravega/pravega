@@ -8,6 +8,10 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
+# This file contains source code copied from the Apache BookKeeper project (http://bookkeeper.apache.org).
+# Specifically, it contains source code copied from file `init_bookie.sh`, revision `3bfecd4`:
+# https://github.com/apache/bookkeeper/blob/branch-4.7/docker/scripts/init_bookie.sh.
+#
 
 # Exit the script in case of an error
 set -e
