@@ -10,7 +10,6 @@
 package io.pravega.controller.metrics;
 
 import io.pravega.shared.metrics.OpStatsLogger;
-import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 
@@ -21,7 +20,6 @@ import static io.pravega.shared.MetricsTags.transactionTags;
 /**
  * Class to encapsulate the logic to report Controller service metrics for Transactions.
  */
-@Slf4j
 public final class TransactionMetrics extends AbstractControllerMetrics implements AutoCloseable {
 
     private final OpStatsLogger createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);;
@@ -42,7 +40,6 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      * @param latency    Latency of the create Transaction operation.
      */
     public void createTransaction(String scope, String streamName, Duration latency) {
-        log.error("CREATE TRANSACTION {}/{} latency {}", scope, streamName, latency.toMillis());
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_TRANSACTION), 1);
         DYNAMIC_LOGGER.incCounterValue(CREATE_TRANSACTION, 1, streamTags(scope, streamName));
         createTransactionLatency.reportSuccessValue(latency.toMillis());
@@ -54,7 +51,6 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      * @param latency      Time elapsed to create the segments related to the created transaction.
      */
     public void createTransactionSegments(Duration latency) {
-        log.error("CREATE TRANSACTION SEGMENTS latency {}", latency.toMillis());
         createTransactionSegmentsLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -75,7 +71,6 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      * @param latency    Latency of the abort Transaction operation.
      */
     public void committingTransaction(Duration latency) {
-        log.error("COMMITTING TRANSACTION latency {}", latency.toMillis());
         committingTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -88,7 +83,6 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      * @param latency    Latency of the commit Transaction operation.
      */
     public void commitTransaction(String scope, String streamName, Duration latency) {
-        log.error("COMMIT TRANSACTION {}/{} latency {}", scope, streamName, latency.toMillis());
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(COMMIT_TRANSACTION), 1);
         DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION, 1, streamTags(scope, streamName));
         commitTransactionLatency.reportSuccessValue(latency.toMillis());
@@ -100,7 +94,6 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      * @param latency      Time elapsed to merge the segments related to the committed transaction.
      */
     public void commitTransactionSegments(Duration latency) {
-        log.error("COMMIT TRANSACTION SEGMENTS latency {}", latency.toMillis());
         commitTransactionSegmentsLatency.reportSuccessValue(latency.toMillis());
     }
 
