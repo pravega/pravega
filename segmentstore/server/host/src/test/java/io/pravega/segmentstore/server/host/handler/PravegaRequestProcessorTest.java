@@ -145,7 +145,7 @@ public class PravegaRequestProcessorTest {
         }
 
         @Override
-        protected void fail(Throwable exception) {
+        public void fail(Throwable exception) {
             super.fail(exception);
         }
 

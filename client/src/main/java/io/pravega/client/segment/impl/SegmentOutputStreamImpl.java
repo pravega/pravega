@@ -11,7 +11,7 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.auth.TokenException;
+import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
@@ -214,7 +214,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 }
             }
             if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException
-                    || throwable instanceof TokenException) {
+                    || throwable instanceof InvalidTokenException) {
                 setupConnection.releaseExceptionally(throwable);
             } else if (failSetupConnection) {
                 setupConnection.releaseExceptionallyAndReset(throwable);
@@ -443,7 +443,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             if (authTokenCheckFailed.isTokenExpired()) {
                 failConnection(new TokenExpiredException(authTokenCheckFailed.getServerStackTrace()));
             } else {
-                failConnection(new TokenException(authTokenCheckFailed.toString()));
+                failConnection(new InvalidTokenException(authTokenCheckFailed.toString()));
             }
         }
     }
@@ -600,8 +600,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                              }
                              return connectionSetupFuture.exceptionally(t -> {
                                  Throwable exception = Exceptions.unwrap(t);
-                                 if (exception instanceof TokenException) {
-                                     log.info("Ending reconnect attempts on writer {} to {} because token verification failed",
+                                 if (exception instanceof InvalidTokenException) {
+                                     log.info("Ending reconnect attempts on writer {} to {} because token verification failed due to invalid token",
                                              writerId, segmentName);
                                      return null;
                                  }
@@ -650,6 +650,4 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     public long getLastObservedWriteOffset() {
         return state.getLastSegmentLength();
     }
-    
-    
 }

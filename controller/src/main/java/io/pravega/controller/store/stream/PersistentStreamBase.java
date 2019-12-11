@@ -394,7 +394,8 @@ public abstract class PersistentStreamBase implements Stream {
                 segment -> targetSegmentsList.stream().filter(target -> target.overlaps(segment)).count() > 1 ).count();
     }
 
-    private CompletableFuture<Integer> getSegmentSealedEpoch(long segmentId) {
+    @Override
+    public CompletableFuture<Integer> getSegmentSealedEpoch(long segmentId) {
         return getSegmentSealedRecordData(segmentId).handle((x, e) -> {
             if (e != null) {
                 if (Exceptions.unwrap(e) instanceof DataNotFoundException) {
@@ -1726,8 +1727,8 @@ public abstract class PersistentStreamBase implements Stream {
         return createSealedSegmentSizesMapShardDataIfAbsent(shardNumber, shard);
     }
 
-    @VisibleForTesting
-    CompletableFuture<SealedSegmentsMapShard> getSealedSegmentSizeMapShard(int shard) {
+    @Override
+    public CompletableFuture<SealedSegmentsMapShard> getSealedSegmentSizeMapShard(int shard) {
         return getSealedSegmentSizesMapShardData(shard)
                 .handle((r, e) -> {
                     if (e != null) {
@@ -1898,6 +1899,11 @@ public abstract class PersistentStreamBase implements Stream {
                 });
     }
 
+    @Override
+    public CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunk(int chunkNumber) {
+        return getHistoryTimeSeriesChunk(chunkNumber, true);
+    }
+    
     private CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunk(int chunkNumber, boolean ignoreCached) {
         return getHistoryTimeSeriesChunkData(chunkNumber, ignoreCached)
                 .thenCompose(x -> {
