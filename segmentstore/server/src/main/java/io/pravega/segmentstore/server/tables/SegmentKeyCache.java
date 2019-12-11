@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -74,20 +75,11 @@ class SegmentKeyCache {
     /**
      * Generates a {@link CacheManager.CacheStatus} containing the current state of the Cache for this Segment.
      *
-     * @return A new {@link CacheManager.CacheStatus} instance..
+     * @return A new {@link CacheManager.CacheStatus} instance.
      */
     synchronized CacheManager.CacheStatus getCacheStatus() {
-        int minGen = 0;
-        int maxGen = 0;
-        for (CacheEntry e : this.cacheEntries.values()) {
-            if (e != null) {
-                int g = e.getGeneration();
-                minGen = Math.min(minGen, g);
-                maxGen = Math.max(maxGen, g);
-            }
-        }
-
-        return new CacheManager.CacheStatus(minGen, maxGen);
+        return CacheManager.CacheStatus.fromGenerations(
+                this.cacheEntries.values().stream().filter(Objects::nonNull).map(CacheEntry::getGeneration).iterator());
     }
 
     /**
@@ -456,7 +448,7 @@ class SegmentKeyCache {
 
         /**
          * Removes the contents of this entry from the cache, if anything was stored there in the first place. Invoking
-         * this method will cause {@link #storeInCache} to throw an {@link IllegalStateException} going forward.
+         * this will cause {@link #storeInCache} to throw an {@link IllegalStateException} going forward.
          *
          * @return True if there was anything evicted, false otherwise.
          */
@@ -471,7 +463,8 @@ class SegmentKeyCache {
             return false;
         }
 
-        private synchronized byte[] getFromCache() {
+        @GuardedBy("this")
+        private byte[] getFromCache() {
             BufferView data = null;
             if (this.cacheAddress >= 0) {
                 data = SegmentKeyCache.this.cacheStorage.get(this.cacheAddress);
