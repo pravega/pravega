@@ -16,6 +16,7 @@ import io.pravega.common.util.BufferView;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.NonNull;
 
@@ -41,7 +42,7 @@ public class ByteBufWrapper implements BufferView {
      * @param buf The {@link ByteBuf} to wrap. A read-only duplicate will be made of this buffer; any changes made to the
      *            {@link ByteBuf#readerIndex()} or {@link ByteBuf#writerIndex()} to this object will not be reflected
      *            in this {@link ByteBufWrapper} instance. This {@link ByteBuf} reference count will be incremented by 1
-     *            to reflect the new reference added by this wrapper. Invoke {@link #close()} to release that reference.
+     *            to reflect the new reference added by this wrapper. Invoke {@link #release()} to release that reference.
      */
     public ByteBufWrapper(@NonNull ByteBuf buf) {
         this.buf = buf.asReadOnly();
@@ -82,6 +83,18 @@ public class ByteBufWrapper implements BufferView {
     }
 
     @Override
+    public InputStream getReader(int offset, int length) {
+        Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
+        return new ByteBufInputStream(this.buf.slice(offset, length), false);
+    }
+
+    @Override
+    public BufferView slice(int offset, int length) {
+        Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
+        return new ByteBufWrapper(this.buf.slice(offset, length));
+    }
+
+    @Override
     public byte[] getCopy() {
         Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
         ByteBuf buf = this.buf.duplicate();
@@ -95,6 +108,20 @@ public class ByteBufWrapper implements BufferView {
         Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
         ByteBuf buf = this.buf.duplicate();
         buf.readBytes(target, buf.readableBytes());
+    }
+
+    @Override
+    public int copyTo(ByteBuffer byteBuffer) {
+        Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
+        ByteBuf buf = this.buf.duplicate();
+        int length = byteBuffer.remaining();
+        if (length > getLength()) {
+            byteBuffer = byteBuffer.duplicate();
+            length = getLength();
+            byteBuffer.limit(length);
+        }
+        buf.readBytes(byteBuffer);
+        return length;
     }
 
     @Override
