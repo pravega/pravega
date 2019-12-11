@@ -11,8 +11,7 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.CacheManager;
-import io.pravega.segmentstore.storage.Cache;
-import io.pravega.segmentstore.storage.CacheFactory;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,7 +31,7 @@ import lombok.val;
 class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     //region Members
 
-    private final Cache cache;
+    private final CacheStorage cacheStorage;
     @GuardedBy("segmentCaches")
     private final Map<Long, SegmentKeyCache> segmentCaches;
     @GuardedBy("segmentCaches")
@@ -46,11 +45,10 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     /**
      * Creates a new instance of the ContainerKeyCache class.
      *
-     * @param containerId  The Id of the SegmentContainer that this instance is associated with.
-     * @param cacheFactory A {@link CacheFactory} that can be used to create {@link Cache} instances.
+     * @param cacheStorage A {@link CacheStorage} that can be used to store data in memory.
      */
-    ContainerKeyCache(int containerId, @NonNull CacheFactory cacheFactory) {
-        this.cache = cacheFactory.getCache(String.format("Container_%d_TableKeys", containerId));
+    ContainerKeyCache(@NonNull CacheStorage cacheStorage) {
+        this.cacheStorage = cacheStorage;
         this.segmentCaches = new HashMap<>();
         this.closed = new AtomicBoolean();
     }
@@ -62,10 +60,13 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
-            this.cache.close();
+            ArrayList<SegmentKeyCache> toEvict;
             synchronized (this.segmentCaches) {
+                toEvict = new ArrayList<>(this.segmentCaches.values());
                 this.segmentCaches.clear();
             }
+
+            toEvict.forEach(s -> s.evictAll().forEach(SegmentKeyCache.CacheEntry::evict));
         }
     }
 
@@ -77,36 +78,39 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     public CacheManager.CacheStatus getCacheStatus() {
         int minGen = 0;
         int maxGen = 0;
-        long size = 0;
         synchronized (this.segmentCaches) {
             for (SegmentKeyCache e : this.segmentCaches.values()) {
                 if (e != null) {
                     val cs = e.getCacheStatus();
                     minGen = Math.min(minGen, cs.getOldestGeneration());
                     maxGen = Math.max(maxGen, cs.getNewestGeneration());
-                    size += cs.getSize();
                 }
             }
         }
 
-        return new CacheManager.CacheStatus(size, minGen, maxGen);
+        return new CacheManager.CacheStatus(minGen, maxGen);
     }
 
     @Override
-    public long updateGenerations(int currentGeneration, int oldestGeneration) {
+    public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         // Instruct each Segment Cache to perform its own cache management, collect eviction candidates, and remove them
         // from the cache.
-        val evictions = new ArrayList<SegmentKeyCache.EvictionResult>();
+        val evictions = new ArrayList<SegmentKeyCache.CacheEntry>();
         synchronized (this.segmentCaches) {
             this.currentCacheGeneration = currentGeneration;
             for (SegmentKeyCache segmentCache : this.segmentCaches.values()) {
-                evictions.add(segmentCache.evictBefore(oldestGeneration));
+                evictions.addAll(segmentCache.evictBefore(oldestGeneration));
             }
         }
 
-        return evictions.stream().mapToLong(this::evict).sum();
+        boolean anyEvicted = false;
+        for (val e : evictions) {
+            anyEvicted = e.evict() | anyEvicted;
+        }
+
+        return anyEvicted;
     }
 
     //endregion
@@ -131,7 +135,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         int generation;
         synchronized (this.segmentCaches) {
             generation = this.currentCacheGeneration;
-            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cache));
+            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cacheStorage));
         }
 
         return cache.includeUpdateBatch(batch, batchOffset, generation);
@@ -150,7 +154,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         int generation;
         synchronized (this.segmentCaches) {
             generation = this.currentCacheGeneration;
-            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cache));
+            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cacheStorage));
         }
 
         cache.includeTailCache(keyOffsets, generation);
@@ -175,7 +179,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         int generation;
         synchronized (this.segmentCaches) {
             generation = this.currentCacheGeneration;
-            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cache));
+            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cacheStorage));
         }
 
         return cache.includeExistingKey(keyHash, segmentOffset, generation);
@@ -217,13 +221,13 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             if (remove) {
                 cache = this.segmentCaches.remove(segmentId);
             } else {
-                cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cache));
+                cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cacheStorage));
             }
         }
 
         if (cache != null) {
             if (remove) {
-                evict(cache.evictAll());
+                cache.evictAll().forEach(SegmentKeyCache.CacheEntry::evict);
             } else {
                 cache.setLastIndexedOffset(indexOffset, generation);
             }
@@ -244,7 +248,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         synchronized (this.segmentCaches) {
             generation = this.currentCacheGeneration;
             if (!this.segmentCaches.containsKey(segmentId)) {
-                cache = new SegmentKeyCache(segmentId, this.cache);
+                cache = new SegmentKeyCache(segmentId, this.cacheStorage);
             }
         }
 
@@ -291,11 +295,6 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         }
 
         return cache == null ? ifNotExists : ifExists.apply(cache);
-    }
-
-    private long evict(SegmentKeyCache.EvictionResult eviction) {
-        eviction.getKeys().forEach(this.cache::remove);
-        return eviction.getSize();
     }
 
     //endregion
