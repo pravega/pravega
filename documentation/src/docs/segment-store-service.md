@@ -205,12 +205,7 @@ The _Segment Read Index_ is a data structure that is used to serve reads from 
 At the heart of the _Segment Read Index_ lies a sorted index of entries (indexed by their start offsets) which is used to locate the requested data when needed. The index itself is implemented by a custom balanced binary search tree (AVL Tree to be more precise) with a goal of minimizing memory usage while not sacrificing insert or access performance. The entries themselves do not contain data, rather some small amount of metadata that is used to locate the data in the Cache and to determine usage patterns (good for cache evictions).
 
 ### Cache
-The Cache is a component where all data (whether from new appends or that was pulled from Tier 2 storage) is stored. It is a key-value store entirely managed by the Read Index.
-
-The Cache is defined as an abstraction layer, and there are two implementations of it:
-
-- In-memory implementation (via a `HashMap`). This is currently used only for unit tests.
-- Memory-disk hybrid, powered by **RocksDB**. This is the preferred (and default) implementation, since it is not limited by available heap space or machine RAM. Performance is comparable to the in-memory implementation.
+The Cache is a component where all data (whether from new appends or that was pulled from Tier 2 storage) is stored. It is a direct memory store store entirely managed by the Read Index.
 
 ### Storage Writer
 Pravega is by no means the final resting place of the data, nor it is meant to be a storage service. The Tier 2 Storage is where we want data to be in the long term and Pravega is only used to store a very short tail-end of it (using Tier 1 Storage), enough to make appends fast and aggregate them into bigger chunks for committal to Tier 2 Storage. To perform this, it needs another component (**Storage Writer**) that reads data from the _Durable Log_ in the order in which it was received, aggregates it, and sends it to Tier 2 Storage.
