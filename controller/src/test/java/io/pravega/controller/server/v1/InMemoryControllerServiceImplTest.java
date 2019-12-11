@@ -70,7 +70,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
-                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),

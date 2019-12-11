@@ -102,7 +102,7 @@ public class IntermittentCnxnFailureTest {
                 executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, segmentHelperMock, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
+                streamStore, segmentHelperMock, executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
 
         controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);

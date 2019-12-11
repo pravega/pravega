@@ -24,25 +24,14 @@ import static io.pravega.shared.MetricsTags.transactionTags;
 @Slf4j
 public final class TransactionMetrics extends AbstractControllerMetrics implements AutoCloseable {
 
-    private final OpStatsLogger createTransactionLatency;
-    private final OpStatsLogger createTransactionSegmentsLatency;
-    private final OpStatsLogger commitTransactionLatency;
-    private final OpStatsLogger commitTransactionSegmentsLatency;
-    private final OpStatsLogger committingTransactionLatency;
-    private final OpStatsLogger abortTransactionLatency;
-    private final OpStatsLogger abortTransactionSegmentsLatency;
-    private final OpStatsLogger abortingTransactionLatency;
-
-    public TransactionMetrics() {
-        createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
-        createTransactionSegmentsLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_SEGMENTS_LATENCY);
-        commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
-        commitTransactionSegmentsLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_LATENCY);
-        committingTransactionLatency = STATS_LOGGER.createStats(COMMITTING_TRANSACTION_LATENCY);
-        abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
-        abortTransactionSegmentsLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_SEGMENTS_LATENCY);
-        abortingTransactionLatency = STATS_LOGGER.createStats(ABORTING_TRANSACTION_LATENCY);
-    }
+    private final OpStatsLogger createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);;
+    private final OpStatsLogger createTransactionSegmentsLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_SEGMENTS_LATENCY);
+    private final OpStatsLogger commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
+    private final OpStatsLogger commitTransactionSegmentsLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_LATENCY);
+    private final OpStatsLogger committingTransactionLatency = STATS_LOGGER.createStats(COMMITTING_TRANSACTION_LATENCY);
+    private final OpStatsLogger abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
+    private final OpStatsLogger abortTransactionSegmentsLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_SEGMENTS_LATENCY);
+    private final OpStatsLogger abortingTransactionLatency = STATS_LOGGER.createStats(ABORTING_TRANSACTION_LATENCY);
 
     /**
      * This method increments the global and Stream-related counters of created Transactions and reports the latency of

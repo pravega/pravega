@@ -220,7 +220,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock,
-                executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
+                executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         // Create ControllerService.
@@ -260,7 +260,7 @@ public class StreamTransactionMetadataTasksTest {
         EventStreamReader<AbortEvent> abortReader = abortWriter.getReader();
 
         txnTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host",
-                GrpcAuthHelper.getDisabledAuthHelper());
+                GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
 
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
@@ -277,7 +277,7 @@ public class StreamTransactionMetadataTasksTest {
         // Set up txn task for creating transactions from a failedHost.
         @Cleanup
         StreamTransactionMetadataTasks failedTxnTasks = new StreamTransactionMetadataTasks(streamStore, 
-                segmentHelperMock, executor, "failedHost", GrpcAuthHelper.getDisabledAuthHelper());
+                segmentHelperMock, executor, "failedHost", GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
         failedTxnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         // Create 3 transactions from failedHost.
@@ -312,7 +312,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks for sweeping txns from failedHost.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host",
-                GrpcAuthHelper.getDisabledAuthHelper());
+                GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
 
         // Before initializing, txnSweeper.sweepFailedHosts would throw an error
@@ -389,7 +389,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host",
-                GrpcAuthHelper.getDisabledAuthHelper());
+                GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, txnTasks,
@@ -465,7 +465,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, 
                 SegmentHelperMock.getFailingSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(this.authEnabled, "secret", 600));
+                new GrpcAuthHelper(this.authEnabled, "secret", 600), transactionMetrics);
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         // Create ControllerService.
@@ -510,7 +510,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(this.authEnabled, "secret", 600));
+                new GrpcAuthHelper(this.authEnabled, "secret", 600), transactionMetrics);
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -581,7 +581,8 @@ public class StreamTransactionMetadataTasksTest {
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock,
                                                       SegmentHelperMock.getSegmentHelperMock(), executor, "host",
-                                                      new GrpcAuthHelper(this.authEnabled, "secret", 300));
+                                                      new GrpcAuthHelper(this.authEnabled, "secret", 300),
+                                                      transactionMetrics);
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -614,7 +615,7 @@ public class StreamTransactionMetadataTasksTest {
         // region close before initialize
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(this.authEnabled, "secret", 300));
+                new GrpcAuthHelper(this.authEnabled, "secret", 300), transactionMetrics);
         CompletableFuture<Void> future = txnTasks.writeCommitEvent(new CommitEvent("scope", "stream", 0));
         assertFalse(future.isDone());
 
@@ -625,7 +626,7 @@ public class StreamTransactionMetadataTasksTest {
         // region test initialize writers with client factory
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(this.authEnabled, "secret", 300));
+                new GrpcAuthHelper(this.authEnabled, "secret", 300), transactionMetrics);
 
         future = txnTasks.writeCommitEvent(new CommitEvent("scope", "stream", 0));
 
@@ -652,7 +653,7 @@ public class StreamTransactionMetadataTasksTest {
         // region test method calls and initialize writers with direct writer set up method call
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(this.authEnabled, "secret", 300));
+                new GrpcAuthHelper(this.authEnabled, "secret", 300), transactionMetrics);
 
         streamStore.createScope(SCOPE).join();
         streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 1L, null, executor).join();
@@ -682,7 +683,7 @@ public class StreamTransactionMetadataTasksTest {
 
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(this.authEnabled, "secret", 300));
+                new GrpcAuthHelper(this.authEnabled, "secret", 300), transactionMetrics);
 
         streamStore.createScope(SCOPE).join();
         streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 1L, null, executor).join();

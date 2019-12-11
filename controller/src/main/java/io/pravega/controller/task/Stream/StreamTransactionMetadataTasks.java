@@ -106,7 +106,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final GrpcAuthHelper authHelper) {
+                                          final GrpcAuthHelper authHelper,
+                                          final TransactionMetrics transactionMetrics) {
         this.hostId = hostId;
         this.executor = executor;
         this.eventExecutor = eventExecutor;
@@ -117,7 +118,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         readyLatch = new CountDownLatch(1);
         this.commitWriterFuture = new CompletableFuture<>();
         this.abortWriterFuture = new CompletableFuture<>();
-        this.transactionMetrics = new TransactionMetrics();
+        this.transactionMetrics = transactionMetrics;
     }
 
     @VisibleForTesting
@@ -127,8 +128,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, executor, hostId, timeoutServiceConfig, taskCompletionQueue, authHelper);
+                                          final GrpcAuthHelper authHelper,
+                                          final TransactionMetrics transactionMetrics) {
+        this(streamMetadataStore, segmentHelper, executor, executor, hostId, timeoutServiceConfig, taskCompletionQueue,
+                authHelper, transactionMetrics);
     }
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
@@ -137,8 +140,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService eventExecutor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, eventExecutor, hostId, timeoutServiceConfig, null, authHelper);
+                                          final GrpcAuthHelper authHelper,
+                                          final TransactionMetrics transactionMetrics) {
+        this(streamMetadataStore, segmentHelper, executor, eventExecutor, hostId, timeoutServiceConfig, null,
+                authHelper, transactionMetrics);
     }
 
     @VisibleForTesting
@@ -146,8 +151,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, executor, hostId, TimeoutServiceConfig.defaultConfig(), authHelper);
+                                          final GrpcAuthHelper authHelper,
+                                          final TransactionMetrics transactionMetrics) {
+        this(streamMetadataStore, segmentHelper, executor, executor, hostId, TimeoutServiceConfig.defaultConfig(),
+                authHelper, transactionMetrics);
     }
 
     private void setReady() {

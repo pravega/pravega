@@ -158,7 +158,7 @@ public class ControllerGrpcAuthFocusedTest {
                 EXECUTOR, "host", authHelper, requestTracker, transactionMetrics);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
-                EXECUTOR, "host", authHelper);
+                EXECUTOR, "host", authHelper, transactionMetrics);
 
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, EXECUTOR),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, EXECUTOR),

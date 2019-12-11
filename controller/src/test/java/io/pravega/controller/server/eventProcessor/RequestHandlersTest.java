@@ -143,7 +143,7 @@ public abstract class RequestHandlersTest {
                 executor, hostId, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
-                segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
+                segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
         long createTimestamp = System.currentTimeMillis();
 

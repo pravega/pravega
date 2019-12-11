@@ -99,7 +99,7 @@ public class ControllerServiceTest {
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
                 segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
+                segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
 
         consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
                 new SegmentHelper(connectionFactory, hostStore), executor, null);
