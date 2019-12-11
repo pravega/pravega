@@ -743,8 +743,5 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         } else {
             abortWriterFuture.cancel(true);
         }
-        if (transactionMetrics != null) {
-            transactionMetrics.close();
-        }
     }
 }

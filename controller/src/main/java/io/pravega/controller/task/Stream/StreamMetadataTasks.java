@@ -1065,9 +1065,6 @@ public class StreamMetadataTasks extends TaskBase {
         if (writer != null) {
             writer.close();
         }
-        if (transactionMetrics != null) {
-            transactionMetrics.close();
-        }
     }
 
     public String retrieveDelegationToken() {
