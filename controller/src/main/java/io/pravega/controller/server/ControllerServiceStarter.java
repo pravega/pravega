@@ -186,6 +186,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             log.info("Creating the checkpoint store");
             checkpointStore = CheckpointStoreFactory.create(storeClient);
 
+            streamMetrics = new StreamMetrics();
+            transactionMetrics = new TransactionMetrics();
+
             // On each controller process restart, we use a fresh hostId,
             // which is a combination of hostname and random GUID.
             String hostName = getHostName();
@@ -270,8 +273,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
-            streamMetrics = new StreamMetrics();
-            transactionMetrics = new TransactionMetrics();
             controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
                     streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
