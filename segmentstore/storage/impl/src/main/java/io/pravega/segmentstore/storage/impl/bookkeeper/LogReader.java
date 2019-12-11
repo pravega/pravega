@@ -70,11 +70,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
     public void close() {
         if (!this.closed.getAndSet(true)) {
             if (this.currentLedger != null) {
-                try {
-                    this.currentLedger.close();
-                } catch (DurableDataLogException bkEx) {
-                    log.error("Unable to close LedgerHandle for Ledger {}.", this.currentLedger.handle.getId(), bkEx);
-                }
+                this.currentLedger.close();
                 this.currentLedger = null;
             }
         }
@@ -219,24 +215,21 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
                     content.readableBytes(), metadata);
         }
 
-        private void close() throws DurableDataLogException {
+        private void close() {
             // Release memory held by BookKeeper internals.
             // we have to prevent a double free
             if (closed.compareAndSet(false, true)) {
                 if (ledgerEntries != null) {
                     ledgerEntries.close();
                 }
-                // closing a Readonly is mostly a no-op, it is not expected
+                // closing a ReadHandle is mostly a no-op, it is not expected
                 // to really fail
-                Ledgers.close(handle);
+                try {
+                    Ledgers.close(handle);
+                } catch (DurableDataLogException bkEx) {
+                    log.error("Unable to close ReadHandle for Ledger {}.", handle.getId(), bkEx);
+                }
             }
-        }
-
-        /**
-         * Release memory held by BookKeeper internals.
-         */
-        private void release() {
-
         }
     }
 

@@ -40,7 +40,7 @@ final class Ledgers {
     /**
      * Creates a new Ledger in BookKeeper.
      *
-     * @return A LedgerHandle for the new ledger.
+     * @return A WriteHandle for the new ledger.
      * @throws DataLogNotAvailableException If BookKeeper is unavailable or the ledger could not be created because an
      *                                      insufficient number of Bookies are available. The causing exception is wrapped
      *                                      inside it.
@@ -69,7 +69,7 @@ final class Ledgers {
      * @param ledgerId   The Id of the Ledger to open.
      * @param bookKeeper A references to the BookKeeper client to use.
      * @param config     Configuration to use.
-     * @return A LedgerHandle for the newly opened ledger.
+     * @return A ReadHandle for the newly opened ledger.
      * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
      */
     static ReadHandle openFence(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
@@ -93,7 +93,7 @@ final class Ledgers {
      * @param ledgerId   The Id of the Ledger to open.
      * @param bookKeeper A references to the BookKeeper client to use.
      * @param config     Configuration to use.
-     * @return A LedgerHandle for the newly opened ledger.
+     * @return A ReadHandle for the newly opened ledger.
      * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
      */
     static ReadHandle openRead(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
@@ -105,7 +105,7 @@ final class Ledgers {
                     .withDigestType(LEDGER_DIGEST_TYPE)
                     .withPassword(config.getBKPassword())
                     .withRecovery(false)
-                    .execute()));            
+                    .execute()));
         } catch (Exception bkEx) {
             throw new DurableDataLogException(String.format("Unable to open-read ledger %d.", ledgerId), bkEx);
         }

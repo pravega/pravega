@@ -478,11 +478,11 @@ class BookKeeperLog implements DurableDataLog {
                 }
 
                 // Invoke the BookKeeper write.
-                final WriteHandle handle = w.getWriteLedger().ledger;
-                handle.appendAsync(w.data.array(), w.data.arrayOffset(), w.data.getLength())
-                      .whenComplete((Long entryId, Throwable error) -> {
-                            addCallback(entryId, error, w);
-                        });
+                w.getWriteLedger()
+                      .ledger.appendAsync(w.data.array(), w.data.arrayOffset(), w.data.getLength())
+                             .whenComplete((Long entryId, Throwable error) -> {
+                                addCallback(entryId, error, w);
+                             });
             } catch (Throwable ex) {
                 // Synchronous failure (or RetriesExhausted). Fail current write.
                 boolean isFinal = !isRetryable(ex);
