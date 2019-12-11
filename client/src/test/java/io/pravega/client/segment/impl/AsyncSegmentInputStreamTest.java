@@ -11,6 +11,7 @@ package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.Flow;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
@@ -46,6 +47,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class AsyncSegmentInputStreamTest {
     private static final int SERVICE_PORT = 12345;
@@ -57,9 +59,10 @@ public class AsyncSegmentInputStreamTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
+        DelegationTokenProvider tokenProvider = mock(DelegationTokenProvider.class);
+        when(tokenProvider.retrieveToken()).thenReturn(CompletableFuture.completedFuture("")); // return empty token
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
-                DelegationTokenProviderFactory.createWithEmptyToken());
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, tokenProvider);
         ClientConnection c = mock(ClientConnection.class);
         InOrder inOrder = Mockito.inOrder(c);
         connectionFactory.provideConnection(endpoint, c);
@@ -98,6 +101,8 @@ public class AsyncSegmentInputStreamTest {
         inOrder.verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId())),
                                     Mockito.any(ClientConnection.CompletedCallback.class));
         verifyNoMoreInteractions(c);
+        // ensure retrieve Token is invoked for every retry.
+        verify(tokenProvider, times(3)).retrieveToken();
     }
 
     @Test(timeout = 10000)
