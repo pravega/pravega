@@ -471,8 +471,7 @@ class SegmentKeyCache {
             return false;
         }
 
-        @GuardedBy("this")
-        private byte[] getFromCache() {
+        private synchronized byte[] getFromCache() {
             BufferView data = null;
             if (this.cacheAddress >= 0) {
                 data = SegmentKeyCache.this.cacheStorage.get(this.cacheAddress);
