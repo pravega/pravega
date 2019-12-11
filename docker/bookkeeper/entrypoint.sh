@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -8,7 +8,9 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# set -e
+
+# Exit the script in case of an error
+set -e
 
 BOOKIE_PORT=${bookiePort:-${BOOKIE_PORT}}
 BOOKIE_PORT=${BOOKIE_PORT:-3181}
@@ -21,7 +23,6 @@ BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
 BK_DIR="/bk"
 BK_zkLedgersRootPath=${BK_LEDGERS_PATH}
-
 BK_HOME=/opt/bookkeeper
 BINDIR=${BK_HOME}/bin
 BOOKKEEPER=${BINDIR}/bookkeeper
@@ -29,7 +30,6 @@ SCRIPTS_DIR=${BK_HOME}/scripts
 
 export PATH=$PATH:/opt/bookkeeper/bin
 export JAVA_HOME=/usr/lib/jvm/jre-1.8.0
-
 export BK_zkLedgersRootPath=${BK_LEDGERS_PATH}
 export BOOKIE_PORT=${BOOKIE_PORT}
 export SERVICE_PORT=${BOOKIE_PORT}
@@ -49,9 +49,13 @@ export BK_tlsTrustStoreType=JKS
 export BK_tlsTrustStore=/var/private/tls/bookie.truststore.jks
 export BK_tlsTrustStorePasswordPath=/var/private/tls/bookie.truststore.passwd
 
+# Override the `set -e` defined in the top of the file temporarily. Doing this is necessary as the Bookeeper
+# `common.sh` script has logic that can return non-zero status.
+set +e
 source ${SCRIPTS_DIR}/common.sh
+set -e
 
-# To create directories for multiple ledgers and journals if specified
+# Create directories for multiple ledgers and journals if specified.
 create_bookie_dirs() {
   IFS=',' read -ra directories <<< $1
   for i in "${directories[@]}"
@@ -66,7 +70,6 @@ create_bookie_dirs() {
 wait_for_zookeeper() {
     echo "Waiting for zookeeper"
     until zk-shell --run-once "ls /" ${BK_zkServers}; do sleep 5; done
-    echo "Done waiting for Zookeeper"
 }
 
 
@@ -74,7 +77,6 @@ create_zk_root() {
     if [ "x${BK_CLUSTER_ROOT_PATH}" != "x" ]; then
         echo "Creating the zk root dir '${BK_CLUSTER_ROOT_PATH}' at '${BK_zkServers}'"
         zk-shell --run-once "create ${BK_CLUSTER_ROOT_PATH} '' false false true" ${BK_zkServers}
-        echo "Done creating the zk root dir"
     fi
 }
 
@@ -86,63 +88,58 @@ configure_bk() {
     fi
 }
 
-disable_bk_ipv6_check() {
-   # This check done in "common.sh" in the Bookeeper image fails in environments where IPV6 is not enabled.
-   # We are disabling it TEMPORARILY. This needs to be reverted back/tackled in a better way, by modifying the
-   # check instead to also make sure that the file "/proc/sys/net/ipv6/bindv6only" exists, before it executes the
-   # "/sbin/sysctl -n net.ipv6.bindv6only" command.
-   sed -i "s|/sbin/sysctl|/sbin/sysctl2|" ${BK_HOME}/bin/common.sh
-}
-
-# Init the cluster if required znodes not exist in Zookeeper.
-# Use ephemeral zk node as lock to keep initialize atomic.
+# Init the cluster if required znodes do not exist in Zookeeper.
 function init_cluster() {
+    set +e
     zk-shell --run-once "ls ${BK_zkLedgersRootPath}/available/readonly" ${BK_zkServers}
     if [ $? -eq 0 ]; then
-        echo "Metadata of cluster already exists, no need format"
+        echo "Cluster metadata already exists"
     else
-        echo "Sleep for a random time"
+        echo "Sleeping for a random time"
         sleep $[ ( $RANDOM % 10 )  + 1 ]s
-        # create ephemeral zk node bkInitLock, initiator who this node, then do init; other initiators will wait.
+
+        # Create an ephemeral zk node `bkInitLock` for use as a lock.
+
+        , initiator who this node, then do init; other initiators will wait.
         lock=`zk-shell --run-once "create ${BK_CLUSTER_ROOT_PATH}/bkInitLock1 '' true false false" ${BK_zkServers}`
-        echo "output of zk-shell create bkInitLock"
-        echo $lock
+        echo "Lock: $lock"
+
         if [ -z "$lock" ]; then
-            # bkInitLock created success, this is the successor to do znode init
-            echo "Bookkeeper znodes not exist in Zookeeper, do the init to create them."
+            echo "Bookkeeper znodes do not exist in Zookeeper. Initializing a new Bookeekeper cluster."
             /opt/bookkeeper/bin/bookkeeper shell initnewcluster
             if [ $? -eq 0 ]; then
-                echo "Bookkeeper znodes init success."
+                echo "initNewCluster operation succeeded"
             else
+                echo "initNewCluster operation failed. Please check the reason."
                 echo "Exit status of initnewcluster"
                 echo $?
-                echo "Bookkeeper znodes init failed. please check the reason."
                 sleep 1000
                 exit
             fi
         else
-            echo "Other docker instance is doing initialize at the same time, will wait in this instance."
+            echo "Other containers may be initializing at the same time."
             tenSeconds=1
             while [ ${tenSeconds} -lt 1000 ]
             do
                 sleep 10
                 zk-shell --run-once "ls ${BK_zkLedgersRootPath}/available/readonly" ${BK_zkServers}
                 if [ $? -eq 0 ]; then
-                    echo "Waited $tenSeconds * 10 seconds, bookkeeper inited"
+                    echo "Waited $tenSeconds * 10 seconds. Successfully listed ''${BK_zkLedgersRootPath}/available/readonly'"
                     break
                 else
-                    echo "Waited $tenSeconds * 10 seconds, still not init"
+                    echo "Waited $tenSeconds * 10 seconds. Continue waiting."
                     (( tenSeconds++ ))
                     continue
                 fi
             done
 
             if [ ${tenSeconds} -eq 1000 ]; then
-                echo "Waited 1000 seconds for bookkeeper cluster init, something wrong, please check"
+                echo "Waited 1000 seconds for bookkeeper cluster to initialize, but to no . Something is wrong, please check"
                 exit
             fi
         fi
     fi
+    set -e
 }
 
 
@@ -157,7 +154,7 @@ format_bookie_data_and_metadata() {
       # bookie. We will format any pre-existent data and metadata before starting
       # the bookie to avoid potential conflicts.
       echo "Formatting bookie data and metadata"
-      /opt/bookkeeper/bin/bookkeeper shell bookieformat -nonInteractive -force -deleteCookie
+      /opt/bookkeeper/bin/bookkeeper shell bookieformat -nonInteractive -force -deleteCookie || true
     fi
 }
 
@@ -173,12 +170,10 @@ create_zk_root
 
 configure_bk
 
-disable_bk_ipv6_check
-
 format_bookie_data_and_metadata
 
 echo "Initializing Cluster"
 init_cluster
 
-echo "Starting bookie"
+echo "Starting the bookie"
 /opt/bookkeeper/bin/bookkeeper bookie
