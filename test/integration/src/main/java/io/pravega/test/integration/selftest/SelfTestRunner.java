@@ -21,6 +21,7 @@ import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.shared.metrics.MetricsConfig;
 import java.io.File;
@@ -129,8 +130,8 @@ public class SelfTestRunner {
                 .builder()
                 .include(ServiceConfig.builder()
                                       .with(ServiceConfig.THREAD_POOL_SIZE, 80)
-                                      .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 600)
-                                      .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 4 * 1024 * 1024 * 1024L)
+                                      .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 30)
+                                      .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 6 * 1024 * 1024 * 1024L)
                                       .with(ServiceConfig.CERT_FILE, "../config/cert.pem")
                                       .with(ServiceConfig.KEY_FILE, "../config/key.pem"))
                 .include(DurableLogConfig.builder()
@@ -139,6 +140,10 @@ public class SelfTestRunner {
                                          .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                 .include(ReadIndexConfig.builder()
                                         .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 128 * 1024))
+                .include(WriterConfig.builder()
+                        .with(WriterConfig.MAX_ITEMS_TO_READ_AT_ONCE, 10000)
+                        .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 64 * 1024 * 1024)
+                        .with(WriterConfig.MAX_FLUSH_SIZE_BYTES, 64 * 1024 * 1024))
                 .include(ContainerConfig.builder()
                                         .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS,
                                                 ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS)

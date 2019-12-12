@@ -126,6 +126,11 @@ public class ByteArraySegment implements ArrayView {
     }
 
     @Override
+    public ByteArraySegment slice(int offset, int length) {
+        return subSegment(offset, length);
+    }
+
+    @Override
     public byte[] getCopy() {
         byte[] buffer = new byte[this.length];
         System.arraycopy(this.array, this.startOffset, buffer, 0, this.length);
@@ -138,6 +143,13 @@ public class ByteArraySegment implements ArrayView {
         Exceptions.checkArrayRange(targetOffset, length, target.length, "index", "values.length");
 
         System.arraycopy(this.array, this.startOffset, target, targetOffset, length);
+    }
+
+    @Override
+    public int copyTo(ByteBuffer target) {
+        int length = Math.min(this.length, target.remaining());
+        target.put(this.array, this.startOffset, length);
+        return length;
     }
 
     /**
@@ -237,6 +249,7 @@ public class ByteArraySegment implements ArrayView {
      * @throws ArrayIndexOutOfBoundsException If offset or length are invalid.
      */
     public ByteArraySegment subSegment(int offset, int length) {
+        // TODO: drop this in favor of slice(). https://github.com/pravega/pravega/issues/4318
         return subSegment(offset, length, this.readOnly);
     }
 
