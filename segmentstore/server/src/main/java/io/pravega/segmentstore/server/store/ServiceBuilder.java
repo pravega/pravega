@@ -41,12 +41,10 @@ import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
 import io.pravega.segmentstore.server.tables.TableService;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.SegmentToContainerMapper;
@@ -84,14 +82,12 @@ public class ServiceBuilder implements AutoCloseable {
     private final AtomicReference<SegmentContainerFactory> containerFactory;
     private final AtomicReference<SegmentContainerRegistry> containerRegistry;
     private final AtomicReference<SegmentContainerManager> containerManager;
-    private final AtomicReference<CacheFactory> cacheFactory;
     private final AtomicReference<WriterFactory> writerFactory;
     private final AtomicReference<StreamSegmentStore> streamSegmentService;
     private final AtomicReference<TableStore> tableStoreService;
     private Function<ComponentSetup, DurableDataLogFactory> dataLogFactoryCreator;
     private Function<ComponentSetup, StorageFactory> storageFactoryCreator;
     private Function<ComponentSetup, SegmentContainerManager> segmentContainerManagerCreator;
-    private Function<ComponentSetup, CacheFactory> cacheFactoryCreator;
     private Function<ComponentSetup, StreamSegmentStore> streamSegmentStoreCreator;
 
     //endregion
@@ -114,7 +110,6 @@ public class ServiceBuilder implements AutoCloseable {
         this.containerFactory = new AtomicReference<>();
         this.containerRegistry = new AtomicReference<>();
         this.containerManager = new AtomicReference<>();
-        this.cacheFactory = new AtomicReference<>();
         this.writerFactory = new AtomicReference<>();
         this.streamSegmentService = new AtomicReference<>();
         this.tableStoreService = new AtomicReference<>();
@@ -123,7 +118,6 @@ public class ServiceBuilder implements AutoCloseable {
         this.dataLogFactoryCreator = notConfiguredCreator(DurableDataLogFactory.class);
         this.storageFactoryCreator = notConfiguredCreator(StorageFactory.class);
         this.segmentContainerManagerCreator = notConfiguredCreator(SegmentContainerManager.class);
-        this.cacheFactoryCreator = notConfiguredCreator(CacheFactory.class);
         this.streamSegmentStoreCreator = notConfiguredCreator(StreamSegmentStore.class);
 
         // Setup Thread Pools.
@@ -150,7 +144,6 @@ public class ServiceBuilder implements AutoCloseable {
         closeComponent(this.containerRegistry);
         closeComponent(this.dataLogFactory);
         closeComponent(this.readIndexFactory);
-        closeComponent(this.cacheFactory);
         this.cacheManager.close();
         this.threadPoolMetrics.close();
         ExecutorServiceHelpers.shutdown(SHUTDOWN_TIMEOUT, this.storageExecutor, this.coreExecutor);
@@ -196,19 +189,6 @@ public class ServiceBuilder implements AutoCloseable {
     public ServiceBuilder withContainerManager(Function<ComponentSetup, SegmentContainerManager> segmentContainerManagerCreator) {
         Preconditions.checkNotNull(segmentContainerManagerCreator, "segmentContainerManagerCreator");
         this.segmentContainerManagerCreator = segmentContainerManagerCreator;
-        return this;
-    }
-
-    /**
-     * Attaches the given CacheFactory creator to this ServiceBuilder. The given Function will only not be invoked
-     * right away; it will be called when needed.
-     *
-     * @param cacheFactoryCreator The Function to attach.
-     * @return This ServiceBuilder.
-     */
-    public ServiceBuilder withCacheFactory(Function<ComponentSetup, CacheFactory> cacheFactoryCreator) {
-        Preconditions.checkNotNull(cacheFactoryCreator, "cacheFactoryCreator");
-        this.cacheFactoryCreator = cacheFactoryCreator;
         return this;
     }
 
@@ -277,15 +257,13 @@ public class ServiceBuilder implements AutoCloseable {
     }
 
     protected ReadIndexFactory createReadIndexFactory() {
-        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getConfig(ReadIndexConfig::builder);
-        return new ContainerReadIndexFactory(readIndexConfig, cacheFactory, this.cacheManager, this.coreExecutor);
+        return new ContainerReadIndexFactory(readIndexConfig, this.cacheManager, this.coreExecutor);
     }
 
     protected AttributeIndexFactory createAttributeIndexFactory() {
-        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         AttributeIndexConfig config = this.serviceBuilderConfig.getConfig(AttributeIndexConfig::builder);
-        return new ContainerAttributeIndexFactoryImpl(config, cacheFactory, this.cacheManager, this.coreExecutor);
+        return new ContainerAttributeIndexFactoryImpl(config, this.cacheManager, this.coreExecutor);
     }
 
     protected StorageFactory createStorageFactory() {
@@ -305,8 +283,7 @@ public class ServiceBuilder implements AutoCloseable {
 
     private Map<Class<? extends SegmentContainerExtension>, SegmentContainerExtension> createContainerExtensions(
             SegmentContainer container, ScheduledExecutorService executor) {
-        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
-        return Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(container, cacheFactory, this.cacheManager, executor));
+        return Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(container, this.cacheManager, executor));
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {
@@ -352,7 +329,7 @@ public class ServiceBuilder implements AutoCloseable {
             try {
                 t.close();
             } catch (Exception ex) {
-                log.error("Error while closing ServiceBuilder: {}.", ex);
+                log.error("Error while closing ServiceBuilder: ", ex);
             }
 
             target.set(null);
@@ -392,8 +369,7 @@ public class ServiceBuilder implements AutoCloseable {
             builder = new ReadOnlyServiceBuilder(builderConfig, serviceConfig, executorBuilder);
         } else {
             // Components that are required for general SegmentStore.
-            builder = new ServiceBuilder(builderConfig, serviceConfig, executorBuilder)
-                    .withCacheFactory(setup -> new InMemoryCacheFactory());
+            builder = new ServiceBuilder(builderConfig, serviceConfig, executorBuilder);
         }
 
         // Components that are required for all types of SegmentStore.
