@@ -190,7 +190,7 @@ public class ControllerImpl implements Controller {
             PravegaCredentialsWrapper wrapper = new PravegaCredentialsWrapper(credentials);
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
         }
-        this.client = client;
+        this.client = client.withDeadlineAfter(config.getTimeoutMillis(), TimeUnit.MILLISECONDS);
     }
 
     @SuppressWarnings("checkstyle:ReturnCount")
