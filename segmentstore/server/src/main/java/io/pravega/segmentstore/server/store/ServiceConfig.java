@@ -45,7 +45,7 @@ public class ServiceConfig {
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.HDFS);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
-    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
+    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 4L * 1024 * 1024 * 1024);
     public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cacheTargetUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION));
     public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cacheMaxUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION));
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
