@@ -8,9 +8,12 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# This file contains source code copied from the Apache BookKeeper project (http://bookkeeper.apache.org).
-# Specifically, it contains source code copied from file `init_bookie.sh`, revision `3bfecd4`:
-# https://github.com/apache/bookkeeper/blob/branch-4.7/docker/scripts/init_bookie.sh.
+
+#
+# Note: This file contains source code copied from the Apache BookKeeper
+#       project (http://bookkeeper.apache.org). Specifically, it contains
+#       source code copied from file `init_bookie.sh`, revision `3bfecd4`:
+#  github.com/apache/bookkeeper/blob/branch-4.7/docker/scripts/init_bookie.sh.
 #
 
 # Exit the script in case of an error
@@ -53,12 +56,6 @@ export BK_tlsTrustStoreType=JKS
 export BK_tlsTrustStore=/var/private/tls/bookie.truststore.jks
 export BK_tlsTrustStorePasswordPath=/var/private/tls/bookie.truststore.passwd
 
-# Override the `set -e` defined in the top of the file temporarily. Doing this is necessary as the Bookeeper
-# `common.sh` script has logic that can return non-zero status.
-set +e
-source ${SCRIPTS_DIR}/common.sh
-set -e
-
 # Create directories for multiple ledgers and journals if specified.
 create_bookie_dirs() {
   IFS=',' read -ra directories <<< $1
@@ -92,38 +89,48 @@ configure_bk() {
     fi
 }
 
-# Init the cluster if required znodes do not exist in Zookeeper.
-function init_cluster() {
+fix_bk_ipv6_check() {
+
+   # `${SCRIPTS_DIR}/common.sh` - a shell script in Bookeeper, runs this command: `/sbin/sysctl -n net.ipv6.bindv6only`.
+   # This command can return an error exit code `255` and error message:
+   #    `sysctl: cannot stat /proc/sys/net/ipv6/bindv6only: No such file or directory`
+   #
+   # If the `common.sh` file is sourced in a script that sets "exit on error" as true (set -e), the script shall return
+   # an error code `255`. Since, the `bookkeeper/bin/bookeeper` shell script sources the `common.sh` file, and it sets
+   # "exit on error" as true, we encounter this error when it is invoked. To avoid that error, here we modify the
+   # `common.sh` file to execute `/sbin/sysctl -n net.ipv6.bindv6only` only if file `/proc/sys/net/ipv6/bindv6only`
+   # is available.
+   #
+   sed -i "s|/sbin/sysctl|/sbin/sysctl2|" ${BK_HOME}/bin/common.sh
+}
+
+initialize_cluster() {
     set +e
+
     zk-shell --run-once "ls ${BK_zkLedgersRootPath}/available/readonly" ${BK_zkServers}
     if [ $? -eq 0 ]; then
         echo "Cluster metadata already exists"
     else
-        echo "Sleeping for a random time"
-        sleep $[ ( $RANDOM % 10 )  + 1 ]s
-
         # Create an ephemeral zk node `bkInitLock` for use as a lock.
-
-        , initiator who this node, then do init; other initiators will wait.
-        lock=`zk-shell --run-once "create ${BK_CLUSTER_ROOT_PATH}/bkInitLock1 '' true false false" ${BK_zkServers}`
-        echo "Lock: $lock"
-
+        lock=`zk-shell --run-once "create ${BK_CLUSTER_ROOT_PATH}/bkInitLock '' true false false" ${BK_zkServers}`
         if [ -z "$lock" ]; then
             echo "Bookkeeper znodes do not exist in Zookeeper. Initializing a new Bookeekeper cluster."
+
+            # Note that this `bookkeeper` shell script sets "exit on error" (`set -e`) and sources from
+            # ${SCRIPTS_DIR}/common.sh. Make sure to invoke `fix_bk_ipv6_check()` before the control reaches here.
             /opt/bookkeeper/bin/bookkeeper shell initnewcluster
             if [ $? -eq 0 ]; then
-                echo "initNewCluster operation succeeded"
+                echo "initnewcluster operation succeeded"
             else
-                echo "initNewCluster operation failed. Please check the reason."
+                echo "initnewcluster operation failed. Please check the reason."
                 echo "Exit status of initnewcluster"
                 echo $?
-                sleep 1000
                 exit
             fi
         else
-            echo "Other containers may be initializing at the same time."
+            echo "Others may be initializing the cluster at the same time."
             tenSeconds=1
-            while [ ${tenSeconds} -lt 1000 ]
+            while [ ${tenSeconds} -lt 100 ]
             do
                 sleep 10
                 zk-shell --run-once "ls ${BK_zkLedgersRootPath}/available/readonly" ${BK_zkServers}
@@ -146,7 +153,6 @@ function init_cluster() {
     set -e
 }
 
-
 format_bookie_data_and_metadata() {
     if [ `find $BK_journalDirectory $BK_ledgerDirectories $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
       # The container already contains data in BK directories. This is probably because
@@ -162,9 +168,15 @@ format_bookie_data_and_metadata() {
     fi
 }
 
-echo "Creating directories for journal and ledgers"
+echo "Creating directories for Bookkeeper journal and ledgers"
 create_bookie_dirs "${BK_journalDirectories}"
 create_bookie_dirs "${BK_ledgerDirectories}"
+
+echo "Updating Bookkeeper common.sh file to fix IPV6 check"
+fix_bk_ipv6_check
+
+echo "Sourcing ${SCRIPTS_DIR}/common.sh"
+source ${SCRIPTS_DIR}/common.sh
 
 echo "Waiting for Zookeeper to come up"
 wait_for_zookeeper
@@ -172,12 +184,14 @@ wait_for_zookeeper
 echo "Creating Zookeeper root"
 create_zk_root
 
+echo "Configuring Bookkeeper"
 configure_bk
 
+echo "Formatting Bookie data and metadata, if needed"
 format_bookie_data_and_metadata
 
 echo "Initializing Cluster"
-init_cluster
+initialize_cluster
 
 echo "Starting the bookie"
 /opt/bookkeeper/bin/bookkeeper bookie

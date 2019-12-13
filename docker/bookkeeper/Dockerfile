@@ -7,11 +7,16 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# This file contains source code copied from the Apache BookKeeper project (http://bookkeeper.apache.org).
-# Specifically, it contains source code copied from file `Dockerfile`, revisions `a14c8bf` and `a00f60d`:
-#    - https://github.com/apache/bookkeeper/blob/branch-4.7/docker/Dockerfile
-#    - https://github.com/apache/bookkeeper/blob/branch-4.9/docker/Dockerfile
+
 #
+# Note: This file contains source code copied from the Apache BookKeeper
+#       project (http://bookkeeper.apache.org). Specifically, it contains
+#       source code copied from file `Dockerfile`, revisions `a14c8bf` and
+#       `a00f60d`:
+# - github.com/apache/bookkeeper/blob/branch-4.7/docker/Dockerfile
+# - github.com/apache/bookkeeper/blob/branch-4.9/docker/Dockerfile
+#
+
 FROM apache/bookkeeper:4.9.2
 
 ARG BK_VERSION=4.9.2
