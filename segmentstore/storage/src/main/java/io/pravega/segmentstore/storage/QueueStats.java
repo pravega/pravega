@@ -53,6 +53,6 @@ public class QueueStats {
 
     @Override
     public String toString() {
-        return String.format("Size = %d, Fill = %.2f, ProcTime = %dms", this.size, getAverageItemFillRatio(), this.expectedProcessingTimeMillis);
+        return String.format("Size = %d, Fill = %.2f, ProcTime = %dms", getSize(), getAverageItemFillRatio(), getExpectedProcessingTimeMillis());
     }
 }

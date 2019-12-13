@@ -47,7 +47,9 @@ public class QueueStatsTests {
 
     private void checkFillRatio(double expected, int size, long totalLength, int maxWriteLength) {
         val qs = new QueueStats(size, totalLength, maxWriteLength, Integer.MAX_VALUE);
-        Assert.assertEquals(String.format("Unexpected FillRatio for Size=%d, TotalLength=%s, MaxWriteLength=%d.", size, totalLength, maxWriteLength),
+        Assert.assertEquals(
+                String.format("Unexpected FillRatio for TotalLength=%s, MaxWriteLength=%d, QS=%s",
+                        qs.getTotalLength(), qs.getMaxWriteLength(), qs),
                 expected, qs.getAverageItemFillRatio(), RATIO_ERROR);
     }
 }
