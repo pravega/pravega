@@ -174,7 +174,7 @@ public class InProcPravegaClusterTest {
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(
                 "readerId", readerGroup,
-                new JavaSerializer<String>(), ReaderConfig.builder().build());
+                new JavaSerializer<String>(), ReaderConfig.builder().initialAllocationDelay(0).build());
 
         // Keeping the read timeout large so that there is ample time for reading the event even in
         // case of abnormal delays in test environments.
