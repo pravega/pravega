@@ -100,8 +100,9 @@ fix_bk_ipv6_check() {
    # "exit on error" as true, we encounter this error when it is invoked. To avoid that error, here we modify the
    # `common.sh` file to execute `/sbin/sysctl -n net.ipv6.bindv6only` only if file `/proc/sys/net/ipv6/bindv6only`
    # is available.
-   #
-   sed -i "s|/sbin/sysctl|/sbin/sysctl2|" ${BK_HOME}/bin/common.sh
+
+   # Replace the 22nd line with "if [ -f /sbin/sysctl ] && [ -f /proc/sys/net/ipv6/bindv6only ]; then".
+   sed -i "22s|.*|if [ -f /sbin/sysctl ] \&\& [ -f /proc/sys/net/ipv6/bindv6only ]; then|" ${BK_HOME}/bin/common.sh
 }
 
 initialize_cluster() {
