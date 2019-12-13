@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.reading;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.server.CacheManager;
 import java.util.HashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -103,18 +102,6 @@ class ReadIndexSummary {
      * Generates a CacheManager.CacheStatus object with the information in this ReadIndexSummary object.
      */
     synchronized CacheManager.CacheStatus toCacheStatus() {
-        AtomicInteger oldestGeneration = new AtomicInteger(Integer.MAX_VALUE);
-        AtomicInteger newestGeneration = new AtomicInteger(0);
-        this.generations.keySet().forEach(g -> {
-            if (oldestGeneration.get() > g) {
-                oldestGeneration.set(g);
-            }
-
-            if (newestGeneration.get() < g) {
-                newestGeneration.set(g);
-            }
-        });
-
-        return new CacheManager.CacheStatus(Math.min(newestGeneration.get(), oldestGeneration.get()), newestGeneration.get());
+        return CacheManager.CacheStatus.fromGenerations(this.generations.keySet().iterator());
     }
 }

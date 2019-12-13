@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -76,19 +77,13 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
 
     @Override
     public CacheManager.CacheStatus getCacheStatus() {
-        int minGen = 0;
-        int maxGen = 0;
         synchronized (this.segmentCaches) {
-            for (SegmentKeyCache e : this.segmentCaches.values()) {
-                if (e != null) {
-                    val cs = e.getCacheStatus();
-                    minGen = Math.min(minGen, cs.getOldestGeneration());
-                    maxGen = Math.max(maxGen, cs.getNewestGeneration());
-                }
-            }
+            return CacheManager.CacheStatus.combine(
+                    this.segmentCaches.values().stream()
+                                      .filter(Objects::nonNull)
+                                      .map(SegmentKeyCache::getCacheStatus)
+                                      .iterator());
         }
-
-        return new CacheManager.CacheStatus(minGen, maxGen);
     }
 
     @Override

@@ -140,7 +140,6 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
     private CompletableFuture<Void> throttleOnce(ThrottlerCalculator.DelayResult delay) {
         this.metrics.processingDelay(delay.getDurationMillis());
         if (delay.isMaximum()
-                || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.CommitBacklog
                 || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.DurableDataLog) {
             // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
             // processing of operations) or if this is due to us not being able to ingest items quickly enough.
