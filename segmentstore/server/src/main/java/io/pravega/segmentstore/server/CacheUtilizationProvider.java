@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ public class CacheUtilizationProvider {
     /**
      * Creates a new instance of the {@link CacheUtilizationProvider} class.
      *
-     * @param policy              The {@link  CachePolicy} to use.
+     * @param policy              The {@link CachePolicy} to use.
      * @param getCacheStoredBytes A {@link Supplier} that, when invoked, returns the number of stored bytes in the cache.
      */
     CacheUtilizationProvider(@NonNull CachePolicy policy, @NonNull Supplier<Long> getCacheStoredBytes) {
