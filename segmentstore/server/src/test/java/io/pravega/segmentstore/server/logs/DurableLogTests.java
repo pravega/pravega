@@ -394,6 +394,7 @@ public class DurableLogTests extends OperationLogTestBase {
         ContainerSetup setup = new ContainerSetup(executorService());
         DurableLogConfig config = setup.durableLogConfig == null ? ContainerSetup.defaultDurableLogConfig() : setup.durableLogConfig;
         CorruptedDurableLog.FAIL_AT_INDEX.set(failAtOperationIndex);
+        @Cleanup
         val durableLog = new CorruptedDurableLog(config, setup);
         durableLog.startAsync().awaitRunning();
 

@@ -16,6 +16,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
+import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
@@ -28,7 +29,6 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
-import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.InputStream;
@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -173,7 +174,9 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
             operations.get(i).setSequenceNumber(i);
         }
 
-        updater.process(operations.iterator());
+        val processedOperations = new ArrayList<Operation>();
+        updater.process(operations.iterator(), processedOperations::add);
+        AssertExtensions.assertListEquals("", operations, processedOperations, Objects::equals);
         return operations;
     }
 
@@ -268,22 +271,7 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public double getCacheUtilization() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public double getCacheTargetUtilization() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public double getCacheMaxUtilization() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void registerCleanupListener(ThrottleSourceListener listener) {
+        public CacheUtilizationProvider getCacheUtilizationProvider() {
             throw new UnsupportedOperationException();
         }
 
