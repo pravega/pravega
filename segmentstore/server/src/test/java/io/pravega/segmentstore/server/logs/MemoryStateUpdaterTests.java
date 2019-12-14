@@ -115,9 +115,9 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
                 .findFirst().get()
                 .args.get("streamSegmentIds");
         val expectedSegmentIds = operations.stream()
-                .filter(op -> op instanceof SegmentOperation)
-                .map(op -> ((SegmentOperation) op).getStreamSegmentId())
-                .collect(Collectors.toSet());
+                                           .filter(op -> op instanceof SegmentOperation)
+                                           .map(op -> ((SegmentOperation) op).getStreamSegmentId())
+                                           .collect(Collectors.toSet());
 
         AssertExtensions.assertContainsSameElements("ReadIndex.triggerFutureReads() was called with the wrong set of StreamSegmentIds.", expectedSegmentIds, triggerSegmentIds);
 
@@ -126,6 +126,44 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
                 "MemoryStateUpdater accepted an operation that was out of order.",
                 () -> updater.process(new MergeSegmentOperation(1, 2)),
                 ex -> ex instanceof DataCorruptionException);
+    }
+
+    /**
+     * Tests the functionality of the {@link MemoryStateUpdater#process} method with critical errors.
+     */
+    @Test
+    public void testProcessWithErrors() throws Exception {
+        final int corruptAtIndex = 10;
+        final int segmentCount = 10;
+        final int operationCountPerType = 5;
+
+        // Add to MTL + Add to ReadIndex (append; beginMerge).
+        val opLog = new OperationLogTestBase.CorruptedMemoryOperationLog(corruptAtIndex);
+        ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
+        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
+        AtomicInteger flushCallbackCallCount = new AtomicInteger();
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex, flushCallbackCallCount::incrementAndGet);
+
+        AssertExtensions.assertThrows(
+                "Expected a DataCorruptionException",
+                () -> populate(updater, segmentCount, operationCountPerType),
+                ex -> ex instanceof DataCorruptionException);
+
+        // Verify they were properly processed.
+        int triggerFutureCount = (int) methodInvocations.stream().filter(mi -> mi.methodName.equals(TestReadIndex.TRIGGER_FUTURE_READS)).count();
+        Assert.assertEquals("Not expecting any trigger-future-read invocations.", 0, triggerFutureCount);
+
+        Iterator<Operation> logIterator = opLog.read(-1, corruptAtIndex * 2);
+        int addCount = 0;
+        while (logIterator.hasNext()) {
+            addCount++;
+            logIterator.next();
+        }
+
+        Assert.assertEquals("Unexpected number of operations added to the log.", corruptAtIndex - 1, addCount);
+
+        // The rest of the checks is done in the populate() method: it verifies that the callback is invoked for every
+        // operation, including the failed ones.
     }
 
     /**
@@ -175,8 +213,14 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         }
 
         val processedOperations = new ArrayList<Operation>();
-        updater.process(operations.iterator(), processedOperations::add);
-        AssertExtensions.assertListEquals("", operations, processedOperations, Objects::equals);
+        try {
+            updater.process(operations.iterator(), processedOperations::add);
+        } finally {
+            // Regardless whether we complete this method or not, it guarantees that the callback is invoked for every
+            // operation it was passed, even if it didn't get processed yet.
+            AssertExtensions.assertListEquals("Unexpected operations processed.", operations, processedOperations, Objects::equals);
+        }
+
         return operations;
     }
 

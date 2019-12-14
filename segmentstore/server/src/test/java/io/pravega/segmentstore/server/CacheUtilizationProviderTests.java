@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.storage.ThrottleSourceListener;
+import io.pravega.test.common.IntentionalException;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Getter;
@@ -35,6 +36,9 @@ public class CacheUtilizationProviderTests {
         Assert.assertEquals(POLICY.getMaxUtilization(), cup.getCacheMaxUtilization(), COMPARE_ERROR);
     }
 
+    /**
+     * Tests the {@link CacheUtilizationProvider#getCacheUtilization()} method.
+     */
     @Test
     public void testCacheUtilization() {
         val usedBytes = new AtomicLong();
@@ -46,6 +50,7 @@ public class CacheUtilizationProviderTests {
         Assert.assertEquals(0.35, cup.getCacheUtilization(), COMPARE_ERROR);
         cup.adjustPendingBytes(-150);
         Assert.assertEquals(0.2, cup.getCacheUtilization(), COMPARE_ERROR);
+        Assert.assertEquals(100, cup.getPendingBytes());
     }
 
     @Test
@@ -103,9 +108,26 @@ public class CacheUtilizationProviderTests {
 
         l2.setClosed(true);
         cup.notifyCleanupListeners();
-        Assert.assertEquals("Expected cleanup listener to be invoked the first time.", 2, l1.getCallCount());
-        Assert.assertEquals("Expected cleanup listener to be invoked the first time.", 1, l2.getCallCount());
+        Assert.assertEquals("Expected cleanup listener to be invoked the second time.", 2, l1.getCallCount());
+        Assert.assertEquals("Not expected cleanup listener to be invoked the second time.", 1, l2.getCallCount());
         cup.registerCleanupListener(l2); // This should have no effect.
+
+        // Now verify with errors.
+        cup.registerCleanupListener(new ThrottleSourceListener() {
+            @Override
+            public void notifyThrottleSourceChanged() {
+                throw new IntentionalException();
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;
+            }
+        });
+
+        cup.notifyCleanupListeners();
+        Assert.assertEquals("Expected cleanup listener to be invoked the third time.", 3, l1.getCallCount());
+        Assert.assertEquals("Not expected cleanup listener to be invoked the third time.", 1, l2.getCallCount());
     }
 
     private static class TestCleanupListener implements ThrottleSourceListener {
