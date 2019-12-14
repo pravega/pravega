@@ -127,8 +127,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         val queueProcessor = Futures
                 .loop(this::isRunning,
                         () -> this.throttler.throttle()
-                                            .thenComposeAsync(v -> this.operationQueue.take(getFetchCount()), this.executor)
-                                            .thenAcceptAsync(this::processOperations, this.executor),
+                                .thenComposeAsync(v -> this.operationQueue.take(getFetchCount()), this.executor)
+                                .thenAcceptAsync(this::processOperations, this.executor),
                         this.executor);
 
         // The CommitProcessor is responsible with the processing of those Operations that have already been committed to
@@ -291,24 +291,26 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
                 // Check if there are more operations to process. If so, it's more efficient to process them now (no thread
                 // context switching, better DataFrame occupancy optimization) rather than by going back to run().
-                // We have processed all operations in the queue: this is a good time to report metrics.
-                this.metrics.currentState(this.operationQueue.size() + count, this.state.getPendingCount());
-                this.metrics.processOperations(count, processTimer.getElapsedMillis());
-                processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
-                count = 0;
-                if (!this.throttler.isThrottlingRequired()) {
-                    // Only pull in new operations if we do not require throttling. If we do, we need to go back to
-                    // the main OperationProcessor loop and delay processing the next batch of operations.
-                    operations = this.operationQueue.poll(getFetchCount());
-                }
-
                 if (operations.isEmpty()) {
-                    log.debug("{}: processOperations (Flush).", this.traceObjectId);
-                    synchronized (this.stateLock) {
-                        this.dataFrameBuilder.flush();
+                    // We have processed all operations in the queue: this is a good time to report metrics.
+                    this.metrics.currentState(this.operationQueue.size() + count, this.state.getPendingCount());
+                    this.metrics.processOperations(count, processTimer.getElapsedMillis());
+                    processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
+                    count = 0;
+                    if (!this.throttler.isThrottlingRequired()) {
+                        // Only pull in new operations if we do not require throttling. If we do, we need to go back to
+                        // the main OperationProcessor loop and delay processing the next batch of operations.
+                        operations = this.operationQueue.poll(getFetchCount());
                     }
-                } else {
-                    log.debug("{}: processOperations (Add OperationCount = {}).", this.traceObjectId, operations.size());
+
+                    if (operations.isEmpty()) {
+                        log.debug("{}: processOperations (Flush).", this.traceObjectId);
+                        synchronized (this.stateLock) {
+                            this.dataFrameBuilder.flush();
+                        }
+                    } else {
+                        log.debug("{}: processOperations (Add OperationCount = {}).", this.traceObjectId, operations.size());
+                    }
                 }
             } catch (Throwable ex) {
                 // Fail ALL the operations that haven't been acknowledged yet.
