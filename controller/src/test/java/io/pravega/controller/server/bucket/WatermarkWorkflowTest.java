@@ -33,6 +33,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -294,7 +295,13 @@ public class WatermarkWorkflowTest {
                 System.currentTimeMillis(), null, executor).join();
 
         streamMetadataStore.setState(scope, streamName, State.ACTIVE, null, executor).join();
-        
+
+        // set minimum number of segments to 1
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).timestampAggregationTimeout(10000L).build();
+        streamMetadataStore.startUpdateConfiguration(scope, streamName, config, null, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = streamMetadataStore.getConfigurationRecord(scope, streamName, null, executor).join();
+        streamMetadataStore.completeUpdateConfiguration(scope, streamName, configRecord, null, executor).join();
+
         // 2. note writer1, writer2, writer3 marks
         // writer 1 reports segments 0, 1. 
         // writer 2 reports segments 1, 2, 
