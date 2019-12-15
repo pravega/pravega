@@ -10,23 +10,19 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import io.pravega.client.byteStream.impl.BufferedByteStreamWriterImpl;
+import io.pravega.client.byteStream.impl.ByteStreamReaderImpl;
+import io.pravega.client.byteStream.impl.ByteStreamWriterImpl;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.impl.CancellableRequest;
-import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.ControllerFailureException;
-import io.pravega.client.stream.impl.ModelHelper;
-import io.pravega.client.stream.impl.SegmentWithRange;
-import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.client.stream.impl.StreamSegmentSuccessors;
-import io.pravega.client.stream.impl.StreamSegments;
-import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
-import io.pravega.client.stream.impl.TxnSegments;
-import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.state.Revision;
+import io.pravega.client.state.RevisionedStreamClient;
+import io.pravega.client.state.SynchronizerConfig;
+// import io.pravega.client.state.impl.RevisionImpl;
+import io.pravega.client.stream.*;
+import io.pravega.client.stream.impl.*;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
@@ -35,21 +31,17 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import java.util.AbstractMap;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.Optional;
-import java.util.TreeMap;
-import java.util.UUID;
+
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import io.pravega.shared.watermarks.Watermark;
 import org.apache.commons.lang3.StringUtils;
 
 public class LocalController implements Controller {
@@ -66,8 +58,25 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> createEvent(String routingKey, String scopeName, String streamName, String message) {
-        return null;
+    public String getEvent(String routingKey, String scopeName, String streamName, Long segmentNumber) {
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this);
+        final Serializer<String> serializer = new JavaSerializer<>();
+        final Random random = new Random();
+        final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", serializer,
+                ReaderConfig.builder().build());
+        return reader.readNextEvent(-1).getEvent();
+    }
+
+    @Override
+    public CompletableFuture<Void> createEvent(String routingKey, String scopeName, String streamName, String message) {
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this);
+        final Serializer<String> serializer = new JavaSerializer<>();
+        final Random random = new Random();
+        final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
+                EventWriterConfig.builder().build());
+        return writer.writeEvent(keyGenerator.get(), message);
     }
 
     @Override

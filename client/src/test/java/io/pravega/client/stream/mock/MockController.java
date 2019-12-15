@@ -80,7 +80,16 @@ public class MockController implements Controller {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> createEvent(final String routingKey,
+    public String getEvent(final String routingKey,
+                                                  final String scopeName,
+                                                  final String streamName,
+                                                  final Long segmentNumber) {
+        return null;
+    }
+    
+    @Override
+    @Synchronized
+    public CompletableFuture<Void> createEvent(final String routingKey,
                                                   final String scopeName,
                                                   final String streamName,
                                                   final String message) {

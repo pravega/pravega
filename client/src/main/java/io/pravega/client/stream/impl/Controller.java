@@ -43,7 +43,8 @@ public interface Controller extends AutoCloseable {
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the event was added because it did not already exist.
      */
-    CompletableFuture<Boolean> createEvent(final String routingKey, final String scopeName, final String streamName, final String message);
+    CompletableFuture<Void> createEvent(final String routingKey, final String scopeName, final String streamName, final String message);
+    String getEvent(final String routingKey, final String scopeName, final String streamName, final Long segmentNumber);
 
     // Controller Apis for administrative action for streams
 
