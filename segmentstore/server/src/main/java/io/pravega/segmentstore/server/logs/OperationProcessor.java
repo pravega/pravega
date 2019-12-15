@@ -100,7 +100,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         val throttlerCalculator = ThrottlerCalculator
                 .builder()
                 .cacheThrottler(stateUpdater::getCacheUtilization, stateUpdater.getCacheTargetUtilization(), stateUpdater.getCacheMaxUtilization())
-                .commitBacklogThrottler(this.commitQueue::size)
                 .batchingThrottler(durableDataLog::getQueueStatistics)
                 .durableDataLogThrottler(durableDataLog.getWriteSettings(), durableDataLog::getQueueStatistics)
                 .build();

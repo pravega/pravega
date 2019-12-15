@@ -23,6 +23,7 @@ import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -322,6 +323,9 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             CacheStatus clientStatus;
             try {
                 clientStatus = c.getCacheStatus();
+                if (clientStatus.isEmpty()) {
+                    continue; // Nothing useful for this one.
+                }
             } catch (ObjectClosedException ex) {
                 // This object was closed but it was not unregistered. Do it now.
                 log.warn("{} Detected closed client {}.", TRACE_OBJECT_ID, c);
@@ -380,9 +384,12 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     @GuardedBy("lock")
     private boolean adjustCurrentGeneration(CacheStatus currentStatus) {
-        // We only need to increment if we had any activity in the current generation. This can be determined by comparing
-        // the current generation with the newest generation from the retrieved status.
-        boolean shouldIncrement = currentStatus.getNewestGeneration() >= this.currentGeneration;
+        // We need to increment if at least one of the following happened:
+        // 1. We had any activity in the current generation. This can be determined by comparing the current generation
+        // with the newest generation from the retrieved status.
+        // 2. We are currently exceeding the eviction threshold. It is possible that even with no activity, some entries
+        // may have recently become eligible for eviction, in which case we should try to evict them.
+        boolean shouldIncrement = currentStatus.getNewestGeneration() >= this.currentGeneration || exceedsEvictionThreshold();
         if (shouldIncrement) {
             this.currentGeneration++;
         }
@@ -418,8 +425,13 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         // We need to increment the OldestGeneration only if any of the following conditions occurred:
         // 1. We currently exceed the maximum usable size as defined by the cache policy.
         // 2. The oldest generation reported by the clients is older than the oldest permissible generation.
-        return this.lastCacheState.getUsedBytes() > this.policy.getEvictionThreshold()
+        return exceedsEvictionThreshold()
                 || currentStatus.getOldestGeneration() < getOldestPermissibleGeneration();
+    }
+
+    @GuardedBy("lock")
+    private boolean exceedsEvictionThreshold() {
+        return this.lastCacheState.getUsedBytes() > this.policy.getEvictionThreshold();
     }
 
     @GuardedBy("lock")
@@ -493,13 +505,14 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
      * Represents the current status of the cache for a particular client.
      */
     public static class CacheStatus {
+        static final int EMPTY_VALUE = Integer.MAX_VALUE;
         /**
-         * The oldest generation found in any cache entry.
+         * The oldest generation found in any cache entry. This value is irrelevant if {@link #isEmpty()} is true.
          */
         @Getter
         private final int oldestGeneration;
         /**
-         * The newest generation found in any cache entry.
+         * The newest generation found in any cache entry. This value is irrelevant if {@link #isEmpty()} is true.
          */
         @Getter
         private final int newestGeneration;
@@ -510,16 +523,75 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
          * @param oldestGeneration The oldest generation found in any cache entry.
          * @param newestGeneration The newest generation found in any cache entry.
          */
-        public CacheStatus(int oldestGeneration, int newestGeneration) {
+        CacheStatus(int oldestGeneration, int newestGeneration) {
             Preconditions.checkArgument(oldestGeneration >= 0, "oldestGeneration must be a non-negative number");
             Preconditions.checkArgument(newestGeneration >= oldestGeneration, "newestGeneration must be larger than or equal to oldestGeneration");
             this.oldestGeneration = oldestGeneration;
             this.newestGeneration = newestGeneration;
         }
 
+        /**
+         * Creates a new {@link CacheStatus} instance from the given generations.
+         *
+         * @param generations An {@link Iterator} containing generations of {@link Client} instances.
+         * @return A new {@link CacheStatus} instance having {@link #getOldestGeneration()} and {@link #getNewestGeneration()}
+         * set to the minimum value and maximum value, respectively, from `generations`. If `generations` is empty, returns
+         * an instance with {@link #isEmpty()} set to true.
+         */
+        public static CacheStatus fromGenerations(Iterator<Integer> generations) {
+            if (!generations.hasNext()) {
+                return new CacheStatus(EMPTY_VALUE, EMPTY_VALUE);
+            }
+
+            int minGen = EMPTY_VALUE;
+            int maxGen = 0;
+            while (generations.hasNext()) {
+                int g = generations.next();
+                minGen = Math.min(minGen, g);
+                maxGen = Math.max(maxGen, g);
+            }
+
+            return new CacheManager.CacheStatus(minGen, maxGen);
+        }
+
+        /**
+         * Creates a new {@link CacheStatus} instance from the given {@link CacheStatus} instances.
+         *
+         * @param cacheStates An {@link Iterator} containing {@link CacheStatus} instances.
+         * @return A new {@link CacheStatus} instance having {@link #getOldestGeneration()} set to the minimum value
+         * of all {@link #getOldestGeneration()} from `cacheStates` and {@link #getNewestGeneration()} set to the maximum
+         * of all {@link #getNewestGeneration()} from `cacheStates`. If `cacheStates` is empty, returns an instance with
+         * {@link #isEmpty()} set to true.
+         */
+        public static CacheStatus combine(Iterator<CacheStatus> cacheStates) {
+            if (!cacheStates.hasNext()) {
+                return new CacheStatus(EMPTY_VALUE, EMPTY_VALUE);
+            }
+
+            int minGen = EMPTY_VALUE;
+            int maxGen = 0;
+            while (cacheStates.hasNext()) {
+                CacheStatus cs = cacheStates.next();
+                minGen = Math.min(minGen, cs.getOldestGeneration());
+                maxGen = Math.max(maxGen, cs.getNewestGeneration());
+            }
+
+            return new CacheManager.CacheStatus(minGen, maxGen);
+        }
+
+        /**
+         * Gets a value indicating whether this instance contains no useful information (the {@link Client} that generated
+         * it has no data in the cache.
+         *
+         * @return True or false.
+         */
+        public boolean isEmpty() {
+            return this.oldestGeneration == EMPTY_VALUE;
+        }
+
         @Override
         public String toString() {
-            return String.format("OG-NG = %d-%d", this.oldestGeneration, this.newestGeneration);
+            return isEmpty() ? "<EMPTY>" : String.format("OG-NG = %d-%d", this.oldestGeneration, this.newestGeneration);
         }
     }
 
