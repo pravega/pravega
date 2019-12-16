@@ -46,6 +46,25 @@ public class BookKeeperConfigTest {
     }
 
     @Test
+    public void testBadValues() {
+        AssertExtensions.assertThrows(
+                BookKeeperConfig.ZK_HIERARCHY_DEPTH.toString(),
+                () -> BookKeeperConfig.builder().with(BookKeeperConfig.ZK_HIERARCHY_DEPTH, -1).build(),
+                ex -> ex instanceof InvalidPropertyValueException);
+
+        AssertExtensions.assertThrows(
+                BookKeeperConfig.BK_WRITE_QUORUM_SIZE.toString(),
+                () -> BookKeeperConfig.builder().with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 2)
+                        .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 3).build(),
+                ex -> ex instanceof InvalidPropertyValueException);
+
+        AssertExtensions.assertThrows(
+                BookKeeperConfig.BK_READ_BATCH_SIZE.toString(),
+                () -> BookKeeperConfig.builder().with(BookKeeperConfig.BK_READ_BATCH_SIZE, -1).build(),
+                ex -> ex instanceof InvalidPropertyValueException);
+    }
+
+    @Test
     public void testZkServers() {
         // When multiple servers are specified and separated by comma, it should replace it by semicolon
         BookKeeperConfig cfg1 = BookKeeperConfig.builder()
