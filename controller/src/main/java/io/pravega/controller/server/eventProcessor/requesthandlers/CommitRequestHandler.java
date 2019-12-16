@@ -119,7 +119,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                         if (r >= 0) {
                             log.info("Successfully committed transactions on epoch {} on stream {}/{}", r, scope, stream);
                         } else {
-                            log.info("No transactions found in committing state {} on stream {}/{}", r, scope, stream);
+                            log.info("No transactions found in committing state on stream {}/{}", scope, stream);
                         }
                         if (processedEvents != null) {
                             try {
