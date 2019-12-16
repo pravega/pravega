@@ -725,15 +725,18 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
-        writerInitFuture.thenComposeAsync(v -> requestEventWriterRef.get().writeEvent(event.getKey(), event), eventExecutor)
+        writerInitFuture.thenComposeAsync(v -> requestEventWriterRef.get().writeEvent(event.getKey(), event),
+                                          eventExecutor)
                         .whenComplete((r, e) -> {
                             if (e != null) {
                                 log.warn("exception while posting event {} {}", e.getClass().getName(), e.getMessage());
                                 if (e instanceof TaskExceptions.ProcessingDisabledException) {
                                     result.completeExceptionally(e);
                                 } else {
-                                    // transform any other event write exception to retryable exception
-                                    result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event", e));
+                                    // transform any other event write exception to retryable
+                                    // exception
+                                    result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event",
+                                                                                                       e));
                                 }
                             } else {
                                 log.info("event posted successfully");

@@ -197,7 +197,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      */
     public void abortTransactionFailed(String scope, String streamName, String txnId) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(ABORT_TRANSACTION_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED,    1, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED, 1, streamTags(scope, streamName));
         DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED, 1, transactionTags(scope, streamName, txnId));
     }
 
