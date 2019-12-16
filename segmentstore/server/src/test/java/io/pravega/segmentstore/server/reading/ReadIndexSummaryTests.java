@@ -21,7 +21,6 @@ import org.junit.rules.Timeout;
 public class ReadIndexSummaryTests {
     private static final int GENERATION_COUNT = 100;
     private static final int ITEMS_PER_GENERATION = 100;
-    private static final int MAX_ITEM_SIZE = 1000;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10);
 
@@ -93,7 +92,7 @@ public class ReadIndexSummaryTests {
                     Assert.assertEquals("Unexpected newest generation.", maxGeneration, currentStatus.getNewestGeneration());
                 } else {
                     // We are done; newest generation doesn't make any sense, so expect 0.
-                    Assert.assertEquals("Unexpected newest generation.", 0, currentStatus.getNewestGeneration());
+                    Assert.assertTrue("Expecting an empty status.", currentStatus.isEmpty());
                 }
             }
         }
@@ -150,7 +149,6 @@ public class ReadIndexSummaryTests {
         }
 
         currentStatus = s.toCacheStatus();
-        Assert.assertEquals("Unexpected newest generation after removing all items.", 0, currentStatus.getNewestGeneration());
-        Assert.assertEquals("Unexpected oldest generation after removing all items.", 0, currentStatus.getOldestGeneration());
+        Assert.assertTrue("Expected cache to be empty after removing all items.", currentStatus.isEmpty());
     }
 }
