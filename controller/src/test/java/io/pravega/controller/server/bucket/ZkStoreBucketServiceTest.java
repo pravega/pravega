@@ -15,7 +15,6 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
@@ -125,7 +124,6 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
     @Test(timeout = 60000)
     public void testOwnershipOfExistingBucket() throws Exception {
         RequestTracker requestTracker = new RequestTracker(true);
-        TransactionMetrics transactionMetrics = new TransactionMetrics();
         TestingServer zkServer2 = new TestingServerStarter().start();
         zkServer2.start();
         CuratorFramework zkClient2 = CuratorFrameworkFactory.newClient(zkServer2.getConnectString(), 10000, 1000,
@@ -145,7 +143,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
 
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, bucketStore2, 
                 taskMetadataStore, segmentHelper, executor2, hostId, GrpcAuthHelper.getDisabledAuthHelper(), 
-                requestTracker, transactionMetrics);
+                requestTracker);
 
         String scope = "scope1";
         String streamName = "stream1";
@@ -169,7 +167,6 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         zkClient2.close();
         zkServer2.close();
         streamMetadataTasks2.close();
-        transactionMetrics.close();
         ExecutorServiceHelpers.shutdown(executor2);
     }
 

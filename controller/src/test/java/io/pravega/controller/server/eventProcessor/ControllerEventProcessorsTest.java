@@ -15,7 +15,6 @@ import io.pravega.client.EventStreamClientFactory;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
@@ -54,7 +53,6 @@ import static org.mockito.Mockito.*;
 
 public class ControllerEventProcessorsTest {
     ScheduledExecutorService executor;
-    TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     @Before
     public void setUp() {
@@ -63,7 +61,6 @@ public class ControllerEventProcessorsTest {
 
     @After
     public void tearDown() {
-        transactionMetrics.close();
         executor.shutdown();
     }
     
@@ -171,7 +168,7 @@ public class ControllerEventProcessorsTest {
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
-                system, executor, transactionMetrics);
+                system, executor);
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
@@ -236,7 +233,7 @@ public class ControllerEventProcessorsTest {
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
                 connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
-                system, executor, transactionMetrics);
+                system, executor);
 
         // call bootstrap on ControllerEventProcessors
         processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks);

@@ -50,15 +50,12 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
     private final BucketStore bucketStore;
     private final ScheduledExecutorService executor;
     private final BlockingQueue<CommitEvent> processedEvents;
-    private final TransactionMetrics transactionMetrics;
 
     public CommitRequestHandler(final StreamMetadataStore streamMetadataStore,
                                 final StreamMetadataTasks streamMetadataTasks,
                                 final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
-                                BucketStore bucketStore, final ScheduledExecutorService executor,
-                                final TransactionMetrics transactionMetrics) {
-        this(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor, null,
-                transactionMetrics);
+                                BucketStore bucketStore, final ScheduledExecutorService executor) {
+        this(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor, null);
     }
 
     @VisibleForTesting
@@ -66,8 +63,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                 final StreamMetadataTasks streamMetadataTasks,
                                 final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                 BucketStore bucketStore, final ScheduledExecutorService executor,
-                                final BlockingQueue<CommitEvent> queue,
-                                final TransactionMetrics transactionMetrics) {
+                                final BlockingQueue<CommitEvent> queue) {
         super(streamMetadataStore, executor);
         this.bucketStore = bucketStore;
         Preconditions.checkNotNull(streamMetadataStore);
@@ -77,7 +73,6 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.executor = executor;
         this.processedEvents = queue;
-        this.transactionMetrics = transactionMetrics;
     }
 
     @Override
@@ -113,7 +108,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                         } else {
                             log.error("Exception while attempting to commit transaction on stream {}/{}", scope, stream, e);
                         }
-                        transactionMetrics.commitTransactionFailed(scope, stream);
+                        TransactionMetrics.getInstance().commitTransactionFailed(scope, stream);
                         future.completeExceptionally(cause);
                     } else {
                         if (r >= 0) {
@@ -311,7 +306,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     .thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId))
                     .thenCompose(v -> streamMetadataTasks.getCurrentSegmentSizes(scope, stream, segments))
                     .thenCompose(map -> streamMetadataStore.recordCommitOffsets(scope, stream, txnId, map, context, executor))
-                    .thenRun(() -> transactionMetrics.commitTransaction(scope, stream, timer.getElapsed()));
+                    .thenRun(() -> TransactionMetrics.getInstance().commitTransaction(scope, stream, timer.getElapsed()));
         }
         
         return future

@@ -40,32 +40,27 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
     private final ScheduledExecutorService executor;
 
     private final BlockingQueue<AbortEvent> processedEvents;
-    private final TransactionMetrics transactionMetrics;
 
     @VisibleForTesting
     public AbortRequestHandler(final StreamMetadataStore streamMetadataStore,
                                final StreamMetadataTasks streamMetadataTasks,
                                final ScheduledExecutorService executor,
-                               final BlockingQueue<AbortEvent> queue,
-                               final TransactionMetrics transactionMetrics) {
+                               final BlockingQueue<AbortEvent> queue) {
         super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.executor = executor;
         this.processedEvents = queue;
-        this.transactionMetrics = transactionMetrics;
     }
 
     public AbortRequestHandler(final StreamMetadataStore streamMetadataStore,
                                final StreamMetadataTasks streamMetadataTasks,
-                               final ScheduledExecutorService executor,
-                               final TransactionMetrics transactionMetrics) {
+                               final ScheduledExecutorService executor) {
         super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.executor = executor;
         this.processedEvents = null;
-        this.transactionMetrics = transactionMetrics;
     }
 
     @Override
@@ -87,14 +82,14 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                     if (error != null) {
                         log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
-                        transactionMetrics.abortTransactionFailed(scope, stream, event.getTxid().toString());
+                        TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, event.getTxid().toString());
                     } else {
                         log.debug("Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
                         if (processedEvents != null) {
                             processedEvents.offer(event);
                         }
-                        transactionMetrics.abortTransaction(scope, stream, timer.getElapsed());
+                        TransactionMetrics.getInstance().abortTransaction(scope, stream, timer.getElapsed());
                     }
                 }));
     }

@@ -12,6 +12,7 @@ package io.pravega.controller.metrics;
 import io.pravega.shared.metrics.OpStatsLogger;
 
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.shared.MetricsNames.ABORTING_TRANSACTION_LATENCY;
 import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION;
@@ -37,14 +38,34 @@ import static io.pravega.shared.MetricsTags.transactionTags;
  */
 public final class TransactionMetrics extends AbstractControllerMetrics implements AutoCloseable {
 
-    private final OpStatsLogger createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
-    private final OpStatsLogger createTransactionSegmentsLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_SEGMENTS_LATENCY);
-    private final OpStatsLogger commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
-    private final OpStatsLogger commitTransactionSegmentsLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_LATENCY);
-    private final OpStatsLogger committingTransactionLatency = STATS_LOGGER.createStats(COMMITTING_TRANSACTION_LATENCY);
-    private final OpStatsLogger abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
-    private final OpStatsLogger abortTransactionSegmentsLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_SEGMENTS_LATENCY);
-    private final OpStatsLogger abortingTransactionLatency = STATS_LOGGER.createStats(ABORTING_TRANSACTION_LATENCY);
+    private static final AtomicReference<TransactionMetrics> INSTANCE = new AtomicReference<>();
+
+    private final OpStatsLogger createTransactionLatency;
+    private final OpStatsLogger createTransactionSegmentsLatency;
+    private final OpStatsLogger commitTransactionLatency;
+    private final OpStatsLogger commitTransactionSegmentsLatency;
+    private final OpStatsLogger committingTransactionLatency;
+    private final OpStatsLogger abortTransactionLatency;
+    private final OpStatsLogger abortTransactionSegmentsLatency;
+    private final OpStatsLogger abortingTransactionLatency;
+
+    private TransactionMetrics() {
+        createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
+        createTransactionSegmentsLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_SEGMENTS_LATENCY);
+        commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
+        commitTransactionSegmentsLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_LATENCY);
+        committingTransactionLatency = STATS_LOGGER.createStats(COMMITTING_TRANSACTION_LATENCY);
+        abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
+        abortTransactionSegmentsLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_SEGMENTS_LATENCY);
+        abortingTransactionLatency = STATS_LOGGER.createStats(ABORTING_TRANSACTION_LATENCY);
+    }
+
+    public static synchronized TransactionMetrics getInstance() {
+        if (INSTANCE.get() == null) {
+            INSTANCE.set(new TransactionMetrics());
+        }
+        return INSTANCE.get();
+    }
 
     /**
      * This method increments the global and Stream-related counters of created Transactions and reports the latency of
@@ -176,7 +197,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      */
     public void abortTransactionFailed(String scope, String streamName, String txnId) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(ABORT_TRANSACTION_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED, 1, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED,    1, streamTags(scope, streamName));
         DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED, 1, transactionTags(scope, streamName, txnId));
     }
 
@@ -201,5 +222,6 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
         abortTransactionLatency.close();
         abortTransactionSegmentsLatency.close();
         abortingTransactionLatency.close();
+        INSTANCE.set(null);
     }
 }

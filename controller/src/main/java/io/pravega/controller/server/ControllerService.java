@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -77,23 +76,6 @@ public class ControllerService {
     private final SegmentHelper segmentHelper;
     private final Executor executor;
     private final Cluster cluster;
-    private final StreamMetrics streamMetrics;
-    private final TransactionMetrics transactionMetrics;
-
-    @VisibleForTesting
-    public ControllerService(StreamMetadataStore streamStore, BucketStore bucketStore, StreamMetadataTasks streamMetadataTasks,
-                             StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
-                             Executor executor, Cluster cluster) {
-        this.streamStore = streamStore;
-        this.bucketStore = bucketStore;
-        this.streamMetadataTasks = streamMetadataTasks;
-        this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
-        this.segmentHelper = segmentHelper;
-        this.executor = executor;
-        this.cluster = cluster;
-        this.streamMetrics = new StreamMetrics();
-        this.transactionMetrics = new TransactionMetrics();
-    }
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
         if (cluster == null) {
@@ -330,10 +312,10 @@ public class ControllerService {
                     return new ImmutablePair<>(data.getId(), getSegmentRanges(segments, scope, stream));
                 }).handle((result, ex) -> {
                     if (ex != null) {
-                        transactionMetrics.createTransactionFailed(scope, stream);
+                        TransactionMetrics.getInstance().createTransactionFailed(scope, stream);
                         throw new CompletionException(ex);
                     }
-                    transactionMetrics.createTransaction(scope, stream, timer.getElapsed());
+                    TransactionMetrics.getInstance().createTransaction(scope, stream, timer.getElapsed());
                     return result;
                 });
     }
@@ -359,10 +341,10 @@ public class ControllerService {
                     if (ex != null) {
                         log.warn("Transaction commit failed", ex);
                         // TODO: return appropriate failures to user.
-                        transactionMetrics.commitTransactionFailed(scope, stream, txId.toString());
+                        TransactionMetrics.getInstance().commitTransactionFailed(scope, stream, txId.toString());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
-                        transactionMetrics.committingTransaction(timer.getElapsed());
+                        TransactionMetrics.getInstance().committingTransaction(timer.getElapsed());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });
@@ -379,10 +361,10 @@ public class ControllerService {
                     if (ex != null) {
                         log.warn("Transaction abort failed", ex);
                         // TODO: return appropriate failures to user.
-                        transactionMetrics.abortTransactionFailed(scope, stream, txId.toString());
+                        TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, txId.toString());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
-                        transactionMetrics.abortingTransaction(timer.getElapsed());
+                        TransactionMetrics.getInstance().abortingTransaction(timer.getElapsed());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });
@@ -487,41 +469,41 @@ public class ControllerService {
     private void reportCreateStreamMetrics(String scope, String streamName, int initialSegments, CreateStreamStatus.Status status,
                                            Duration latency) {
         if (status.equals(CreateStreamStatus.Status.SUCCESS)) {
-            streamMetrics.createStream(scope, streamName, initialSegments, latency);
+            StreamMetrics.getInstance().createStream(scope, streamName, initialSegments, latency);
         } else if (status.equals(CreateStreamStatus.Status.FAILURE)) {
-            streamMetrics.createStreamFailed(scope, streamName);
+            StreamMetrics.getInstance().createStreamFailed(scope, streamName);
         }
     }
 
     private void reportUpdateStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
-            streamMetrics.updateStream(scope, streamName, latency);
+            StreamMetrics.getInstance().updateStream(scope, streamName, latency);
         } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
-            streamMetrics.updateStreamFailed(scope, streamName);
+            StreamMetrics.getInstance().updateStreamFailed(scope, streamName);
         }
     }
 
     private void reportTruncateStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
-            streamMetrics.truncateStream(scope, streamName, latency);
+            StreamMetrics.getInstance().truncateStream(scope, streamName, latency);
         } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
-            streamMetrics.truncateStreamFailed(scope, streamName);
+            StreamMetrics.getInstance().truncateStreamFailed(scope, streamName);
         }
     }
 
     private void reportSealStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
-            streamMetrics.sealStream(scope, streamName, latency);
+            StreamMetrics.getInstance().sealStream(scope, streamName, latency);
         } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
-            streamMetrics.sealStreamFailed(scope, streamName);
+            StreamMetrics.getInstance().sealStreamFailed(scope, streamName);
         }
     }
 
     private void reportDeleteStreamMetrics(String scope, String streamName, DeleteStreamStatus.Status status, Duration latency) {
         if (status.equals(DeleteStreamStatus.Status.SUCCESS)) {
-            streamMetrics.deleteStream(scope, streamName, latency);
+            StreamMetrics.getInstance().deleteStream(scope, streamName, latency);
         } else if (status.equals(DeleteStreamStatus.Status.FAILURE)) {
-            streamMetrics.deleteStreamFailed(scope, streamName);
+            StreamMetrics.getInstance().deleteStreamFailed(scope, streamName);
         }
     }
 

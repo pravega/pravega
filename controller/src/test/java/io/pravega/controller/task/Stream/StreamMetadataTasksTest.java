@@ -24,7 +24,6 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.Retry;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -135,7 +134,6 @@ public abstract class StreamMetadataTasksTest {
     private ConnectionFactoryImpl connectionFactory;
 
     private RequestTracker requestTracker = new RequestTracker(true);
-    private TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     @Before
     public void setup() throws Exception {
@@ -158,12 +156,11 @@ public abstract class StreamMetadataTasksTest {
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, bucketStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", new GrpcAuthHelper(authEnabled, "key", 300), requestTracker,
-                transactionMetrics));
+                executor, "host", new GrpcAuthHelper(authEnabled, "key", 300), requestTracker));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, segmentHelperMock, executor, "host", 
-                new GrpcAuthHelper(authEnabled, "key", 300), transactionMetrics);
+                new GrpcAuthHelper(authEnabled, "key", 300));
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),
@@ -208,7 +205,6 @@ public abstract class StreamMetadataTasksTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
-        transactionMetrics.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
@@ -1403,7 +1399,7 @@ public abstract class StreamMetadataTasksTest {
 
         StreamMetadataTasks metadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore, taskMetadataStore, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(authEnabled, "key", 300), requestTracker, transactionMetrics);
+                new GrpcAuthHelper(authEnabled, "key", 300), requestTracker);
 
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
 

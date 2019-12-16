@@ -118,31 +118,29 @@ public class StreamMetadataTasks extends TaskBase {
     private final RequestTracker requestTracker;
     private final ScheduledExecutorService eventExecutor;
 
-    private final TransactionMetrics transactionMetrics;
-
-    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
-                               final TaskMetadataStore taskMetadataStore, final SegmentHelper segmentHelper,
-                               final ScheduledExecutorService executor, final ScheduledExecutorService eventExecutor,
-                               final String hostId, GrpcAuthHelper authHelper, RequestTracker requestTracker,
-                               TransactionMetrics transactionMetrics) {
+    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                               BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
+                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
+                               final ScheduledExecutorService eventExecutor, final String hostId,
+                               GrpcAuthHelper authHelper, RequestTracker requestTracker) {
         this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, eventExecutor, new Context(hostId),
-                authHelper, requestTracker, transactionMetrics);
+                authHelper, requestTracker);
     }
 
     @VisibleForTesting
-    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
-                               final TaskMetadataStore taskMetadataStore, final SegmentHelper segmentHelper,
-                               final ScheduledExecutorService executor, final String hostId, GrpcAuthHelper authHelper,
-                               RequestTracker requestTracker, TransactionMetrics transactionMetrics) {
+    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                               BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
+                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
+                               final String hostId, GrpcAuthHelper authHelper, RequestTracker requestTracker) {
         this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, executor, new Context(hostId),
-             authHelper, requestTracker, transactionMetrics);
+             authHelper, requestTracker);
     }
 
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                 BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
                                 final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
                                 final ScheduledExecutorService eventExecutor, final Context context,
-                                GrpcAuthHelper authHelper, RequestTracker requestTracker, TransactionMetrics transactionMetrics) {
+                                GrpcAuthHelper authHelper, RequestTracker requestTracker) {
         super(taskMetadataStore, executor, context);
         this.eventExecutor = eventExecutor;
         this.streamMetadataStore = streamMetadataStore;
@@ -150,7 +148,6 @@ public class StreamMetadataTasks extends TaskBase {
         this.segmentHelper = segmentHelper;
         this.authHelper = authHelper;
         this.requestTracker = requestTracker;
-        this.transactionMetrics = transactionMetrics;
         this.setReady();
     }
 
@@ -728,18 +725,15 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
-        writerInitFuture.thenComposeAsync(v -> requestEventWriterRef.get().writeEvent(event.getKey(), event),
-                                          eventExecutor)
+        writerInitFuture.thenComposeAsync(v -> requestEventWriterRef.get().writeEvent(event.getKey(), event), eventExecutor)
                         .whenComplete((r, e) -> {
                             if (e != null) {
                                 log.warn("exception while posting event {} {}", e.getClass().getName(), e.getMessage());
                                 if (e instanceof TaskExceptions.ProcessingDisabledException) {
                                     result.completeExceptionally(e);
                                 } else {
-                                    // transform any other event write exception to retryable
-                                    // exception
-                                    result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event",
-                                                                                                       e));
+                                    // transform any other event write exception to retryable exception
+                                    result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event", e));
                                 }
                             } else {
                                 log.info("event posted successfully");
@@ -1008,7 +1002,7 @@ public class StreamMetadataTasks extends TaskBase {
                 .parallel()
                 .map(segment -> notifyTxnCommit(scope, stream, segment, txnId))
                 .collect(Collectors.toList()))
-                .thenRun(() -> transactionMetrics.commitTransactionSegments(timer.getElapsed()));
+                .thenRun(() -> TransactionMetrics.getInstance().commitTransactionSegments(timer.getElapsed()));
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyTxnCommit(final String scope, final String stream,
@@ -1028,7 +1022,7 @@ public class StreamMetadataTasks extends TaskBase {
                 .parallel()
                 .map(segment -> notifyTxnAbort(scope, stream, segment, txnId))
                 .collect(Collectors.toList()))
-                .thenRun(() -> transactionMetrics.abortTransactionSegments(timer.getElapsed()));
+                .thenRun(() -> TransactionMetrics.getInstance().abortTransactionSegments(timer.getElapsed()));
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyTxnAbort(final String scope, final String stream,
@@ -1055,8 +1049,7 @@ public class StreamMetadataTasks extends TaskBase {
                 eventExecutor,
                 context,
                 authHelper,
-                requestTracker,
-                transactionMetrics);
+                requestTracker);
     }
 
     @Override

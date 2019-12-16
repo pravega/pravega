@@ -30,7 +30,6 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -128,7 +127,6 @@ public class ControllerGrpcAuthFocusedTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private Server grpcServer;
     private ManagedChannel inProcessChannel;
-    private TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     @AfterClass
     public static void classTearDown() {
@@ -146,6 +144,7 @@ public class ControllerGrpcAuthFocusedTest {
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         RequestTracker requestTracker = new RequestTracker(true);
+
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(
                 ClientConfig.builder()
                         .controllerURI(URI.create("tcp://localhost"))
@@ -155,10 +154,10 @@ public class ControllerGrpcAuthFocusedTest {
         GrpcAuthHelper authHelper = new GrpcAuthHelper(true, "secret", 300);
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                EXECUTOR, "host", authHelper, requestTracker, transactionMetrics);
+                EXECUTOR, "host", authHelper, requestTracker);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
-                EXECUTOR, "host", authHelper, transactionMetrics);
+                EXECUTOR, "host", authHelper);
 
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, EXECUTOR),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, EXECUTOR),
@@ -211,9 +210,6 @@ public class ControllerGrpcAuthFocusedTest {
         }
         if (streamTransactionMetadataTasks != null) {
             streamTransactionMetadataTasks.close();
-        }
-        if (transactionMetrics != null) {
-            transactionMetrics.close();
         }
         inProcessChannel.shutdownNow();
         grpcServer.shutdownNow();

@@ -11,6 +11,7 @@ package io.pravega.controller.metrics;
 
 import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.shared.MetricsNames.CREATE_STREAM;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM_FAILED;
@@ -40,11 +41,28 @@ import static io.pravega.shared.MetricsTags.streamTags;
  */
 public final class StreamMetrics extends AbstractControllerMetrics implements AutoCloseable {
 
-    private final OpStatsLogger createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
-    private final OpStatsLogger deleteStreamLatency = STATS_LOGGER.createStats(DELETE_STREAM_LATENCY);
-    private final OpStatsLogger sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
-    private final OpStatsLogger updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
-    private final OpStatsLogger truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
+    private static final AtomicReference<StreamMetrics> INSTANCE = new AtomicReference<>();
+
+    private final OpStatsLogger createStreamLatency;
+    private final OpStatsLogger deleteStreamLatency;
+    private final OpStatsLogger sealStreamLatency;
+    private final OpStatsLogger updateStreamLatency;
+    private final OpStatsLogger truncateStreamLatency;
+
+    private StreamMetrics() {
+        createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
+        deleteStreamLatency = STATS_LOGGER.createStats(DELETE_STREAM_LATENCY);
+        sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
+        updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
+        truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
+    }
+
+    public static synchronized StreamMetrics getInstance() {
+        if (INSTANCE.get() == null) {
+            INSTANCE.set(new StreamMetrics());
+        }
+        return INSTANCE.get();
+    }
 
     /**
      * This method increments the global and Stream-specific counters of Stream creations, initializes other
@@ -59,7 +77,6 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
         DYNAMIC_LOGGER.incCounterValue(CREATE_STREAM, 1);
         DYNAMIC_LOGGER.reportGaugeValue(OPEN_TRANSACTIONS, 0, streamTags(scope, streamName));
         DYNAMIC_LOGGER.reportGaugeValue(SEGMENTS_COUNT, minNumSegments, streamTags(scope, streamName));
-
         createStreamLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -222,5 +239,6 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
         sealStreamLatency.close();
         updateStreamLatency.close();
         truncateStreamLatency.close();
+        INSTANCE.set(null);
     }
 }

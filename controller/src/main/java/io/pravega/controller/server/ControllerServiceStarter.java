@@ -112,8 +112,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private Cluster cluster = null;
 
-    private StreamMetrics streamMetrics;
-    private TransactionMetrics transactionMetrics;
     private final Optional<SegmentHelper> segmentHelperRef;
     private final Optional<ConnectionFactory> connectionFactoryRef;
     private final Optional<StreamMetadataStore> streamMetadataStoreRef;
@@ -186,8 +184,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             log.info("Creating the checkpoint store");
             checkpointStore = CheckpointStoreFactory.create(storeClient);
 
-            streamMetrics = new StreamMetrics();
-            transactionMetrics = new TransactionMetrics();
+            // Initialize Stream and Transaction metrics.
+            StreamMetrics.getInstance();
+            TransactionMetrics.getInstance();
 
             // On each controller process restart, we use a fresh hostId,
             // which is a combination of hostname and random GUID.
@@ -231,10 +230,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamStore = streamMetadataStoreRef.orElse(StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker, transactionMetrics);
+                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
-                    authHelper, transactionMetrics);
+                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
 
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000);
             Duration executionDurationRetention = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
@@ -275,7 +273,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, streamMetrics, transactionMetrics);
+                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster);
 
             // Setup event processors.
             setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
@@ -287,7 +285,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
                         bucketStore, connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
-                        eventExecutor, transactionMetrics);
+                        eventExecutor);
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
@@ -465,13 +463,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamStore.close();
 
             // Close metrics.
-            if (streamMetrics != null) {
-                streamMetrics.close();
-            }
-
-            if (transactionMetrics != null) {
-                transactionMetrics.close();
-            }
+            StreamMetrics.getInstance().close();
+            TransactionMetrics.getInstance().close();
 
             log.info("Finishing controller service shutDown");
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);

@@ -32,7 +32,6 @@ import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
@@ -137,7 +136,6 @@ public class StreamTransactionMetadataTasksTest {
     private ConnectionFactory connectionFactory;
 
     private RequestTracker requestTracker = new RequestTracker(true);
-    private TransactionMetrics transactionMetrics = new TransactionMetrics();
 
     private static class SequenceAnswer<T> implements Answer<T> {
 
@@ -179,7 +177,7 @@ public class StreamTransactionMetadataTasksTest {
         connectionFactory = Mockito.mock(ConnectionFactory.class);
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
+                executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
     }
 
     @After
@@ -190,7 +188,6 @@ public class StreamTransactionMetadataTasksTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
-        transactionMetrics.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
@@ -221,7 +218,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock,
-                executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
+                executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         // Create ControllerService.
@@ -261,7 +258,7 @@ public class StreamTransactionMetadataTasksTest {
         EventStreamReader<AbortEvent> abortReader = abortWriter.getReader();
 
         txnTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host",
-                GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
+                GrpcAuthHelper.getDisabledAuthHelper());
 
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
@@ -278,7 +275,7 @@ public class StreamTransactionMetadataTasksTest {
         // Set up txn task for creating transactions from a failedHost.
         @Cleanup
         StreamTransactionMetadataTasks failedTxnTasks = new StreamTransactionMetadataTasks(streamStore, 
-                segmentHelperMock, executor, "failedHost", GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
+                segmentHelperMock, executor, "failedHost", GrpcAuthHelper.getDisabledAuthHelper());
         failedTxnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         // Create 3 transactions from failedHost.
@@ -313,7 +310,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks for sweeping txns from failedHost.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host",
-                GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
+                GrpcAuthHelper.getDisabledAuthHelper());
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
 
         // Before initializing, txnSweeper.sweepFailedHosts would throw an error
@@ -352,11 +349,9 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks,
-                        bucketStore, executor, processedCommitEvents, transactionMetrics), executor));
+                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, bucketStore, executor, processedCommitEvents), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor,
-                        processedAbortEvents, transactionMetrics), executor));
+                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
@@ -390,7 +385,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host",
-                GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
+                GrpcAuthHelper.getDisabledAuthHelper());
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, txnTasks,
@@ -435,11 +430,9 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks,
-                        bucketStore, executor, processedCommitEvents, transactionMetrics), executor));
+                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, bucketStore, executor, processedCommitEvents), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor,
-                        processedAbortEvents, transactionMetrics), executor));
+                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
@@ -466,7 +459,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, 
                 SegmentHelperMock.getFailingSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(this.authEnabled, "secret", 600), transactionMetrics);
+                new GrpcAuthHelper(this.authEnabled, "secret", 600));
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         // Create ControllerService.
@@ -511,7 +504,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(this.authEnabled, "secret", 600), transactionMetrics);
+                new GrpcAuthHelper(this.authEnabled, "secret", 600));
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -582,8 +575,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock,
                                                       SegmentHelperMock.getSegmentHelperMock(), executor, "host",
-                                                      new GrpcAuthHelper(this.authEnabled, "secret", 300),
-                                                      transactionMetrics);
+                                                      new GrpcAuthHelper(this.authEnabled, "secret", 300));
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -639,7 +631,7 @@ public class StreamTransactionMetadataTasksTest {
         // region close before initialize
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(this.authEnabled, "secret", 300), transactionMetrics);
+                new GrpcAuthHelper(this.authEnabled, "secret", 300));
         CompletableFuture<Void> future = txnTasks.writeCommitEvent(new CommitEvent("scope", "stream", 0));
         assertFalse(future.isDone());
 
@@ -650,7 +642,7 @@ public class StreamTransactionMetadataTasksTest {
         // region test initialize writers with client factory
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(this.authEnabled, "secret", 300), transactionMetrics);
+                new GrpcAuthHelper(this.authEnabled, "secret", 300));
 
         future = txnTasks.writeCommitEvent(new CommitEvent("scope", "stream", 0));
 
@@ -677,7 +669,7 @@ public class StreamTransactionMetadataTasksTest {
         // region test method calls and initialize writers with direct writer set up method call
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(this.authEnabled, "secret", 300), transactionMetrics);
+                new GrpcAuthHelper(this.authEnabled, "secret", 300));
 
         streamStore.createScope(SCOPE).join();
         streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 1L, null, executor).join();
@@ -707,7 +699,7 @@ public class StreamTransactionMetadataTasksTest {
 
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new GrpcAuthHelper(this.authEnabled, "secret", 300), transactionMetrics);
+                new GrpcAuthHelper(this.authEnabled, "secret", 300));
 
         streamStore.createScope(SCOPE).join();
         streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 1L, null, executor).join();

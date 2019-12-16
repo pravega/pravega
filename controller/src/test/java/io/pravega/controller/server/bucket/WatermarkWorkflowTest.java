@@ -24,7 +24,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
@@ -74,15 +73,14 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 public class WatermarkWorkflowTest {
-    private TestingServer zkServer;
-    private CuratorFramework zkClient;
+    TestingServer zkServer;
+    CuratorFramework zkClient;
 
-    private StreamMetadataStore streamMetadataStore;
-    private BucketStore bucketStore;
-    private StreamMetadataTasks streamMetadataTasks;
-    private TransactionMetrics transactionMetrics = new TransactionMetrics();
+    StreamMetadataStore streamMetadataStore;
+    BucketStore bucketStore;
+    StreamMetadataTasks streamMetadataTasks;
 
-    private ScheduledExecutorService executor;
+    ScheduledExecutorService executor;
     
     @Before
     public void setUp() throws Exception {
@@ -102,15 +100,13 @@ public class WatermarkWorkflowTest {
         bucketStore = StreamStoreFactory.createZKBucketStore(map, zkClient, executor);
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, TaskStoreFactory.createInMemoryStore(executor),
-                SegmentHelperMock.getSegmentHelperMock(), executor, "hostId", GrpcAuthHelper.getDisabledAuthHelper(),
-                new RequestTracker(false), transactionMetrics);
+                SegmentHelperMock.getSegmentHelperMock(), executor, "hostId", GrpcAuthHelper.getDisabledAuthHelper(), new RequestTracker(false));
 
     }
     
     @After
     public void tearDown() throws Exception {
-        streamMetadataTasks.close();
-        transactionMetrics.close();
+        streamMetadataStore.close();
         ExecutorServiceHelpers.shutdown(executor);
 
         streamMetadataStore.close();

@@ -16,7 +16,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -80,7 +79,6 @@ public class ControllerServiceTest {
     private long scaleTs;
 
     private RequestTracker requestTracker = new RequestTracker(true);
-    private TransactionMetrics transactionMetrics = new TransactionMetrics();
     
     @Before
     public void setup() throws Exception {
@@ -97,9 +95,9 @@ public class ControllerServiceTest {
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
-                segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, transactionMetrics);
+                segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), transactionMetrics);
+                segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
 
         consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
                 new SegmentHelper(connectionFactory, hostStore), executor, null);
@@ -167,7 +165,6 @@ public class ControllerServiceTest {
         streamStore.close();
         zkClient.close();
         zkServer.close();
-        transactionMetrics.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
