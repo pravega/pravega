@@ -37,11 +37,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
@@ -49,6 +45,7 @@ import static java.time.Duration.ofSeconds;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
+@Ignore
 public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
     private final static String STREAM_NAME = "testTxnScaleUpWithRead";
