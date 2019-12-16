@@ -57,6 +57,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -87,6 +88,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024)
             .build();
     private static final Duration TIMEOUT = Duration.ofSeconds(20);
+    private static final Duration SHORT_TIMEOUT = Duration.ofMillis(20);
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
@@ -1306,6 +1308,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Block further cache appends. This will give us time to execute cache eviction.
         context.cacheStorage.appendReturnBlocker = new ReusableLatch();
+        context.cacheStorage.appendComplete = new ReusableLatch();
 
         // Initiate append 2. The append should be written to the Cache Storage, but its invocation should block until
         // we release the above latch.
@@ -1319,15 +1322,26 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 throw new CompletionException(ex);
             }
         }, executorService());
+        context.cacheStorage.appendComplete.await();
 
         // Execute cache eviction. Append 2 is suspended at the point when we return from the cache call. This is the
         // closest we can come to simulating eviction racing with appending.
-        boolean evicted = context.cacheManager.applyCachePolicy();
-        Assert.assertTrue("Expected a cache eviction to happen.", evicted);
+        val evictionFuture = CompletableFuture.supplyAsync(context.cacheManager::applyCachePolicy, this.executorService());
+
+        // We want to verify that the cache eviction is blocked on the append - they should not run concurrently. The only
+        // "elegant" way of verifying this is by waiting a short amount of time and checking that it didn't execute.
+        AssertExtensions.assertThrows(
+                "Expecting cache eviction to block.",
+                () -> evictionFuture.get(SHORT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                ex -> ex instanceof TimeoutException);
 
         // Release the second append, which should not error out.
         context.cacheStorage.appendReturnBlocker.release();
         append2Future.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Verify that no cache eviction happened.
+        boolean evicted = evictionFuture.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertFalse("Not expected a cache eviction to happen.", evicted);
 
         // Validate data read back is as expected.
         // readDirect() should return an InputStream for the second append range.
@@ -1340,8 +1354,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         context.readIndex.read(segmentId, 0, allData.length, TIMEOUT).readRemaining(allData, TIMEOUT);
         AssertExtensions.assertArrayEquals("Unexpected data read back from segment.", append1.array(), 0, allData, 0, append1.getLength());
         AssertExtensions.assertArrayEquals("Unexpected data read back from segment.", append2.array(), 0, allData, append1.getLength(), append2.getLength());
-
     }
+
     //endregion
 
     //region Helpers
@@ -1677,6 +1691,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         Consumer<Integer> deleteCallback;
         boolean disableAppends;
         boolean usedBytesSameAsStoredBytes;
+        ReusableLatch appendComplete; // If set, will invoke ReusableLatch.release() when append is done (before appendReturnBlocker).
         ReusableLatch appendReturnBlocker; // If set, blocks append calls from returning AFTER the append has been executed.
         @Getter
         int maxEntryLength;
@@ -1709,6 +1724,11 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             }
 
             int result = super.append(address, expectedLength, data);
+
+            ReusableLatch complete = this.appendComplete;
+            if (complete != null) {
+                complete.release();
+            }
 
             // Blocker hits after the append is done.
             ReusableLatch blocker = this.appendReturnBlocker;
