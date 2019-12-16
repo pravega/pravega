@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -74,20 +75,11 @@ class SegmentKeyCache {
     /**
      * Generates a {@link CacheManager.CacheStatus} containing the current state of the Cache for this Segment.
      *
-     * @return A new {@link CacheManager.CacheStatus} instance..
+     * @return A new {@link CacheManager.CacheStatus} instance.
      */
     synchronized CacheManager.CacheStatus getCacheStatus() {
-        int minGen = 0;
-        int maxGen = 0;
-        for (CacheEntry e : this.cacheEntries.values()) {
-            if (e != null) {
-                int g = e.getGeneration();
-                minGen = Math.min(minGen, g);
-                maxGen = Math.max(maxGen, g);
-            }
-        }
-
-        return new CacheManager.CacheStatus(minGen, maxGen);
+        return CacheManager.CacheStatus.fromGenerations(
+                this.cacheEntries.values().stream().filter(Objects::nonNull).map(CacheEntry::getGeneration).iterator());
     }
 
     /**
