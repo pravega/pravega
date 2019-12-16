@@ -21,7 +21,7 @@ set -e
 
 BOOKIE_PORT=${bookiePort:-${BOOKIE_PORT}}
 BOOKIE_PORT=${BOOKIE_PORT:-3181}
-BOOKIE_HTTP_PORT=${BOOKIE_HTTP_PORT:-9090}
+BOOKIE_HTTP_PORT=${BOOKIE_HTTP_PORT:-8080}
 BK_zkServers=$(echo "${ZK_URL:-127.0.0.1:2181}" | sed -r 's/;/,/g')
 ZK_URL=$(echo "${ZK_URL:-127.0.0.1:2181}" | sed -r 's/,/;/g')
 PRAVEGA_PATH=${PRAVEGA_PATH:-"pravega"}
@@ -145,8 +145,8 @@ initialize_cluster() {
                 fi
             done
 
-            if [ ${tenSeconds} -eq 1000 ]; then
-                echo "Waited 1000 seconds for bookkeeper cluster to initialize, but to no . Something is wrong, please check"
+            if [ ${tenSeconds} -eq 100 ]; then
+                echo "Waited 100 seconds for bookkeeper cluster to initialize, but to no avail. Something is wrong, please check."
                 exit
             fi
         fi
