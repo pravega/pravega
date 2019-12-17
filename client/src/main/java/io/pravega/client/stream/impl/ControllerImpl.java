@@ -131,6 +131,8 @@ public class ControllerImpl implements Controller {
     // Generate random numbers for request ids.
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
+    private final long timeoutMillis;
+    
     /**
      * Creates a new instance of the Controller client class.
      *
@@ -190,7 +192,8 @@ public class ControllerImpl implements Controller {
             PravegaCredentialsWrapper wrapper = new PravegaCredentialsWrapper(credentials);
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
         }
-        this.client = client.withDeadlineAfter(config.getTimeoutMillis(), TimeUnit.MILLISECONDS);
+        this.client = client;
+        this.timeoutMillis = config.getTimeoutMillis();
     }
 
     @SuppressWarnings("checkstyle:ReturnCount")
@@ -235,8 +238,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<CreateScopeStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<CreateScopeStatus> callback = new RPCAsyncCallback<>(requestId, "createScope");
-            new ControllerClientTagger(client).withTag(requestId, "createScope", scopeName)
-                                              .createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "createScope", scopeName)
+                                                        .createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -276,8 +279,8 @@ public class ControllerImpl implements Controller {
                     token -> this.retryConfig.runAsync(() -> {
                         RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(requestId, "listStreams");
                         ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
-                        new ControllerClientTagger(client).withTag(requestId, "listStreams", scopeName)
-                                                          .listStreamsInScope(StreamsInScopeRequest
+                        new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "listStreams", scopeName)
+                                                                    .listStreamsInScope(StreamsInScopeRequest
                                                                   .newBuilder().setScope(scopeInfo).setContinuationToken(token).build(), callback);
                         return callback.getFuture()
                                        .thenApply(x -> {
@@ -312,8 +315,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<DeleteScopeStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DeleteScopeStatus> callback = new RPCAsyncCallback<>(requestId, "deleteScope");
-            new ControllerClientTagger(client).withTag(requestId, "deleteScope", scopeName)
-                                              .deleteScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "deleteScope", scopeName)
+                                                        .deleteScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -353,8 +356,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<CreateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<CreateStreamStatus> callback = new RPCAsyncCallback<>(requestId, "createStream");
-            new ControllerClientTagger(client).withTag(requestId, "createStream", scope, streamName)
-                                              .createStream(ModelHelper.decode(scope, streamName, streamConfig), callback);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "createStream", scope, streamName)
+                                                        .createStream(ModelHelper.decode(scope, streamName, streamConfig), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -396,8 +399,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(requestId, "updateStream");
-            new ControllerClientTagger(client).withTag(requestId, "updateStream", scope, streamName)
-                                              .updateStream(ModelHelper.decode(scope, streamName, streamConfig), callback);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "updateStream", scope, streamName)
+                                                        .updateStream(ModelHelper.decode(scope, streamName, streamConfig), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -440,8 +443,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(requestId, "truncateStream");
-            new ControllerClientTagger(client).withTag(requestId, "truncateStream", scope, stream)
-                                              .truncateStream(ModelHelper.decode(scope, stream, streamCut), callback);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "truncateStream", scope, stream)
+                                                        .truncateStream(ModelHelper.decode(scope, stream, streamCut), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -546,7 +549,7 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "checkScale", stream);
         final CompletableFuture<ScaleStatusResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<ScaleStatusResponse> callback = new RPCAsyncCallback<>(traceId, "checkScale");
-            client.checkScale(ScaleStatusRequest.newBuilder()
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).checkScale(ScaleStatusRequest.newBuilder()
                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                             .setEpoch(scaleEpoch)
                             .build(),
@@ -583,7 +586,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<ScaleResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<ScaleResponse> callback = new RPCAsyncCallback<>(requestId, method);
             long scaleTimestamp = System.currentTimeMillis();
-            new ControllerClientTagger(client)
+            new ControllerClientTagger(client, timeoutMillis)
                     .withTag(requestId, method, stream.getScope(), stream.getStreamName(), String.valueOf(scaleTimestamp))
                     .scale(ScaleRequest.newBuilder()
                                        .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
@@ -610,8 +613,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(requestId, "sealStream");
-            new ControllerClientTagger(client).withTag(requestId, "sealStream", scope, streamName)
-                                              .sealStream(ModelHelper.createStreamInfo(scope, streamName), callback);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "sealStream", scope, streamName)
+                                                        .sealStream(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -650,8 +653,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<DeleteStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DeleteStreamStatus> callback = new RPCAsyncCallback<>(requestId, "deleteStream");
-            new ControllerClientTagger(client).withTag(requestId, "deleteStream", scope, streamName)
-                                              .deleteStream(ModelHelper.createStreamInfo(scope, streamName), callback);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "deleteStream", scope, streamName)
+                                                        .deleteStream(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -693,7 +696,7 @@ public class ControllerImpl implements Controller {
                     .setStreamInfo(streamInfo)
                     .setTimestamp(timestamp)
                     .build();
-            client.getSegments(request, callback);
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getSegments(request, callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(segments -> {
@@ -717,7 +720,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<SuccessorResponse> resultFuture = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SuccessorResponse> callback = new RPCAsyncCallback<>(traceId, "getSuccessors");
-            client.getSegmentsImmediatelyFollowing(ModelHelper.decode(segment), callback);
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                  .getSegmentsImmediatelyFollowing(ModelHelper.decode(segment), callback);
             return callback.getFuture();
         }, this.executor);
         return resultFuture.thenApply(successors -> {
@@ -776,7 +780,8 @@ public class ControllerImpl implements Controller {
         CompletableFuture<String> token = getOrRefreshDelegationTokenFor(stream.getScope(), stream.getStreamName());
         final CompletableFuture<StreamCutRangeResponse> resultFuture = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<StreamCutRangeResponse> callback = new RPCAsyncCallback<>(traceId, "getSuccessorsFromCut");
-            client.getSegmentsBetween(ModelHelper.decode(stream.getScope(), stream.getStreamName(),
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                  .getSegmentsBetween(ModelHelper.decode(stream.getScope(), stream.getStreamName(),
                     getStreamCutMap(fromStreamCut), getStreamCutMap(toStreamCut)), callback);
             return callback.getFuture();
         }, this.executor);
@@ -805,7 +810,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<SegmentRanges> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(traceId, "getCurrentSegments");
-            client.getCurrentSegments(ModelHelper.createStreamInfo(scope, stream), callback);
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                  .getCurrentSegments(ModelHelper.createStreamInfo(scope, stream), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(ranges -> {
@@ -835,7 +841,8 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<NodeUri> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<NodeUri> callback = new RPCAsyncCallback<>(traceId, "getEndpointForSegment");
             Segment segment = Segment.fromScopedName(qualifiedSegmentName);
-            client.getURI(ModelHelper.createSegmentId(segment.getScope(),
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                  .getURI(ModelHelper.createSegmentId(segment.getScope(),
                     segment.getStreamName(),
                     segment.getSegmentId()),
                     callback);
@@ -857,7 +864,7 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<SegmentValidityResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SegmentValidityResponse> callback = new RPCAsyncCallback<>(traceId, "isSegmentOpen");
-            client.isSegmentValid(ModelHelper.createSegmentId(segment.getScope(),
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).isSegmentValid(ModelHelper.createSegmentId(segment.getScope(),
                     segment.getStreamName(),
                     segment.getSegmentId()),
                     callback);
@@ -880,7 +887,7 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<CreateTxnResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<CreateTxnResponse> callback = new RPCAsyncCallback<>(traceId, "createTransaction");
-            client.createTransaction(
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).createTransaction(
                     CreateTxnRequest.newBuilder()
                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                             .setLease(lease)
@@ -915,7 +922,7 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<PingTxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<PingTxnStatus> callback = new RPCAsyncCallback<>(traceId, "pingTransaction");
-            client.pingTransaction(PingTxnRequest.newBuilder()
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).pingTransaction(PingTxnRequest.newBuilder()
                                                  .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                                                  .setTxnId(ModelHelper.decode(txId))
                                                  .setLease(lease).build(), callback);
@@ -954,7 +961,7 @@ public class ControllerImpl implements Controller {
             } else {
                 txnRequest.setTimestamp(Long.MIN_VALUE);
             }
-            client.commitTransaction(txnRequest.build(), callback);
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).commitTransaction(txnRequest.build(), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(txnStatus -> {
@@ -981,7 +988,7 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<TxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>(traceId, "abortTransaction");
-            client.abortTransaction(TxnRequest.newBuilder()
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).abortTransaction(TxnRequest.newBuilder()
                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
                                     stream.getStreamName()))
                             .setTxnId(ModelHelper.decode(txId))
@@ -1014,7 +1021,7 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<TxnState> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnState> callback = new RPCAsyncCallback<>(traceId, "checkTransactionStatus");
-            client.checkTransactionState(TxnRequest.newBuilder()
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).checkTransactionState(TxnRequest.newBuilder()
                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
                                     stream.getStreamName()))
                             .setTxnId(ModelHelper.decode(txId))
@@ -1041,7 +1048,7 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<TimestampResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TimestampResponse> callback = new RPCAsyncCallback<>(traceId, "lastWrittenPosition");
-            client.noteTimestampFromWriter(TimestampFromWriter.newBuilder()
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).noteTimestampFromWriter(TimestampFromWriter.newBuilder()
                                                               .setWriter(writer)
                                                               .setTimestamp(timestamp)
                                                               .setPosition(ModelHelper.createStreamCut(stream, lastWrittenPosition))
@@ -1068,7 +1075,7 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "writerShutdown", writerId, stream);
         final CompletableFuture<RemoveWriterResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<RemoveWriterResponse> callback = new RPCAsyncCallback<>(traceId, "writerShutdown");
-            client.removeWriter(RemoveWriterRequest.newBuilder()
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).removeWriter(RemoveWriterRequest.newBuilder()
                                                        .setWriter(writerId)
                                                        .setStream(ModelHelper.createStreamInfo(stream.getScope(),
                                                                                                stream.getStreamName()))
@@ -1102,7 +1109,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<DelegationToken> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DelegationToken> callback = new RPCAsyncCallback<>(traceId, "getOrRefreshDelegationTokenFor");
-            client.getDelegationToken(ModelHelper.createStreamInfo(scope, streamName), callback);
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                  .getDelegationToken(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
         }, this.executor);
 
@@ -1161,9 +1169,11 @@ public class ControllerImpl implements Controller {
     private static class ControllerClientTagger {
 
         private ControllerServiceStub clientStub;
+        private final long timeoutMillis;
 
-        ControllerClientTagger(ControllerServiceStub clientStub) {
+        ControllerClientTagger(ControllerServiceStub clientStub, long timeoutMillis) {
             this.clientStub = clientStub;
+            this.timeoutMillis = timeoutMillis;
         }
 
         /**
@@ -1186,41 +1196,50 @@ public class ControllerImpl implements Controller {
         // Region of ControllerService operations with end to end tracing supported.
 
         public void createScope(ScopeInfo scopeInfo, RPCAsyncCallback<CreateScopeStatus> callback) {
-            clientStub.createScope(scopeInfo, callback);
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .createScope(scopeInfo, callback);
         }
 
         public void listStreamsInScope(io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest request, 
                                        RPCAsyncCallback<StreamsInScopeResponse> callback) {
-            clientStub.listStreamsInScope(request, callback);
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .listStreamsInScope(request, callback);
         }
 
         public void deleteScope(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeStatus> callback) {
-            clientStub.deleteScope(scopeInfo, callback);
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .deleteScope(scopeInfo, callback);
         }
 
         public void createStream(StreamConfig streamConfig, RPCAsyncCallback<CreateStreamStatus> callback) {
-            clientStub.createStream(streamConfig, callback);
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .createStream(streamConfig, callback);
         }
 
         public void scale(ScaleRequest scaleRequest, RPCAsyncCallback<ScaleResponse> callback) {
-            clientStub.scale(scaleRequest, callback);
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .scale(scaleRequest, callback);
         }
 
         public void updateStream(StreamConfig streamConfig, RPCAsyncCallback<UpdateStreamStatus> callback) {
-            clientStub.updateStream(streamConfig, callback);
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .updateStream(streamConfig, callback);
         }
 
         public void truncateStream(io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut streamCut,
                                    RPCAsyncCallback<UpdateStreamStatus> callback) {
-            clientStub.truncateStream(streamCut, callback);
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .truncateStream(streamCut, callback);
         }
 
         public void sealStream(StreamInfo streamInfo, RPCAsyncCallback<UpdateStreamStatus> callback) {
-            clientStub.sealStream(streamInfo, callback);
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .sealStream(streamInfo, callback);
         }
 
         public void deleteStream(StreamInfo streamInfo, RPCAsyncCallback<DeleteStreamStatus> callback) {
-            clientStub.deleteStream(streamInfo, callback);
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .deleteStream(streamInfo, callback);
         }
     }
 }

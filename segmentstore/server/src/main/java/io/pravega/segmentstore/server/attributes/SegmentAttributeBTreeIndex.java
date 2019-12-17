@@ -226,19 +226,10 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
     @Override
     public CacheManager.CacheStatus getCacheStatus() {
-        int minGen = 0;
-        int maxGen = 0;
         synchronized (this.cacheEntries) {
-            for (CacheEntry e : this.cacheEntries.values()) {
-                if (e != null) {
-                    int g = e.getGeneration();
-                    minGen = Math.min(minGen, g);
-                    maxGen = Math.max(maxGen, g);
-                }
-            }
+            return CacheManager.CacheStatus.fromGenerations(
+                    this.cacheEntries.values().stream().filter(Objects::nonNull).map(CacheEntry::getGeneration).iterator());
         }
-
-        return new CacheManager.CacheStatus(minGen, maxGen);
     }
 
     @Override
