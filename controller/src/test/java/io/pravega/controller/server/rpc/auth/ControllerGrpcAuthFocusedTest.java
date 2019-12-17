@@ -146,6 +146,8 @@ public class ControllerGrpcAuthFocusedTest {
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         RequestTracker requestTracker = new RequestTracker(true);
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(
                 ClientConfig.builder()
@@ -160,8 +162,6 @@ public class ControllerGrpcAuthFocusedTest {
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 EXECUTOR, "host", authHelper);
-        StreamMetrics.initialize();
-        TransactionMetrics.initialize();
 
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, EXECUTOR),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, EXECUTOR),

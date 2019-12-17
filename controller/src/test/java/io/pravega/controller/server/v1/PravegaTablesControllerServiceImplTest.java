@@ -69,6 +69,8 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
     @Override
     public void setup() throws Exception {
         final RequestTracker requestTracker = new RequestTracker(true);
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         zkServer = new TestingServerStarter().start();
         zkServer.start();
@@ -100,8 +102,6 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
 
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-        StreamMetrics.initialize();
-        TransactionMetrics.initialize();
 
         cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
         final CountDownLatch latch = new CountDownLatch(1);

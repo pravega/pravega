@@ -81,6 +81,8 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         final HostControllerStore hostStore;
         final SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         final RequestTracker requestTracker = new RequestTracker(true);
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         zkServer = new TestingServerStarter().start();
         zkServer.start();
@@ -111,8 +113,6 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
 
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-        StreamMetrics.initialize();
-        TransactionMetrics.initialize();
 
         cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
         final CountDownLatch latch = new CountDownLatch(1);

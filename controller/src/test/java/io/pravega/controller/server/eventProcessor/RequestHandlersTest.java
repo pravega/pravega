@@ -110,6 +110,8 @@ public abstract class RequestHandlersTest {
     private SegmentHelper segmentHelper;
     @Before
     public void setup() throws Exception {
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
         zkServer = new TestingServerStarter().start();
         zkServer.start();
 
@@ -144,8 +146,6 @@ public abstract class RequestHandlersTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-        StreamMetrics.initialize();
-        TransactionMetrics.initialize();
 
         long createTimestamp = System.currentTimeMillis();
 

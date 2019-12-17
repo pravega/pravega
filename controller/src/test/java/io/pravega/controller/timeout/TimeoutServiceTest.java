@@ -110,14 +110,15 @@ public abstract class TimeoutServiceTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore,
                 SegmentHelperMock.getSegmentHelperMock(), executor, hostId, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, hostId, TimeoutServiceConfig.defaultConfig(),
                 new LinkedBlockingQueue<>(5), GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-        StreamMetrics.initialize();
-        TransactionMetrics.initialize();
+
 
         // Create TimeoutService
         timeoutService = (TimerWheelTimeoutService) streamTransactionMetadataTasks.getTimeoutService();

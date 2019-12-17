@@ -117,6 +117,8 @@ public abstract class ControllerServiceWithStreamTest {
                                                                   .build());
         GrpcAuthHelper disabledAuthHelper = GrpcAuthHelper.getDisabledAuthHelper();
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", disabledAuthHelper, requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host", disabledAuthHelper);
@@ -131,8 +133,6 @@ public abstract class ControllerServiceWithStreamTest {
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
         consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks, segmentHelperMock, executor, null);
-        StreamMetrics.initialize();
-        TransactionMetrics.initialize();
     }
 
     abstract StreamMetadataStore getStore();

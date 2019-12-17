@@ -64,6 +64,8 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         requestTracker = new RequestTracker(true);
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
@@ -78,11 +80,8 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
                 executorService);
-
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-        StreamMetrics.initialize();
-        TransactionMetrics.initialize();
 
         Cluster mockCluster = mock(Cluster.class);
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));

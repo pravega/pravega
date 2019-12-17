@@ -94,6 +94,8 @@ public abstract class ControllerEventProcessorTest {
     @Before
     public void setUp() throws Exception {
         executor = Executors.newScheduledThreadPool(10);
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         zkServer = new TestingServerStarter().start();
         zkServer.start();
@@ -114,8 +116,6 @@ public abstract class ControllerEventProcessorTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock,
                 executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
-        StreamMetrics.initialize();
-        TransactionMetrics.initialize();
 
         // region createStream
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);

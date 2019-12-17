@@ -144,6 +144,8 @@ public abstract class StreamMetadataTasksTest {
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         StreamMetadataStore streamStore = getStore();
         streamStorePartialMock = spy(streamStore); //create a partial mock.
@@ -163,8 +165,6 @@ public abstract class StreamMetadataTasksTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, segmentHelperMock, executor, "host", 
                 new GrpcAuthHelper(authEnabled, "key", 300));
-        StreamMetrics.initialize();
-        TransactionMetrics.initialize();
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),

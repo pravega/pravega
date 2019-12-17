@@ -117,6 +117,8 @@ public abstract class ScaleRequestHandlerTest {
 
     @Before
     public void setup() throws Exception {
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
         zkServer = new TestingServerStarter().start();
         zkServer.start();
 
@@ -147,8 +149,6 @@ public abstract class ScaleRequestHandlerTest {
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
-        StreamMetrics.initialize();
-        TransactionMetrics.initialize();
 
         long createTimestamp = System.currentTimeMillis();
 
