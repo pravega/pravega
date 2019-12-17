@@ -74,12 +74,12 @@ public class LargeEventTest extends AbstractReadWriteTest {
     }
 
     /**
-     * Invoke the simpleTest, ensure we are able to produce  events.
+     * Invoke the largeEventSimpleTest, ensure we are able to produce  events.
      * The test fails incase of exceptions while writing to the stream.
      *
      */
     @Test
-    public void simpleTest() {
+    public void largeEventSimpleTest() {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
