@@ -119,7 +119,6 @@ public abstract class TimeoutServiceTest {
                 new LinkedBlockingQueue<>(5), GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
-
         // Create TimeoutService
         timeoutService = (TimerWheelTimeoutService) streamTransactionMetadataTasks.getTimeoutService();
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
