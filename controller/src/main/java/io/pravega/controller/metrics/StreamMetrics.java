@@ -39,7 +39,7 @@ import static io.pravega.shared.MetricsTags.streamTags;
 /**
  * Class to encapsulate the logic to report Controller service metrics for Streams.
  */
-public final class StreamMetrics extends AbstractControllerMetrics implements AutoCloseable {
+public final class StreamMetrics extends AbstractControllerMetrics {
 
     private static final AtomicReference<StreamMetrics> INSTANCE = new AtomicReference<>();
 
@@ -232,13 +232,14 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
         DYNAMIC_LOGGER.reportGaugeValue(SEGMENTS_MERGES, merges, streamTags(scope, streamName));
     }
 
-    @Override
-    public void close() {
-        createStreamLatency.close();
-        deleteStreamLatency.close();
-        sealStreamLatency.close();
-        updateStreamLatency.close();
-        truncateStreamLatency.close();
-        INSTANCE.set(null);
+    public static synchronized void reset() {
+        if (INSTANCE.get() != null) {
+            INSTANCE.get().createStreamLatency.close();
+            INSTANCE.get().deleteStreamLatency.close();
+            INSTANCE.get().sealStreamLatency.close();
+            INSTANCE.get().updateStreamLatency.close();
+            INSTANCE.get().truncateStreamLatency.close();
+            INSTANCE.set(null);
+        }
     }
 }

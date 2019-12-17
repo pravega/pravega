@@ -463,8 +463,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamStore.close();
 
             // Close metrics.
-            StreamMetrics.getInstance().close();
-            TransactionMetrics.getInstance().close();
+            StreamMetrics.reset();
+            TransactionMetrics.reset();
 
             log.info("Finishing controller service shutDown");
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);

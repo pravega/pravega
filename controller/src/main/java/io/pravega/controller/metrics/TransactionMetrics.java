@@ -36,7 +36,7 @@ import static io.pravega.shared.MetricsTags.transactionTags;
 /**
  * Class to encapsulate the logic to report Controller service metrics for Transactions.
  */
-public final class TransactionMetrics extends AbstractControllerMetrics implements AutoCloseable {
+public final class TransactionMetrics extends AbstractControllerMetrics {
 
     private static final AtomicReference<TransactionMetrics> INSTANCE = new AtomicReference<>();
 
@@ -212,16 +212,17 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
         DYNAMIC_LOGGER.reportGaugeValue(OPEN_TRANSACTIONS, ongoingTransactions, streamTags(scope, streamName));
     }
 
-    @Override
-    public void close() {
-        createTransactionLatency.close();
-        createTransactionSegmentsLatency.close();
-        commitTransactionLatency.close();
-        commitTransactionSegmentsLatency.close();
-        committingTransactionLatency.close();
-        abortTransactionLatency.close();
-        abortTransactionSegmentsLatency.close();
-        abortingTransactionLatency.close();
-        INSTANCE.set(null);
+    public static synchronized void reset() {
+        if (INSTANCE.get() != null) {
+            INSTANCE.get().createTransactionLatency.close();
+            INSTANCE.get().createTransactionSegmentsLatency.close();
+            INSTANCE.get().commitTransactionLatency.close();
+            INSTANCE.get().commitTransactionSegmentsLatency.close();
+            INSTANCE.get().committingTransactionLatency.close();
+            INSTANCE.get().abortTransactionLatency.close();
+            INSTANCE.get().abortTransactionSegmentsLatency.close();
+            INSTANCE.get().abortingTransactionLatency.close();
+            INSTANCE.set(null);
+        }
     }
 }
