@@ -185,8 +185,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             checkpointStore = CheckpointStoreFactory.create(storeClient);
 
             // Initialize Stream and Transaction metrics.
-            StreamMetrics.getInstance();
-            TransactionMetrics.getInstance();
+            StreamMetrics.initialize();
+            TransactionMetrics.initialize();
 
             // On each controller process restart, we use a fresh hostId,
             // which is a combination of hostname and random GUID.

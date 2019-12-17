@@ -19,6 +19,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -142,6 +144,9 @@ public abstract class RequestHandlersTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
+
         long createTimestamp = System.currentTimeMillis();
 
         // add a host in zk
@@ -161,6 +166,8 @@ public abstract class RequestHandlersTest {
         streamStore.close();
         zkClient.close();
         zkServer.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }
 

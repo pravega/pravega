@@ -15,6 +15,8 @@ import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
@@ -114,6 +116,8 @@ public abstract class TimeoutServiceTest {
                 SegmentHelperMock.getSegmentHelperMock(), executor, hostId, TimeoutServiceConfig.defaultConfig(),
                 new LinkedBlockingQueue<>(5), GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         // Create TimeoutService
         timeoutService = (TimerWheelTimeoutService) streamTransactionMetadataTasks.getTimeoutService();
@@ -147,6 +151,8 @@ public abstract class TimeoutServiceTest {
         client.close();
         storeClient.close();
         zkTestServer.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
     }
 
     @Test(timeout = 10000)

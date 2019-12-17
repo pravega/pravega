@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.metrics;
 
+import com.google.common.base.Preconditions;
 import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
@@ -57,10 +58,22 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
     }
 
-    public static synchronized StreamMetrics getInstance() {
+    /**
+     * Mandatory call to initialize the singleton object.
+     */
+    public static synchronized void initialize() {
         if (INSTANCE.get() == null) {
             INSTANCE.set(new StreamMetrics());
         }
+    }
+
+    /**
+     * Get the singleton {@link StreamMetrics} instance. It is mandatory to call initialize before invoking this method.
+     *
+     * @return StreamMetrics instance.
+     */
+    public static StreamMetrics getInstance() {
+        Preconditions.checkState(INSTANCE.get() != null, "You need call initialize before using this class.");
         return INSTANCE.get();
     }
 
@@ -232,6 +245,9 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         DYNAMIC_LOGGER.reportGaugeValue(SEGMENTS_MERGES, merges, streamTags(scope, streamName));
     }
 
+    /**
+     * Closes all the OpsStatLogger objects and cleans up the instance.
+     */
     public static synchronized void reset() {
         if (INSTANCE.get() != null) {
             INSTANCE.get().createStreamLatency.close();

@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.metrics;
 
+import com.google.common.base.Preconditions;
 import io.pravega.shared.metrics.OpStatsLogger;
 
 import java.time.Duration;
@@ -60,10 +61,22 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         abortingTransactionLatency = STATS_LOGGER.createStats(ABORTING_TRANSACTION_LATENCY);
     }
 
-    public static synchronized TransactionMetrics getInstance() {
+    /**
+     * Mandatory call to initialize the singleton object.
+     */
+    public static synchronized void initialize() {
         if (INSTANCE.get() == null) {
             INSTANCE.set(new TransactionMetrics());
         }
+    }
+
+    /**
+     * Get the singleton {@link TransactionMetrics} instance. It is mandatory to call initialize before invoking this method.
+     *
+     * @return StreamMetrics instance.
+     */
+    public static TransactionMetrics getInstance() {
+        Preconditions.checkState(INSTANCE.get() != null, "You need call initialize before using this class.");
         return INSTANCE.get();
     }
 

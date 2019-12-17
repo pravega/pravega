@@ -17,6 +17,8 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -109,6 +111,8 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
 
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -139,6 +143,8 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         storeClient.close();
         zkClient.close();
         zkServer.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
     }
 
     @Test

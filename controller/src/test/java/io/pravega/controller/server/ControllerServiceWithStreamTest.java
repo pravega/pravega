@@ -17,6 +17,8 @@ import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -129,6 +131,8 @@ public abstract class ControllerServiceWithStreamTest {
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
         consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks, segmentHelperMock, executor, null);
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
     }
 
     abstract StreamMetadataStore getStore();
@@ -141,6 +145,8 @@ public abstract class ControllerServiceWithStreamTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }
 

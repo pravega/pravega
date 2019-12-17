@@ -13,6 +13,8 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -79,6 +81,8 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         Cluster mockCluster = mock(Cluster.class);
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
@@ -97,5 +101,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
             streamTransactionMetadataTasks.close();
         }
         streamStore.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
     }
 }

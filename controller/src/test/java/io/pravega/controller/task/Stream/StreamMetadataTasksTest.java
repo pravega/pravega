@@ -24,6 +24,8 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -161,6 +163,8 @@ public abstract class StreamMetadataTasksTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, segmentHelperMock, executor, "host", 
                 new GrpcAuthHelper(authEnabled, "key", 300));
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),
@@ -205,6 +209,8 @@ public abstract class StreamMetadataTasksTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
