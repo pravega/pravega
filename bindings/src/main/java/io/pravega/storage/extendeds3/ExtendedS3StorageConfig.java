@@ -33,6 +33,7 @@ public class ExtendedS3StorageConfig {
     public static final Property<Boolean> USENONEMATCH = Property.named("useNoneMatch", false);
 
     private static final String COMPONENT_CODE = "extendeds3";
+    private static final String PATH_SEPARATOR = "/";
 
     //endregion
 
@@ -91,7 +92,8 @@ public class ExtendedS3StorageConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private ExtendedS3StorageConfig(TypedProperties properties) throws ConfigurationException {
-        this.root = properties.get(ROOT);
+        String givenRoot = properties.get(ROOT);
+        this.root = givenRoot.endsWith(PATH_SEPARATOR) ? givenRoot : givenRoot + PATH_SEPARATOR;
         this.accessKey = properties.get(ACCESS_KEY_ID);
         this.secretKey = properties.get(SECRET_KEY);
         this.url = java.net.URI.create(properties.get(URI));

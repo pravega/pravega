@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.util.ArrayDeque;
@@ -49,6 +50,7 @@ public class WriteQueueTests {
 
         int expectedSize = 0;
         long firstItemTime = 0;
+        val writeResults = new ArrayList<CompletableFuture<LogAddress>>();
         for (int i = 0; i < ITEM_COUNT; i++) {
             time.addAndGet(timeIncrement);
             if (i == 0) {
@@ -56,15 +58,26 @@ public class WriteQueueTests {
             }
 
             int writeSize = i * 10000;
-            q.add(new Write(new ByteArraySegment(new byte[writeSize]), new TestWriteLedger(i), CompletableFuture.completedFuture(null)));
+            val writeResult = new CompletableFuture<LogAddress>();
+            q.add(new Write(new ByteArraySegment(new byte[writeSize]), new TestWriteLedger(i), writeResult));
+            writeResults.add(writeResult);
             expectedSize += writeSize;
 
+            q.removeFinishedWrites();
             val stats = q.getStatistics();
             val expectedFillRatio = (double) expectedSize / stats.getSize() / BookKeeperConfig.MAX_APPEND_LENGTH;
             val expectedProcTime = (time.get() - firstItemTime) / AbstractTimer.NANOS_TO_MILLIS;
             Assert.assertEquals("Unexpected getSize.", i + 1, stats.getSize());
             Assert.assertEquals("Unexpected getAverageFillRate.", expectedFillRatio, stats.getAverageItemFillRatio(), 0.01);
             Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis.", expectedProcTime, stats.getExpectedProcessingTimeMillis());
+        }
+
+        // Now verify the stats are also updated when finishing writes.
+        for (int i = 0; i < writeResults.size(); i++) {
+            writeResults.get(i).complete(null);
+            val cs = q.removeFinishedWrites();
+            Assert.assertEquals("Unexpected number of removed items", 1, cs.getRemovedCount());
+            Assert.assertEquals("Unexpected size after removing " + (i + 1), ITEM_COUNT - i - 1, q.getStatistics().getSize());
         }
     }
 
@@ -130,7 +143,7 @@ public class WriteQueueTests {
             if (!write.isDone()) {
                 val result1 = q.removeFinishedWrites();
                 Assert.assertEquals("Unexpected value from removeFinishedWrites when there were writes left in the queue.",
-                        WriteQueue.CleanupStatus.QueueNotEmpty, result1);
+                        WriteQueue.CleanupStatus.QueueNotEmpty, result1.getStatus());
                 val stats1 = q.getStatistics();
                 Assert.assertEquals("Unexpected size after removeFinishedWrites with no effect.", writes.size() + 1, stats1.getSize());
 
@@ -150,7 +163,7 @@ public class WriteQueueTests {
 
             val result2 = q.removeFinishedWrites();
             val expectedResult = writes.isEmpty() ? WriteQueue.CleanupStatus.QueueEmpty : WriteQueue.CleanupStatus.QueueNotEmpty;
-            Assert.assertEquals("Unexpected result from removeFinishedWrites.", expectedResult, result2);
+            Assert.assertEquals("Unexpected result from removeFinishedWrites.", expectedResult, result2.getStatus());
             val stats2 = q.getStatistics();
             Assert.assertEquals("Unexpected size after removeFinishedWrites.", writes.size(), stats2.getSize());
             Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis after clear.", expectedElapsed, stats2.getExpectedProcessingTimeMillis());
@@ -162,7 +175,7 @@ public class WriteQueueTests {
         w3.fail(new IntentionalException(), true);
         val result3 = q.removeFinishedWrites();
         Assert.assertEquals("Unexpected value from removeFinishedWrites when there were failed writes.",
-                WriteQueue.CleanupStatus.WriteFailed, result3);
+                WriteQueue.CleanupStatus.WriteFailed, result3.getStatus());
 
     }
 

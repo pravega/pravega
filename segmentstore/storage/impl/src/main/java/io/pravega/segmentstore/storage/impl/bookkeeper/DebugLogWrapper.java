@@ -16,6 +16,8 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
+import io.pravega.segmentstore.storage.WriteSettings;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -156,8 +158,10 @@ public class DebugLogWrapper implements AutoCloseable {
         }
 
         @Override
-        public int getMaxAppendLength() {
-            return BookKeeperConfig.MAX_APPEND_LENGTH;
+        public WriteSettings getWriteSettings() {
+            return new WriteSettings(BookKeeperConfig.MAX_APPEND_LENGTH,
+                    Duration.ofMillis(BookKeeperConfig.BK_WRITE_TIMEOUT.getDefaultValue()),
+                    BookKeeperConfig.MAX_OUTSTANDING_BYTES.getDefaultValue());
         }
 
         @Override
@@ -168,6 +172,11 @@ public class DebugLogWrapper implements AutoCloseable {
         @Override
         public QueueStats getQueueStatistics() {
             return null;
+        }
+
+        @Override
+        public void registerQueueStateChangeListener(ThrottleSourceListener listener) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

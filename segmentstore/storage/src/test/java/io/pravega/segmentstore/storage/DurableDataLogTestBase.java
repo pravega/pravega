@@ -9,12 +9,14 @@
  */
 package io.pravega.segmentstore.storage;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -26,6 +28,9 @@ import java.util.Random;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -57,6 +62,12 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
+
+            // Check that we cannot append data exceeding the max limit.
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "append() worked with buffer exceeding max size",
+                    () -> log.append(new ByteArraySegment(new byte[log.getWriteSettings().getMaxWriteLength() + 1]), TIMEOUT),
+                    ex -> ex instanceof WriteTooLongException);
 
             // Only verify sequence number monotonicity. We'll verify reads in its own test.
             LogAddress prevAddress = null;
@@ -376,6 +387,46 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
         }
     }
 
+    /**
+     * Tests the ability to register a {@link ThrottleSourceListener} and notify it of updates.
+     * @throws Exception If an error occurred.
+     */
+    @Test
+    public void testRegisterQueueStateListener() throws Exception {
+        val listener = new TestThrottleSourceListener();
+        try (DurableDataLog log = createDurableDataLog()) {
+            log.initialize(TIMEOUT);
+            log.registerQueueStateChangeListener(listener);
+
+            // Only verify sequence number monotonicity. We'll verify reads in its own test.
+            int writeCount = getWriteCount();
+            for (int i = 0; i < writeCount; i++) {
+                log.append(new ByteArraySegment(getWriteData()), TIMEOUT).join();
+            }
+
+            // Verify the correct number of invocations.
+            TestUtils.await(
+                    () -> listener.getCount() == writeCount,
+                    10,
+                    TIMEOUT.toMillis());
+
+            // Verify that the listener is unregistered when closed.
+            listener.close();
+            log.append(new ByteArraySegment(getWriteData()), TIMEOUT).join();
+            try {
+                TestUtils.await(
+                        () -> listener.getCount() > writeCount,
+                        10,
+                        50);
+                Assert.fail("Listener's count was updated after it was closed.");
+            } catch (TimeoutException tex) {
+                // This is expected. We do not want our condition to hold true.
+            }
+            log.registerQueueStateChangeListener(listener); // This should have no effect as it's already closed.
+            Assert.assertFalse("Not expected the listener to have been notified after closing.", listener.wasNotifiedWhenClosed());
+        }
+    }
+
     //endregion
 
     //region Abstract methods.
@@ -456,6 +507,43 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected sequence number.", expected.getKey().getSequence(), nextItem.getAddress().getSequence());
             val actualPayload = StreamHelpers.readAll(nextItem.getPayload(), nextItem.getLength());
             Assert.assertArrayEquals("Unexpected payload for sequence number " + expected.getKey(), expected.getValue(), actualPayload);
+        }
+    }
+
+    //endregion
+
+    //region TestThrottleSourceListener
+
+    private static class TestThrottleSourceListener implements ThrottleSourceListener {
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private final AtomicInteger count = new AtomicInteger();
+        private final AtomicBoolean notifyWhenClosed = new AtomicBoolean(false);
+
+        void close() {
+            this.closed.set(true);
+        }
+
+        boolean wasNotifiedWhenClosed() {
+            return this.notifyWhenClosed.get();
+        }
+
+        int getCount() {
+            return this.count.get();
+        }
+
+        @Override
+        public void notifyThrottleSourceChanged() {
+            if (this.closed.get()) {
+                this.notifyWhenClosed.set(true);
+            }
+
+            Exceptions.checkNotClosed(this.closed.get(), this);
+            this.count.incrementAndGet();
+        }
+
+        @Override
+        public boolean isClosed() {
+            return this.closed.get();
         }
     }
 
