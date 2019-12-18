@@ -22,6 +22,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -116,6 +118,8 @@ public abstract class ScaleRequestHandlerTest {
 
     @Before
     public void setup() throws Exception {
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
         zkServer = new TestingServerStarter().start();
         zkServer.start();
 
@@ -175,6 +179,8 @@ public abstract class ScaleRequestHandlerTest {
         streamStore.close();
         zkClient.close();
         zkServer.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
