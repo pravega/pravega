@@ -4,7 +4,7 @@ import io.pravega.controller.server.rest.generated.api.*;
 import io.pravega.controller.server.rest.generated.model.*;
 
 import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
-
+import io.pravega.controller.server.rest.generated.model.CreateEventRequest;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
@@ -40,4 +40,6 @@ public abstract class ScopesApiService {
     public abstract Response listStreams(String scopeName, String showInternalStreams,SecurityContext securityContext) throws NotFoundException;
     public abstract Response updateStream(String scopeName,String streamName,UpdateStreamRequest updateStreamRequest,SecurityContext securityContext) throws NotFoundException;
     public abstract Response updateStreamState(String scopeName,String streamName,StreamState updateStreamStateRequest,SecurityContext securityContext) throws NotFoundException;
+    public abstract Response getEvent(SecurityContext securityContext) throws NotFoundException;
+    public abstract Response createEvent(CreateEventRequest createEventRequest,SecurityContext securityContext) throws NotFoundException;
 }

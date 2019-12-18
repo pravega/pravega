@@ -16,8 +16,10 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
@@ -32,6 +34,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,6 +63,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @Getter(AccessLevel.PACKAGE)
     private final PravegaTablesStoreHelper storeHelper;
     private final ZkOrderedStore orderer;
+    private LocalController localController;
+    private final CountDownLatch controllerReadyLatch;
 
     private final ScheduledExecutorService executor;
     @VisibleForTesting
@@ -79,6 +84,21 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         this.counter = new ZkInt96Counter(zkStoreHelper);
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
         this.executor = executor;
+        this.controllerReadyLatch = new CountDownLatch(1);
+        // GRPCServerConfig grpcServerConfig = serviceConfig.getGRPCServerConfig().get();
+        // setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
+        //            grpcServerConfig.getTokenSigningKey()));
+    }
+
+    @VisibleForTesting
+    public LocalController getController() throws InterruptedException {
+        controllerReadyLatch.await();
+        return this.localController;
+    }
+
+    private void setController(LocalController controller) {
+        this.localController = controller;
+        controllerReadyLatch.countDown();
     }
 
     @VisibleForTesting 
@@ -288,6 +308,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                final String scopeName,
                                                final String streamName,
                                                final String message) {
+        // return localController.createEvent( routingKey, scopeName, streamName, message);
         return null;
     }
 
@@ -304,6 +325,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                               final String scopeName,
                                               final String streamName,
                                               final Long segmentNumber) {
+        // return localController.createEvent(routingKey, scopeName, streamName, segmentNumber);
         return null;
     }
 }

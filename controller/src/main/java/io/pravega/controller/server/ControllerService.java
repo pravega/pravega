@@ -584,6 +584,7 @@ public class ControllerService {
      */
     public CompletableFuture<Void> createEvent(final String routingKey, final String scopeName, final String streamName, final String message ) {
         // Exceptions.checkNotNullOrEmpty(routingKey, "routingKey");
+        log.error("ControllerService-createEvent-begin");
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
         Exceptions.checkNotNullOrEmpty(message, "message");
@@ -601,6 +602,7 @@ public class ControllerService {
 //                    CreateEventStatus.Status.INVALID_EVENT_NAME).build());
 //        }
 //        return streamStore.createEvent(routingKey, scopeName, streamName, message);
+        log.error("ControllerService-createEvent-end");
         return null;
     }
 
@@ -614,24 +616,8 @@ public class ControllerService {
      * @return Status of create event.
      */
     public CompletableFuture<String> getEvent(final String routingKey, final String scopeName, final String streamName, final Long segmentNumber) {
-        Exceptions.checkNotNullOrEmpty(routingKey, "routingKey");
-        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
-        Exceptions.checkNotNullOrEmpty(streamName, "streamName");
-        try {
-            NameUtils.validateScopeName(scopeName);
-            NameUtils.validateStreamName(streamName);
-        } catch (Exception e) {
-            // throw new ExecutionControl.NotImplementedException(e.getMessage());
-            return null;
-        }
-
-//        catch (IllegalArgumentException | NullPointerException e) {
-//            log.warn("Create event failed due to invalid name");
-//            return CompletableFuture.completedFuture(CreateEventStatus.newBuilder().setStatus(
-//                    CreateEventStatus.Status.INVALID_EVENT_NAME).build());
-//        }
-//        return streamStore.getEvent(routingKey, scopeName, streamName, segmentNumber);
-        return null;
+        log.error("ControllerService-getEvent-end");
+        return streamStore.getEvent(routingKey, scopeName, streamName, segmentNumber);
     }
     // End data operations
 

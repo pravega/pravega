@@ -4,8 +4,12 @@ import io.pravega.controller.server.rest.generated.model.*;
 import io.pravega.controller.server.rest.generated.api.ScopesApiService;
 import io.pravega.controller.server.rest.generated.api.factories.ScopesApiServiceFactory;
 
+import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
 import io.swagger.jaxrs.*;
+
 
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
@@ -286,4 +290,42 @@ public class ScopesApi  {
     throws NotFoundException {
         return delegate.updateStreamState(scopeName,streamName,updateStreamStateRequest,securityContext);
     }
+        @GET
+        @Path("/events")
+        @Produces({ "application/json" })
+        // @ApiOperation(
+        //        value = "", notes = "Retrieve event", response = GetEventResponse.class, tags = {  })
+        // @ApiResponses(value = {
+        //        @ApiResponse(
+        //                 code = 200, message = "Successfully retrieved the scope", response = GetEventResponse.class),
+
+        //         @ApiResponse(
+        //                 code = 404, message = "Scope not found", response = GetEventResponse.class),
+
+        //         @ApiResponse(
+        //                 code = 500, message = "Server error", response = GetEventResponse.class) })
+        public Response getEvent(SecurityContext securityContext) throws NotFoundException {
+               return delegate.getEvent(securityContext);
+        }
+
+
+        @POST
+        @Path("/events")
+        @Consumes({"application/json"})
+        @Produces({"application/json"})
+        // @ApiOperation(
+        //         value = "", notes = "Creates a new event", response = CreateEventResponse.class, tags = {})
+        // @ApiResponses(value = {
+        //        @ApiResponse(
+        //                code = 201, message = "Successfully created the event", response = CreateEventResponse.class),
+
+        //        @ApiResponse(
+        //                code = 409, message = "Event already exists", response = CreateEventResponse.class),
+
+        //        @ApiResponse(
+        //                code = 500, message = "Server error", response = CreateEventResponse.class)})
+        public Response createEvent(CreateEventRequest createEventRequest,SecurityContext securityContext) throws NotFoundException {
+             return delegate.createEvent(createEventRequest,securityContext);
+        }
+
 }

@@ -19,6 +19,7 @@ public class ApiV2 {
     /**
      * Stream data version 2.0 APIs.
      */
+/*
     @Path("/v1/events")
     @io.swagger.annotations.Api(description = "the events API")
     public interface EventsApi {
@@ -42,4 +43,5 @@ public class ApiV2 {
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
     }
+*/
 }

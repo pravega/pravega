@@ -22,6 +22,11 @@ import io.pravega.controller.server.AuthResourceRepresentation;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.ModelHelper;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEventRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEventResponse;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
@@ -747,5 +752,106 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             }
         }).thenApply(asyncResponse::resume)
                 .thenAccept(x -> LoggerHelpers.traceLeave(log, "getScalingEvents", traceId));
+    }
+
+
+    /**
+     * Implementation of getScope REST API.
+     *
+     * @param scopeName Scope Name.
+     * @param securityContext The security for API access.
+     * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing.
+     */
+    @Override
+    public void getEvent(final SecurityContext securityContext,
+                         final AsyncResponse asyncResponse) {
+        long traceId = LoggerHelpers.traceEnter(log, "getEvent");
+
+        try {
+            restAuthHelper.authenticateAuthorize(
+                    getAuthorizationHeader(),
+                    "event", READ);
+        } catch (AuthException e) {
+            log.warn("Get event failed due to authentication failure.");
+            asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
+            LoggerHelpers.traceLeave(log, "getEvent", traceId);
+            return;
+        }
+
+        controllerService.getEvent("", "_system", "foo", 0L)
+                .thenApply(scope -> {
+                    return Response.status(Status.OK).entity(GetEventResponse.newBuilder().build()).build();
+                })
+                .exceptionally( exception -> {
+                    if (exception.getCause() instanceof StoreException.DataNotFoundException) {
+                        log.warn("Event not found");
+                        return Response.status(Status.NOT_FOUND).build();
+                    } else {
+                        log.warn("getScope  failed with exception: {}", exception);
+                        return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+                    }
+                }).thenApply(asyncResponse::resume)
+                .thenAccept(x -> LoggerHelpers.traceLeave(log, "getEvent", traceId));
+    }
+
+    /**
+     * Implementation of createEvent REST API.
+     *
+     * @param createEventRequest  The object conforming to createEvent request json.
+     * @param securityContext     The security for API access.
+     * @param asyncResponse       AsyncResponse provides means for asynchronous server side response processing.
+     */
+    @Override
+    public void createEvent(final CreateEventRequest createEventRequest, final SecurityContext securityContext,
+                            final AsyncResponse asyncResponse) {
+        long traceId = LoggerHelpers.traceEnter(log, "createEvent");
+        try {
+            NameUtils.validateUserScopeName(createEventRequest.getScopeName());
+            NameUtils.validateUserStreamName(createEventRequest.getStreamName());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create event failed due to invalid scope name {} or stream name {}", 
+                    createEventRequest.getScopeName(), createEventRequest.getStreamName());
+            asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
+            LoggerHelpers.traceLeave(log, "createEvent", traceId);
+            return;
+        }
+
+        try {
+            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(),
+                    "/events", READ_UPDATE);
+        } catch (AuthException e) {
+            log.warn("Create event for scope {} and stream {} failed due to authentication failure {}.",
+                    createEventRequest.getScopeName(), createEventRequest.getStreamName(), e);
+            asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
+            LoggerHelpers.traceLeave(log, "createEvent", traceId);
+            return;
+        }
+
+        controllerService.createEvent(
+                createEventRequest.getRoutingKey(),
+                createEventRequest.getScopeName(),
+                createEventRequest.getStreamName(),
+                createEventRequest.getMessage()).thenApply(response -> {
+                    return Response.status(Status.CREATED).entity(CreateEventResponse.newBuilder().build()).build();
+/*
+            if (response.getStatus() == CreateEventStatus.Status.SUCCESS) {
+                log.info("Successfully created new event: {}", createEventRequest.getScopeName());
+                return Response.status(Status.CREATED).
+                        entity(CreateEventResponse.newBuilder().build()).build();
+            } else if (response.getStatus() == CreateEventStatus.Status.EVENT_EXISTS) {
+                log.warn("Event name: {} already exists", createEventRequest.getMessage());
+                return Response.status(Status.CONFLICT).build();
+            } else {
+                log.warn("Failed to create event for scope: {} and stream: {}",
+                        createEventRequest.getScopeName(), createEventRequest.getStreamName());
+                return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+            }
+*/
+        }).exceptionally(exception -> {
+            log.warn("createEvent for scope: {} stream: {} failed, exception: {}",
+                    createEventRequest.getScopeName(), createEventRequest.getStreamName(), exception);
+            return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+        }).thenApply(asyncResponse::resume)
+                .thenAccept(x -> LoggerHelpers.traceLeave(log, "createEvent", traceId));
     }
 }

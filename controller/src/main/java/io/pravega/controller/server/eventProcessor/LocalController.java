@@ -59,6 +59,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<String> getEvent(String routingKey, String scopeName, String streamName, Long segmentNumber) {
+        System.err.println("-----------------getEvent--------------------------");
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this);
         final Serializer<String> serializer = new JavaSerializer<>();
         final Random random = new Random();
@@ -73,6 +74,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Void> createEvent(String routingKey, String scopeName, String streamName, String message) {
+        System.err.println("----------------createEvent-----------------------");
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this);
         final Serializer<String> serializer = new JavaSerializer<>();
         final Random random = new Random();

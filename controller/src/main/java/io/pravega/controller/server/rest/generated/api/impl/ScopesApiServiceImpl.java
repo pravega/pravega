@@ -3,6 +3,7 @@ package io.pravega.controller.server.rest.generated.api.impl;
 import io.pravega.controller.server.rest.generated.api.*;
 import io.pravega.controller.server.rest.generated.model.*;
 
+import io.pravega.controller.server.rest.generated.model.CreateEventRequest;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
@@ -89,6 +90,16 @@ public class ScopesApiServiceImpl extends ScopesApiService {
     }
     @Override
     public Response updateStreamState(String scopeName, String streamName, StreamState updateStreamStateRequest, SecurityContext securityContext) throws NotFoundException {
+        // do some magic!
+        return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
+    }
+    @Override
+    public Response getEvent(SecurityContext securityContext) throws NotFoundException {
+        // do some magic!
+        return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
+    }
+    @Override
+    public Response createEvent(CreateEventRequest createEventRequest, SecurityContext securityContext) throws NotFoundException {
         // do some magic!
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }
