@@ -172,11 +172,14 @@ public interface StreamMetadataStore extends AutoCloseable {
      */
     CompletableFuture<CreateScopeStatus> createScope(final String scopeName);
 
-    CompletableFuture<CreateEventStatus> createEvent(String routingKey,
+    CompletableFuture<String> getEvent(String routingKey,
+                    String scopeName,
+                    String streamName,
+                    Long segmentNumber);
+    CompletableFuture<Void> createEvent(String routingKey,
                                                      String scopeName,
                                                      String streamName,
                                                      String message);
-
     /**
      * Deletes a Scope if contains no streams.
      *

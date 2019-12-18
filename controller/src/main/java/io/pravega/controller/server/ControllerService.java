@@ -570,6 +570,8 @@ public class ControllerService {
     }
 
     // End metrics reporting region
+
+
     // Begin data operations
     /**
      * Controller Service API to create event.
@@ -580,8 +582,8 @@ public class ControllerService {
      * @param message the raw data to be appended to stream
      * @return Status of create event.
      */
-    public CompletableFuture<CreateEventStatus> createEvent(final String routingKey, final String scopeName, final String streamName, final String message ) {
-        Exceptions.checkNotNullOrEmpty(routingKey, "routingKey");
+    public CompletableFuture<Void> createEvent(final String routingKey, final String scopeName, final String streamName, final String message ) {
+        // Exceptions.checkNotNullOrEmpty(routingKey, "routingKey");
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
         Exceptions.checkNotNullOrEmpty(message, "message");
@@ -602,6 +604,36 @@ public class ControllerService {
         return null;
     }
 
+    /**
+     * Controller Service API to create event.
+     *
+     * @param routingKey Name of routingKey to be used.
+     * @param scopeName Name of scope to be used.
+     * @param streamName Name of stream to be used.
+     * @param message the raw data to be appended to stream
+     * @return Status of create event.
+     */
+    public CompletableFuture<String> getEvent(final String routingKey, final String scopeName, final String streamName, final Long segmentNumber) {
+        Exceptions.checkNotNullOrEmpty(routingKey, "routingKey");
+        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
+        Exceptions.checkNotNullOrEmpty(streamName, "streamName");
+        try {
+            NameUtils.validateScopeName(scopeName);
+            NameUtils.validateStreamName(streamName);
+        } catch (Exception e) {
+            // throw new ExecutionControl.NotImplementedException(e.getMessage());
+            return null;
+        }
+
+//        catch (IllegalArgumentException | NullPointerException e) {
+//            log.warn("Create event failed due to invalid name");
+//            return CompletableFuture.completedFuture(CreateEventStatus.newBuilder().setStatus(
+//                    CreateEventStatus.Status.INVALID_EVENT_NAME).build());
+//        }
+//        return streamStore.getEvent(routingKey, scopeName, streamName, segmentNumber);
+        return null;
+    }
     // End data operations
+
 
 }

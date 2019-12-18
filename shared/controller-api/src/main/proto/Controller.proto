@@ -24,6 +24,8 @@ service ControllerService {
     rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
     rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
+    rpc getEvent(GetEventRequest) returns (GetEventResponse);
+    rpc createEvent(CreateEventRequest) returns (CreateEventResponse);
     /* Deprecated RPC: https://github.com/pravega/pravega/issues/3760 */
     rpc getSegmentsImmediatlyFollowing(SegmentId) returns(SuccessorResponse);
     rpc getSegmentsImmediatelyFollowing(SegmentId) returns(SuccessorResponse);
@@ -369,6 +371,40 @@ message TimestampFromWriter {
 }
 
 message TimestampResponse {
+    enum Status {
+        SUCCESS = 0;
+        INVALID_TIME = 1;
+        INVALID_POSITION = 2;
+        INTERNAL_ERROR = 3;
+    }
+    Status result = 1;
+}
+
+message CreateEventRequest {
+    string routingKey = 1;
+    string scopeName = 2;
+    string streamName = 3;
+    string message = 4;
+}
+
+message CreateEventResponse {
+    enum Status {
+        SUCCESS = 0;
+        INVALID_TIME = 1;
+        INVALID_POSITION = 2;
+        INTERNAL_ERROR = 3;
+    }
+    Status result = 1;
+}
+
+message GetEventRequest {
+    string routingKey = 1;
+    string scopeName = 2;
+    string streamName = 3;
+    int64 segmentNumber = 4;
+}
+
+message GetEventResponse {
     enum Status {
         SUCCESS = 0;
         INVALID_TIME = 1;

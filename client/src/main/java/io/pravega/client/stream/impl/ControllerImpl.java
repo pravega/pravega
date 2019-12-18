@@ -231,9 +231,10 @@ public class ControllerImpl implements Controller {
 
 
     @Override
-    public String getEvent(String routingKey, String scopeName, String streamName, Long segmentNumber) throws NotImplementedException {
+    public CompletableFuture<String> getEvent(String routingKey, String scopeName, String streamName, Long segmentNumber) throws NotImplementedException {
         throw new NotImplementedException("getEvent");
     }
+
     @Override
     public CompletableFuture<Void> createEvent(String routingKey, String scopeName, String streamName, String message) {
             return null;

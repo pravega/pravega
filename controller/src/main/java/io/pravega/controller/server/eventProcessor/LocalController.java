@@ -58,14 +58,17 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public String getEvent(String routingKey, String scopeName, String streamName, Long segmentNumber) {
+    public CompletableFuture<String> getEvent(String routingKey, String scopeName, String streamName, Long segmentNumber) {
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this);
         final Serializer<String> serializer = new JavaSerializer<>();
         final Random random = new Random();
         final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", serializer,
                 ReaderConfig.builder().build());
-        return reader.readNextEvent(-1).getEvent();
+        CompletableFuture<String> ackFuture = new CompletableFuture<String>();
+        String data = reader.readNextEvent(-1).getEvent();
+        ackFuture.complete(data);
+        return ackFuture;
     }
 
     @Override

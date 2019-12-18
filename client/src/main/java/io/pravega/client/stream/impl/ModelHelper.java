@@ -28,6 +28,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEventResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -423,5 +425,12 @@ public final class ModelHelper {
                                         .addAllValue(segmentRangeListEntry.getValue())
                                         .build())
                                 .collect(Collectors.toList()));
+    }
+    public static final GetEventResponse.Builder getEventResponse(String data) {
+       Preconditions.checkNotNull(data);
+       return GetEventResponse.newBuilder();
+    }
+    public static final CreateEventResponse.Builder createEventResponse() {
+       return CreateEventResponse.newBuilder();
     }
 }

@@ -29,6 +29,10 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEventRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEventResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -528,6 +532,46 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 responseObserver);
     }
     // endregion
+
+
+    // region data apis
+    @Override
+    public void getEvent(GetEventRequest request, StreamObserver<GetEventResponse> responseObserver) {
+        String routingKey = request.getRoutingKey();
+        String scopeName = request.getScopeName();
+        String streamName = request.getStreamName();
+        Long  segmentNumber = request.getSegmentNumber();
+        log.info("getEvent called for segment {} ", request.getSegmentNumber());
+        controllerService.getEvent(routingKey, scopeName, streamName, segmentNumber);
+        // authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+        //        AuthResourceRepresentation.ofStreamInScope(scopeName,
+        //                streamName), AuthHandler.Permissions.READ),
+        //        delegationToken -> controllerService.getEvent(routingKey, scopeName, streamName, segmentNumber)
+        //                .thenApply(ModelHelper::getEventResponse),
+        //        responseObserver);
+    }
+
+    @Override
+    public void createEvent(CreateEventRequest request, StreamObserver<CreateEventResponse> responseObserver) {
+        String routingKey = request.getRoutingKey();
+        String scopeName = request.getScopeName();
+        String streamName = request.getStreamName();
+        String message = request.getMessage();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createStream",
+                scopeName, streamName);
+        log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.", scopeName, streamName);
+        controllerService.createEvent(routingKey, scopeName, streamName, message);
+        // authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+        //        AuthResourceRepresentation.ofStreamInScope(scopeName, streamName), AuthHandler.Permissions.READ_UPDATE)
+        //                .thenApply(ModelHelper::createEventResponse),
+        //        delegationToken -> controllerService.createEvent(routingKey, scopeName, streamName, message)
+        //                .thenApply(response -> {
+        //                    // response.setDelegationToken(delegationToken);
+        //                    return response.build();
+        //                }),
+        //        responseObserver, requestTag);
+    }
+    //endregion
     
     private void logIfEmpty(String delegationToken, String requestName, String scopeName, String streamName) {
         if (isAuthEnabled() && Strings.isNullOrEmpty(delegationToken)) {
