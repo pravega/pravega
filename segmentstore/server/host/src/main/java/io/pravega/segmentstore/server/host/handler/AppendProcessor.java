@@ -57,8 +57,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import javax.annotation.concurrent.GuardedBy;
-import javax.annotation.concurrent.ThreadSafe;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
@@ -175,14 +173,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         long traceId = LoggerHelpers.traceEnter(log, "append", append);
         UUID id = append.getWriterId();
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
-        Preconditions.checkState(state != null, "Data from unexpected connection: %s.", id);
+        Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
         adjustOutstandingBytes(appendLength);
         Timer timer = new Timer();
         storeAppend(append, previousEventNumber)
                 .whenComplete((newLength, ex) -> {
-                    handleAppendResult(append, newLength, ex, timer);
+                    handleAppendResult(append, newLength, ex, state, timer);
                     LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, ex);
                 })
                 .whenComplete((v, e) -> {
@@ -208,14 +206,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
-    private void handleAppendResult(final Append append, Long newWriteOffset, Throwable exception, Timer elapsedTimer) {
+    private void handleAppendResult(final Append append, Long newWriteOffset, Throwable exception, WriterState state, Timer elapsedTimer) {
+        Preconditions.checkNotNull(state, "state");
         boolean success = exception == null;
         try {
             boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
 
-            WriterState state = this.writerStates.getOrDefault(Pair.of(append.getSegment(), append.getWriterId()), null);
             if (success) {
-                Preconditions.checkState(state != null, "Synchronization error while processing append: %s. Unable to send ack.", append);
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
                     long previousLastAcked = state.appendSuccessful(append.getEventNumber());
@@ -226,22 +223,33 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         connection.send(dataAppendedAck);
                     }
                 }
+
+                if (append.getEventNumber() > state.getLowestFailedEventNumber()) {
+                    // The Store should not be successfully completing an Append that followed a failed one. If somehow
+                    // this happened, record it in the log.
+                    log.warn("Acknowledged a successful append after a failed one. Segment={}, WriterId={}, FailedEventNumber={}, AppendEventNumber={}",
+                            append.getSegment(), append.getWriterId(), state.getLowestFailedEventNumber(), append.getEventNumber());
+                }
             } else {
                 if (conditionalFailed) {
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
-                    if (state != null) {
+                    synchronized (state.getAckLock()) {
                         // Revert the state to the last known good one. This is needed because we do not close the connection
                         // for offset-conditional append failures, hence we must revert the effects of the failed append.
-                        state.conditionalAppendFailed();
+                        state.conditionalAppendFailed(append.getEventNumber());
+                        connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber(), append.getRequestId()));
                     }
-                    connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber(), append.getRequestId()));
                 } else {
-                    // Clear the state in case of error.
-                    this.writerStates.remove(Pair.of(append.getSegment(), append.getWriterId()));
-                    handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
-                            "appending data", exception);
+                    // Record the exception handling into the Writer State. It will be executed  once all the current
+                    // in-flight appends are completed.
+                    state.appendFailed(append.getEventNumber(), () ->
+                            handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
+                                    "appending data", exception));
                 }
             }
+
+            // After every append completes, check the WriterState and trigger any error handlers that are now eligible for execution.
+            executeDelayedErrorHandler(state, append.getSegment(), append.getWriterId());
         } catch (Throwable e) {
             success = false;
             handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "handling append result", e);
@@ -250,6 +258,37 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         if (success) {
             // Record any necessary metrics or statistics, but after we have sent the ack back and initiated the next append.
             this.statsRecorder.recordAppend(append.getSegment(), append.getDataLength(), append.getEventCount(), elapsedTimer.getElapsed());
+        }
+    }
+
+    /**
+     * Inquires the {@link WriterState} for any eligible {@link WriterState.DelayedErrorHandler} that can be executed
+     * right now. If so, invokes all eligible handlers synchronously. If there are no more handlers remaining after this,
+     * the {@link WriterState} is unregistered, which would essentially force the client to reinvoke {@link #setupAppend}.
+     *
+     * @param state       The {@link WriterState} to query.
+     * @param segmentName The name of the Segment for which the append failed.
+     * @param writerId    The Writer Id of the Append.
+     */
+    private void executeDelayedErrorHandler(WriterState state, String segmentName, UUID writerId) {
+        WriterState.DelayedErrorHandler h = state.fetchEligibleDelayedErrorHandler();
+        if (h == null) {
+            // This WriterState is healthy - nothing to do.
+            return;
+        }
+
+        synchronized (state.getAckLock()) {
+            try {
+                // Execute all eligible delayed handlers. Note that this may be an empty list, which is OK - it means
+                // the WriterState is not healthy but there's nothing yet to execute.
+                h.getHandlersToExecute().forEach(Runnable::run);
+            } finally {
+                if (h.getHandlersRemaining() == 0) {
+                    // We've executed all handlers and have none remaining. Time to clean up this WriterState and force
+                    // the Client to reinitialize it via setupAppend().
+                    this.writerStates.remove(Pair.of(segmentName, writerId));
+                }
+            }
         }
     }
 
@@ -311,83 +350,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Error (Segment = '{}', Operation = 'append'): {}.", segment, u.toString());
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
-        }
-    }
-
-    //endregion
-
-    //region WriterState
-
-    @ThreadSafe
-    private static class WriterState {
-        @Getter
-        private final Object ackLock = new Object();
-        @GuardedBy("this")
-        private long lastStoredEventNumber;
-        @GuardedBy("this")
-        private long lastAckedEventNumber;
-        @GuardedBy("this")
-        private long inFlightCount;
-
-        WriterState(long initialEventNumber) {
-            this.inFlightCount = 0;
-            this.lastStoredEventNumber = initialEventNumber;
-            this.lastAckedEventNumber = initialEventNumber;
-        }
-
-        /**
-         * Invoked when a new append is initiated.
-         *
-         * @param eventNumber The Append's Event Number.
-         * @return The previously attempted Event Number.
-         */
-        synchronized long beginAppend(long eventNumber) {
-            long previousEventNumber = this.lastStoredEventNumber;
-            Preconditions.checkState(eventNumber >= previousEventNumber, "Event was already appended.");
-            this.lastStoredEventNumber = eventNumber;
-            this.inFlightCount++;
-            return previousEventNumber;
-        }
-
-        /**
-         * Invoked when a conditional append has failed due to {@link BadOffsetException}. If no more appends are in the
-         * pipeline, then the Last Stored Event Number is reverted to the Last (Successfully) Acked Event Number.
-         */
-        synchronized void conditionalAppendFailed() {
-            this.inFlightCount--;
-            if (this.inFlightCount == 0) {
-                this.lastStoredEventNumber = this.lastAckedEventNumber;
-            }
-        }
-
-        /**
-         * Invoked when an append has been successfully stored and is about to be ack-ed to the Client.
-         *
-         * This method is designed to be invoked immediately before sending a {@link DataAppended} ack to the client,
-         * however both its invocation and the ack must be sent atomically as the Client expects acks to arrive in order.
-         *
-         * When composing a {@link DataAppended} ack, the value passed to eventNumber should be passed as
-         * {@link DataAppended#getEventNumber()} and the return value from this method should be passed as
-         * {@link DataAppended#getPreviousEventNumber()}.
-         *
-         * @param eventNumber The Append's Event Number. This should correspond to the last successful append in the Store
-         *                    and will be sent in the {@link DataAppended} ack back to the Client. This value will be
-         *                    remembered and returned upon the next invocation of this method. If this value is less
-         *                    than that of a previous invocation of this method (due to out-of-order acks from the Store),
-         *                    it will have no effect as it has already been ack-ed as part of a previous call.
-         * @return The last successful Append's Event Number (prior to this one). This is the value of eventNumber for
-         * the previous invocation of this method.
-         */
-        synchronized long appendSuccessful(long eventNumber) {
-            this.inFlightCount--;
-            long previousLastAcked = this.lastAckedEventNumber;
-            this.lastAckedEventNumber = Math.max(previousLastAcked, eventNumber);
-            return previousLastAcked;
-        }
-
-        @Override
-        public synchronized String toString() {
-            return String.format("Stored=%s, Acked=%s", this.lastStoredEventNumber, this.lastAckedEventNumber);
         }
     }
 

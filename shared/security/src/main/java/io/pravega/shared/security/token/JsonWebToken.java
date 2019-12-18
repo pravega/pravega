@@ -18,11 +18,8 @@ import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.SignatureException;
 import io.pravega.auth.InvalidTokenException;
-import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
 import java.time.Instant;
 import java.util.Date;
@@ -143,7 +140,7 @@ public class JsonWebToken {
 
     @VisibleForTesting
     static Claims parseClaims(String token, byte[] signingKey) throws TokenExpiredException,
-            InvalidTokenException, TokenException {
+            InvalidTokenException {
 
         if (Strings.isNullOrEmpty(token)) {
             throw new InvalidTokenException("Token is null or empty");
@@ -159,10 +156,8 @@ public class JsonWebToken {
             return claimsJws.getBody();
         } catch (ExpiredJwtException e) {
             throw new TokenExpiredException(e);
-        } catch (MalformedJwtException | SignatureException e) {
-            throw new InvalidTokenException(e);
         } catch (JwtException e) {
-            throw new TokenException(e);
+            throw new InvalidTokenException(e);
         }
     }
 
@@ -173,10 +168,12 @@ public class JsonWebToken {
      * @param signingKey the key that was used for signing the token
      * @return a Set view of the mappings contained in this Claims map extracted from the token.
      *
-     * @throws TokenException if any failure in parsing the token or extracting the claims occurs
+     * @throws TokenExpiredException if the token has expired
+     * @throws InvalidTokenException if any failure in parsing the token, verifying the signature or
+     *                               extracting the claims occurs
      */
     public static Set<Map.Entry<String, Object>> fetchClaims(String token, byte[] signingKey)
-            throws TokenException {
+            throws TokenExpiredException, InvalidTokenException {
         return parseClaims(token, signingKey).entrySet();
     }
 }

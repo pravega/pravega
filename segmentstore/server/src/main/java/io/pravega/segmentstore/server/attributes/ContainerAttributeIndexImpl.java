@@ -17,8 +17,6 @@ import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
-import io.pravega.segmentstore.storage.Cache;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.Storage;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -41,7 +39,6 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
     private final ContainerMetadata containerMetadata;
     private final Storage storage;
     private final AttributeIndexConfig config;
-    private final Cache cache;
     private final CacheManager cacheManager;
     @GuardedBy("attributeIndices")
     private final HashMap<Long, CompletableFuture<AttributeIndex>> attributeIndices;
@@ -58,16 +55,14 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
      *
      * @param containerMetadata The Segment Container's Metadata.
      * @param storage           A Storage adapter which can be used to access the Attribute Segment.
-     * @param cacheFactory      A CacheFactory that can be used to create Caches for storing data into.
      * @param cacheManager      The CacheManager to use for cache lifecycle management.
      * @param config            Attribute Index Configuration.
      * @param executor          An Executor to run async tasks.
      */
-    ContainerAttributeIndexImpl(ContainerMetadata containerMetadata, Storage storage, CacheFactory cacheFactory,
-                                CacheManager cacheManager, AttributeIndexConfig config, ScheduledExecutorService executor) {
+    ContainerAttributeIndexImpl(ContainerMetadata containerMetadata, Storage storage, CacheManager cacheManager,
+                                AttributeIndexConfig config, ScheduledExecutorService executor) {
         this.containerMetadata = Preconditions.checkNotNull(containerMetadata, "containerMetadata");
         this.storage = Preconditions.checkNotNull(storage, "storage");
-        this.cache = cacheFactory.getCache(String.format("Container_%d_Attributes", containerMetadata.getContainerId()));
         this.cacheManager = Preconditions.checkNotNull(cacheManager, "cacheManager");
         this.config = Preconditions.checkNotNull(config, "config");
         this.executor = Preconditions.checkNotNull(executor, "executor");
@@ -83,8 +78,7 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
-            closeIndices(null, false); // This will close all registered indices, without cleaning the cache.
-            this.cache.close();
+            closeIndices(null);
             log.info("{}: Closed.", this.traceObjectId);
         }
     }
@@ -106,7 +100,7 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
         AtomicReference<SegmentAttributeBTreeIndex> toInitialize = new AtomicReference<>();
         synchronized (this.attributeIndices) {
             result = this.attributeIndices.computeIfAbsent(streamSegmentId, id -> {
-                toInitialize.set(new SegmentAttributeBTreeIndex(sm, this.storage, this.cache, this.config, this.executor));
+                toInitialize.set(new SegmentAttributeBTreeIndex(sm, this.storage, this.cacheManager.getCacheStorage(), this.config, this.executor));
                 return new CompletableFuture<>();
             });
         }
@@ -149,7 +143,7 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
     @Override
     public void cleanup(Collection<Long> segmentIds) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        closeIndices(segmentIds, true);
+        closeIndices(segmentIds);
         log.info("{}: Cleaned up Attribute Indices for {} Segment(s).", this.traceObjectId, segmentIds == null ? "all" : segmentIds.size());
     }
 
@@ -165,7 +159,7 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
         result.completeExceptionally(ex);
     }
 
-    private void closeIndices(Collection<Long> segmentIds, boolean cleanCache) {
+    private void closeIndices(Collection<Long> segmentIds) {
         synchronized (this.attributeIndices) {
             if (segmentIds == null) {
                 segmentIds = new ArrayList<>(this.attributeIndices.keySet());
@@ -180,18 +174,18 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
                 if (Futures.isSuccessful(indexFuture)) {
                     // Already initialized. We should try as much as we can to clean up synchronously to prevent concurrent
                     // calls from creating new indices which could be affected by us cleaning the cache at the same time.
-                    closeIndex((SegmentAttributeBTreeIndex) indexFuture.join(), cleanCache);
+                    closeIndex((SegmentAttributeBTreeIndex) indexFuture.join());
                 } else {
                     // Close it when we're done initializing.
-                    indexFuture.thenAcceptAsync(index -> closeIndex((SegmentAttributeBTreeIndex) index, cleanCache), this.executor);
+                    indexFuture.thenAcceptAsync(index -> closeIndex((SegmentAttributeBTreeIndex) index), this.executor);
                 }
             }
         }
     }
 
-    private void closeIndex(SegmentAttributeBTreeIndex ai, boolean cleanCache) {
+    private void closeIndex(SegmentAttributeBTreeIndex ai) {
         this.cacheManager.unregister(ai);
-        ai.close(cleanCache);
+        ai.close();
     }
 
     //endregion

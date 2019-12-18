@@ -9,6 +9,8 @@
  */
 package io.pravega.client.segment.impl;
 
+import com.google.common.annotations.VisibleForTesting;
+import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -36,6 +38,7 @@ import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
@@ -115,14 +118,17 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             throw new NoSuchSegmentException(reply.toString());
         } else if (reply instanceof WrongHost) {
             throw new ConnectionFailedException(reply.toString());
+        } else if (reply instanceof WireCommands.SegmentIsTruncated) {
+            throw new ConnectionFailedException(new SegmentTruncatedException(reply.toString()));
         } else if (reply instanceof WireCommands.AuthTokenCheckFailed) {
             WireCommands.AuthTokenCheckFailed authTokenCheckReply = (WireCommands.AuthTokenCheckFailed) reply;
             if (authTokenCheckReply.isTokenExpired()) {
                 log.info("Delegation token expired");
-                throw new TokenExpiredException(authTokenCheckReply.toString());
+                // We want to have the request retried by the client in this case.
+                throw new ConnectionFailedException(new TokenExpiredException(authTokenCheckReply.toString()));
             } else {
                 log.info("Delegation token invalid");
-                throw new TokenException(authTokenCheckReply.toString());
+                throw new InvalidTokenException(authTokenCheckReply.toString());
             }
         } else {
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting a "
@@ -130,7 +136,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
     }
 
-    private CompletableFuture<StreamSegmentInfo> getStreamSegmentInfo() {
+    @VisibleForTesting
+    CompletableFuture<StreamSegmentInfo> getStreamSegmentInfo() {
         log.debug("Getting segment info for segment: {}", segmentId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
@@ -233,7 +240,14 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     @Override
     public void truncateSegment(long offset) {
         RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(NoSuchSegmentException.class).run(() -> {
-            truncateSegmentAsync(segmentId, offset, tokenProvider).join();
+            truncateSegmentAsync(segmentId, offset, tokenProvider).exceptionally(t -> {
+                final Throwable ex = Exceptions.unwrap(t);
+                if (ex.getCause() instanceof SegmentTruncatedException) {
+                    log.debug("Segment already truncated at offset {}. Details: {}", offset, ex.getCause().getMessage());
+                    return null;
+                }
+                throw new CompletionException(ex);
+            }).join();
             return null;
         });
     }
