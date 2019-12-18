@@ -11,7 +11,10 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.ClientFactory;
+import io.pravega.client.stream.*;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
@@ -28,16 +31,19 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedTableName;
@@ -294,7 +300,6 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
 
-
     /**
      * Appends an event to the stream.
      *
@@ -308,8 +313,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                final String scopeName,
                                                final String streamName,
                                                final String message) {
-        // return localController.createEvent( routingKey, scopeName, streamName, message);
-        return null;
+        return storeHelper.createEvent("", scopeName, streamName, message);
     }
 
     /**
@@ -325,7 +329,6 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                               final String scopeName,
                                               final String streamName,
                                               final Long segmentNumber) {
-        // return localController.createEvent(routingKey, scopeName, streamName, segmentNumber);
-        return null;
+        return storeHelper.getEvent(routingKey, scopeName, streamName, segmentNumber);
     }
 }

@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -346,6 +347,67 @@ public class SegmentHelper implements AutoCloseable {
 
         return sendRequest(connection, requestId, new WireCommands.CreateTableSegment(requestId, tableName, delegationToken))
                 .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.CreateTableSegment.class, type));
+    }
+
+     /**
+     * This method sends a WireCommand to read a segment from the stream.
+     *
+     * @param scopeName           The name of the scope
+     * @param streamName          The name of the stream
+     * @param segmentNumber       The id of the segment
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
+     * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
+     * can be retried then the future will be failed with {@link WireCommandFailedException}.
+     */
+    public CompletableFuture<String> getEvent(final String scopeName,
+                                              final String streamName,
+                                                         final Long segmentNumber,
+                                                         String delegationToken,
+                                                         final long clientRequestId) {
+        CompletableFuture<String> ackFuture = new CompletableFuture<String>();
+        final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scopeName, streamName, segmentNumber);
+        final Controller.NodeUri uri = getSegmentUri(scopeName, streamName, segmentNumber);
+        final WireCommandType type = WireCommandType.READ_SEGMENT;
+
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        final long requestId = connection.getFlow().asLong();
+
+        CompletableFuture<Void> result = sendRequest(connection, requestId, new WireCommands.ReadSegment(qualifiedStreamSegmentName, 0L, 8192, delegationToken, requestId))
+                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, streamName, WireCommands.ReadSegment.class, type));
+        ackFuture.complete(result.toString());
+        return ackFuture;
+    }
+
+    /**
+     * This method sends a WireCommand to add an event to the stream.
+     *
+     *
+     * @param scopeName           The name of the scope
+     * @param streamName          The name of the stream
+     * @param message             The data for the stream
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
+     * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
+     * can be retried then the future will be failed with {@link WireCommandFailedException}.
+     */
+    public CompletableFuture<Void> createEvent(final String scopeName,
+                                              final String streamName,
+                                              final String message,
+                                              String delegationToken,
+                                              final long clientRequestId) {
+        final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scopeName, streamName, 0L);
+        final Controller.NodeUri uri = getSegmentUri(scopeName, streamName, 0L);
+        final WireCommandType type = WireCommandType.APPEND_BLOCK;
+
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        final long requestId = connection.getFlow().asLong();
+        ByteBuf data = Unpooled.wrappedBuffer(message.getBytes());
+        return sendRequest(connection, requestId, new WireCommands.ConditionalAppend(UUID.randomUUID(),0,0,
+               new WireCommands.Event(data), requestId))
+                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, streamName, WireCommands.ReadSegment.class, type));
     }
 
     /**

@@ -125,6 +125,14 @@ public class PravegaTablesStoreHelper {
         cache.invalidateCache(new TableCacheKey<>(table, key, x -> null));
     }
 
+    public CompletableFuture<Void> createEvent(String routingKey, String scopeName, String streamName, String message) {
+        return segmentHelper.createEvent(scopeName, streamName, message, authToken.get(), RequestTag.NON_EXISTENT_ID);
+    }
+
+    public CompletableFuture<String> getEvent(String routingKey, String scopeName, String streamName, Long sequenceNumber) {
+        return segmentHelper.getEvent(scopeName, streamName, sequenceNumber, authToken.get(), RequestTag.NON_EXISTENT_ID);
+    }
+
     /**
      * Method to create a new Table. If the table already exists, segment helper responds with success.
      * @param tableName table name
