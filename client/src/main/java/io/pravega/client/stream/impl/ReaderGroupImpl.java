@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
@@ -204,6 +205,25 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public void resetReaderGroup(ReaderGroupConfig config) {
         Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+    }
+
+    @Override
+    public Map<String, Integer> getReaderSegmentDistribution() {
+        synchronizer.fetchUpdates();
+        // fetch current state and populate assigned and unassigned distribution from the state.
+        ReaderGroupState state = synchronizer.getState();
+        ImmutableMap.Builder<String, Integer> mapBuilder = ImmutableMap.builder();
+
+        state.getOnlineReaders().forEach(reader -> {
+            Map<SegmentWithRange, Long> assigned = state.getAssignedSegments(reader);
+            int size = assigned != null ? assigned.size() : 0;
+            mapBuilder.put(reader, size);
+        });
+
+        // add unassigned against empty string
+        int unassigned = state.getNumberOfUnassignedSegments();
+        mapBuilder.put("", unassigned);
+        return mapBuilder.build();
     }
 
     @VisibleForTesting

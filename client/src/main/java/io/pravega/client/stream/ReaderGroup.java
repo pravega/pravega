@@ -184,7 +184,15 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      */
     @Beta
     CompletableFuture<Map<Stream, StreamCut>> generateStreamCuts(ScheduledExecutorService backgroundExecutor);
-    
+
+    /**
+     * Returns current distribution of number of segments assigned to each reader in the reader group. 
+     * For unassigned segments, it adds an entry to the map where readerId is empty string.
+     *
+     * @return A map of readerId to segment count.   
+     */
+    Map<String, Integer> getReaderSegmentDistribution();
+
     /**
      * Closes the reader group, freeing any resources associated with it.
      */
