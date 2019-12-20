@@ -50,6 +50,8 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -374,7 +376,7 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
 
-        CompletableFuture<Void> result = sendRequest(connection, requestId, new WireCommands.ReadSegment(qualifiedStreamSegmentName, 0L, 8192, delegationToken, requestId))
+        CompletableFuture<Void> result = sendRequest(connection, requestId, new WireCommands.ReadSegment(qualifiedStreamSegmentName, 0L, 256 * 1024, delegationToken, requestId))
                 .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, streamName, WireCommands.ReadSegment.class, type));
         ackFuture.complete(result.toString());
         return ackFuture;
@@ -405,7 +407,8 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
         ByteBuf data = Unpooled.wrappedBuffer(message.getBytes());
-        return sendRequest(connection, requestId, new WireCommands.ConditionalAppend(UUID.randomUUID(),0,0,
+	final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
+        return sendRequest(connection, requestId, new WireCommands.ConditionalAppend(UUID.randomUUID(),requestIdGenerator.get(), Long.MAX_VALUE,
                new WireCommands.Event(data), requestId))
                 .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, streamName, WireCommands.ReadSegment.class, type));
     }
