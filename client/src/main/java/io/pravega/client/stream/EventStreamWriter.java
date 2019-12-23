@@ -24,7 +24,8 @@ import java.util.concurrent.CompletableFuture;
 public interface EventStreamWriter<Type> extends AutoCloseable {
 
     /**
-     * Send an event to the stream. Events that are written should appear in the stream exactly once.
+     * Send an event to the stream. Events that are written should appear in the stream exactly once. The
+     * maximum size of the serialized event supported is defined at {@link Serializer#MAX_EVENT_SIZE}.
      *
      * Note that the implementation provides retry logic to handle connection failures and service host
      * failures. Internal retries will not violate the exactly once semantic so it is better to rely on them
@@ -43,7 +44,8 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
     /**
      * Write an event to the stream. Similar to {@link #writeEvent(Object)} but provides a routingKey which is
      * used to specify ordering. Events written with the same routing key will be read by readers in exactly
-     * the same order they were written.  
+     * the same order they were written. The maximum size of the serialized event supported is defined at
+     * {@link Serializer#MAX_EVENT_SIZE}.
      *
      * Note that the implementation provides retry logic to handle connection failures and service
      * host failures. Internal retries will not violate the exactly once semantic so it is better to

@@ -38,6 +38,9 @@ public interface EventStreamReader<T> extends AutoCloseable {
      *
      * An EventRead with null for {@link EventRead#getEvent()} is returned when the Reader has read all events up to the
      * configured end {@link StreamCut} specified using {@link ReaderGroupConfig}.
+     *<p>
+     * Note: An EventRead with null for {@link EventRead#getEvent()} is returned when {@link EventRead#isCheckpoint()}
+     * is true. A null can also be returned due to delays in the Pravega cluster.
      *
      * @param timeout An upper bound on how long the call may block before returning null.
      * @return An instance of {@link EventRead}, which contains the next event in the stream. In the case the timeout
