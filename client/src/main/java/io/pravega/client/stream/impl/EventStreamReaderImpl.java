@@ -146,6 +146,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         } while (buffer == null && timer.getElapsedMillis() < timeout);
 
         if (buffer == null) {
+            log.debug("Empty event returned for reader {} ", groupState.getReaderId());
             return createEmptyEvent(null);
         } 
         lastRead = Sequence.create(segment.getSegmentId(), offset);
