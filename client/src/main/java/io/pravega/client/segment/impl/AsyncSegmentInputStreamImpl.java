@@ -170,7 +170,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         return backoffSchedule.retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
             if (closed.get()) {
-                log.debug("Exception while reading from Segment : {}", segmentId, ex);
+                log.debug("Exception: {} while reading from Segment : {}", ex.toString(), segmentId);
             } else {
                 log.warn("Exception while reading from Segment : {}", segmentId, ex);
             }
