@@ -70,7 +70,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                         if (client == null || client.isClosed()) {
                             client = new RawClient(controller, connectionFactory, segmentId);
                             long requestId = client.getFlow().getNextSequenceNumber();
-                            log.debug("Setting up append on segment: {}", segmentId);
+                            log.debug("Setting up appends on segment: {} for ConditionalOutputStream.", segmentId);
 
                             CompletableFuture<Reply> reply = tokenProvider.retrieveToken().thenCompose(token -> {
                                 SetupAppend setup = new SetupAppend(requestId, writerId,
