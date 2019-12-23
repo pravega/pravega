@@ -187,11 +187,11 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
 
     /**
      * Returns current distribution of number of segments assigned to each reader in the reader group. 
-     * For unassigned segments, it adds an entry to the map where readerId is empty string.
      *
-     * @return A map of readerId to segment count.   
+     * @return an instance of ReaderSegmentDistribution which describes the distribution of segments to readers 
+     * including unassigned segments.   
      */
-    Map<String, Integer> getReaderSegmentDistribution();
+    ReaderSegmentDistribution getReaderSegmentDistribution();
 
     /**
      * Closes the reader group, freeing any resources associated with it.

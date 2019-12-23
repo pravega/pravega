@@ -22,6 +22,7 @@ import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReaderSegmentDistribution;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
@@ -283,13 +284,14 @@ public class ReaderGroupImplTest {
         
         when(state.getNumberOfUnassignedSegments()).thenReturn(2);
         
-        Map<String, Integer> distribution = readerGroup.getReaderSegmentDistribution();
-        assertEquals(4, distribution.size());
-        assertTrue(distribution.containsKey(""));
+        ReaderSegmentDistribution readerSegmentDistribution = readerGroup.getReaderSegmentDistribution();
+
+        Map<String, Integer> distribution = readerSegmentDistribution.getReaderSegmentDistribution();
+        assertEquals(3, distribution.size());
         assertTrue(distribution.containsKey("1"));
         assertTrue(distribution.containsKey("2"));
         assertTrue(distribution.containsKey("3"));
-        assertEquals(2, distribution.get("").intValue());
+        assertEquals(2, readerSegmentDistribution.getUnassignedSegments());
         assertEquals(1, distribution.get("1").intValue());
         assertEquals(1, distribution.get("2").intValue());
         assertEquals(1, distribution.get("3").intValue());

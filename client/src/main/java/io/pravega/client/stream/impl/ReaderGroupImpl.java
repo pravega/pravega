@@ -30,6 +30,7 @@ import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupMetrics;
+import io.pravega.client.stream.ReaderSegmentDistribution;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
@@ -208,7 +209,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public Map<String, Integer> getReaderSegmentDistribution() {
+    public ReaderSegmentDistribution getReaderSegmentDistribution() {
         synchronizer.fetchUpdates();
         // fetch current state and populate assigned and unassigned distribution from the state.
         ReaderGroupState state = synchronizer.getState();
@@ -222,8 +223,11 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
         // add unassigned against empty string
         int unassigned = state.getNumberOfUnassignedSegments();
-        mapBuilder.put("", unassigned);
-        return mapBuilder.build();
+        ImmutableMap<String, Integer> readerDistribution = mapBuilder.build();
+        log.info("ReaderGroup {} has unassigned segments count = {} and segment distribution as {}", 
+                getGroupName(), unassigned, readerDistribution);
+        return ReaderSegmentDistribution
+                .builder().readerSegmentDistribution(readerDistribution).unassignedSegments(unassigned).build();
     }
 
     @VisibleForTesting
