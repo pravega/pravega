@@ -20,12 +20,14 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
@@ -998,10 +1000,12 @@ public class StreamMetadataTasks extends TaskBase {
 
     public CompletableFuture<Void> notifyTxnCommit(final String scope, final String stream,
                                                    final List<Long> segments, final UUID txnId) {
+        Timer timer = new Timer();
         return Futures.allOf(segments.stream()
                 .parallel()
                 .map(segment -> notifyTxnCommit(scope, stream, segment, txnId))
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()))
+                .thenRun(() -> TransactionMetrics.getInstance().commitTransactionSegments(timer.getElapsed()));
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyTxnCommit(final String scope, final String stream,
@@ -1016,10 +1020,12 @@ public class StreamMetadataTasks extends TaskBase {
 
     public CompletableFuture<Void> notifyTxnAbort(final String scope, final String stream,
                                                   final List<Long> segments, final UUID txnId) {
+        Timer timer = new Timer();
         return Futures.allOf(segments.stream()
                 .parallel()
                 .map(segment -> notifyTxnAbort(scope, stream, segment, txnId))
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()))
+                .thenRun(() -> TransactionMetrics.getInstance().abortTransactionSegments(timer.getElapsed()));
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyTxnAbort(final String scope, final String stream,
