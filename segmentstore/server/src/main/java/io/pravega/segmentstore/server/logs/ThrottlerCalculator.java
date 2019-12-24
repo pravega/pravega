@@ -59,16 +59,6 @@ class ThrottlerCalculator {
     @VisibleForTesting
     static final double CACHE_TARGET_UTILIZATION_THRESHOLD_ADJUSTMENT = 0.05;
     /**
-     * Number of items in the Commit Backlog above which throttling will apply.
-     */
-    @VisibleForTesting
-    static final int COMMIT_BACKLOG_COUNT_THRESHOLD = 100;
-    /**
-     * Number of items in the Commit Backlog at or above which the maximum throttling will apply.
-     */
-    @VisibleForTesting
-    static final int COMMIT_BACKLOG_COUNT_FULL_THROTTLE_THRESHOLD = 500;
-    /**
      * A multiplier (fraction) that will be applied to {@link WriteSettings#getMaxWriteTimeout()} to determine the
      * DurableDataLog's append latency threshold that will trigger throttling and {@link WriteSettings#getMaxOutstandingBytes()}
      * to determine the minimum amount of outstanding data for which throttling will be performed.
@@ -204,39 +194,6 @@ class ThrottlerCalculator {
     }
 
     /**
-     * Calculates the amount of time to wait before processing more operations from the queue in order to relieve pressure
-     * from the commit backlog queue. This is based on the OperationProcessor's Commit Queue size.
-     */
-    @RequiredArgsConstructor
-    private static class CommitBacklogThrottler extends Throttler {
-        private static final int BASE_DELAY =
-                calculateBaseDelay(COMMIT_BACKLOG_COUNT_FULL_THROTTLE_THRESHOLD, CommitBacklogThrottler::getDelayMultiplier);
-        @NonNull
-        private final Supplier<Integer> getCommitBacklogCount;
-
-        @Override
-        boolean isThrottlingRequired() {
-            return this.getCommitBacklogCount.get() > COMMIT_BACKLOG_COUNT_THRESHOLD;
-        }
-
-        static int getDelayMultiplier(int backlogCount) {
-            return backlogCount - COMMIT_BACKLOG_COUNT_THRESHOLD;
-        }
-
-        @Override
-        int getDelayMillis() {
-            // We only throttle if we exceed the threshold. We increase the throttling amount in a linear fashion.
-            int count = this.getCommitBacklogCount.get();
-            return getDelayMultiplier(count) * BASE_DELAY;
-        }
-
-        @Override
-        ThrottlerName getName() {
-            return ThrottlerName.CommitBacklog;
-        }
-    }
-
-    /**
      * Calculates the amount of time to wait before processing more operations from the queue in order to aggregate them
      * into larger writes. This is based on statistics from the DurableDataLog.
      */
@@ -362,17 +319,6 @@ class ThrottlerCalculator {
             return throttler(new BatchingThrottler(getQueueStats));
         }
 
-        /**
-         * Includes a Commit Backlog Throttler.
-         *
-         * @param getCommitBacklogCount A Supplier that, when invoked, returns an Integer representing the most recent size
-         *                              of the Commit Backlog Queue.
-         * @return This builder.
-         */
-        ThrottlerCalculatorBuilder commitBacklogThrottler(Supplier<Integer> getCommitBacklogCount) {
-            return throttler(new CommitBacklogThrottler(getCommitBacklogCount));
-        }
-
         ThrottlerCalculatorBuilder durableDataLogThrottler(WriteSettings writeSettings, Supplier<QueueStats> getQueueStats) {
             return throttler(new DurableDataLogThrottler(writeSettings, getQueueStats));
         }
@@ -435,11 +381,7 @@ class ThrottlerCalculator {
          */
         Cache,
         /**
-         * Throttling is required due to excessive size of the Commit (Memory) Backlog Queue.
-         */
-        CommitBacklog,
-        /**
-         * Throttlign is required due to excessive size of DurableDataLog's in-flight queue.
+         * Throttling is required due to excessive size of DurableDataLog's in-flight queue.
          */
         DurableDataLog,
     }
