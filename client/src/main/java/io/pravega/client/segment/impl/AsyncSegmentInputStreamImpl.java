@@ -122,13 +122,13 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         @Override
         public void processingFailure(Exception error) {
-            log.warn("Processing failure: ", error);
+            log.warn("Processing failure on segment {}", segmentId, error);
             closeConnection(error);
         }
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            log.warn("Auth failed {}", authTokenCheckFailed);
+            log.warn("Auth check failed for reads on segment {} with {}",  segmentId, authTokenCheckFailed);
             closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
         }
 
@@ -256,7 +256,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     private void failAllInflight(Exception e) {
-        log.info("Connection failed due to a {}. Read requests will be retransmitted.", e.toString());
+        log.info("Connection failed due to a {}. Read requests for segment {} will be retransmitted.", e.toString(), segmentId);
         List<CompletableFuture<WireCommands.SegmentRead>> readsToFail;
         synchronized (lock) {
             readsToFail = new ArrayList<>(outstandingRequests.values());
