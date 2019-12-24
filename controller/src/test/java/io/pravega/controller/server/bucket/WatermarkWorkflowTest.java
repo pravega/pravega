@@ -237,7 +237,7 @@ public class WatermarkWorkflowTest {
         assertTrue(client.isWriterParticipating(5L));
 
         // verify that writer is active if we specify a higher timeout
-        assertTrue(client.isWriterActive(entry1, 1L));
+        assertTrue(client.isWriterActive(entry1, 1000L));
         assertTrue(client.isWriterTracked(entry1.getKey()));
         // now that the writer is being tracked
         assertFalse(Futures.delayedTask(() -> client.isWriterActive(entry1, 1L), Duration.ofSeconds(1), executor).join());
