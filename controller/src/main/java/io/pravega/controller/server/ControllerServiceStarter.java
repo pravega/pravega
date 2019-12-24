@@ -112,8 +112,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private Cluster cluster = null;
 
-    private StreamMetrics streamMetrics;
-    private TransactionMetrics transactionMetrics;
     private final Optional<SegmentHelper> segmentHelperRef;
     private final Optional<ConnectionFactory> connectionFactoryRef;
     private final Optional<StreamMetadataStore> streamMetadataStoreRef;
@@ -185,6 +183,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Creating the checkpoint store");
             checkpointStore = CheckpointStoreFactory.create(storeClient);
+
+            // Initialize Stream and Transaction metrics.
+            StreamMetrics.initialize();
+            TransactionMetrics.initialize();
 
             // On each controller process restart, we use a fresh hostId,
             // which is a combination of hostname and random GUID.
@@ -270,10 +272,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
-            streamMetrics = new StreamMetrics();
-            transactionMetrics = new TransactionMetrics();
             controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, streamMetrics, transactionMetrics);
+                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster);
 
             // Setup event processors.
             setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
@@ -463,13 +463,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamStore.close();
 
             // Close metrics.
-            if (streamMetrics != null) {
-                streamMetrics.close();
-            }
-
-            if (transactionMetrics != null) {
-                transactionMetrics.close();
-            }
+            StreamMetrics.reset();
+            TransactionMetrics.reset();
 
             log.info("Finishing controller service shutDown");
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);

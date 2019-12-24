@@ -15,6 +15,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -92,6 +94,8 @@ public abstract class ControllerEventProcessorTest {
     @Before
     public void setUp() throws Exception {
         executor = Executors.newScheduledThreadPool(10);
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         zkServer = new TestingServerStarter().start();
         zkServer.start();
@@ -132,6 +136,8 @@ public abstract class ControllerEventProcessorTest {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         streamStore.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
