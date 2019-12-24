@@ -71,7 +71,7 @@ public class RawClient implements AutoCloseable {
 
         @Override
         public void processingFailure(Exception error) {
-            log.warn("Processing failure on segment {}",segmentId, error);
+            log.warn("Processing failure on segment {}", segmentId, error);
             closeConnection(error);
         }
 
