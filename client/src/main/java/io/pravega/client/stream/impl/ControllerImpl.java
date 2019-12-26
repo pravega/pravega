@@ -1096,7 +1096,11 @@ public class ControllerImpl implements Controller {
     @Override
     public void close() {
         if (!closed.getAndSet(true)) {
-            this.channel.shutdownNow(); // Initiates a shutdown of channel.
+            this.channel.shutdownNow(); // Initiates a shutdown of channel, although forceful the shutdown is not instantaneous.
+            Exceptions.handleInterrupted(() -> {
+                boolean shutdownStatus = channel.awaitTermination(10, TimeUnit.SECONDS);
+                log.debug("Controller client shutdown has been initiated. Channel status: channel.isTerminated():{}", shutdownStatus);
+            });
         }
     }
 
