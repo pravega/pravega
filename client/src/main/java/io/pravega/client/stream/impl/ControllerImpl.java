@@ -186,14 +186,24 @@ public class ControllerImpl implements Controller {
 
         // Create Async RPC client.
         this.channel = channelBuilder.build();
-        ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
-        Credentials credentials = config.getClientConfig().getCredentials();
-        if (credentials != null) {
-            PravegaCredentialsWrapper wrapper = new PravegaCredentialsWrapper(credentials);
-            client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
-        }
-        this.client = client;
+        this.client = getClientWithCredentials(config);
         this.timeoutMillis = config.getTimeoutMillis();
+    }
+
+    private ControllerServiceStub getClientWithCredentials(ControllerImplConfig config) {
+        ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
+        try {
+            Credentials credentials = config.getClientConfig().getCredentials();
+            if (credentials != null) {
+                PravegaCredentialsWrapper wrapper = new PravegaCredentialsWrapper(credentials);
+                client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
+            }
+        } catch (Exception e) {
+            log.error("Error while setting credentials to controller client", e);
+            closeChannel();
+            throw e;
+        }
+        return client;
     }
 
     @SuppressWarnings("checkstyle:ReturnCount")
@@ -1096,12 +1106,16 @@ public class ControllerImpl implements Controller {
     @Override
     public void close() {
         if (!closed.getAndSet(true)) {
-            this.channel.shutdownNow(); // Initiates a shutdown of channel, although forceful the shutdown is not instantaneous.
-            Exceptions.handleInterrupted(() -> {
-                boolean shutdownStatus = channel.awaitTermination(10, TimeUnit.SECONDS);
-                log.debug("Controller client shutdown has been initiated. Channel status: channel.isTerminated():{}", shutdownStatus);
-            });
+            closeChannel();
         }
+    }
+
+    private void closeChannel() {
+        this.channel.shutdownNow(); // Initiates a shutdown of channel. Although forceful, the shutdown is not instantaneous.
+        Exceptions.handleInterrupted(() -> {
+            boolean shutdownStatus = channel.awaitTermination(10, TimeUnit.SECONDS);
+            log.debug("Controller client shutdown has been initiated. Channel status: channel.isTerminated():{}", shutdownStatus);
+        });
     }
 
     @Override
