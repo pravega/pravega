@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Strings;
+import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -97,12 +98,18 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * Unit tests for ControllerImpl.
@@ -886,9 +893,8 @@ public class ControllerImplTest {
 
     @Test
     public void testCredPluginException() throws Exception {
-        // Verify that keep-alive timeout less than permissible by the server results in a failure.
-        NettyChannelBuilder builder = NettyChannelBuilder.forAddress("localhost", serverPort)
-                .keepAliveTime(10, TimeUnit.SECONDS);
+        NettyChannelBuilder builder = spy(NettyChannelBuilder.forAddress("localhost", serverPort)
+                .keepAliveTime(10, TimeUnit.SECONDS));
 
         final NettyChannelBuilder channelBuilder;
         if (testSecure) {
@@ -904,8 +910,13 @@ public class ControllerImplTest {
                 .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                 .build());
         doThrow(new IllegalStateException("Exception thrown by cred plugin")).when(cfg).getCredentials();
+        ManagedChannel channel = mock(ManagedChannel.class);
+        doReturn(channel).when(builder).build();
         ControllerImplConfig controllerCfg = new ControllerImplConfig(1, 1, 1, 1, 1000, cfg);
-             AssertExtensions.assertThrows(IllegalStateException.class, () -> new ControllerImpl(channelBuilder, controllerCfg, this.executor));
+        //Verify exception scenario.
+        assertThrows(IllegalStateException.class, () -> new ControllerImpl(channelBuilder, controllerCfg, this.executor));
+        verify(channel, times(1)).shutdownNow();
+        verify(channel, times(1)).awaitTermination(anyLong(), any(TimeUnit.class));
     }
 
     @Test
