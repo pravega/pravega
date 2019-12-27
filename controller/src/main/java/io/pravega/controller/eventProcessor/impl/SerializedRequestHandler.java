@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -46,9 +47,9 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
     private final Map<String, ConcurrentLinkedQueue<Work>> workers = new HashMap<>();
 
     @Override
-    public final CompletableFuture<Void> process(final T streamEvent) {
+    public final CompletableFuture<Void> process(final T streamEvent, Supplier<Boolean> isCancelled) {
         CompletableFuture<Void> result = new CompletableFuture<>();
-        Work work = new Work(streamEvent, System.currentTimeMillis(), result);
+        Work work = new Work(streamEvent, System.currentTimeMillis(), result, isCancelled);
         String key = streamEvent.getKey();
 
         final ConcurrentLinkedQueue<Work> queue;
@@ -89,7 +90,13 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
         Work work = workQueue.poll();
         CompletableFuture<Void> future;
         try {
-            future = processEvent(work.getEvent());
+            assert work != null;
+            if (!work.cancelledSupplier.get()) {
+                future = processEvent(work.getEvent());
+            } else {
+                future = new CompletableFuture<>();
+                future.cancel(true);
+            }
         } catch (Exception e) {
             future = Futures.failedFuture(e);
         }
@@ -157,6 +164,7 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
         private final T event;
         private final long pickupTime;
         private final CompletableFuture<Void> result;
+        private final Supplier<Boolean> cancelledSupplier;
     }
 
 }

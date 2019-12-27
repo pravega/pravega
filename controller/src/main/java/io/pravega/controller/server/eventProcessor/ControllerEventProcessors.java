@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
@@ -90,6 +91,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final StreamRequestHandler streamRequestHandler;
     private final CommitRequestHandler commitRequestHandler;
     private final AbortRequestHandler abortRequestHandler;
+    private ScheduledExecutorService rebalanceExecutor;
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -142,6 +144,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Starting controller event processors");
+            rebalanceExecutor = Executors.newSingleThreadScheduledExecutor();
             initialize();
             log.info("Controller event processors startUp complete");
         } finally {
@@ -155,6 +158,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         try {
             log.info("Stopping controller event processors");
             stopEventProcessors();
+            rebalanceExecutor.shutdownNow();
             log.info("Controller event processors shutDown complete");
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
@@ -337,7 +341,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
-                    commitEventProcessors = system.createEventProcessorGroup(commitConfig, checkpointStore);
+                    commitEventProcessors = system.createEventProcessorGroup(commitConfig, checkpointStore, rebalanceExecutor);
                     return null;
                 });
 
@@ -365,7 +369,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating commit event processor group", e))
                 .run(() -> {
-                    abortEventProcessors = system.createEventProcessorGroup(abortConfig, checkpointStore);
+                    abortEventProcessors = system.createEventProcessorGroup(abortConfig, checkpointStore, rebalanceExecutor);
                     return null;
                 });
 
@@ -393,7 +397,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating request event processor group", e))
                 .run(() -> {
-                    requestEventProcessors = system.createEventProcessorGroup(requestConfig, checkpointStore);
+                    requestEventProcessors = system.createEventProcessorGroup(requestConfig, checkpointStore, rebalanceExecutor);
                     return null;
                 });
 

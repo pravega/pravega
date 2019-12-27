@@ -15,6 +15,7 @@ import io.pravega.client.stream.Serializer;
 import com.google.common.base.Preconditions;
 import lombok.Data;
 
+import java.time.Duration;
 import java.util.function.Supplier;
 
 /**
@@ -27,12 +28,13 @@ public class EventProcessorConfig<T extends ControllerEvent> {
     private final ExceptionHandler exceptionHandler;
     private final Serializer<T> serializer;
     private final Supplier<EventProcessor<T>> supplier;
+    private final long minRebalanceIntervalMillis;
 
     private EventProcessorConfig(final EventProcessorGroupConfig config,
                                  final ExceptionHandler exceptionHandler,
                                  final Serializer<T> serializer,
-                                 final Supplier<EventProcessor<T>> supplier) {
-
+                                 final Supplier<EventProcessor<T>> supplier, 
+                                 final long minRebalanceIntervalMillis) {
         Preconditions.checkNotNull(config);
         Preconditions.checkNotNull(serializer);
         Preconditions.checkNotNull(supplier);
@@ -44,6 +46,7 @@ public class EventProcessorConfig<T extends ControllerEvent> {
         }
         this.serializer = serializer;
         this.supplier = supplier;
+        this.minRebalanceIntervalMillis = minRebalanceIntervalMillis;
     }
 
     public static <T extends ControllerEvent> EventProcessorConfigBuilder<T> builder() {
@@ -59,6 +62,7 @@ public class EventProcessorConfig<T extends ControllerEvent> {
         private ExceptionHandler exceptionHandler;
         private Serializer<T> serializer;
         private Supplier<EventProcessor<T>> supplier;
+        private long minRebalanceIntervalMillis = Duration.ofMinutes(2).toMillis();
 
         EventProcessorConfigBuilder() {
         }
@@ -82,9 +86,14 @@ public class EventProcessorConfig<T extends ControllerEvent> {
             this.supplier = supplier;
             return this;
         }
+        
+        public EventProcessorConfigBuilder<T> minRebalanceIntervalMillis(long minRebalanceIntervalMillis) {
+            this.minRebalanceIntervalMillis = minRebalanceIntervalMillis;
+            return this;
+        }
 
         public EventProcessorConfig<T> build() {
-            return new EventProcessorConfig<>(this.config, this.exceptionHandler, this.serializer, this.supplier);
+            return new EventProcessorConfig<>(this.config, this.exceptionHandler, this.serializer, this.supplier, minRebalanceIntervalMillis);
         }
 
         @Override

@@ -19,7 +19,9 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderSegmentDistribution;
 import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.impl.EventReadImpl;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
@@ -36,21 +38,29 @@ import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -207,6 +217,18 @@ public class EventProcessorTest {
         }
     }
 
+    private ScheduledExecutorService executor;
+    
+    @Before
+    public void setUp() {
+        executor = Executors.newSingleThreadScheduledExecutor();    
+    }
+    
+    @After
+    public void tearDown() {
+        executor.shutdownNow();
+    }
+    
     @Test(timeout = 10000)
     @SuppressWarnings("unchecked")
     public void testEventProcessorCell() throws CheckpointStoreException, ReinitializationRequiredException {
@@ -362,7 +384,7 @@ public class EventProcessorTest {
 
         // Create EventProcessorGroup.
         EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>)
-                system.createEventProcessorGroup(eventProcessorConfig, checkpointStore);
+                system.createEventProcessorGroup(eventProcessorConfig, checkpointStore, executor);
 
         // Await until it is ready.
         group.awaitRunning();
@@ -408,7 +430,7 @@ public class EventProcessorTest {
 
         // Create EventProcessorGroup.
         EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>)
-                system.createEventProcessorGroup(eventProcessorConfig, checkpointStore);
+                system.createEventProcessorGroup(eventProcessorConfig, checkpointStore, executor);
 
         // test idempotent initialize
         group.initialize();
@@ -443,7 +465,7 @@ public class EventProcessorTest {
 
         // Create EventProcessorGroup.
         EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>) system
-                .createEventProcessorGroup(eventProcessorConfig, checkpointStore);
+                .createEventProcessorGroup(eventProcessorConfig, checkpointStore, executor);
 
         // awaitRunning should succeed.
         group.awaitRunning();
@@ -475,7 +497,7 @@ public class EventProcessorTest {
 
         // Create EventProcessorGroup.
         EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>) system.createEventProcessorGroup(eventProcessorConfig,
-                    checkpointStore);
+                    checkpointStore, executor);
         group.awaitRunning();
 
         // Add a few event processors to the group.
@@ -489,6 +511,149 @@ public class EventProcessorTest {
         }
         assertEquals(count * expectedSum, actualSum);
 
+        // Stop the group, and await its termmination.
+        group.stopAsync();
+        group.awaitTerminated();
+    }
+
+    @Test(timeout = 10000)
+    @SuppressWarnings("unchecked")
+    public void testEventProcessorGroupRebalance() throws CheckpointStoreException, ReinitializationRequiredException {
+        String systemName = "rebalance";
+        String readerGroupName = "rebalance";
+
+        CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+
+        EventProcessorGroupConfig config = createEventProcessorGroupConfig(2);
+        
+        EventStreamClientFactory clientFactory = Mockito.mock(EventStreamClientFactory.class);
+
+        EventStreamReader<TestEvent> reader = Mockito.mock(EventStreamReader.class);
+        Mockito.when(reader.readNextEvent(anyLong())).thenReturn(Mockito.mock(EventReadImpl.class));
+
+        Mockito.when(clientFactory.createReader(anyString(), anyString(), any(), any()))
+               .thenAnswer(x -> reader);
+
+        Mockito.when(clientFactory.<String>createEventWriter(anyString(), any(), any())).thenReturn(new EventStreamWriterMock<>());
+
+        ReaderGroup readerGroup = Mockito.mock(ReaderGroup.class);
+        Mockito.when(readerGroup.getGroupName()).thenReturn(readerGroupName);
+
+        ReaderGroupManager readerGroupManager = Mockito.mock(ReaderGroupManager.class);
+        Mockito.when(readerGroupManager.getReaderGroup(anyString())).then(invocation -> readerGroup);
+
+        EventProcessorSystemImpl system = new EventProcessorSystemImpl(systemName, PROCESS, SCOPE, clientFactory, readerGroupManager);
+
+        EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new TestEventProcessor(false))
+                .serializer(new EventSerializer<>())
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
+                .config(config)
+                .minRebalanceIntervalMillis(0L)
+                .build();
+
+        // Create EventProcessorGroup.
+        EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>) system.createEventProcessorGroup(eventProcessorConfig,
+                    checkpointStore, executor);
+        group.awaitRunning();
+
+        ConcurrentHashMap<String, EventProcessorCell<TestEvent>> eventProcessorMap = group.getEventProcessorMap();
+        assertEquals(2, eventProcessorMap.size());
+
+        List<String> readerIds = eventProcessorMap.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
+
+        // region case 1: even distribution - 2 readers with 2 segments each
+        HashMap<String, Integer> distribution = new HashMap<>();
+        distribution.put(readerIds.get(0), 2);
+        distribution.put(readerIds.get(1), 2);
+        
+        ReaderSegmentDistribution readerSegmentDistribution = ReaderSegmentDistribution
+                .builder().readerSegmentDistribution(distribution).unassignedSegments(0).build();
+        Mockito.when(readerGroup.getReaderSegmentDistribution()).thenReturn(readerSegmentDistribution);
+
+        // call rebalance. no new readers should be added or existing reader removed.
+        group.rebalance();
+
+        eventProcessorMap = group.getEventProcessorMap();
+        assertEquals(2, eventProcessorMap.size());
+        // the original readers should not have been replaced
+        assertTrue(eventProcessorMap.containsKey(readerIds.get(0)));
+        assertTrue(eventProcessorMap.containsKey(readerIds.get(1)));
+
+        // endregion
+        
+        // region case 2: two external readers with 0 segment assignment and 2 overloaded readers in the 
+        // readergroup. unassigned = 0
+        String reader2 = "reader2";
+        String reader3 = "reader3";
+
+        distribution = new HashMap<>();
+        distribution.put(readerIds.get(0), 2);
+        distribution.put(readerIds.get(1), 2);
+        distribution.put(reader2, 0);
+        distribution.put(reader3, 0);
+        
+        readerSegmentDistribution = ReaderSegmentDistribution
+                .builder().readerSegmentDistribution(distribution).unassignedSegments(0).build();
+        Mockito.when(readerGroup.getReaderSegmentDistribution()).thenReturn(readerSegmentDistribution);
+
+        // call rebalance. this should replace existing overloaded readers
+        group.rebalance();
+        
+        eventProcessorMap = group.getEventProcessorMap();
+        assertEquals(2, eventProcessorMap.size());
+        assertFalse(eventProcessorMap.containsKey(readerIds.get(0)));
+        assertFalse(eventProcessorMap.containsKey(readerIds.get(1)));
+
+        // update the readers in the readergroup
+        readerIds = eventProcessorMap.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
+
+        // endregion
+        
+        // region case 3: even distribution among 4 readers
+        distribution = new HashMap<>();
+        distribution.put(readerIds.get(0), 1);
+        distribution.put(readerIds.get(1), 1);
+        distribution.put(reader2, 1);
+        distribution.put(reader3, 1);
+
+        readerSegmentDistribution = ReaderSegmentDistribution
+                .builder().readerSegmentDistribution(distribution).unassignedSegments(0).build();
+        Mockito.when(readerGroup.getReaderSegmentDistribution()).thenReturn(readerSegmentDistribution);
+
+        // call rebalance. nothing should happen
+        group.rebalance();
+        
+        // no change to the group
+        eventProcessorMap = group.getEventProcessorMap();
+        assertEquals(2, eventProcessorMap.size());
+        assertTrue(eventProcessorMap.containsKey(readerIds.get(0)));
+        assertTrue(eventProcessorMap.containsKey(readerIds.get(1)));
+
+        // endregion
+        
+        // region case 4: with 1 overloaded reader and 2 unassigned segments
+        distribution = new HashMap<>();
+        distribution.put(readerIds.get(0), 2);
+        distribution.put(readerIds.get(1), 0);
+        distribution.put(reader2, 0);
+        distribution.put(reader3, 0);
+
+        readerSegmentDistribution = ReaderSegmentDistribution
+                .builder().readerSegmentDistribution(distribution).unassignedSegments(2).build();
+        Mockito.when(readerGroup.getReaderSegmentDistribution()).thenReturn(readerSegmentDistribution);
+
+        // call rebalance. overloaded reader should be replaced
+        group.rebalance();
+
+        // no change to the group
+        eventProcessorMap = group.getEventProcessorMap();
+        assertEquals(2, eventProcessorMap.size());
+        assertFalse(eventProcessorMap.containsKey(readerIds.get(0)));
+        assertTrue(eventProcessorMap.containsKey(readerIds.get(1)));
+
+        // endregion
+        
         // Stop the group, and await its termmination.
         group.stopAsync();
         group.awaitTerminated();

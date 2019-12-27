@@ -10,7 +10,9 @@
 package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.stream.ReaderSegmentDistribution;
 import io.pravega.client.stream.Stream;
+import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
@@ -26,6 +28,7 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -38,6 +41,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public final class EventProcessorGroupImpl<T extends ControllerEvent> extends AbstractIdleService
@@ -59,6 +65,11 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
     private final CheckpointStore checkpointStore;
 
+    private final ScheduledExecutorService executorService;
+    
+    private ScheduledFuture<?> rebalanceFuture;
+    
+    private final long minRebalancePeriodMillis;
     /**
      * We use this lock for mutual exclusion between shutDown and changeEventProcessorCount methods.
      */
@@ -66,10 +77,11 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
     EventProcessorGroupImpl(final EventProcessorSystemImpl actorSystem,
                             final EventProcessorConfig<T> eventProcessorConfig,
-                            final CheckpointStore checkpointStore) {
+                            final CheckpointStore checkpointStore, ScheduledExecutorService executorService) {
         this.objectId = String.format("EventProcessorGroup[%s]", eventProcessorConfig.getConfig().getReaderGroupName());
         this.actorSystem = actorSystem;
         this.eventProcessorConfig = eventProcessorConfig;
+        this.executorService = executorService;
         this.eventProcessorMap = new ConcurrentHashMap<>();
         this.writer = actorSystem
                 .clientFactory
@@ -77,6 +89,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                         eventProcessorConfig.getSerializer(),
                         EventWriterConfig.builder().build());
         this.checkpointStore = checkpointStore;
+        this.minRebalancePeriodMillis = eventProcessorConfig.getMinRebalanceIntervalMillis();
     }
 
     void initialize() throws CheckpointStoreException {
@@ -146,6 +159,12 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             eventProcessorMap.entrySet().forEach(entry -> entry.getValue().startAsync());
             log.info("Waiting for all all event processors in {} to start", this.toString());
             eventProcessorMap.entrySet().forEach(entry -> entry.getValue().awaitStartupComplete());
+            if (minRebalancePeriodMillis > 0) {
+                rebalanceFuture = executorService.scheduleWithFixedDelay(this::rebalance,
+                        minRebalancePeriodMillis, minRebalancePeriodMillis, TimeUnit.MILLISECONDS);
+            } else {
+                rebalanceFuture = null;
+            }
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
@@ -187,6 +206,9 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 }
                 readerGroup.close();
                 log.info("Shutdown of {} complete", this.toString());
+                if (rebalanceFuture != null) {
+                    rebalanceFuture.cancel(true);
+                }
             } finally {
                 LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
             }
@@ -237,7 +259,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
      *              decreasing the Actor count.
      * @throws CheckpointStoreException on error accessing or updating checkpoint store.
      */
-    public void changeEventProcessorCount(int count) throws CheckpointStoreException {
+    void changeEventProcessorCount(int count) throws CheckpointStoreException {
         synchronized (lock) {
             Preconditions.checkState(this.isRunning(), this.state().name());
             if (count <= 0) {
@@ -262,7 +284,66 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
     public Set<String> getProcesses() throws CheckpointStoreException {
         return checkpointStore.getProcesses();
     }
+    
+    @VisibleForTesting
+    void rebalance() {
+        try {
+            ReaderSegmentDistribution readerSegmentDistribution = readerGroup.getReaderSegmentDistribution();
+            Map<String, Integer> distribution = readerSegmentDistribution.getReaderSegmentDistribution();
+            int readerCount = distribution.size();
+            int unassigned = readerSegmentDistribution.getUnassignedSegments();
+            int segmentCount = distribution.values().stream().reduce(0, (x, y) -> x + y) + unassigned;
+            
+            // If there are idle readers (no segment assignments, then identify and replace overloaded readers). 
+            boolean idleReaders = distribution.entrySet().stream().anyMatch(x -> !Strings.isNullOrEmpty(x.getKey()) && x.getValue() == 0);
+            if (idleReaders) {
+                distribution.forEach((readerId, assigned) -> {
+                    if (!Strings.isNullOrEmpty(readerId)) {
+                        // check if the reader belongs to this group and the reader is eligible for rebalance
+                        if (eventProcessorMap.containsKey(readerId) && isRebalanceCandidate(assigned, readerCount, segmentCount)) {
+                            replaceCell(readerId);
+                        }
+                    }
+                });
+            }
+        } catch (Exception e) {
+            Throwable realException = Exceptions.unwrap(e);
+            log.warn("Rebalance failed with exception {} {}", realException.getClass().getSimpleName(), e.getMessage());
+        }
+    }
 
+    private boolean isRebalanceCandidate(int assigned, int readerCount, int segmentCount) {
+        double fair = (double) segmentCount / (double) readerCount;
+        return assigned >= fair + 1.0;
+    }
+
+    private void replaceCell(String readerId) {
+        // add a replacement reader and then shutdown existing reader
+        log.info("Found overloaded reader: {}", readerId);
+
+        String newReaderId;
+        try {
+            List<String> newReaders = createEventProcessors(1);
+            assert newReaders.size() == 1;
+            newReaderId = newReaders.get(0);
+            eventProcessorMap.get(newReaderId).startAsync();
+        } catch (CheckpointStoreException e) {
+            log.warn("Unable to create a new event processor cell", e.getMessage());
+            return;
+        }
+
+        EventProcessorCell<T> cell = eventProcessorMap.get(readerId);
+        log.info("Stopping event processor cell: {}", cell);
+        cell.stopAsync();
+        log.info("Awaiting termination of event processor cell: {}", cell);
+        try {
+            cell.awaitTerminated();
+            eventProcessorMap.remove(readerId);
+        } catch (Exception e) {
+            log.warn("Failed terminating event processor cell {}.", cell, e);
+        }
+    }
+    
     @Override
     public void close() throws Exception {
         this.stopAsync();
