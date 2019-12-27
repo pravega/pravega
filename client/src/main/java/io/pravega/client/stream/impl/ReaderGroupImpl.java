@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
@@ -29,6 +30,7 @@ import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupMetrics;
+import io.pravega.client.stream.ReaderSegmentDistribution;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
@@ -184,6 +186,28 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public void resetReaderGroup(ReaderGroupConfig config) {
         Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+    }
+
+    @Override
+    public ReaderSegmentDistribution getReaderSegmentDistribution() {
+        synchronizer.fetchUpdates();
+        // fetch current state and populate assigned and unassigned distribution from the state.
+        ReaderGroupState state = synchronizer.getState();
+        ImmutableMap.Builder<String, Integer> mapBuilder = ImmutableMap.builder();
+
+        state.getOnlineReaders().forEach(reader -> {
+            Map<SegmentWithRange, Long> assigned = state.getAssignedSegments(reader);
+            int size = assigned != null ? assigned.size() : 0;
+            mapBuilder.put(reader, size);
+        });
+
+        // add unassigned against empty string
+        int unassigned = state.getNumberOfUnassignedSegments();
+        ImmutableMap<String, Integer> readerDistribution = mapBuilder.build();
+        log.info("ReaderGroup {} has unassigned segments count = {} and segment distribution as {}", 
+                getGroupName(), unassigned, readerDistribution);
+        return ReaderSegmentDistribution
+                .builder().readerSegmentDistribution(readerDistribution).unassignedSegments(unassigned).build();
     }
 
     @VisibleForTesting
