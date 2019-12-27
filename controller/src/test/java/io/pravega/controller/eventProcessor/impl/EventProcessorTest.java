@@ -646,7 +646,7 @@ public class EventProcessorTest {
         // call rebalance. overloaded reader should be replaced
         group.rebalance();
 
-        // no change to the group
+        // reader0 should have been replaced. 
         eventProcessorMap = group.getEventProcessorMap();
         assertEquals(2, eventProcessorMap.size());
         assertFalse(eventProcessorMap.containsKey(readerIds.get(0)));

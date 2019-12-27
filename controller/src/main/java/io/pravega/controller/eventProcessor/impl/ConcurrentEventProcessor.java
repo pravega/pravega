@@ -232,7 +232,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
             log.warn("error while trying to store checkpoint in the store {}", e);
         }
     }
-    
+
     @AllArgsConstructor
     private static class PositionCounter {
         private final Position position;

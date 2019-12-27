@@ -69,7 +69,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
     
     private ScheduledFuture<?> rebalanceFuture;
     
-    private final long minRebalancePeriodMillis;
+    private final long rebalancePeriod;
     /**
      * We use this lock for mutual exclusion between shutDown and changeEventProcessorCount methods.
      */
@@ -89,7 +89,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                         eventProcessorConfig.getSerializer(),
                         EventWriterConfig.builder().build());
         this.checkpointStore = checkpointStore;
-        this.minRebalancePeriodMillis = eventProcessorConfig.getMinRebalanceIntervalMillis();
+        this.rebalancePeriod = eventProcessorConfig.getRebalancePeriodMillis();
     }
 
     void initialize() throws CheckpointStoreException {
@@ -159,9 +159,9 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             eventProcessorMap.entrySet().forEach(entry -> entry.getValue().startAsync());
             log.info("Waiting for all all event processors in {} to start", this.toString());
             eventProcessorMap.entrySet().forEach(entry -> entry.getValue().awaitStartupComplete());
-            if (minRebalancePeriodMillis > 0) {
+            if (rebalancePeriod > 0) {
                 rebalanceFuture = executorService.scheduleWithFixedDelay(this::rebalance,
-                        minRebalancePeriodMillis, minRebalancePeriodMillis, TimeUnit.MILLISECONDS);
+                        rebalancePeriod, rebalancePeriod, TimeUnit.MILLISECONDS);
             } else {
                 rebalanceFuture = null;
             }

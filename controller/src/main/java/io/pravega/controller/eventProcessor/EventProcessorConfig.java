@@ -28,13 +28,13 @@ public class EventProcessorConfig<T extends ControllerEvent> {
     private final ExceptionHandler exceptionHandler;
     private final Serializer<T> serializer;
     private final Supplier<EventProcessor<T>> supplier;
-    private final long minRebalanceIntervalMillis;
+    private final long rebalancePeriodMillis;
 
     private EventProcessorConfig(final EventProcessorGroupConfig config,
                                  final ExceptionHandler exceptionHandler,
                                  final Serializer<T> serializer,
                                  final Supplier<EventProcessor<T>> supplier, 
-                                 final long minRebalanceIntervalMillis) {
+                                 final long rebalancePeriodMillis) {
         Preconditions.checkNotNull(config);
         Preconditions.checkNotNull(serializer);
         Preconditions.checkNotNull(supplier);
@@ -46,7 +46,7 @@ public class EventProcessorConfig<T extends ControllerEvent> {
         }
         this.serializer = serializer;
         this.supplier = supplier;
-        this.minRebalanceIntervalMillis = minRebalanceIntervalMillis;
+        this.rebalancePeriodMillis = rebalancePeriodMillis;
     }
 
     public static <T extends ControllerEvent> EventProcessorConfigBuilder<T> builder() {
@@ -62,7 +62,7 @@ public class EventProcessorConfig<T extends ControllerEvent> {
         private ExceptionHandler exceptionHandler;
         private Serializer<T> serializer;
         private Supplier<EventProcessor<T>> supplier;
-        private long minRebalanceIntervalMillis = Duration.ofMinutes(2).toMillis();
+        private long rebalancePeriodMillis = Duration.ofMinutes(2).toMillis();
 
         EventProcessorConfigBuilder() {
         }
@@ -87,13 +87,13 @@ public class EventProcessorConfig<T extends ControllerEvent> {
             return this;
         }
         
-        public EventProcessorConfigBuilder<T> minRebalanceIntervalMillis(long minRebalanceIntervalMillis) {
-            this.minRebalanceIntervalMillis = minRebalanceIntervalMillis;
+        public EventProcessorConfigBuilder<T> minRebalanceIntervalMillis(long rebalancePeriodMillis) {
+            this.rebalancePeriodMillis = rebalancePeriodMillis;
             return this;
         }
 
         public EventProcessorConfig<T> build() {
-            return new EventProcessorConfig<>(this.config, this.exceptionHandler, this.serializer, this.supplier, minRebalanceIntervalMillis);
+            return new EventProcessorConfig<>(this.config, this.exceptionHandler, this.serializer, this.supplier, rebalancePeriodMillis);
         }
 
         @Override

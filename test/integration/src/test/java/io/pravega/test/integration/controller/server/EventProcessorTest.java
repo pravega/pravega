@@ -10,6 +10,7 @@
 package io.pravega.test.integration.controller.server;
 
 import com.google.common.base.Preconditions;
+import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -70,7 +71,6 @@ import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
-import org.eclipse.jetty.util.ConcurrentHashSet;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -426,7 +426,7 @@ public class EventProcessorTest {
 
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-        
+
         CheckpointConfig.CheckpointPeriod period =
                 CheckpointConfig.CheckpointPeriod.builder()
                                                  .numEvents(1)
@@ -448,7 +448,7 @@ public class EventProcessorTest {
                                              .build();
 
         LinkedBlockingQueue<Integer> queue1 = new LinkedBlockingQueue<>();
-        
+
         EventProcessorConfig<TestEvent> eventProcessorConfig1 = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor2(queue1))
                 .serializer(eventSerializer)
@@ -456,7 +456,7 @@ public class EventProcessorTest {
                 .config(eventProcessorGroupConfig)
                 .minRebalanceIntervalMillis(Duration.ofMillis(100).toMillis())
                 .build();
-        
+
         // create a group and verify that all events can be written and read by readers in this group.
         EventProcessorSystem system1 = new EventProcessorSystemImpl("Controller", "process1", scope,
                 new ClientFactoryImpl(scope, controller, connectionFactory),
@@ -469,14 +469,14 @@ public class EventProcessorTest {
         eventProcessorGroup1.awaitRunning();
 
         log.info("first event processor started");
-        
+
         @Cleanup
         EventStreamWriter<TestEvent> writer = clientFactory.createEventWriter(streamName,
                 eventSerializer, EventWriterConfig.builder().build());
 
         // write 10 events and read them back from the queue passed to first event processor's
         List<Integer> input = IntStream.range(0, 10).boxed().collect(Collectors.toList());
-        ConcurrentHashSet<Integer> output = new ConcurrentHashSet<>();
+        ConcurrentSet<Integer> output = new ConcurrentSet<>();
 
         for (int val : input) {
             writer.writeEvent(new TestEvent(val));
@@ -484,7 +484,7 @@ public class EventProcessorTest {
         writer.flush();
 
         // now wait until all the entries are read back. 
-        for(int i = 0; i < 10; i++) {
+        for (int i = 0; i < 10; i++) {
             // read 10 events back
             Integer entry = queue1.take();
             output.add(entry);
@@ -492,7 +492,7 @@ public class EventProcessorTest {
         assertEquals(10, output.size());
 
         log.info("first event processor read all the messages");
-        
+
         LinkedBlockingQueue<Integer> queue2 = new LinkedBlockingQueue<>();
 
         EventProcessorConfig<TestEvent> eventProcessorConfig2 = EventProcessorConfig.<TestEvent>builder()
@@ -518,7 +518,7 @@ public class EventProcessorTest {
 
         AtomicInteger queue1EntriesFound = new AtomicInteger(0);
         AtomicInteger queue2EntriesFound = new AtomicInteger(0);
-        ConcurrentHashSet<Integer> output2 = new ConcurrentHashSet<>();
+        ConcurrentSet<Integer> output2 = new ConcurrentSet<>();
 
         // wait until rebalance may have happened. 
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory,
@@ -531,8 +531,8 @@ public class EventProcessorTest {
             ReaderSegmentDistribution distribution = readerGroup.getReaderSegmentDistribution();
             int numberOfReaders = distribution.getReaderSegmentDistribution().size();
             allAssigned.set(numberOfReaders == 2 && distribution.getReaderSegmentDistribution().values().stream().noneMatch(x -> x == 0));
-        }), executor).join(); 
-        
+        }), executor).join();
+
         // write 10 new events
         for (int val : input) {
             writer.writeEvent(new TestEvent(val));
@@ -563,7 +563,7 @@ public class EventProcessorTest {
                 }
             }
         })).join();
-        
+
         assertTrue(queue1EntriesFound.get() > 0);
         assertTrue(queue2EntriesFound.get() > 0);
         assertEquals(10, output2.size());
