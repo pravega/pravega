@@ -763,9 +763,20 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
      * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing.
      */
     @Override
-    public void getEvent(final SecurityContext securityContext,
+    public void getEvent(String scopeName, String streamName, Long segmentNumber, SecurityContext securityContext,
                          final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "getEvent");
+        try {
+            NameUtils.validateUserScopeName(scopeName);
+            NameUtils.validateUserStreamName(streamName);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Get event failed due to invalid scope name {} or stream name {}",
+                    scopeName, streamName);
+            asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
+            LoggerHelpers.traceLeave(log, "getEvent", traceId);
+            return;
+        }
+        log.info("getEvent called for scope:{} and stream:{}", scopeName, streamName);
 
         try {
             restAuthHelper.authenticateAuthorize(
@@ -777,8 +788,9 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             LoggerHelpers.traceLeave(log, "getEvent", traceId);
             return;
         }
+        log.info("getEvent authorized");
 
-        controllerService.getEvent("", "_system", "foo", 0L)
+        controllerService.getEvent("", scopeName, streamName, segmentNumber)
                 .thenApply(scope -> {
                     return Response.status(Status.OK).entity(GetEventResponse.newBuilder().build()).build();
                 })
@@ -815,6 +827,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             LoggerHelpers.traceLeave(log, "createEvent", traceId);
             return;
         }
+        log.info("createEvent called for scope:{} and stream:{}", createEventRequest.getScopeName(), createEventRequest.getStreamName());
 
         try {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(),
@@ -826,6 +839,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             LoggerHelpers.traceLeave(log, "createEvent", traceId);
             return;
         }
+        log.info("createEvent authorized");
 
         controllerService.createEvent(
                 createEventRequest.getRoutingKey(),

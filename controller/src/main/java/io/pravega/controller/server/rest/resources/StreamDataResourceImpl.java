@@ -86,7 +86,7 @@ public class StreamDataResourceImpl implements ApiV1.EventsApi {
      * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing.
      */
     @Override
-    public void getEvent(final SecurityContext securityContext,
+    public void getEvent(String scopeName, String streamName, Long segmentNumber, final SecurityContext securityContext,
                          final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "getEvent");
 
@@ -101,7 +101,7 @@ public class StreamDataResourceImpl implements ApiV1.EventsApi {
             return;
         }
 
-        controllerService.getEvent("", "_system", "foo", 0L)
+        controllerService.getEvent("", scopeName, streamName, segmentNumber)
                 .thenApply(scope -> {
                     return Response.status(Status.OK).entity(GetEventResponse.newBuilder().build()).build();
                 })

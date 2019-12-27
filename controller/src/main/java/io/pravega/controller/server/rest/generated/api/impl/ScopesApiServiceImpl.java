@@ -94,7 +94,7 @@ public class ScopesApiServiceImpl extends ScopesApiService {
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }
     @Override
-    public Response getEvent(SecurityContext securityContext) throws NotFoundException {
+    public Response getEvent(String scopeName, String streamName, Long segmentNumber, SecurityContext securityContext) throws NotFoundException {
         // do some magic!
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }
