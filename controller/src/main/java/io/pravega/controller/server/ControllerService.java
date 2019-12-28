@@ -601,9 +601,8 @@ public class ControllerService {
 //            return CompletableFuture.completedFuture(CreateEventStatus.newBuilder().setStatus(
 //                    CreateEventStatus.Status.INVALID_EVENT_NAME).build());
 //        }
-//        return streamStore.createEvent(routingKey, scopeName, streamName, message);
         log.debug("ControllerService-createEvent-end");
-        return null;
+        return streamStore.createEvent(routingKey, scopeName, streamName, message);
     }
 
     /**
