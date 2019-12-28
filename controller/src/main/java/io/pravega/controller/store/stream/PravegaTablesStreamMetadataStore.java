@@ -15,6 +15,7 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
@@ -313,7 +314,12 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                final String scopeName,
                                                final String streamName,
                                                final String message) {
-        return storeHelper.createEvent("", scopeName, streamName, message);
+        StreamSegments currentSegments = Futures.getAndHandleExceptions(localController.getCurrentSegments(scopeName, streamName), InvalidStreamException::new);
+        if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
+            throw new InvalidStreamException("Stream does not exist: " + streamName);
+        }
+        io.pravega.client.segment.impl.Segment segment =  currentSegments.getSegmentForKey(0.0);
+        return storeHelper.createEvent("", scopeName, streamName, message, segment);
     }
 
     /**

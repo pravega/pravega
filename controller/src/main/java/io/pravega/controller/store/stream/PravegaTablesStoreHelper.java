@@ -125,8 +125,8 @@ public class PravegaTablesStoreHelper {
         cache.invalidateCache(new TableCacheKey<>(table, key, x -> null));
     }
 
-    public CompletableFuture<Void> createEvent(String routingKey, String scopeName, String streamName, String message) {
-        return segmentHelper.createEvent(scopeName, streamName, message, authToken.get(), RequestTag.NON_EXISTENT_ID);
+    public CompletableFuture<Void> createEvent(String routingKey, String scopeName, String streamName, String message, io.pravega.client.segment.impl.Segment segment) {
+        return segmentHelper.createEvent(scopeName, streamName, message, authToken.get(), RequestTag.NON_EXISTENT_ID, segment);
     }
 
     public CompletableFuture<String> getEvent(String routingKey, String scopeName, String streamName, Long sequenceNumber) {
