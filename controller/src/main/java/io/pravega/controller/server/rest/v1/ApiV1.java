@@ -357,7 +357,7 @@ public final class ApiV1 {
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
         @GET
-        @Path("/events")
+        @Path("/{scopeName}/streams/{streamName}/segments/{segmentNumber}/events")
         @Produces({ "application/json" })
         @ApiOperation(
                 value = "", notes = "Retrieve event", response = GetEventResponse.class, tags = {  })
@@ -370,9 +370,9 @@ public final class ApiV1 {
 
                 @ApiResponse(
                         code = 500, message = "Server error", response = GetEventResponse.class) })
-        public void getEvent(@QueryParam("scopeName") @PathParam("scopeName") String scopeName, 
-                             @QueryParam("streamName") @PathParam("streamName") String streamName,
-                             @QueryParam("segmentNumber") @PathParam("segmentNumber") Long segmentNumber,
+        public void getEvent(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName, 
+                             @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
+                             @ApiParam(value = "Segment number", required = true) @PathParam("segmentNumber") Long segmentNumber,
                              @Context SecurityContext securityContext,
                              @Suspended final AsyncResponse asyncResponse);
 
