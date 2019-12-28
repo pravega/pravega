@@ -28,11 +28,6 @@ import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
 import io.pravega.controller.server.rpc.auth.RESTAuthHelper;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.GetEventRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.GetEventResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -103,7 +98,7 @@ public class StreamDataResourceImpl implements ApiV1.EventsApi {
 
         controllerService.getEvent("", scopeName, streamName, segmentNumber)
                 .thenApply(scope -> {
-                    return Response.status(Status.OK).entity(GetEventResponse.newBuilder().build()).build();
+                    return Response.status(Status.OK).entity(new GetEventResponse().scopeName(scopeName)).build();
                 })
                 .exceptionally( exception -> {
                     if (exception.getCause() instanceof StoreException.DataNotFoundException) {
@@ -154,8 +149,8 @@ public class StreamDataResourceImpl implements ApiV1.EventsApi {
                 createEventRequest.getRoutingKey(),
                 createEventRequest.getScopeName(),
                 createEventRequest.getStreamName(),
-                createEventRequest.getMessage()).thenApply(response -> {
-                    return Response.status(Status.CREATED).entity(CreateEventResponse.newBuilder().build()).build();
+                createEventRequest.getMessage()).thenApply(scope -> {
+                    return Response.status(Status.CREATED).entity(new CreateEventResponse().scopeName(createEventRequest.getScopeName())).build();
 /*
             if (response.getStatus() == CreateEventStatus.Status.SUCCESS) {
                 log.info("Successfully created new event: {}", createEventRequest.getScopeName());

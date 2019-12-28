@@ -14,42 +14,24 @@
 package io.pravega.controller.server.rest.generated.model;
 
 import java.util.Objects;
-
 import com.fasterxml.jackson.annotation.JsonProperty;
-
+import com.fasterxml.jackson.annotation.JsonCreator;
+import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import javax.validation.constraints.*;
 
 /**
- * CreateEventRequest
+ * CreateEventResponse
  */
 
-public class CreateEventRequest   {
-
-  @JsonProperty("routingKey")
-  private String routingKey = null;
-
+public class CreateEventResponse   {
   @JsonProperty("scopeName")
   private String scopeName = null;
 
-  @JsonProperty("streamName")
-  private String streamName = null;
-
-  @JsonProperty("message")
-  private String message = null;
-
-  public CreateEventRequest scopeName(String scopeName) {
+  public CreateEventResponse scopeName(String scopeName) {
     this.scopeName = scopeName;
     return this;
   }
-
-  public CreateEventRequest scopeName(String routingKey, String scopeName, String streamName, String message) {
-    this.routingKey = routingKey;
-    this.scopeName = scopeName;
-    this.streamName = streamName;
-    this.message = message;
-    return this;
-  }
-
 
   /**
    * Get scopeName
@@ -65,48 +47,6 @@ public class CreateEventRequest   {
     this.scopeName = scopeName;
   }
 
-  /**
-   * Get streamName
-   * @return streamName
-   **/
-  @JsonProperty("streamName")
-  @ApiModelProperty(value = "")
-  public String getStreamName() {
-    return streamName;
-  }
-
-  public void setStreamName(String streamName) {
-    this.streamName = streamName;
-  }
-
-  /**
-   * Get routingKey
-   * @return routingKey
-   **/
-  @JsonProperty("routingKey")
-  @ApiModelProperty(value = "")
-  public String getRoutingKey() {
-    return routingKey;
-  }
-
-  public void setRoutingKey(String routingKey) {
-    this.routingKey = routingKey;
-  }
-
-
-  /**
-   * Get message
-   * @return message
-   **/
-  @JsonProperty("message")
-  @ApiModelProperty(value = "")
-  public String getMessage() {
-    return message;
-  }
-
-  public void setMessage(String message) {
-    this.message = message;
-  }
 
   @Override
   public boolean equals(java.lang.Object o) {
@@ -116,13 +56,12 @@ public class CreateEventRequest   {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    CreateEventRequest createEventRequest = (CreateEventRequest) o;
-    return Objects.equals(this.scopeName, createEventRequest.scopeName);
+    CreateEventResponse createEventResponse = (CreateEventResponse) o;
+    return Objects.equals(this.scopeName, createEventResponse.scopeName);
   }
 
   @Override
   public int hashCode() {
-    // TODO: include scopeName, streamName, message
     return Objects.hash(scopeName);
   }
 
@@ -130,7 +69,7 @@ public class CreateEventRequest   {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class CreateEventRequest {\n");
+    sb.append("class CreateEventResponse {\n");
     
     sb.append("    scopeName: ").append(toIndentedString(scopeName)).append("\n");
     sb.append("}");

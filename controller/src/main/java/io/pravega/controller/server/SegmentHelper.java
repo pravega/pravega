@@ -408,6 +408,7 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().asLong();
         ByteBuf data = Unpooled.wrappedBuffer(message.getBytes());
 	final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
+        log.error("scopeName={},streamName={},message={},delegationToken={},clientRequestId={}", scopeName, streamName, message, delegationToken, clientRequestId);
         return sendRequest(connection, requestId, new WireCommands.ConditionalAppend(UUID.randomUUID(),requestIdGenerator.get(), Long.MAX_VALUE,
                new WireCommands.Event(data), requestId))
                 .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, streamName, WireCommands.ReadSegment.class, type));

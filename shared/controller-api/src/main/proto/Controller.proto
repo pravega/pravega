@@ -390,11 +390,11 @@ message CreateEventRequest {
 message CreateEventResponse {
     enum Status {
         SUCCESS = 0;
-        INVALID_TIME = 1;
-        INVALID_POSITION = 2;
-        INTERNAL_ERROR = 3;
+        FAILURE = 1;
+        EVENT_EXISTS = 2;
+        INVALID_EVENT_NAME = 3;
     }
-    Status result = 1;
+    Status status = 1;
 }
 
 message GetEventRequest {
@@ -407,9 +407,9 @@ message GetEventRequest {
 message GetEventResponse {
     enum Status {
         SUCCESS = 0;
-        INVALID_TIME = 1;
-        INVALID_POSITION = 2;
-        INTERNAL_ERROR = 3;
+        FAILURE = 1;
+        EVENT_EXISTS = 2;
+        INVALID_EVENT_NAME = 3;
     }
-    Status result = 1;
+    Status status = 1;
 }
