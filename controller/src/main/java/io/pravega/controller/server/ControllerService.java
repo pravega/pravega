@@ -616,7 +616,7 @@ public class ControllerService {
      * @return Status of create event.
      */
     public CompletableFuture<String> getEvent(final String routingKey, final String scopeName, final String streamName, final Long segmentNumber) {
-        log.error("ControllerService-getEvent-end");
+        log.error("ControllerService-getEvent-end: {} {} {} {} ", routingKey, scopeName, streamName, segmentNumber);
         return streamStore.getEvent(routingKey, scopeName, streamName, segmentNumber);
     }
     // End data operations

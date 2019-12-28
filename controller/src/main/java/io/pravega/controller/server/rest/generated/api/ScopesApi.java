@@ -304,9 +304,9 @@ public class ScopesApi  {
 
         //         @ApiResponse(
         //                 code = 500, message = "Server error", response = GetEventResponse.class) })
-        public Response getEvent(@QueryParam("scopeName") @PathParam("scopeName") String scopeName,
-                                 @QueryParam("streamName") @PathParam("streamName") String streamName,
-                                 @QueryParam("segmentNumber") @PathParam("segmentNumber") Long segmentNumber, SecurityContext securityContext) throws NotFoundException {
+        public Response getEvent(@QueryParam("scopeName") String scopeName,
+                                 @QueryParam("streamName") String streamName,
+                                 @QueryParam("segmentNumber") Long segmentNumber, SecurityContext securityContext) throws NotFoundException {
                return delegate.getEvent(scopeName, streamName, segmentNumber, securityContext);
         }
 

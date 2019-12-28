@@ -67,7 +67,6 @@ public final class ApiV1 {
 
         @GET
         @Produces({ "application/json" })
-/*
         @ApiOperation(
                 value = "", notes = "Retrieve event", response = GetEventResponse.class, tags = {  })
         @ApiResponses(value = {
@@ -79,7 +78,6 @@ public final class ApiV1 {
 
                 @ApiResponse(
                         code = 500, message = "Server error", response = GetEventResponse.class) })
-*/
         public void getEvent(@QueryParam("scopeName") @PathParam("scopeName") String scopeName,
                              @QueryParam("streamName") @PathParam("streamName") String streamName,
                              @QueryParam("segmentNumber") @PathParam("segmentNumber") Long segmentNumber,
@@ -361,7 +359,6 @@ public final class ApiV1 {
         @GET
         @Path("/events")
         @Produces({ "application/json" })
-/*
         @ApiOperation(
                 value = "", notes = "Retrieve event", response = GetEventResponse.class, tags = {  })
         @ApiResponses(value = {
@@ -373,7 +370,6 @@ public final class ApiV1 {
 
                 @ApiResponse(
                         code = 500, message = "Server error", response = GetEventResponse.class) })
-*/
         public void getEvent(@QueryParam("scopeName") @PathParam("scopeName") String scopeName, 
                              @QueryParam("streamName") @PathParam("streamName") String streamName,
                              @QueryParam("segmentNumber") @PathParam("segmentNumber") Long segmentNumber,
