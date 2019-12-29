@@ -314,12 +314,22 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                final String scopeName,
                                                final String streamName,
                                                final String message) {
-        StreamSegments currentSegments = Futures.getAndHandleExceptions(localController.getCurrentSegments(scopeName, streamName), InvalidStreamException::new);
-        if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
-            throw new InvalidStreamException("Stream does not exist: " + streamName);
+
+        CompletableFuture<Void> ack = null;
+        try {
+            ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this.getController());
+            final Serializer<String> serializer = new JavaSerializer<>();
+            final Random random = new Random();
+            final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
+            EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
+                    EventWriterConfig.builder().build());
+            ack = writer.writeEvent(keyGenerator.get(), message);
+            log.info("event written to scope:{} stream{}", scopeName, streamName);
+            // ack.get();
+        } catch (Exception e) {
+            log.error("Exception:", e);
         }
-        io.pravega.client.segment.impl.Segment segment =  currentSegments.getSegmentForKey(0.0);
-        return storeHelper.createEvent("", scopeName, streamName, message, segment);
+        return ack;
     }
 
     /**
