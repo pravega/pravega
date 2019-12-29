@@ -91,7 +91,7 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
         CompletableFuture<Void> future;
         try {
             assert work != null;
-            if (!work.cancelledSupplier.get()) {
+            if (!work.getCancelledSupplier().get()) {
                 future = processEvent(work.getEvent());
             } else {
                 future = new CompletableFuture<>();

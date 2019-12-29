@@ -65,6 +65,9 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 
 /**
  * Event processor test.
@@ -333,7 +336,7 @@ public class EventProcessorTest {
 
         // Test case 6. Close event processor cell when reader/checkpoint store throw exceptions.
         Mockito.doThrow(new IllegalArgumentException("Failing reader")).when(reader).closeAt(any());
-        checkpointStore = Mockito.spy(checkpointStore);
+        checkpointStore = spy(checkpointStore);
         Mockito.doThrow(new IllegalArgumentException("Failing checkpointStore"))
                .when(checkpointStore)
                .removeReader(anyString(), anyString(), anyString());
@@ -522,7 +525,7 @@ public class EventProcessorTest {
         String systemName = "rebalance";
         String readerGroupName = "rebalance";
 
-        CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+        CheckpointStore checkpointStore = spy(CheckpointStoreFactory.createInMemoryStore());
 
         EventProcessorGroupConfig config = createEventProcessorGroupConfig(2);
         
@@ -652,6 +655,41 @@ public class EventProcessorTest {
         assertFalse(eventProcessorMap.containsKey(readerIds.get(0)));
         assertTrue(eventProcessorMap.containsKey(readerIds.get(1)));
 
+        // endregion
+
+        readerIds = eventProcessorMap.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
+        distribution = new HashMap<>();
+        distribution.put(readerIds.get(0), 2);
+        distribution.put(readerIds.get(1), 0);
+        distribution.put(reader2, 0);
+        distribution.put(reader3, 0);
+
+        readerSegmentDistribution = ReaderSegmentDistribution
+                .builder().readerSegmentDistribution(distribution).unassignedSegments(2).build();
+
+        // case 5: region failure cases
+        doThrow(new RuntimeException("reader group throws")).when(readerGroup).getReaderSegmentDistribution();
+
+        // exception should be handled and there should be no state change in event processor
+        group.rebalance();
+
+        eventProcessorMap = group.getEventProcessorMap();
+        assertEquals(2, eventProcessorMap.size());
+        assertTrue(eventProcessorMap.containsKey(readerIds.get(0)));
+        assertTrue(eventProcessorMap.containsKey(readerIds.get(1)));
+
+        // now reset the distribution
+        doReturn(readerSegmentDistribution).when(readerGroup).getReaderSegmentDistribution();
+        // throw from checkpoint store
+        doThrow(new CheckpointStoreException("checkpoint store exception")).when(checkpointStore).addReader(anyString(), anyString(), anyString());
+        
+        // exception should have been thrown and handled
+        group.rebalance();
+
+        eventProcessorMap = group.getEventProcessorMap();
+        assertEquals(2, eventProcessorMap.size());
+        assertTrue(eventProcessorMap.containsKey(readerIds.get(0)));
+        assertTrue(eventProcessorMap.containsKey(readerIds.get(1)));
         // endregion
         
         // Stop the group, and await its termmination.

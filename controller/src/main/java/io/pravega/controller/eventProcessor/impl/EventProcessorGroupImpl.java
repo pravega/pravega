@@ -334,13 +334,13 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
         EventProcessorCell<T> cell = eventProcessorMap.get(readerId);
         log.info("Stopping event processor cell: {}", cell);
-        cell.stopAsync();
-        log.info("Awaiting termination of event processor cell: {}", cell);
         try {
+            cell.stopAsync();
+            log.info("Awaiting termination of event processor cell: {}", cell);
             cell.awaitTerminated();
             eventProcessorMap.remove(readerId);
         } catch (Exception e) {
-            log.warn("Failed terminating event processor cell {}.", cell, e);
+            log.error("Failed terminating event processor cell {}.", cell, e);
         }
     }
     
