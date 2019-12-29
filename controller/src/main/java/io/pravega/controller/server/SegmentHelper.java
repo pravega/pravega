@@ -124,6 +124,10 @@ public class SegmentHelper implements AutoCloseable {
         this.hostStore = hostStore;
     }
 
+    public ConnectionFactory getConnectionFactory() {
+        return this.connectionFactory;
+    }
+
     public Controller.NodeUri getSegmentUri(final String scope,
                                             final String stream,
                                             final long segmentId) {
@@ -406,21 +410,22 @@ public class SegmentHelper implements AutoCloseable {
                                               String delegationToken,
                                               final long clientRequestId,
                                                io.pravega.client.segment.impl.Segment segment) {
-/*
+
         CompletableFuture<Void> ack = new CompletableFuture<>();
-        ByteBuffer serialized = new JavaSerializer<String>().serialize(message);
-        try {
-            PendingEvent event = PendingEvent.withHeader(null, serialized, ack);
-            log.trace("Unconditionally writing: {} to segment {}", message, segment);
-            synchronized (lock) {
-                out.write(event);
-                out.flush();
-            }
-        } catch (SegmentSealedException e) {
-            throw new CorruptedStateException("Unexpected end of segment ", e);
-        }
-        Futures.getAndHandleExceptions(ack, RuntimeException::new);
-*/
+//        ByteBuffer serialized = new JavaSerializer<String>().serialize(message);
+//        try {
+//            PendingEvent event = PendingEvent.withHeader(null, serialized, ack);
+//            log.trace("Unconditionally writing: {} to segment {}", message, segment);
+//            out = outFactory.createOutputStreamForSegment(segment, s -> handleSegmentSealed(), config, tokenProvider);
+//            synchronized (lock) {
+//                out.write(event);
+//                out.flush();
+//            }
+//        } catch (SegmentSealedException e) {
+//            throw new CorruptedStateException("Unexpected end of segment ", e);
+//        }
+//        Futures.getAndHandleExceptions(ack, RuntimeException::new);
+
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scopeName, streamName, 0L);
         final Controller.NodeUri uri = getSegmentUri(scopeName, streamName, 0L);
         final WireCommandType setupType = WireCommandType.SETUP_APPEND;

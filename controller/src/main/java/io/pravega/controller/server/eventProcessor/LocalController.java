@@ -24,6 +24,7 @@ import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.*;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
@@ -43,8 +44,10 @@ import java.util.stream.Collectors;
 
 import io.pravega.shared.watermarks.Watermark;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.LoggerFactory;
 
 public class LocalController implements Controller {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(LocalController.class));
 
     private static final int LIST_STREAM_IN_SCOPE_LIMIT = 1000;
     private ControllerService controller;
@@ -59,7 +62,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<String> getEvent(String routingKey, String scopeName, String streamName, Long segmentNumber) {
-        System.err.println("-----------------getEvent--------------------------");
+        log.error("-----------------getEvent--------------------------");
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this);
         final Serializer<String> serializer = new JavaSerializer<>();
         final Random random = new Random();
@@ -74,14 +77,22 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Void> createEvent(String routingKey, String scopeName, String streamName, String message) {
-        System.err.println("----------------createEvent-----------------------");
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this);
-        final Serializer<String> serializer = new JavaSerializer<>();
-        final Random random = new Random();
-        final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
-                EventWriterConfig.builder().build());
-        return writer.writeEvent(keyGenerator.get(), message);
+        CompletableFuture<Void> ack = null;
+        try {
+            ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this);
+            final Serializer<String> serializer = new JavaSerializer<>();
+            final Random random = new Random();
+            final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
+            EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
+                    EventWriterConfig.builder().build());
+            ack = writer.writeEvent(keyGenerator.get(), message);
+            // ack.get();
+            log.info("event created for scope:{} stream:{}", scopeName, streamName);
+        } catch (Exception e) {
+            log.error("Exception:", e);
+            e.printStackTrace();
+        }
+        return ack;
     }
 
     @Override

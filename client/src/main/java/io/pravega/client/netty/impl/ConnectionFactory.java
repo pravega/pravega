@@ -12,6 +12,7 @@ package io.pravega.client.netty.impl;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 
@@ -20,6 +21,8 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
  * The underlying implementation may or may not implement connection pooling.
  */
 public interface ConnectionFactory extends AutoCloseable {
+
+    public ClientConfig getClientConfig();
 
     /**
      * Establishes a connection between server and client with given parameters.

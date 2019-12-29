@@ -79,6 +79,9 @@ public class PravegaTablesStoreHelper {
         this(segmentHelper, authHelper, executor, NUM_OF_RETRIES);
     }
 
+    public SegmentHelper getSegmentHelper() {
+        return this.segmentHelper;
+    }
     @VisibleForTesting
     PravegaTablesStoreHelper(SegmentHelper segmentHelper, GrpcAuthHelper authHelper, ScheduledExecutorService executor, int numOfRetries) {
         this.segmentHelper = segmentHelper;

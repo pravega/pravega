@@ -11,11 +11,17 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
+import io.pravega.client.state.RevisionedStreamClient;
+import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
@@ -24,6 +30,10 @@ import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import io.pravega.controller.store.client.StoreClientConfig;
+import io.pravega.controller.store.client.ZKClientConfig;
+import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
+import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
@@ -92,6 +102,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
         this.executor = executor;
         this.controllerReadyLatch = new CountDownLatch(1);
+
         // GRPCServerConfig grpcServerConfig = serviceConfig.getGRPCServerConfig().get();
         // setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
         //            grpcServerConfig.getTokenSigningKey()));
@@ -315,21 +326,53 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                final String streamName,
                                                final String message) {
 
-        CompletableFuture<Void> ack = null;
-        try {
-            ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this.getController());
-            final Serializer<String> serializer = new JavaSerializer<>();
-            final Random random = new Random();
-            final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
-            EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
-                    EventWriterConfig.builder().build());
-            ack = writer.writeEvent(keyGenerator.get(), message);
-            log.info("event written to scope:{} stream{}", scopeName, streamName);
-            // ack.get();
-        } catch (Exception e) {
-            log.error("Exception:", e);
-        }
+        CompletableFuture<Void> ack = CompletableFuture.completedFuture(null);
+        ClientConfig clientConfig = this.getStoreHelper().getSegmentHelper().getConnectionFactory().getClientConfig();
+        SynchronizerClientFactory synchronizerClientFactory = SynchronizerClientFactory.withScope(scopeName, ClientConfig.builder().build());
+        RevisionedStreamClient<String>  revisedStreamClient = synchronizerClientFactory.createRevisionedStreamClient(
+                NameUtils.getMarkStreamForStream(streamName),
+                new JavaSerializer<String>(), SynchronizerConfig.builder().build());
+        revisedStreamClient.writeUnconditionally(message);
         return ack;
+
+//        ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
+//                .connectionString(Config.ZK_URL)
+//                .secureConnectionToZooKeeper(Config.SECURE_ZK)
+//                .trustStorePath(Config.ZK_TRUSTSTORE_FILE_PATH)
+//                .trustStorePasswordPath(Config.ZK_TRUSTSTORE_PASSWORD_FILE_PATH)
+//                .namespace("pravega/" + Config.CLUSTER_NAME)
+//                .initialSleepInterval(Config.ZK_RETRY_SLEEP_MS)
+//                .maxRetries(Config.ZK_MAX_RETRIES)
+//                .sessionTimeoutMs(Config.ZK_SESSION_TIMEOUT_MS)
+//                .build();
+//
+//        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withPravegaTablesClient(zkClientConfig);
+//        ClientConfig clientConfig = ClientConfig.builder()
+//                .credentials(new DefaultCredentials("well-known-password", "well-known-user"))
+//                .controllerURI(URI.create("tcp://nautilus-pravega-controller.nautilus-pravega:9090"))
+//                .build();
+//
+//        try {
+//            ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this.localController);
+//            final Serializer<String> serializer = new JavaSerializer<>();
+//            final Random random = new Random();
+//            final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
+//            EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
+//                    EventWriterConfig.builder().build());
+//
+//            ack = writer.writeEvent(keyGenerator.get(), message);
+//            // ack.get();
+//            log.info("event created for scope:{} stream:{}", scopeName, streamName);
+//        } catch (Exception e) {
+//            log.error("Exception:", e);
+//        }
+//        return localController.createEvent(routingKey, scopeName, streamName, message);
+//        StreamSegments currentSegments = Futures.getAndHandleExceptions(localController.getCurrentSegments(scopeName, streamName), InvalidStreamException::new);
+//        if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
+//            throw new InvalidStreamException("Stream does not exist: " + streamName);
+//        }
+//        io.pravega.client.segment.impl.Segment segment =  currentSegments.getSegmentForKey(0.0);
+//        return storeHelper.createEvent("", scopeName, streamName, message, segment);
     }
 
     /**
