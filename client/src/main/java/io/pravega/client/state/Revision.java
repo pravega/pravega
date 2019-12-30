@@ -9,6 +9,7 @@
  */
 package io.pravega.client.state;
 
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.impl.RevisionImpl;
 
 /**
@@ -40,5 +41,7 @@ public interface Revision extends Comparable<Revision> {
     static Revision fromString(String revision) {
         return RevisionImpl.fromString(revision);
     }
+
+    Segment getSegment();
 
 }

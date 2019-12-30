@@ -37,6 +37,8 @@ import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
+import io.pravega.client.state.Revision;
+import io.pravega.client.segment.impl.Segment;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -44,10 +46,7 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
@@ -388,6 +387,22 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                               final String scopeName,
                                               final String streamName,
                                               final Long segmentNumber) {
-        return storeHelper.getEvent(routingKey, scopeName, streamName, segmentNumber);
+        ClientConfig clientConfig = this.getStoreHelper().getSegmentHelper().getConnectionFactory().getClientConfig();
+        SynchronizerClientFactory synchronizerClientFactory = SynchronizerClientFactory.withScope(scopeName, ClientConfig.builder().build());
+        RevisionedStreamClient<String>  revisedStreamClient = synchronizerClientFactory.createRevisionedStreamClient(
+                NameUtils.getMarkStreamForStream(streamName),
+                new JavaSerializer<String>(), SynchronizerConfig.builder().build());
+        Revision r = revisedStreamClient.fetchLatestRevision();
+        Segment s = r.getSegment();
+        io.pravega.client.stream.Stream stream = s.getStream();
+        revisedStreamClient.readFrom(r);
+        Iterator<Map.Entry<Revision, String>> iter = revisedStreamClient.readFrom(r);
+        StringBuffer sb = new StringBuffer();
+        while (iter.hasNext()) {
+            Map.Entry<Revision, String> entry = iter.next();
+            sb.append(entry.getValue());
+        }
+        CompletableFuture<String> ack = CompletableFuture.completedFuture(sb.toString());
+        return ack;
     }
 }
