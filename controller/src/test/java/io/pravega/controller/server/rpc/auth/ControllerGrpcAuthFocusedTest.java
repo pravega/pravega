@@ -30,6 +30,8 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -144,6 +146,8 @@ public class ControllerGrpcAuthFocusedTest {
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         RequestTracker requestTracker = new RequestTracker(true);
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(
                 ClientConfig.builder()
@@ -213,6 +217,8 @@ public class ControllerGrpcAuthFocusedTest {
         }
         inProcessChannel.shutdownNow();
         grpcServer.shutdownNow();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
     }
 
     @Test
