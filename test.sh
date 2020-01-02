@@ -24,5 +24,7 @@ curl -i -k -u $1:$2 "http://$3:9091/v1/scopes/project58/streams/logstream2/segme
 
 #HTTP/1.1 200 OK
 #Content-Type: application/json
-#Content-Length: 75
+#Content-Length: 21
+
+#{"scopeName":"Hello"}
 

@@ -53,8 +53,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.concurrent.Executors;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedTableName;
 
@@ -331,47 +335,10 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         RevisionedStreamClient<String>  revisedStreamClient = synchronizerClientFactory.createRevisionedStreamClient(
                 NameUtils.getMarkStreamForStream(streamName),
                 new JavaSerializer<String>(), SynchronizerConfig.builder().build());
-        revisedStreamClient.writeUnconditionally(message);
+        Revision r = revisedStreamClient.fetchLatestRevision();
+        revisedStreamClient.writeConditionally(r, message);
+        log.info("createEvent wrote to revision: {}", r);
         return ack;
-
-//        ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
-//                .connectionString(Config.ZK_URL)
-//                .secureConnectionToZooKeeper(Config.SECURE_ZK)
-//                .trustStorePath(Config.ZK_TRUSTSTORE_FILE_PATH)
-//                .trustStorePasswordPath(Config.ZK_TRUSTSTORE_PASSWORD_FILE_PATH)
-//                .namespace("pravega/" + Config.CLUSTER_NAME)
-//                .initialSleepInterval(Config.ZK_RETRY_SLEEP_MS)
-//                .maxRetries(Config.ZK_MAX_RETRIES)
-//                .sessionTimeoutMs(Config.ZK_SESSION_TIMEOUT_MS)
-//                .build();
-//
-//        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withPravegaTablesClient(zkClientConfig);
-//        ClientConfig clientConfig = ClientConfig.builder()
-//                .credentials(new DefaultCredentials("well-known-password", "well-known-user"))
-//                .controllerURI(URI.create("tcp://nautilus-pravega-controller.nautilus-pravega:9090"))
-//                .build();
-//
-//        try {
-//            ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this.localController);
-//            final Serializer<String> serializer = new JavaSerializer<>();
-//            final Random random = new Random();
-//            final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
-//            EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
-//                    EventWriterConfig.builder().build());
-//
-//            ack = writer.writeEvent(keyGenerator.get(), message);
-//            // ack.get();
-//            log.info("event created for scope:{} stream:{}", scopeName, streamName);
-//        } catch (Exception e) {
-//            log.error("Exception:", e);
-//        }
-//        return localController.createEvent(routingKey, scopeName, streamName, message);
-//        StreamSegments currentSegments = Futures.getAndHandleExceptions(localController.getCurrentSegments(scopeName, streamName), InvalidStreamException::new);
-//        if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
-//            throw new InvalidStreamException("Stream does not exist: " + streamName);
-//        }
-//        io.pravega.client.segment.impl.Segment segment =  currentSegments.getSegmentForKey(0.0);
-//        return storeHelper.createEvent("", scopeName, streamName, message, segment);
     }
 
     /**
@@ -392,10 +359,9 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         RevisionedStreamClient<String>  revisedStreamClient = synchronizerClientFactory.createRevisionedStreamClient(
                 NameUtils.getMarkStreamForStream(streamName),
                 new JavaSerializer<String>(), SynchronizerConfig.builder().build());
-        Revision r = revisedStreamClient.fetchLatestRevision();
+        Revision r = revisedStreamClient.fetchOldestRevision();
         Segment s = r.getSegment();
         io.pravega.client.stream.Stream stream = s.getStream();
-        revisedStreamClient.readFrom(r);
         Iterator<Map.Entry<Revision, String>> iter = revisedStreamClient.readFrom(r);
         StringBuffer sb = new StringBuffer();
         while (iter.hasNext()) {
@@ -403,6 +369,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
             sb.append(entry.getValue());
         }
         CompletableFuture<String> ack = CompletableFuture.completedFuture(sb.toString());
+        log.info("getEvent returning data for scopeName: {} streamName: {}", scopeName, streamName);
         return ack;
     }
 }
