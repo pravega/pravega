@@ -28,7 +28,7 @@ import static org.junit.Assert.*;
 @Slf4j
 public class SegmentStoreMetricsTest {
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(1000);
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     @Before
     public void setUp() {
