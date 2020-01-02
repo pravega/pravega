@@ -333,7 +333,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         ClientConfig clientConfig = this.getStoreHelper().getSegmentHelper().getConnectionFactory().getClientConfig();
         SynchronizerClientFactory synchronizerClientFactory = SynchronizerClientFactory.withScope(scopeName, ClientConfig.builder().build());
         RevisionedStreamClient<String>  revisedStreamClient = synchronizerClientFactory.createRevisionedStreamClient(
-                NameUtils.getMarkStreamForStream(streamName),
+                streamName,
                 new JavaSerializer<String>(), SynchronizerConfig.builder().build());
         Revision r = revisedStreamClient.fetchLatestRevision();
         revisedStreamClient.writeConditionally(r, message);
@@ -357,7 +357,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         ClientConfig clientConfig = this.getStoreHelper().getSegmentHelper().getConnectionFactory().getClientConfig();
         SynchronizerClientFactory synchronizerClientFactory = SynchronizerClientFactory.withScope(scopeName, ClientConfig.builder().build());
         RevisionedStreamClient<String>  revisedStreamClient = synchronizerClientFactory.createRevisionedStreamClient(
-                NameUtils.getMarkStreamForStream(streamName),
+                streamName,
                 new JavaSerializer<String>(), SynchronizerConfig.builder().build());
         Revision r = revisedStreamClient.fetchOldestRevision();
         Segment s = r.getSegment();
