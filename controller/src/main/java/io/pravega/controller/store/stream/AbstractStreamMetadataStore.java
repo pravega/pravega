@@ -35,7 +35,6 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -261,7 +260,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     /**
-     *
+     * Delete a scope with given name.
      * @param scopeName Name of scope to be deleted
      * @return DeleteScopeStatus future.
      */

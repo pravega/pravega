@@ -42,6 +42,15 @@ public interface Controller extends AutoCloseable {
      * @param message the raw message of the stream
      */
     CompletableFuture<Void> createEvent(final String routingKey, final String scopeName, final String streamName, final String message);
+
+    /**
+     * API to get the read the event from a stream. 
+     *
+     * @param routingKey routing Key
+     * @param scopeName scope Name
+     * @param streamName stream Name
+     * @param segmentNumber segment number 
+     */
     CompletableFuture<String> getEvent(final String routingKey, final String scopeName, final String streamName, final Long segmentNumber);
 
     // Controller Apis for administrative action for streams

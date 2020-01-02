@@ -113,13 +113,6 @@ public class StreamManagerImpl implements StreamManager {
         return  Futures.getThrowingException(controller.createScope(scopeName));
     }
 
-//    @Override
-//    public boolean createEvent(String eventName) {
-//        NameUtils.validateUserScopeName(eventName);
-//        log.info("Adding event to stream: {}", eventName);
-//        return  Futures.getThrowingException(controller.createEvent(eventName));
-//    }
-
     @Override
     public Iterator<Stream> listStreams(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);

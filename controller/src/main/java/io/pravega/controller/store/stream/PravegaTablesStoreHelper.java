@@ -79,9 +79,6 @@ public class PravegaTablesStoreHelper {
         this(segmentHelper, authHelper, executor, NUM_OF_RETRIES);
     }
 
-    public SegmentHelper getSegmentHelper() {
-        return this.segmentHelper;
-    }
     @VisibleForTesting
     PravegaTablesStoreHelper(SegmentHelper segmentHelper, GrpcAuthHelper authHelper, ScheduledExecutorService executor, int numOfRetries) {
         this.segmentHelper = segmentHelper;
@@ -97,6 +94,10 @@ public class PravegaTablesStoreHelper {
         this.authHelper = authHelper;
         this.authToken = new AtomicReference<>(authHelper.retrieveMasterToken());
         this.numOfRetries = numOfRetries;
+    }
+
+    public SegmentHelper getSegmentHelper() {
+        return this.segmentHelper;
     }
 
     /**

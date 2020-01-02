@@ -42,11 +42,6 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         this(clientConfig, new ConnectionPoolImpl(clientConfig), (Integer) null);
     }
 
-    @Override
-    public ClientConfig getClientConfig() {
-        return this.clientConfig;
-    }
-
     @VisibleForTesting
     public ConnectionFactoryImpl(ClientConfig clientConfig, ConnectionPool connectionPool, Integer numThreadsInPool) {
         this.clientConfig = Preconditions.checkNotNull(clientConfig, "clientConfig");
@@ -60,6 +55,11 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         this.clientConfig = Preconditions.checkNotNull(clientConfig, "clientConfig");
         this.connectionPool = connectionPool;
         this.executor = executor;
+    }
+
+    @Override
+    public ClientConfig getClientConfig() {
+        return this.clientConfig;
     }
 
     @Override

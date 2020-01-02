@@ -426,10 +426,12 @@ public final class ModelHelper {
                                         .build())
                                 .collect(Collectors.toList()));
     }
+
     public static final GetEventResponse.Builder getEventResponse(String data) {
        Preconditions.checkNotNull(data);
        return GetEventResponse.newBuilder();
     }
+
     public static final CreateEventResponse.Builder createEventResponse() {
        return CreateEventResponse.newBuilder();
     }

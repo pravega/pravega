@@ -28,7 +28,6 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -583,8 +582,6 @@ public class ControllerService {
      * @return Status of create event.
      */
     public CompletableFuture<Void> createEvent(final String routingKey, final String scopeName, final String streamName, final String message ) {
-        // Exceptions.checkNotNullOrEmpty(routingKey, "routingKey");
-        log.debug("ControllerService-createEvent: {} {} {} {} ", routingKey, scopeName, streamName, message);
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
         Exceptions.checkNotNullOrEmpty(message, "message");
@@ -592,16 +589,9 @@ public class ControllerService {
             NameUtils.validateScopeName(scopeName);
             NameUtils.validateStreamName(streamName);
         } catch (Exception e) {
-            // throw new ExecutionControl.NotImplementedException(e.getMessage());
             return null;
         }
-
-//        catch (IllegalArgumentException | NullPointerException e) {
-//            log.warn("Create event failed due to invalid name");
-//            return CompletableFuture.completedFuture(CreateEventStatus.newBuilder().setStatus(
-//                    CreateEventStatus.Status.INVALID_EVENT_NAME).build());
-//        }
-        log.debug("ControllerService-createEvent-end");
+        log.debug("ControllerService-createEvent: {} {} {} ", routingKey, scopeName, streamName);
         return streamStore.createEvent(routingKey, scopeName, streamName, message);
     }
 
@@ -611,14 +601,13 @@ public class ControllerService {
      * @param routingKey Name of routingKey to be used.
      * @param scopeName Name of scope to be used.
      * @param streamName Name of stream to be used.
-     * @param message the raw data to be appended to stream
-     * @return Status of create event.
+     * @param segmentNumber Number of the segemnt to be used.
+     * @return Status of get event.
      */
     public CompletableFuture<String> getEvent(final String routingKey, final String scopeName, final String streamName, final Long segmentNumber) {
         log.debug("ControllerService-getEvent: {} {} {} {} ", routingKey, scopeName, streamName, segmentNumber);
         return streamStore.getEvent(routingKey, scopeName, streamName, segmentNumber);
     }
     // End data operations
-
 
 }

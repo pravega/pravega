@@ -69,6 +69,11 @@ Read [Getting Started](documentation/src/docs/getting-started.md) page for more 
 
 Pravega can be installed locally or in a distributed environment. The installation and deployment of pravega is covered in the [Running Pravega](documentation/src/docs/deployment/deployment.md) guide.
 
+
+## Workflows with Pravega
+
+Pravega can participate in data pipelines without requiring code to be written. Just use curl to upload files to Pravega as shown in deployment/test.sh
+
 ## Support
 
 Don’t hesitate to ask! Contact the developers and community on the [mailing lists](https://groups.google.com/forum/#!forum/pravega-users) or on [slack](https://pravega-io.slack.com/) if you need any help.

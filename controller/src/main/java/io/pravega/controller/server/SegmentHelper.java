@@ -9,20 +9,18 @@
  */
 package io.pravega.controller.server;
 
+import io.netty.buffer.Unpooled;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
-import io.pravega.client.segment.impl.SegmentSealedException;
-import io.pravega.client.state.impl.CorruptedStateException;
-import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.impl.*;
+import io.pravega.client.stream.impl.ConnectionClosedException;
+import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.client.tables.impl.IteratorState;
 import io.pravega.client.tables.impl.KeyVersion;
 import io.pravega.client.tables.impl.KeyVersionImpl;
@@ -32,9 +30,7 @@ import io.pravega.client.tables.impl.TableKey;
 import io.pravega.client.tables.impl.TableKeyImpl;
 import io.pravega.client.tables.impl.TableSegment;
 import io.pravega.common.Exceptions;
-import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Host;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.records.RecordHelper;
@@ -47,7 +43,8 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 
-import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.ArrayList;
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -55,14 +52,10 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -70,6 +63,9 @@ import org.slf4j.LoggerFactory;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.*;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
 
 /**
  * Used by the Controller for interacting with Segment Store. Think of this class as a 'SegmentStoreHelper'. 
@@ -360,18 +356,18 @@ public class SegmentHelper implements AutoCloseable {
                 .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.CreateTableSegment.class, type));
     }
 
-     /**
-     * This method sends a WireCommand to read a segment from the stream.
-     *
-     * @param scopeName           The name of the scope
-     * @param streamName          The name of the stream
-     * @param segmentNumber       The id of the segment
-     * @param delegationToken     The token to be presented to the segmentstore.
-     * @param clientRequestId     Request id.
-     * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
-     * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
-     * can be retried then the future will be failed with {@link WireCommandFailedException}.
-     */
+    /**
+    * This method sends a WireCommand to read a segment from the stream.
+    *
+    * @param scopeName           The name of the scope
+    * @param streamName          The name of the stream
+    * @param segmentNumber       The id of the segment
+    * @param delegationToken     The token to be presented to the segmentstore.
+    * @param clientRequestId     Request id.
+    * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
+    * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
+    * can be retried then the future will be failed with {@link WireCommandFailedException}.
+    */
     public CompletableFuture<String> getEvent(final String scopeName,
                                               final String streamName,
                                                          final Long segmentNumber,
@@ -400,6 +396,7 @@ public class SegmentHelper implements AutoCloseable {
      * @param message             The data for the stream
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
+     * @param segment             The reference to segment
      * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
      * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
      * can be retried then the future will be failed with {@link WireCommandFailedException}.
@@ -412,19 +409,6 @@ public class SegmentHelper implements AutoCloseable {
                                                io.pravega.client.segment.impl.Segment segment) {
 
         CompletableFuture<Void> ack = new CompletableFuture<>();
-//        ByteBuffer serialized = new JavaSerializer<String>().serialize(message);
-//        try {
-//            PendingEvent event = PendingEvent.withHeader(null, serialized, ack);
-//            log.trace("Unconditionally writing: {} to segment {}", message, segment);
-//            out = outFactory.createOutputStreamForSegment(segment, s -> handleSegmentSealed(), config, tokenProvider);
-//            synchronized (lock) {
-//                out.write(event);
-//                out.flush();
-//            }
-//        } catch (SegmentSealedException e) {
-//            throw new CorruptedStateException("Unexpected end of segment ", e);
-//        }
-//        Futures.getAndHandleExceptions(ack, RuntimeException::new);
 
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scopeName, streamName, 0L);
         final Controller.NodeUri uri = getSegmentUri(scopeName, streamName, 0L);
@@ -433,16 +417,13 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
         ByteBuf data = Unpooled.wrappedBuffer(message.getBytes());
-	    final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
-	    UUID connectionId = UUID.randomUUID();
-        // log.debug("scopeName={},streamName={},message={},delegationToken={},clientRequestId={},flowId={}", scopeName, streamName, message, delegationToken, clientRequestId, requestId);
+        final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
+        UUID connectionId = UUID.randomUUID();
         sendRequest(connection, requestId, new WireCommands.SetupAppend(requestId, connectionId, qualifiedStreamSegmentName, delegationToken));
-                // .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, streamName, WireCommands.SetupAppend.class, setupType));
         final WireCommandType appendType = WireCommandType.CONDITIONAL_APPEND;
-        return sendRequest(connection, requestId, new WireCommands.ConditionalAppend(connectionId,requestIdGenerator.get(), Long.MAX_VALUE,
+        return sendRequest(connection, requestId, new WireCommands.ConditionalAppend(connectionId, requestIdGenerator.get(), Long.MAX_VALUE,
                new WireCommands.Event(data), requestId))
                 .thenAccept(x -> log.info("create event done."));
-                // .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, streamName, WireCommands.ConditionalAppend.class, appendType));
     }
 
     /**

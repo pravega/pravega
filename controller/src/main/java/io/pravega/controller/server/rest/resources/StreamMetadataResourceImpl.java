@@ -40,7 +40,6 @@ import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
 import io.pravega.controller.server.rpc.auth.RESTAuthHelper;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -848,20 +847,6 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                 createEventRequest.getStreamName(),
                 createEventRequest.getMessage()).thenApply(scope -> {
                     return Response.status(Status.CREATED).entity(new CreateEventResponse().scopeName(createEventRequest.getScopeName())).build();
-/*
-            if (response.getStatus() == CreateEventStatus.Status.SUCCESS) {
-                log.info("Successfully created new event: {}", createEventRequest.getScopeName());
-                return Response.status(Status.CREATED).
-                        entity(CreateEventResponse.newBuilder().build()).build();
-            } else if (response.getStatus() == CreateEventStatus.Status.EVENT_EXISTS) {
-                log.warn("Event name: {} already exists", createEventRequest.getMessage());
-                return Response.status(Status.CONFLICT).build();
-            } else {
-                log.warn("Failed to create event for scope: {} and stream: {}",
-                        createEventRequest.getScopeName(), createEventRequest.getStreamName());
-                return Response.status(Status.INTERNAL_SERVER_ERROR).entity(exception.getMessage()).build();
-            }
-*/
         }).exceptionally(exception -> {
             log.warn("createEvent for scope: {} stream: {} failed, exception: {}",
                     createEventRequest.getScopeName(), createEventRequest.getStreamName(), exception);

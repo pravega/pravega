@@ -10,45 +10,62 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import io.pravega.client.byteStream.impl.BufferedByteStreamWriterImpl;
-import io.pravega.client.byteStream.impl.ByteStreamReaderImpl;
-import io.pravega.client.byteStream.impl.ByteStreamWriterImpl;
-import io.pravega.client.security.auth.DelegationTokenProvider;
-import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.state.Revision;
-import io.pravega.client.state.RevisionedStreamClient;
-import io.pravega.client.state.SynchronizerConfig;
-// import io.pravega.client.state.impl.RevisionImpl;
-import io.pravega.client.stream.*;
-import io.pravega.client.stream.impl.*;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.CancellableRequest;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.ControllerFailureException;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
+import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.function.Supplier;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Optional;
+import java.util.Random;
+import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import io.pravega.shared.watermarks.Watermark;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.LoggerFactory;
 
 public class LocalController implements Controller {
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(LocalController.class));
 
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(LocalController.class));
     private static final int LIST_STREAM_IN_SCOPE_LIMIT = 1000;
     private ControllerService controller;
     private final String tokenSigningKey;
@@ -62,22 +79,21 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<String> getEvent(String routingKey, String scopeName, String streamName, Long segmentNumber) {
-        log.error("-----------------getEvent--------------------------");
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this);
         final Serializer<String> serializer = new JavaSerializer<>();
         final Random random = new Random();
         final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", serializer,
                 ReaderConfig.builder().build());
-        CompletableFuture<String> ackFuture = new CompletableFuture<String>();
+        CompletableFuture<String> completableFuture = new CompletableFuture<String>();
         String data = reader.readNextEvent(-1).getEvent();
-        ackFuture.complete(data);
-        return ackFuture;
+        completableFuture.complete(data);
+        return completableFuture;
     }
 
     @Override
     public CompletableFuture<Void> createEvent(String routingKey, String scopeName, String streamName, String message) {
-        CompletableFuture<Void> ack = null;
+        CompletableFuture<Void> completableFuture = new CompletableFuture<>();
         try {
             ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this);
             final Serializer<String> serializer = new JavaSerializer<>();
@@ -85,14 +101,13 @@ public class LocalController implements Controller {
             final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
             EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
                     EventWriterConfig.builder().build());
-            ack = writer.writeEvent(keyGenerator.get(), message);
+            completableFuture = writer.writeEvent(keyGenerator.get(), message);
             // ack.get();
             log.info("event created for scope:{} stream:{}", scopeName, streamName);
         } catch (Exception e) {
             log.error("Exception:", e);
-            e.printStackTrace();
         }
-        return ack;
+        return completableFuture;
     }
 
     @Override
