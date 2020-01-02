@@ -22,6 +22,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -40,6 +42,7 @@ import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -115,6 +118,8 @@ public abstract class ScaleRequestHandlerTest {
 
     @Before
     public void setup() throws Exception {
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
         zkServer = new TestingServerStarter().start();
         zkServer.start();
 
@@ -156,6 +161,13 @@ public abstract class ScaleRequestHandlerTest {
                                                         .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 3))
                                                         .build();
         streamMetadataTasks.createStream(scope, stream, config, createTimestamp).get();
+        // set minimum number of segments to 1 so that we can also test scale downs
+        config = StreamConfiguration.builder()
+                                    .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 1))
+                                    .build();
+        streamStore.startUpdateConfiguration(scope, stream, config, null, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = streamStore.getConfigurationRecord(scope, stream, null, executor).join();
+        streamStore.completeUpdateConfiguration(scope, stream, configRecord, null, executor).join();
     }
 
     @After
@@ -167,6 +179,8 @@ public abstract class ScaleRequestHandlerTest {
         streamStore.close();
         zkClient.close();
         zkServer.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
@@ -266,6 +280,95 @@ public abstract class ScaleRequestHandlerTest {
         assertTrue(activeSegments.size() == 3);
 
         assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
+    }
+
+    @Test(timeout = 30000)
+    public void testScaleRequestWithMinimumSegment() throws ExecutionException, InterruptedException {
+        AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
+        ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
+        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, streamStore, executor);
+        EventWriterMock writer = new EventWriterMock();
+        streamMetadataTasks.setRequestEventWriter(writer);
+
+        String stream = "mystream";
+        StreamConfiguration config = StreamConfiguration.builder()
+                                                        .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 5))
+                                                        .build();
+        streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
+
+        // change stream configuration to min segment count = 4
+        config = StreamConfiguration.builder()
+                                    .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 4))
+                                    .build();
+        streamStore.startUpdateConfiguration(scope, stream, config, null, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = streamStore.getConfigurationRecord(scope, stream, null, executor).join();
+        streamStore.completeUpdateConfiguration(scope, stream, configRecord, null, executor).join();
+        
+        // process first auto scale down event. it should only mark the segment as cold
+        multiplexer.process(new AutoScaleEvent(scope, stream, 1L, AutoScaleEvent.DOWN, System.currentTimeMillis(),
+                0, false, System.currentTimeMillis())).join();
+        assertTrue(writer.queue.isEmpty());
+
+        assertTrue(streamStore.isCold(scope, stream, 1L, null, executor).join());
+
+        // process second auto scale down event. since its not for an immediate neighbour so it should only mark the segment as cold
+        multiplexer.process(new AutoScaleEvent(scope, stream, 3L, AutoScaleEvent.DOWN, System.currentTimeMillis(),
+                0, false, System.currentTimeMillis())).join();
+        assertTrue(streamStore.isCold(scope, stream, 3L, null, executor).join());
+        // no scale event should be posted
+        assertTrue(writer.queue.isEmpty());
+
+        // process third auto scale down event. This should result in a scale op event being posted to merge segments 0, 1 
+        multiplexer.process(new AutoScaleEvent(scope, stream, 0L, AutoScaleEvent.DOWN, System.currentTimeMillis(),
+                0, false, System.currentTimeMillis())).join();
+        assertTrue(streamStore.isCold(scope, stream, 0L, null, executor).join());
+        
+        // verify that a new event has been posted
+        assertEquals(1, writer.queue.size());
+        ControllerEvent event = writer.queue.take();
+        assertTrue(event instanceof ScaleOpEvent);
+        ScaleOpEvent scaleDownEvent1 = (ScaleOpEvent) event;
+        assertEquals(1, scaleDownEvent1.getNewRanges().size());
+        assertEquals(2, scaleDownEvent1.getSegmentsToSeal().size());
+        assertTrue(scaleDownEvent1.getSegmentsToSeal().contains(0L));
+        assertTrue(scaleDownEvent1.getSegmentsToSeal().contains(1L));
+
+        // process fourth auto scale down event. This should result in a scale op event being posted to merge segments 3, 4 
+        multiplexer.process(new AutoScaleEvent(scope, stream, 4L, AutoScaleEvent.DOWN, System.currentTimeMillis(),
+                0, false, System.currentTimeMillis())).join();
+        assertTrue(streamStore.isCold(scope, stream, 4L, null, executor).join());
+        // verify that a new event has been posted
+        assertEquals(1, writer.queue.size());
+        event = writer.queue.take();
+        assertTrue(event instanceof ScaleOpEvent);
+        ScaleOpEvent scaleDownEvent2 = (ScaleOpEvent) event;
+        assertEquals(1, scaleDownEvent2.getNewRanges().size());
+        assertEquals(2, scaleDownEvent2.getSegmentsToSeal().size());
+        assertTrue(scaleDownEvent2.getSegmentsToSeal().contains(3L));
+        assertTrue(scaleDownEvent2.getSegmentsToSeal().contains(4L));
+
+        // process first scale down event, this should submit scale and scale the stream down to 4 segments
+        multiplexer.process(scaleDownEvent1).join();
+        EpochRecord activeEpoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        List<StreamSegmentRecord> segments = activeEpoch.getSegments();
+        assertEquals(1, activeEpoch.getEpoch());
+        assertEquals(4, segments.size());
+        assertTrue(segments.stream().anyMatch(x -> x.getSegmentNumber() == 2));
+        assertTrue(segments.stream().anyMatch(x -> x.getSegmentNumber() == 3));
+        assertTrue(segments.stream().anyMatch(x -> x.getSegmentNumber() == 4));
+        assertTrue(segments.stream().anyMatch(x -> x.getSegmentNumber() == 5));
+
+        // process second scale down event, this should submit scale and scale the stream down to 4 segments
+        multiplexer.process(scaleDownEvent2).join();
+        // verify that no scale has happened
+        activeEpoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        // verify that no scale has happened. 
+        assertEquals(1, activeEpoch.getEpoch());
+        assertEquals(4, segments.size());
+        assertTrue(segments.stream().anyMatch(x -> x.getSegmentNumber() == 2));
+        assertTrue(segments.stream().anyMatch(x -> x.getSegmentNumber() == 3));
+        assertTrue(segments.stream().anyMatch(x -> x.getSegmentNumber() == 4));
+        assertTrue(segments.stream().anyMatch(x -> x.getSegmentNumber() == 5));
     }
 
     @Test(timeout = 30000)
