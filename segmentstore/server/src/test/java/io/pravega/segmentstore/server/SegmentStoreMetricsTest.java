@@ -9,18 +9,18 @@
  */
 package io.pravega.segmentstore.server;
 
-import io.pravega.common.AbstractTimer;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.OpStatsLogger;
-import io.pravega.shared.metrics.StatsLogger;
+import io.pravega.shared.metrics.MetricRegistryUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+
+import static io.pravega.shared.MetricsTags.containerTag;
+import static org.junit.Assert.*;
 
 /**
  * Unit tests for the SegmentStoreMetrics class.
@@ -28,9 +28,7 @@ import org.junit.rules.Timeout;
 @Slf4j
 public class SegmentStoreMetricsTest {
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(10);
-
-    private final StatsLogger statsLogger = MetricsProvider.createStatsLogger("segmentstore");
+    public Timeout globalTimeout = Timeout.seconds(1000);
 
     @Before
     public void setUp() {
@@ -45,20 +43,11 @@ public class SegmentStoreMetricsTest {
      */
     @Test
     public void testContainerRecoveryDurationMetric() {
-        final int recordedValues = 10;
-        final int avgRecoveryTime = 10;
-        OpStatsLogger recoveryTimes = statsLogger.createStats(MetricsNames.CONTAINER_RECOVERY_TIME);
-
-        SegmentStoreMetrics.getRECOVERY_TIMES().set(recoveryTimes);
-        Assert.assertEquals(0, recoveryTimes.toOpStatsData().getAvgLatencyMillis(), 0.0);
-        for (int i = 0; i < recordedValues; i++) {
-            SegmentStoreMetrics.recoveryCompleted(avgRecoveryTime);
-        }
-        Assert.assertEquals(nanoToMs(recoveryTimes.toOpStatsData().getAvgLatencyMillis()), avgRecoveryTime, 0.0);
-        Assert.assertEquals(recordedValues, recoveryTimes.toOpStatsData().getNumSuccessfulEvents());
-    }
-
-    private double nanoToMs(double iniTime) {
-        return iniTime / AbstractTimer.NANOS_TO_MILLIS;
+        int containerId = 0;
+        assertNull(MetricRegistryUtils.getGauge(MetricsNames.CONTAINER_RECOVERY_TIME, containerTag(containerId)));
+        SegmentStoreMetrics.recoveryCompleted(1000, containerId);
+        assertEquals(1000, (long) MetricRegistryUtils.getGauge(MetricsNames.CONTAINER_RECOVERY_TIME, containerTag(containerId)).value());
+        SegmentStoreMetrics.recoveryCompleted(500, containerId);
+        assertEquals(500, (long) MetricRegistryUtils.getGauge(MetricsNames.CONTAINER_RECOVERY_TIME, containerTag(containerId)).value());
     }
 }

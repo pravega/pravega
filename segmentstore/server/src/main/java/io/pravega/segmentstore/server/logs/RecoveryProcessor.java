@@ -96,7 +96,7 @@ class RecoveryProcessor {
             long timeElapsed = timer.getElapsedMillis();
             log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}, Time = {}ms.", this.traceObjectId,
                     this.metadata.getContainerEpoch(), recoveredItemCount, timeElapsed);
-            SegmentStoreMetrics.recoveryCompleted(timeElapsed);
+            SegmentStoreMetrics.recoveryCompleted(timeElapsed, this.metadata.getContainerId());
             successfulRecovery = true;
         } finally {
             // We must exit recovery mode when done, regardless of outcome.

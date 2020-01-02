@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
@@ -25,9 +24,6 @@ import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import lombok.AccessLevel;
-import lombok.Getter;
 
 import static io.pravega.shared.MetricsTags.containerTag;
 
@@ -43,17 +39,6 @@ public final class SegmentStoreMetrics {
      * until it is completed.
      */
     private static final OpStatsLogger GLOBAL_OPERATION_LATENCY = STATS_LOGGER.createStats(MetricsNames.OPERATION_LATENCY);
-
-    /**
-     * Global metric to publish the time elapsed for the recovery of Segment Store containers.
-     */
-    @VisibleForTesting
-    @Getter(AccessLevel.PACKAGE)
-    private final static AtomicReference<OpStatsLogger> RECOVERY_TIMES = new AtomicReference<>();
-
-    static {
-        RECOVERY_TIMES.set(STATS_LOGGER.createStats(MetricsNames.CONTAINER_RECOVERY_TIME));
-    }
 
     //region CacheManager
 
@@ -343,12 +328,13 @@ public final class SegmentStoreMetrics {
     //region RecoveryProcessor
 
     /**
-     * RecoveryProcessor metrics.
+     * Reports the time taken for a container recovery.
      *
      * @param duration Time taken for a Segment Store instance to perform the recovery of containers.
+     * @param containerId Container id related to the recovery process.
      */
-    public static void recoveryCompleted(long duration) {
-        RECOVERY_TIMES.get().reportSuccessValue(duration);
+    public static void recoveryCompleted(long duration, int containerId) {
+        DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CONTAINER_RECOVERY_TIME, duration, containerTag(containerId));
     }
 
     //endregion
