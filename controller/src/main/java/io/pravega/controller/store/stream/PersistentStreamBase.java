@@ -691,7 +691,8 @@ public abstract class PersistentStreamBase implements Stream {
             } else {
                 return CompletableFuture.completedFuture(existing);
             }
-        }).thenCompose(record -> getActiveEpochRecord(true).thenCompose(currentEpoch -> {
+        }).thenCompose(record -> getActiveEpochRecord(true).thenCompose(currentEpoch -> 
+                getConfiguration().thenCompose(config -> {
             if (!record.getObject().equals(EpochTransitionRecord.EMPTY)) {
                 // verify that it's the same as the supplied input (--> segments to be sealed
                 // and new ranges are identical). else throw scale conflict exception
@@ -714,6 +715,12 @@ public abstract class PersistentStreamBase implements Stream {
                     throw new EpochTransitionOperationExceptions.InputInvalidException();
                 }
 
+                int numberOfSegmentsPostScale = currentEpoch.getSegments().size() - segmentsToSeal.size() + newRanges.size();
+                if (numberOfSegmentsPostScale < config.getScalingPolicy().getMinNumSegments()) {
+                    log.warn("Scale cannot be performed as Min Segment Count will not hold {} {}", segmentsToSeal, newRanges);
+                    throw new EpochTransitionOperationExceptions.PreConditionFailureException();
+                }
+                
                 EpochTransitionRecord epochTransition = RecordHelper.computeEpochTransition(
                         currentEpoch, segmentsToSeal, newRanges, scaleTimestamp);
 
@@ -724,7 +731,7 @@ public abstract class PersistentStreamBase implements Stream {
                             return new VersionedMetadata<>(epochTransition, version);
                         });
             }
-        }));
+        })));
     }
 
     private CompletableFuture<Void> verifyNotSealed() {
