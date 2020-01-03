@@ -65,11 +65,11 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
     private final CheckpointStore checkpointStore;
 
-    private final ScheduledExecutorService executorService;
+    private final ScheduledExecutorService rebalanceExecutor;
     
     private ScheduledFuture<?> rebalanceFuture;
     
-    private final long rebalancePeriod;
+    private final long rebalancePeriodMillis;
     /**
      * We use this lock for mutual exclusion between shutDown and changeEventProcessorCount methods.
      */
@@ -77,11 +77,18 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
     EventProcessorGroupImpl(final EventProcessorSystemImpl actorSystem,
                             final EventProcessorConfig<T> eventProcessorConfig,
-                            final CheckpointStore checkpointStore, ScheduledExecutorService executorService) {
+                            final CheckpointStore checkpointStore) {
+        this(actorSystem, eventProcessorConfig, checkpointStore, null);
+    }
+
+    EventProcessorGroupImpl(final EventProcessorSystemImpl actorSystem,
+                            final EventProcessorConfig<T> eventProcessorConfig,
+                            final CheckpointStore checkpointStore, 
+                            final ScheduledExecutorService rebalanceExecutor) {
         this.objectId = String.format("EventProcessorGroup[%s]", eventProcessorConfig.getConfig().getReaderGroupName());
         this.actorSystem = actorSystem;
         this.eventProcessorConfig = eventProcessorConfig;
-        this.executorService = executorService;
+        this.rebalanceExecutor = rebalanceExecutor;
         this.eventProcessorMap = new ConcurrentHashMap<>();
         this.writer = actorSystem
                 .clientFactory
@@ -89,7 +96,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                         eventProcessorConfig.getSerializer(),
                         EventWriterConfig.builder().build());
         this.checkpointStore = checkpointStore;
-        this.rebalancePeriod = eventProcessorConfig.getRebalancePeriodMillis();
+        this.rebalancePeriodMillis = eventProcessorConfig.getRebalancePeriodMillis();
     }
 
     void initialize() throws CheckpointStoreException {
@@ -159,9 +166,9 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             eventProcessorMap.entrySet().forEach(entry -> entry.getValue().startAsync());
             log.info("Waiting for all all event processors in {} to start", this.toString());
             eventProcessorMap.entrySet().forEach(entry -> entry.getValue().awaitStartupComplete());
-            if (rebalancePeriod > 0) {
-                rebalanceFuture = executorService.scheduleWithFixedDelay(this::rebalance,
-                        rebalancePeriod, rebalancePeriod, TimeUnit.MILLISECONDS);
+            if (rebalancePeriodMillis > 0 && rebalanceExecutor != null) {
+                rebalanceFuture = rebalanceExecutor.scheduleWithFixedDelay(this::rebalance,
+                        rebalancePeriodMillis, rebalancePeriodMillis, TimeUnit.MILLISECONDS);
             } else {
                 rebalanceFuture = null;
             }
@@ -292,7 +299,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             Map<String, Integer> distribution = readerSegmentDistribution.getReaderSegmentDistribution();
             int readerCount = distribution.size();
             int unassigned = readerSegmentDistribution.getUnassignedSegments();
-            int segmentCount = distribution.values().stream().reduce(0, (x, y) -> x + y) + unassigned;
+            int segmentCount = distribution.values().stream().reduce(0, Integer::sum) + unassigned;
             
             // If there are idle readers (no segment assignments, then identify and replace overloaded readers). 
             boolean idleReaders = distribution.entrySet().stream().anyMatch(x -> !Strings.isNullOrEmpty(x.getKey()) && x.getValue() == 0);

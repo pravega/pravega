@@ -183,6 +183,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         // Invoke arriveAndAwaitAdvance and wait for phase to advance which will happen 
         // only when all ongoing processing is completed and all registered parties have arrived. 
         phaser.arriveAndAwaitAdvance();
+        phaser.arriveAndDeregister();
         periodicCheckpoint.cancel(true);
     }
 

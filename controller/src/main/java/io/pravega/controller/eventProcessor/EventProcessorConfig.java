@@ -15,7 +15,6 @@ import io.pravega.client.stream.Serializer;
 import com.google.common.base.Preconditions;
 import lombok.Data;
 
-import java.time.Duration;
 import java.util.function.Supplier;
 
 /**
@@ -62,7 +61,7 @@ public class EventProcessorConfig<T extends ControllerEvent> {
         private ExceptionHandler exceptionHandler;
         private Serializer<T> serializer;
         private Supplier<EventProcessor<T>> supplier;
-        private long rebalancePeriodMillis = Duration.ofMinutes(2).toMillis();
+        private long rebalancePeriodMillis = Long.MIN_VALUE; // default is rebalancing disabled
 
         EventProcessorConfigBuilder() {
         }
@@ -93,13 +92,13 @@ public class EventProcessorConfig<T extends ControllerEvent> {
         }
 
         public EventProcessorConfig<T> build() {
-            return new EventProcessorConfig<>(this.config, this.exceptionHandler, this.serializer, this.supplier, rebalancePeriodMillis);
+            return new EventProcessorConfig<>(this.config, this.exceptionHandler, this.serializer, this.supplier, this.rebalancePeriodMillis);
         }
 
         @Override
         public String toString() {
             return "Props.PropsBuilder(config=" + this.config + ", exceptionHandler=" + this.exceptionHandler + ", serializer=" +
-                    this.serializer + ", supplier=" + this.supplier + ")";
+                    this.serializer + ", supplier=" + this.supplier + ", rebalancePeriodMillis=" + this.rebalancePeriodMillis + ")";
         }
     }
 }

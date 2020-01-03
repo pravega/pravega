@@ -91,6 +91,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final StreamRequestHandler streamRequestHandler;
     private final CommitRequestHandler commitRequestHandler;
     private final AbortRequestHandler abortRequestHandler;
+    private final long rebalanceIntervalMillis;
     private ScheduledExecutorService rebalanceExecutor;
 
     public ControllerEventProcessors(final String host,
@@ -137,6 +138,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, executor);
         this.executor = executor;
+        this.rebalanceIntervalMillis = config.getRebalanceIntervalMillis();
     }
 
     @Override
@@ -335,6 +337,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(COMMIT_EVENT_SERIALIZER)
                         .supplier(() -> new ConcurrentEventProcessor<>(commitRequestHandler, executor))
+                        .minRebalanceIntervalMillis(rebalanceIntervalMillis)
                         .build();
 
         log.info("Creating commit event processors");
@@ -363,6 +366,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(ABORT_EVENT_SERIALIZER)
                         .supplier(() -> new ConcurrentEventProcessor<>(abortRequestHandler, executor))
+                        .minRebalanceIntervalMillis(rebalanceIntervalMillis)
                         .build();
 
         log.info("Creating abort event processors");
@@ -391,6 +395,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(CONTROLLER_EVENT_SERIALIZER)
                         .supplier(() -> new ConcurrentEventProcessor<>(streamRequestHandler, executor))
+                        .minRebalanceIntervalMillis(rebalanceIntervalMillis)
                         .build();
 
         log.info("Creating request event processors");
