@@ -13,7 +13,6 @@ import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.CreateEventRequest;
 import io.pravega.controller.server.rest.generated.model.CreateEventResponse;
-import io.pravega.controller.server.rest.generated.model.GetEventResponse;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.ScalingEventList;
@@ -317,16 +316,16 @@ public final class ApiV1 {
         @Path("/{scopeName}/streams/{streamName}/segments/{segmentNumber}/events")
         @Produces({ "application/json" })
         @ApiOperation(
-                value = "", notes = "Retrieve event", response = GetEventResponse.class, tags = {  })
+                value = "", notes = "Retrieve event", response = String.class, tags = {  })
         @ApiResponses(value = {
                 @ApiResponse(
-                        code = 200, message = "Successfully retrieved the scope", response = GetEventResponse.class),
+                        code = 200, message = "Successfully retrieved the scope", response = String.class),
 
                 @ApiResponse(
-                        code = 404, message = "Scope not found", response = GetEventResponse.class),
+                        code = 404, message = "Scope not found", response = String.class),
 
                 @ApiResponse(
-                        code = 500, message = "Server error", response = GetEventResponse.class) })
+                        code = 500, message = "Server error", response = String.class) })
         public void getEvent(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName, 
                              @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
                              @ApiParam(value = "Segment number", required = true) @PathParam("segmentNumber") Long segmentNumber,

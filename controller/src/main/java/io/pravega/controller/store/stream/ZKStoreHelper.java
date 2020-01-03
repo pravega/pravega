@@ -17,6 +17,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.controller.server.SegmentHelper;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
@@ -39,9 +40,15 @@ public class ZKStoreHelper {
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final Cache cache;
+    private final SegmentHelper segmentHelper;
 
     public ZKStoreHelper(final CuratorFramework cf, Executor executor) {
+        this(null, cf, executor);
+    }
+
+    public ZKStoreHelper(final SegmentHelper segmentHelper, final CuratorFramework cf, Executor executor) {
         client = cf;
+        this.segmentHelper = segmentHelper;
         this.executor = executor;
         this.cache = new Cache(x -> {
             // The cache key has zk path (key.getPath) of the entity to cache 
@@ -51,6 +58,10 @@ public class ZKStoreHelper {
             return this.getData(key.getPath(), key.getFromBytesFunc())
                     .thenApply(v -> new VersionedMetadata<>(v.getObject(), v.getVersion()));
         });
+    }
+
+    public SegmentHelper getSegmentHelper() {
+        return this.segmentHelper;
     }
 
     /**

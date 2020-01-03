@@ -11,11 +11,6 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.client.ClientConfig;
-import io.pravega.client.SynchronizerClientFactory;
-import io.pravega.client.state.RevisionedStreamClient;
-import io.pravega.client.state.SynchronizerConfig;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
@@ -26,9 +21,7 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
-import io.pravega.client.state.Revision;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.segment.impl.Segment;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -37,10 +30,7 @@ import org.apache.curator.framework.CuratorFramework;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
@@ -94,10 +84,6 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
         this.executor = executor;
         this.controllerReadyLatch = new CountDownLatch(1);
-
-        // GRPCServerConfig grpcServerConfig = serviceConfig.getGRPCServerConfig().get();
-        // setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
-        //            grpcServerConfig.getTokenSigningKey()));
     }
 
     @VisibleForTesting
@@ -301,63 +287,5 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     public void close() {
         completedTxnGC.stopAsync();
         completedTxnGC.awaitTerminated();
-    }
-
-
-    /**
-     * Appends an event to the stream.
-     *
-     * @param routingKey Name of routingKey to be used.
-     * @param scopeName Name of scope to be used.
-     * @param streamName Name of stream to be used.
-     * @param message raw data to be appended to stream.
-     */
-    @Override
-    public CompletableFuture<Void> createEvent(final String  routingKey,
-                                               final String scopeName,
-                                               final String streamName,
-                                               final String message) {
-
-        CompletableFuture<Void> ack = CompletableFuture.completedFuture(null);
-        ClientConfig clientConfig = this.getStoreHelper().getSegmentHelper().getConnectionFactory().getClientConfig();
-        SynchronizerClientFactory synchronizerClientFactory = SynchronizerClientFactory.withScope(scopeName, ClientConfig.builder().build());
-        RevisionedStreamClient<String>  revisedStreamClient = synchronizerClientFactory.createRevisionedStreamClient(
-                streamName,
-                new JavaSerializer<String>(), SynchronizerConfig.builder().build());
-        Revision r = revisedStreamClient.fetchLatestRevision();
-        revisedStreamClient.writeConditionally(r, message);
-        log.info("createEvent wrote to revision: {}", r);
-        return ack;
-    }
-
-    /**
-     * Gets an event from the stream.
-     *
-     * @param routingKey Name of routingKey to be used.
-     * @param scopeName Name of scope to be used.
-     * @param streamName Name of stream to be used.
-     * @param segmentNumber segment of the stream.
-     */
-    @Override
-    public CompletableFuture<String> getEvent(final String  routingKey,
-                                              final String scopeName,
-                                              final String streamName,
-                                              final Long segmentNumber) {
-        ClientConfig clientConfig = this.getStoreHelper().getSegmentHelper().getConnectionFactory().getClientConfig();
-        SynchronizerClientFactory synchronizerClientFactory = SynchronizerClientFactory.withScope(scopeName, ClientConfig.builder().build());
-        RevisionedStreamClient<String>  revisedStreamClient = synchronizerClientFactory.createRevisionedStreamClient(
-                streamName,
-                new JavaSerializer<String>(), SynchronizerConfig.builder().build());
-        Revision r = revisedStreamClient.fetchOldestRevision();
-        Segment s = r.getSegment();
-        io.pravega.client.stream.Stream stream = s.getStream();
-        Iterator<Map.Entry<Revision, String>> iter = revisedStreamClient.readFrom(r);
-        StringBuffer sb = new StringBuffer();
-        while (iter.hasNext()) {
-            Map.Entry<Revision, String> entry = iter.next();
-            sb.append(entry.getValue());
-        }
-        CompletableFuture<String> ack = CompletableFuture.completedFuture(sb.toString());
-        return ack;
     }
 }

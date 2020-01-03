@@ -21,13 +21,13 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
-
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -279,37 +279,5 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
         streams.put(scopedStreamName(scopeName, streamName), stream);
         scopes.get(scopeName).addStreamToScope(streamName).join();
-    }
-
-    /**
-     * Appends an event to the stream.
-     *
-     * @param routingKey Name of routingKey to be used.
-     * @param scopeName Name of scope to be used.
-     * @param streamName Name of stream to be used.
-     * @param message raw data to be appended to stream.
-     */
-    @Override
-    public CompletableFuture<Void> createEvent(final String  routingKey,
-                                                            final String scopeName,
-                                                            final String streamName,
-                                                            final String message) {
-        return null;
-    }
-
-    /**
-     * Gets an event from the stream.
-     *
-     * @param routingKey Name of routingKey to be used.
-     * @param scopeName Name of scope to be used.
-     * @param streamName Name of stream to be used.
-     * @param segmentNumber segment of the stream.
-     */
-    @Override
-    public CompletableFuture<String> getEvent(final String  routingKey,
-                                              final String scopeName,
-                                              final String streamName,
-                                              final Long segmentNumber) {
-        return null;
     }
 }

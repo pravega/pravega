@@ -230,7 +230,7 @@ public class ControllerImpl implements Controller {
 
 
     @Override
-    public CompletableFuture<String> getEvent(String routingKey, String scopeName, String streamName, Long segmentNumber) throws NotImplementedException {
+    public CompletableFuture<String> getEvent(String routingKey, String scopeName, String streamName, Long segmentNumber)  {
         throw new NotImplementedException("getEvent");
     }
 

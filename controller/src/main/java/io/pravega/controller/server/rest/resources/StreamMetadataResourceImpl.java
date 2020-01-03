@@ -24,7 +24,6 @@ import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.ModelHelper;
 import io.pravega.controller.server.rest.generated.model.CreateEventRequest;
 import io.pravega.controller.server.rest.generated.model.CreateEventResponse;
-import io.pravega.controller.server.rest.generated.model.GetEventResponse;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
@@ -789,7 +788,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
         controllerService.getEvent("", scopeName, streamName, segmentNumber)
                 .thenApply(response -> {
-                    return Response.status(Status.OK).entity(new GetEventResponse().scopeName(response)).build();
+                    return Response.status(Status.OK).entity(response).build();
                 })
                 .exceptionally( exception -> {
                     if (exception.getCause() instanceof StoreException.DataNotFoundException) {

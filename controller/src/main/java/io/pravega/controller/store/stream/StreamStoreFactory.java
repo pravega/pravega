@@ -40,6 +40,11 @@ public class StreamStoreFactory {
         }
     }
 
+    public static StreamDataStore createDataStore(final StreamMetadataStore streamMetadataStore, final StoreClient storeClient, final SegmentHelper segmentHelper,
+                                                  final GrpcAuthHelper authHelper, final ScheduledExecutorService executor) {
+        return new AgnosticStreamDataStore(streamMetadataStore, segmentHelper, (CuratorFramework) storeClient.getClient(), executor, authHelper);
+    }
+
     @VisibleForTesting
     public static StreamMetadataStore createPravegaTablesStore(final SegmentHelper segmentHelper, final GrpcAuthHelper authHelper,
                                                                final CuratorFramework client, final ScheduledExecutorService executor) {

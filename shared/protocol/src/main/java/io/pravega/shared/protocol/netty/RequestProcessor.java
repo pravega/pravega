@@ -57,7 +57,7 @@ public interface RequestProcessor {
 
     void sealTableSegment(SealTableSegment sealTableSegment);
 
-    void truncateSegment(TruncateSegment truncateSegment);
+     void truncateSegment(TruncateSegment truncateSegment);
 
     void deleteSegment(DeleteSegment deleteSegment);
 

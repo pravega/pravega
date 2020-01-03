@@ -171,35 +171,6 @@ public interface StreamMetadataStore extends AutoCloseable {
      */
     CompletableFuture<CreateScopeStatus> createScope(final String scopeName);
 
-
-    /**
-     * Gets the event with the segment number.
-     *
-     * @param routingKey routing Key
-     * @param scopeName Scope name
-     * @param streamName Stream name
-     * @param segmentNumber segment number
-     * @return data on success and exception on failure.
-     */
-    CompletableFuture<String> getEvent(String routingKey,
-                    String scopeName,
-                    String streamName,
-                    Long segmentNumber);
-
-    /**
-     * Writes the data to stream as event.
-     *
-     * @param routingKey routing Key
-     * @param scopeName Scope name
-     * @param streamName Stream name
-     * @param message String name
-     * @return null on success and exception on failure.
-     */
-    CompletableFuture<Void> createEvent(String routingKey,
-                                                     String scopeName,
-                                                     String streamName,
-                                                     String message);
-
     /**
      * Deletes a Scope if contains no streams.
      *

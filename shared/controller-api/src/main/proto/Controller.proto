@@ -413,3 +413,7 @@ message GetEventResponse {
     }
     Status status = 1;
 }
+
+message DataResponse {
+    string message = 1;
+}

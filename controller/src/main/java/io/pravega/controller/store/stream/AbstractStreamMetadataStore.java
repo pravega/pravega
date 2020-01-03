@@ -225,40 +225,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
     }
 
-
-
-    /**
-     * Delete a scope with given name.ppends an event to the stream.
-     *
-     * @param routingKey Name of routingKey to be used.
-     * @param scopeName Name of scope to be used.
-     * @param streamName Name of stream to be used.
-     * @param message raw data to be appended to stream.
-     */
-    @Override
-    public CompletableFuture<Void> createEvent(final String  routingKey,
-                                                            final String scopeName,
-                                                            final String streamName,
-                                                            final String message) {
-        return null;
-    }
-
-    /**
-     * Gets an event from the stream.
-     *
-     * @param routingKey Name of routingKey to be used.
-     * @param scopeName Name of scope to be used.
-     * @param streamName Name of stream to be used.
-     * @param segmentNumber segment of the stream.
-     */
-    @Override
-    public CompletableFuture<String> getEvent(final String  routingKey,
-                                                            final String scopeName,
-                                                            final String streamName,
-                                                            final Long segmentNumber) {
-        return null;
-    }
-
     /**
      * Delete a scope with given name.
      * @param scopeName Name of scope to be deleted

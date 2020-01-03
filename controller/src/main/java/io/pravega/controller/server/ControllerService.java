@@ -24,6 +24,7 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.StreamDataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -70,6 +71,7 @@ import org.apache.commons.lang3.tuple.Pair;
 @Slf4j
 public class ControllerService {
 
+    private final StreamDataStore streamDataStore;
     private final StreamMetadataStore streamStore;
     private final BucketStore bucketStore;
     private final StreamMetadataTasks streamMetadataTasks;
@@ -80,9 +82,18 @@ public class ControllerService {
     private final StreamMetrics streamMetrics;
     private final TransactionMetrics transactionMetrics;
 
-    public ControllerService(StreamMetadataStore streamStore, BucketStore bucketStore, StreamMetadataTasks streamMetadataTasks,
+    public ControllerService(StreamMetadataStore streamStore,
+                             BucketStore bucketStore, StreamMetadataTasks streamMetadataTasks,
                              StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
                              Executor executor, Cluster cluster) {
+        this(null, streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                segmentHelper, executor, cluster);
+    }
+
+    public ControllerService(StreamDataStore streamDataStore, StreamMetadataStore streamStore, BucketStore bucketStore, StreamMetadataTasks streamMetadataTasks,
+                             StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
+                             Executor executor, Cluster cluster) {
+        this.streamDataStore = streamDataStore;
         this.streamStore = streamStore;
         this.bucketStore = bucketStore;
         this.streamMetadataTasks = streamMetadataTasks;
@@ -592,7 +603,7 @@ public class ControllerService {
             return null;
         }
         log.debug("ControllerService-createEvent: {} {} {} ", routingKey, scopeName, streamName);
-        return streamStore.createEvent(routingKey, scopeName, streamName, message);
+        return streamDataStore.createEvent(routingKey, scopeName, streamName, message);
     }
 
     /**
@@ -606,7 +617,7 @@ public class ControllerService {
      */
     public CompletableFuture<String> getEvent(final String routingKey, final String scopeName, final String streamName, final Long segmentNumber) {
         log.debug("ControllerService-getEvent: {} {} {} {} ", routingKey, scopeName, streamName, segmentNumber);
-        return streamStore.getEvent(routingKey, scopeName, streamName, segmentNumber);
+        return streamDataStore.getEvent(routingKey, scopeName, streamName, segmentNumber);
     }
     // End data operations
 

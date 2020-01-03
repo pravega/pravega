@@ -45,6 +45,7 @@ import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.StreamDataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -90,6 +91,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private ConnectionFactory connectionFactory;
     private StreamMetadataStore streamStore;
+    private StreamDataStore streamDataStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private BucketManager retentionService;
@@ -117,6 +119,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private final Optional<SegmentHelper> segmentHelperRef;
     private final Optional<ConnectionFactory> connectionFactoryRef;
     private final Optional<StreamMetadataStore> streamMetadataStoreRef;
+    private final Optional<StreamDataStore> streamDataStoreRef;
     
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
@@ -141,6 +144,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
         this.segmentHelperRef = Optional.ofNullable(segmentHelper);
         this.connectionFactoryRef = Optional.ofNullable(connectionFactory);
         this.streamMetadataStoreRef = Optional.ofNullable(streamStore);
+        this.streamDataStoreRef = Optional.ofNullable(streamDataStore);
         this.storeClientFailureFuture = new CompletableFuture<>();
     }
 
@@ -226,6 +230,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Creating the stream store");
             streamStore = streamMetadataStoreRef.orElse(StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
+            streamDataStore = streamDataStoreRef.orElse(StreamStoreFactory.createDataStore(streamStore, storeClient, segmentHelper, authHelper, controllerExecutor));
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
@@ -272,7 +277,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             streamMetrics = new StreamMetrics();
             transactionMetrics = new TransactionMetrics();
-            controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+            controllerService = new ControllerService(streamDataStore, streamStore, bucketStore, streamMetadataTasks,
                     streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
             // Setup event processors.

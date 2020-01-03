@@ -293,6 +293,7 @@ public class ScopesApi  {
     throws NotFoundException {
         return delegate.updateStreamState(scopeName,streamName,updateStreamStateRequest,securityContext);
     }
+
     @GET
     @Path("/{scopeName}/streams/{streamName}/segments/{segmentNumber}/events")
     @Produces({ "application/json" })
