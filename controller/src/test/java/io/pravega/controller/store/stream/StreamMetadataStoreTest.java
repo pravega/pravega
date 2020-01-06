@@ -423,6 +423,12 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
+        // set minimum number of segments to 1 so that we can also test scale downs
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        store.startUpdateConfiguration(scope, stream, config, null, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = store.getConfigurationRecord(scope, stream, null, executor).join();
+        store.completeUpdateConfiguration(scope, stream, configRecord, null, executor).join();
+
         // region idempotent
 
         long scaleTs = System.currentTimeMillis();
@@ -573,6 +579,11 @@ public abstract class StreamMetadataStoreTest {
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
+        // set minimum number of segments to 1
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        store.startUpdateConfiguration(scope, stream, config, null, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = store.getConfigurationRecord(scope, stream, null, executor).join();
+        store.completeUpdateConfiguration(scope, stream, configRecord, null, executor).join();
 
         // region concurrent start scale
         // Test scenario where one request starts and completes as the other is waiting on StartScale.createEpochTransition

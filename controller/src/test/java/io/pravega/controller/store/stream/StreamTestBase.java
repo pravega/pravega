@@ -20,6 +20,7 @@ import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
@@ -82,6 +83,11 @@ public abstract class StreamTestBase {
                                                         .scalingPolicy(ScalingPolicy.fixed(numOfSegments)).build();
         stream.create(config, time, startingSegmentNumber)
               .thenCompose(x -> stream.updateState(State.ACTIVE)).join();
+
+        // set minimum number of segments to 1 so that we can also test scale downs
+        stream.startUpdateConfiguration(StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build()).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = stream.getVersionedConfigurationRecord().join();
+        stream.completeUpdateConfiguration(configRecord).join();
 
         return stream;
     }
@@ -587,8 +593,29 @@ public abstract class StreamTestBase {
         etrRef.set(stream.getEpochTransition().join());
         AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s1), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.PreConditionFailureException);
-    }
 
+        etrRef.set(stream.getEpochTransition().join());
+
+        // get current number of segments.
+        List<Long> segments = stream.getActiveSegments().join().stream()
+                                    .map(StreamSegmentRecord::segmentId).collect(Collectors.toList());
+
+        // set minimum number of segments to segments.size. 
+        stream.startUpdateConfiguration(
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(segments.size())).build()).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = stream.getVersionedConfigurationRecord().join();
+        stream.completeUpdateConfiguration(configRecord).join();
+
+        // attempt a scale down which should be rejected in submit scale. 
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 1.0));
+        newRangesRef.set(newRanges);
+
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(segments, newRangesRef.get(), 
+                timestamp, etrRef.get()),
+                e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.PreConditionFailureException);
+    }
+    
     private VersionedMetadata<EpochTransitionRecord> resetScale(VersionedMetadata<EpochTransitionRecord> etr, Stream stream) {
         stream.completeScale(etr).join();
         stream.updateState(State.ACTIVE).join();

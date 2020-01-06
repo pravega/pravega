@@ -261,6 +261,12 @@ public class EndToEndTruncationTest {
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
+        
+        config = StreamConfiguration.builder()
+                                    .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                    .build();
+        controller.updateStream("test", "test", config).get();
+
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                 .controllerURI(URI.create("tcp://" + serviceHost))
@@ -326,6 +332,11 @@ public class EndToEndTruncationTest {
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
+        config = StreamConfiguration.builder()
+                                    .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                    .build();
+        controller.updateStream("test", "test", config).get();
+
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
