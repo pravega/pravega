@@ -12,6 +12,7 @@ package io.pravega.controller.eventProcessor;
 import io.pravega.shared.controller.event.ControllerEvent;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * Interface for request handlers.
@@ -20,5 +21,5 @@ import java.util.concurrent.CompletableFuture;
  */
 @FunctionalInterface
 public interface RequestHandler<Request extends ControllerEvent> {
-    CompletableFuture<Void> process(Request request);
+    CompletableFuture<Void> process(Request request, Supplier<Boolean> isCancelled);
 }
