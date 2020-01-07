@@ -801,7 +801,7 @@ public class StreamTransactionMetadataTasksTest {
                 .supplier(factory)
                 .build();
 
-        system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore());
+        system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore(), executor);
     }
 
     public static class RegularBookKeeperLogTests extends StreamTransactionMetadataTasksTest {
