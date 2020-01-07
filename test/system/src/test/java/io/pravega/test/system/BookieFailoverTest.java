@@ -182,8 +182,8 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
 
         // Also, verify writes happened after bookie is brought back.
         long finalWriteCount = testState.getEventWrittenCount();
-        Assert.assertTrue(finalWriteCount > writeCountAfterSleep);
         log.info("Final write count {}.", finalWriteCount);
+        Assert.assertTrue(finalWriteCount > writeCountAfterSleep);
 
         while (testState.getEventReadCount() < finalWriteCount) {
             Exceptions.handleInterrupted(() -> Thread.sleep(5000));
