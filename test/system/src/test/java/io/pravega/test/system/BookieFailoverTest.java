@@ -166,9 +166,9 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
 
         long writeCountAfterSleep  = testState.getEventWrittenCount();
-        long readeCountAfterSleep  = testState.getEventReadCount();
+        long readCountAfterSleep  = testState.getEventReadCount();
         log.info("Write count is {} and read count is {} after {} seconds sleep after bookie failover.", writeCountAfterSleep,
-                readeCountAfterSleep, 2 * (BOOKIE_FAILOVER_WAIT_MILLIS / 1000));
+                readCountAfterSleep, 2 * (BOOKIE_FAILOVER_WAIT_MILLIS / 1000));
 
         Assert.assertEquals("Unexpected writes performed during Bookie failover.", writeCountAfterSleep, writeCountBeforeSleep);
         log.info("Writes failed when bookie is scaled down.");
@@ -185,7 +185,7 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         long finalReadCount = testState.getEventReadCount();
         log.info("Final write count {} and read count {}.", finalWriteCount, finalReadCount);
         Assert.assertTrue(finalWriteCount > writeCountAfterSleep);
-        Assert.assertTrue(finalReadCount > readeCountAfterSleep);
+        Assert.assertTrue(finalReadCount > readCountAfterSleep);
 
         stopReaders();
 
