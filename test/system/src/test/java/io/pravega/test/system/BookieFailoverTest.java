@@ -182,11 +182,13 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
 
         // Also, verify writes happened after bookie is brought back.
         long finalWriteCount = testState.getEventWrittenCount();
-        long finalReadCount = testState.getEventReadCount();
-        log.info("Final write count {} and read count {}.", finalWriteCount, finalReadCount);
         Assert.assertTrue(finalWriteCount > writeCountAfterSleep);
-        Assert.assertTrue(finalReadCount > readCountAfterSleep);
+        log.info("Final write count {}.", finalWriteCount);
 
+        while (testState.getEventReadCount() < finalWriteCount) {
+            Exceptions.handleInterrupted(() -> Thread.sleep(5000));
+        }
+        log.info("Final read count {}.", testState.getEventReadCount());
         stopReaders();
 
         // Verify that there is no data loss/duplication.
