@@ -50,7 +50,6 @@ import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -63,7 +62,6 @@ import static org.junit.Assert.fail;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-@Ignore
 public class ReaderCheckpointTest extends AbstractSystemTest {
 
     private static final long READ_TIMEOUT = SECONDS.toMillis(30);
