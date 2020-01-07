@@ -18,6 +18,7 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -33,6 +34,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @RunWith(SystemTestRunner.class)
+@Ignore
 public class MetadataScalabilityLargeScalesTest extends MetadataScalabilityTest {
     private static final String STREAM_NAME = "metadataScalabilityScale";
     private static final int NUM_SEGMENTS = 10;

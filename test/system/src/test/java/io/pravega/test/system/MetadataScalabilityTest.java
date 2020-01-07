@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
@@ -56,6 +57,7 @@ import static org.junit.Assert.assertTrue;
  */
 @Slf4j
 @RunWith(SystemTestRunner.class)
+@Ignore
 public abstract class MetadataScalabilityTest extends AbstractScaleTests {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(60 * 60);
