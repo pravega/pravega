@@ -20,6 +20,8 @@ import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.concurrent.ScheduledExecutorService;
+
 @Slf4j
 public class EventProcessorSystemImpl implements EventProcessorSystem {
 
@@ -58,14 +60,14 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
     @Override
     public <T extends ControllerEvent> EventProcessorGroup<T> createEventProcessorGroup(
             final EventProcessorConfig<T> eventProcessorConfig,
-            final CheckpointStore checkpointStore) throws CheckpointStoreException {
+            final CheckpointStore checkpointStore, final ScheduledExecutorService rebalanceExecutor) throws CheckpointStoreException {
         Preconditions.checkNotNull(eventProcessorConfig, "eventProcessorConfig");
         Preconditions.checkNotNull(checkpointStore, "checkpointStore");
 
         EventProcessorGroupImpl<T> actorGroup;
 
         // Create event processor group.
-        actorGroup = new EventProcessorGroupImpl<>(this, eventProcessorConfig, checkpointStore);
+        actorGroup = new EventProcessorGroupImpl<>(this, eventProcessorConfig, checkpointStore, rebalanceExecutor);
 
         // Initialize it.
         actorGroup.initialize();
