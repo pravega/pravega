@@ -51,10 +51,10 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
     private static final String SCOPE = "testBookieFailoverScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
-    private static final int BOOKIE_FAILOVER_WAIT_MILLIS = 5 * 1000;
+    private static final int BOOKIE_FAILOVER_WAIT_MILLIS = 15 * 1000;
 
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(5 * 60);
+    public Timeout globalTimeout = Timeout.seconds(8 * 60);
 
     private final String readerGroupName = "testBookieFailoverReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(NUM_READERS);
