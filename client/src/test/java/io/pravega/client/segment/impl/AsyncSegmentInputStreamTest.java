@@ -107,7 +107,6 @@ public class AsyncSegmentInputStreamTest {
 
     @Test
     public void testProcessingFailure() {
-
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
