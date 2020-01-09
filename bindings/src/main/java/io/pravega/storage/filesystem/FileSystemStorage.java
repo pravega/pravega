@@ -239,13 +239,14 @@ public class FileSystemStorage implements SyncStorage {
 
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
             int totalBytesRead = 0;
-
+            long readOffset = offset;
             do {
                 ByteBuffer readBuffer = ByteBuffer.wrap(buffer, bufferOffset, length);
-                int bytesRead = channel.read(readBuffer, offset);
+                int bytesRead = channel.read(readBuffer, readOffset);
                 bufferOffset += bytesRead;
                 totalBytesRead += bytesRead;
                 length -= bytesRead;
+                readOffset += bytesRead;
             } while (length != 0);
             FileSystemMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
             FileSystemMetrics.READ_BYTES.add(totalBytesRead);
