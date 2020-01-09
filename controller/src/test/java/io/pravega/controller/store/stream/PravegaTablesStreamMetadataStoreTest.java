@@ -31,6 +31,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
+import org.junit.Ignore;
 
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
@@ -397,6 +398,28 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         batches = stale;
         stale = store.findStaleBatches(batches);
         assertTrue(stale.isEmpty());
+    }
+
+    @Ignore("covered with deployment/test.sh") @Test
+    public void testGetEvent() throws Exception {
+        this.testCreateEvent();
+        CompletableFuture<String> result = ((PravegaTablesStreamMetadataStore) this.store).getEvent("", scope, stream1, 0L);
+        assertTrue(result != null);
+        assertTrue(result.isDone());
+        assertTrue(result.get().equals("message"));
+    }
+
+    public void testCreateEvent() throws Exception {
+        String scope = "apiscope";
+        String stream = "apistream";
+        store.createScope(scope).get();
+        ScalingPolicy policy = ScalingPolicy.fixed(3);
+        StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+        store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+        PravegaTablesStreamMetadataStore store = (PravegaTablesStreamMetadataStore) this.store;
+        CompletableFuture<Void> result = store.createEvent("", scope, stream1, "message");
+        assertTrue(result != null);
     }
 
     @Test

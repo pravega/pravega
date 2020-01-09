@@ -12,6 +12,7 @@ package io.pravega.controller.server.bucket;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.SynchronizerClientFactory;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.impl.RevisionImpl;
@@ -663,7 +664,12 @@ public class WatermarkWorkflowTest {
         public RevisionImpl asImpl() {
             return null;
         }
-        
+
+        @Override
+        public Segment getSegment() {
+            return null;
+        }
+
         @Override
         public int compareTo(@NonNull Revision o) {
             return Integer.compare(id, ((MockRevision) o).id);

@@ -358,7 +358,6 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
             sb.append(entry.getValue());
         }
         CompletableFuture<String> ack = CompletableFuture.completedFuture(sb.toString());
-        log.info("getEvent returning data for scopeName: {} streamName: {}", scopeName, streamName);
         return ack;
     }
 }

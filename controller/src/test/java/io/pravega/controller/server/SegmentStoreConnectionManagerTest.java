@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
@@ -351,6 +352,11 @@ public class SegmentStoreConnectionManagerTest {
     private class MockConnectionFactory implements ConnectionFactory {
         @Getter
         private ReplyProcessor rp;
+
+        @Override
+        public ClientConfig getClientConfig() {
+            return null;
+        }
 
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {

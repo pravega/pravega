@@ -12,6 +12,7 @@ package io.pravega.controller.server;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Bytes;
 import com.google.common.util.concurrent.Service;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
@@ -110,6 +111,11 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         private ReplyProcessor rp;
         private ClientConnection connection;
         private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(2);
+
+        @Override
+        public ClientConfig getClientConfig() {
+            return null;
+        }
 
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
