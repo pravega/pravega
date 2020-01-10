@@ -218,7 +218,7 @@ public class StreamMetricsTest {
         transaction.commit();
 
         AssertExtensions.assertEventuallyEquals(true, () -> transaction.checkStatus().equals(Transaction.Status.COMMITTED), 10000);
-
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getCounter(MetricsNames.COMMIT_TRANSACTION, streamTags(txScopeName, txStreamName)) != null, 10000);
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.COMMIT_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
 
         Transaction<String> transaction2 = writer.beginTxn();
@@ -226,7 +226,7 @@ public class StreamMetricsTest {
         transaction2.abort();
 
         AssertExtensions.assertEventuallyEquals(true, () -> transaction2.checkStatus().equals(Transaction.Status.ABORTED), 10000);
-
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getCounter(MetricsNames.ABORT_TRANSACTION, streamTags(txScopeName, txStreamName)) != null, 10000);
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.ABORT_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
     }
 }
