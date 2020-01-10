@@ -282,7 +282,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                         // seq_number + 1. This ensures that readers receive events in the same order that writers
                         // produced them and that there are no duplicate or missing events.
                         final String[] keyAndSeqNum = event.split(RK_VALUE_SEPARATOR);
-                        final long seqNumber = Long.valueOf(keyAndSeqNum[1]);
+                        final long seqNumber = Long.parseLong(keyAndSeqNum[1]);
                         testState.routingKeySeqNumber.compute(keyAndSeqNum[0], (rk, currentSeqNum) -> {
                             if (currentSeqNum != null && currentSeqNum + 1 != seqNumber) {
                                 throw new AssertionError("Event order violated at " + currentSeqNum + " by " + seqNumber);
