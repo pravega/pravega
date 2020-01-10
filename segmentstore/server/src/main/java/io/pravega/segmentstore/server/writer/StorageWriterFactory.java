@@ -11,6 +11,9 @@ package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -21,9 +24,11 @@ import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.Storage;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
@@ -93,11 +98,18 @@ public class StorageWriterFactory implements WriterFactory {
         }
 
         @Override
-        public CompletableFuture<Void> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout) {
+        public CompletableFuture<Long> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout) {
             TimeoutTimer timer = new TimeoutTimer(timeout);
             return this.attributeIndex
                     .forSegment(streamSegmentId, timer.getRemaining())
                     .thenCompose(ai -> ai.update(attributes, timer.getRemaining()));
+        }
+
+        @Override
+        public CompletableFuture<Void> persistAttributeIndexRootPointer(long segmentId, long rootPointer, Duration timeout) {
+            AttributeUpdate au = new AttributeUpdate(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, AttributeUpdateType.ReplaceIfGreater, rootPointer);
+            UpdateAttributesOperation op = new UpdateAttributesOperation(segmentId, Collections.singleton(au));
+            return this.operationLog.add(op, timeout);
         }
 
         @Override

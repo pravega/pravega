@@ -777,8 +777,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         }
 
         if (!flushArgs.getAttributes().isEmpty()) {
-            flush = flush.thenComposeAsync(v -> handleAttributeException(
-                    this.dataSource.persistAttributes(this.metadata.getId(), flushArgs.attributes, timer.getRemaining())));
+            flush = flush.thenComposeAsync(v -> handleAttributeException(persistAttributes(flushArgs.attributes, timer)));
         }
 
         return flush
@@ -1549,7 +1548,15 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         // This operation must have previously succeeded if any of the following are true:
         // - If the Attribute Index is sealed, and so is our Segment.
         // - If the Attribute Index does not exist (deleted), and our Segment is deleted or a merged Transaction.
-        return handleAttributeException(this.dataSource.persistAttributes(this.metadata.getId(), op.attributes, timer.getRemaining()));
+        return handleAttributeException(persistAttributes(op.attributes, timer));
+    }
+
+    private CompletableFuture<Void> persistAttributes(Map<UUID, Long> attributes, TimeoutTimer timer) {
+        return this.dataSource
+                .persistAttributes(this.metadata.getId(), attributes, timer.getRemaining())
+                .thenComposeAsync(
+                        rootPointer -> this.dataSource.persistAttributeIndexRootPointer(this.metadata.getId(), rootPointer, timer.getRemaining()),
+                        this.executor);
     }
 
     /**
@@ -1561,7 +1568,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     private CompletableFuture<Void> handleAttributeException(CompletableFuture<Void> future) {
         return Futures.exceptionallyExpecting(
                 future,
-                ex -> (ex instanceof StreamSegmentSealedException && this.metadata.isSealedInStorage())
+                ex -> (ex instanceof StreamSegmentSealedException && this.metadata.isSealed())
                         || ((ex instanceof StreamSegmentNotExistsException || ex instanceof StreamSegmentMergedException)
                         && (this.metadata.isMerged() || this.metadata.isDeleted())),
                 null);

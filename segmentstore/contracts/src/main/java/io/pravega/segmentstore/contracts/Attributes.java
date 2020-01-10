@@ -78,6 +78,11 @@ public class Attributes {
     private static final UUID RETIRED_2 = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 6);
 
     /**
+     * Defines an attribute that is used to keep a pointer (offset) to the Attribute Segment BTree Index Root Information.
+     */
+    public static final UUID ATTRIBUTE_SEGMENT_ROOT_POINTER = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 7);
+
+    /**
      * Determines whether the given Attribute Id refers to a Core Attribute.
      *
      * @param attributeId The Attribute Id to check.

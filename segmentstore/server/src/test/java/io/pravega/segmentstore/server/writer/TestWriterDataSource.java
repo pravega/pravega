@@ -68,6 +68,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @GuardedBy("lock")
     private final HashMap<Long, Map<UUID, Long>> attributeData;
     @GuardedBy("lock")
+    private final HashMap<Long, Long> attributeRootPointers;
+    @GuardedBy("lock")
     private CompletableFuture<Void> waitFullyAcked;
     @GuardedBy("lock")
     private CompletableFuture<Void> addProcessed;
@@ -107,6 +109,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         this.executor = executor;
         this.config = config;
         this.appendData = new HashMap<>();
+        this.attributeRootPointers = new HashMap<>();
         this.attributeData = new HashMap<>();
         this.log = new SequencedItemList<>();
         this.lastAddedCheckpoint = new AtomicLong(0);
@@ -241,7 +244,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public CompletableFuture<Void> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout) {
+    public CompletableFuture<Long> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ErrorInjector<Exception> asyncErrorInjector;
         synchronized (this.lock) {
@@ -249,7 +252,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
 
         return ErrorInjector
-                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.runAsync(() -> {
+                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.supplyAsync(() -> {
                     synchronized (this.lock) {
                         // We use "null" as an indication that the attribute data is deleted, hence the extra work here.
                         Map<UUID, Long> segmentAttributes;
@@ -275,8 +278,25 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                             // This is turned into an UnmodifiableMap, which throws UnsupportedOperationException for modify calls.
                             throw new CompletionException(new StreamSegmentSealedException("attributes_" + streamSegmentId, ex));
                         }
+
+                        long rootPointer = this.attributeRootPointers.getOrDefault(streamSegmentId, 0L) + 1;
+                        this.attributeRootPointers.put(streamSegmentId, rootPointer);
+                        return rootPointer;
                     }
                 }, this.executor));
+    }
+
+    @Override
+    public CompletableFuture<Void> persistAttributeIndexRootPointer(long segmentId, long rootPointer, Duration timeout) {
+        synchronized (this.lock) {
+            Long expectedRootPointer = this.attributeRootPointers.getOrDefault(segmentId, Long.MIN_VALUE);
+            if (expectedRootPointer == rootPointer) {
+                this.metadata.getStreamSegmentMetadata(segmentId).updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, rootPointer));
+                return CompletableFuture.completedFuture(null);
+            } else {
+                return Futures.failedFuture(new AssertionError(String.format("Root pointer mismatch. Expected %s, Given %s.", expectedRootPointer, rootPointer)));
+            }
+        }
     }
 
     @Override
