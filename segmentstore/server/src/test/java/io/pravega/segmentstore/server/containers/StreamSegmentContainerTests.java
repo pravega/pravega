@@ -143,6 +143,11 @@ import static org.junit.Assert.assertEquals;
  * DurableDataLog.
  */
 public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
+    /**
+     * Auto-generated attributes which are not set externally but maintained internally. To ease our testing, we will
+     * exclude these from all our checks.
+     */
+    private static final Collection<UUID> AUTO_ATTRIBUTES = Collections.singleton(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER);
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
@@ -1214,14 +1219,14 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         expectedAttributes = Attributes.getCoreNonNullAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
         localContainer.createStreamSegment(segmentName, initialAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after segment creation.", expectedAttributes, sp);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after segment creation.", expectedAttributes, sp, AUTO_ATTRIBUTES);
 
         // Add one append with some attribute changes and verify they were set correctly.
         val appendAttributes = createAttributeUpdates(attributes);
         applyAttributes(appendAttributes, expectedAttributes);
         localContainer.append(segmentName, appendData, appendAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after append.", expectedAttributes, sp);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after append.", expectedAttributes, sp, AUTO_ATTRIBUTES);
 
         // Wait until the segment is forgotten.
         localContainer.triggerMetadataCleanup(Collections.singleton(segmentName)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -1229,7 +1234,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Now get attributes again and verify them.
         sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         expectedAttributes = Attributes.getCoreNonNullAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
-        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & resurrection.", expectedAttributes, sp);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & resurrection.", expectedAttributes, sp, AUTO_ATTRIBUTES);
 
         // Append again, and make sure we can append at the right offset.
         val secondAppendAttributes = createAttributeUpdates(attributes);
@@ -1237,12 +1242,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         localContainer.append(segmentName, appendData.getLength(), appendData, secondAppendAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected length from segment after eviction & resurrection.", 2 * appendData.getLength(), sp.getLength());
-        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & resurrection.", expectedAttributes, sp);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & resurrection.", expectedAttributes, sp, AUTO_ATTRIBUTES);
 
         // Seal.
         localContainer.sealStreamSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after seal.", expectedAttributes, sp);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after seal.", expectedAttributes, sp, AUTO_ATTRIBUTES);
 
         // Verify the segment actually made to Storage in one piece.
         waitForSegmentInStorage(sp, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -1264,7 +1269,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         expectedAttributes = Attributes.getCoreNonNullAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
-        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after deletion and re-creation.", expectedAttributes, sp);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after deletion and re-creation.", expectedAttributes, sp, AUTO_ATTRIBUTES);
     }
 
     /**
@@ -1431,7 +1436,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         applyAttributes(appendAttributes, expectedAttributes);
         localContainer.updateAttributes(segmentName, appendAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after initial updateAttributes() call.", expectedAttributes, sp);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after initial updateAttributes() call.", expectedAttributes, sp, AUTO_ATTRIBUTES);
 
         // Wait until the attributes are forgotten
         localContainer.triggerAttributeCleanup(segmentName).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -1439,12 +1444,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Now get attributes again and verify them.
         sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val coreAttributes = Attributes.getCoreNonNullAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
-        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction.", coreAttributes, sp);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction.", coreAttributes, sp, AUTO_ATTRIBUTES);
 
         val allAttributes = localContainer.getAttributes(segmentName, expectedAttributes.keySet(), true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         AssertExtensions.assertMapEquals("Unexpected attributes after eviction & reload.", expectedAttributes, allAttributes);
         sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & reload+getInfo.", expectedAttributes, sp);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & reload+getInfo.", expectedAttributes, sp, AUTO_ATTRIBUTES);
     }
 
     /**
@@ -1703,7 +1708,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected name.", segmentName, info.getName());
             Assert.assertEquals("Unexpected length.", appendData.length, info.getLength());
             Assert.assertEquals("Unexpected startOffset.", 1, info.getStartOffset());
-            Assert.assertEquals("Unexpected attribute count.", 2, info.getAttributes().size());
+            Assert.assertEquals("Unexpected attribute count.", 2, info.getAttributes().keySet().stream().filter(id -> !AUTO_ATTRIBUTES.contains(id)).count());
             Assert.assertEquals("Unexpected attribute 1.", 1L, (long) info.getAttributes().get(attributeId1));
             Assert.assertEquals("Unexpected attribute 2.", 2L, (long) info.getAttributes().get(attributeId2));
             Assert.assertTrue("Unexpected isSealed.", info.isSealed());
@@ -1852,7 +1857,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected sealed (from getActiveSegments) for segment " + sp.getName(), expectedSp.isSealed(), sp.isSealed());
             Assert.assertEquals("Unexpected deleted (from getActiveSegments) for segment " + sp.getName(), expectedSp.isDeleted(), sp.isDeleted());
             SegmentMetadataComparer.assertSameAttributes("Unexpected attributes (from getActiveSegments) for segment " + sp.getName(),
-                    expectedSp.getAttributes(), sp);
+                    expectedSp.getAttributes(), sp, AUTO_ATTRIBUTES);
         }
 
         Assert.assertEquals("Unexpected result from getActiveSegments with freshly created segments.",
