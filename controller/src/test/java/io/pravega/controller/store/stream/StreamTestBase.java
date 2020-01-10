@@ -1499,4 +1499,44 @@ public abstract class StreamTestBase {
         mark = streamObj.getWriterMark(writer1).join();
         assertEquals(mark.getTimestamp(), time);
     }
+    
+    @Test(timeout = 30000L)
+    public void testTransactionMarkFromSingleWriter() {
+        PersistentStreamBase streamObj = spy(createStream("txnMark", "txnMark", System.currentTimeMillis(), 1, 0));
+
+        String writer = "writer";
+
+        UUID txnId1 = new UUID(0L, 0L);
+        UUID txnId2 = new UUID(0L, 1L);
+        UUID txnId3 = new UUID(0L, 2L);
+        UUID txnId4 = new UUID(0L, 3L);
+        long time = 1L;
+        // create 4 transactions with same writer id. 
+        // two of the transactions should have same highest time. 
+        VersionedTransactionData tx01 = streamObj.createTransaction(txnId1, 100, 100).join();
+        streamObj.sealTransaction(txnId1, true, Optional.of(tx01.getVersion()), writer, time).join();
+
+        VersionedTransactionData tx02 = streamObj.createTransaction(txnId2, 100, 100).join();
+        streamObj.sealTransaction(txnId2, true, Optional.of(tx02.getVersion()), writer, time + 1L).join();
+
+        VersionedTransactionData tx03 = streamObj.createTransaction(txnId3, 100, 100).join();
+        streamObj.sealTransaction(txnId3, true, Optional.of(tx03.getVersion()), writer, time + 4L).join();
+
+        VersionedTransactionData tx04 = streamObj.createTransaction(txnId4, 100, 100).join();
+        streamObj.sealTransaction(txnId4, true, Optional.of(tx04.getVersion()), writer, time + 4L).join();
+
+        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions().join();
+        streamObj.recordCommitOffsets(txnId1, Collections.singletonMap(0L, 1L)).join();
+        streamObj.recordCommitOffsets(txnId2, Collections.singletonMap(0L, 2L)).join();
+        streamObj.recordCommitOffsets(txnId3, Collections.singletonMap(0L, 3L)).join();
+        streamObj.recordCommitOffsets(txnId4, Collections.singletonMap(0L, 4L)).join();
+        streamObj.generateMarksForTransactions(record.getObject()).join();
+
+        // verify that writer mark is created in the store
+        WriterMark mark = streamObj.getWriterMark(writer).join();
+        assertEquals(mark.getTimestamp(), time + 4L);
+        
+        // verify that only one call to note time is made
+        verify(streamObj, times(1)).noteWriterMark(anyString(), anyLong(), any());
+    }
 }
