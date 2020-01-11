@@ -309,10 +309,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         return CompletableFuture.runAsync(() -> {
             synchronized (this.lock) {
                 Map<UUID, Long> segmentAttributes = this.attributeData.computeIfAbsent(streamSegmentId, k -> new HashMap<>());
-                if (segmentAttributes instanceof HashMap) {
-                    // Having too many layers of Unmodifiable map will slow things down, so only do it once.
-                    this.attributeData.put(streamSegmentId, Collections.unmodifiableMap(segmentAttributes));
-                }
+                this.attributeData.put(streamSegmentId, Collections.unmodifiableMap(segmentAttributes));
             }
         }, this.executor);
     }

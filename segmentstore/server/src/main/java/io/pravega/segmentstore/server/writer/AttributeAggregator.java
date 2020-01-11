@@ -189,7 +189,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
         }
 
         return result.thenApply(v -> {
-            if (aggregatedAttributes.size() > 0) {
+            if (this.aggregatedAttributes.size() > 0) {
                 log.debug("{}: Flushed. Count={}, SeqNo={}-{}.", this.traceObjectId, this.aggregatedAttributes.size(),
                         this.aggregatedAttributes.getFirstSequenceNumber(), this.aggregatedAttributes.getLastSequenceNumber());
             }
@@ -327,6 +327,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
             this.firstSequenceNumber.set(Operation.NO_SEQUENCE_NUMBER);
             this.lastSequenceNumber.set(Operation.NO_SEQUENCE_NUMBER);
             this.lastPersistedSequenceNumber.set(this.lastSequenceNumber.get());
+            this.sealed.set(false);
         }
     }
 

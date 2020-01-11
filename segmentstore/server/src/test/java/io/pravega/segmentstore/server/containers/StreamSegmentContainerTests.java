@@ -117,8 +117,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -486,6 +486,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
+        // Seal the segments and wait for Storage sync.
+        for (String segmentName : segmentNames) {
+            localContainer.sealStreamSegment(segmentName, TIMEOUT).join();
+        }
+
+        waitForSegmentsInStorage(segmentNames, localContainer, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         localContainer.stopAsync().awaitTerminated();
     }
 
@@ -2026,9 +2032,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, TestContext context) {
+        return waitForSegmentsInStorage(segmentNames, context.container, context);
+    }
+
+    private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, SegmentContainer container, TestContext context) {
         ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
         for (String segmentName : segmentNames) {
-            SegmentProperties sp = context.container.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            SegmentProperties sp = container.getStreamSegmentInfo(segmentName, TIMEOUT).join();
             segmentsCompletion.add(waitForSegmentInStorage(sp, context));
         }
 
@@ -2041,30 +2051,42 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             return CompletableFuture.completedFuture(null);
         }
 
-        Function<SegmentProperties, Boolean> meetsConditions = storageProps ->
-                storageProps.isSealed() == metadataProps.isSealed()
-                        && storageProps.getLength() >= metadataProps.getLength()
+        // Check if the Storage Segment is caught up. If sealed, we want to make sure that both the Segment and its
+        // Attribute Segment are sealed (or the latter has been deleted - for transactions). For all other, we want to
+        // ensure that the length and truncation offsets have  caught up.
+        BiFunction<SegmentProperties, SegmentProperties, Boolean> meetsConditions = (segmentProps, attrProps) ->
+                metadataProps.isSealed() == (segmentProps.isSealed() && (attrProps.isSealed() || attrProps.isDeleted()))
+                        && segmentProps.getLength() >= metadataProps.getLength()
                         && context.storageFactory.truncationOffsets.getOrDefault(metadataProps.getName(), 0L) >= metadataProps.getStartOffset();
 
+        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(metadataProps.getName());
         AtomicBoolean canContinue = new AtomicBoolean(true);
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         return Futures.loop(
                 canContinue::get,
-                () -> Futures.exceptionallyExpecting(
-                        context.storage.getStreamSegmentInfo(metadataProps.getName(), TIMEOUT),
-                        ex -> ex instanceof StreamSegmentNotExistsException,
-                        StreamSegmentInformation.builder().name(metadataProps.getName()).build())
-                        .thenCompose(storageProps -> {
-                            if (meetsConditions.apply(storageProps)) {
-                                canContinue.set(false);
-                                     return CompletableFuture.completedFuture(null);
-                            } else if (!timer.hasRemaining()) {
-                                return Futures.failedFuture(new TimeoutException());
-                            } else {
-                                return Futures.delayedFuture(Duration.ofMillis(10), executorService());
-                            }
-                        }).thenRun(Runnables.doNothing()),
+                () -> {
+                    val segInfo = getStorageSegmentInfo(metadataProps.getName(), timer, context);
+                    val attrInfo = getStorageSegmentInfo(attributeSegmentName, timer, context);
+                    return CompletableFuture.allOf(segInfo, attrInfo)
+                            .thenCompose(v -> {
+                                if (meetsConditions.apply(segInfo.join(), attrInfo.join())) {
+                                    canContinue.set(false);
+                                    return CompletableFuture.completedFuture(null);
+                                } else if (!timer.hasRemaining()) {
+                                    return Futures.failedFuture(new TimeoutException());
+                                } else {
+                                    return Futures.delayedFuture(Duration.ofMillis(10), executorService());
+                                }
+                            }).thenRun(Runnables.doNothing());
+                },
                 executorService());
+    }
+
+    private CompletableFuture<SegmentProperties> getStorageSegmentInfo(String segmentName, TimeoutTimer timer, TestContext context) {
+        return Futures.exceptionallyExpecting(
+                context.storage.getStreamSegmentInfo(segmentName, timer.getRemaining()),
+                ex -> ex instanceof StreamSegmentNotExistsException,
+                StreamSegmentInformation.builder().name(segmentName).deleted(true).build());
     }
 
     private Collection<AttributeUpdate> createAttributeUpdates(UUID[] attributes) {

@@ -889,28 +889,43 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             return CompletableFuture.completedFuture(null);
         }
 
+        // We want to make sure that both the main segment and its attribute segment have been sync-ed to Storage. In case
+        // of the attribute segment, the only thing we can easily do is verify that it has been sealed when the main segment
+        // it is associated with has also been sealed.
+        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(sp.getName());
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         AtomicBoolean tryAgain = new AtomicBoolean(true);
         return Futures.loop(
                 tryAgain::get,
-                () -> Futures
-                        .exceptionallyExpecting(readOnlyStore.getStreamSegmentInfo(sp.getName(), TIMEOUT),
-                                ex -> ex instanceof StreamSegmentNotExistsException,
-                                StreamSegmentInformation.builder().name(sp.getName()).build())
-                        .thenCompose(storageProps -> {
-                            if (sp.isSealed()) {
-                                tryAgain.set(!storageProps.isSealed());
-                            } else {
-                                tryAgain.set(sp.getLength() != storageProps.getLength());
-                            }
+                () -> {
+                    val segInfo = getStorageSegmentInfo(sp.getName(), timer, readOnlyStore);
+                    val attrInfo = getStorageSegmentInfo(attributeSegmentName, timer, readOnlyStore);
+                    return CompletableFuture.allOf(segInfo, attrInfo)
+                            .thenCompose(v -> {
+                                SegmentProperties storageProps = segInfo.join();
+                                SegmentProperties attrProps = attrInfo.join();
+                                if (sp.isSealed()) {
+                                    tryAgain.set(!storageProps.isSealed() || !(attrProps.isSealed() || attrProps.isDeleted()));
+                                } else {
+                                    tryAgain.set(sp.getLength() != storageProps.getLength());
+                                }
 
-                            if (tryAgain.get() && !timer.hasRemaining()) {
-                                return Futures.<Void>failedFuture(new TimeoutException(
-                                        String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
-                            } else {
-                                return Futures.delayedFuture(Duration.ofMillis(100), executorService());
-                            }
-                        }), executorService());
+                                if (tryAgain.get() && !timer.hasRemaining()) {
+                                    return Futures.<Void>failedFuture(new TimeoutException(
+                                            String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
+                                } else {
+                                    return Futures.delayedFuture(Duration.ofMillis(100), executorService());
+                                }
+                            });
+                },
+                executorService());
+    }
+
+    private CompletableFuture<SegmentProperties> getStorageSegmentInfo(String segmentName, TimeoutTimer timer, StreamSegmentStore readOnlyStore) {
+        return Futures
+                .exceptionallyExpecting(readOnlyStore.getStreamSegmentInfo(segmentName, timer.getRemaining()),
+                        ex -> ex instanceof StreamSegmentNotExistsException,
+                        StreamSegmentInformation.builder().name(segmentName).deleted(true).build());
     }
 
     private int applyFencingMultiplier(int originalValue) {
