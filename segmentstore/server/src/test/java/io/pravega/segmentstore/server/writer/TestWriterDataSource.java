@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -287,11 +288,15 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public CompletableFuture<Void> persistAttributeIndexRootPointer(long segmentId, long rootPointer, Duration timeout) {
+    public CompletableFuture<Void> notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, Duration timeout) {
         synchronized (this.lock) {
             Long expectedRootPointer = this.attributeRootPointers.getOrDefault(segmentId, Long.MIN_VALUE);
             if (expectedRootPointer == rootPointer) {
-                this.metadata.getStreamSegmentMetadata(segmentId).updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, rootPointer));
+                this.metadata.getStreamSegmentMetadata(segmentId).updateAttributes(
+                        ImmutableMap.<UUID, Long>builder()
+                                .put(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, rootPointer)
+                                .put(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, lastSequenceNumber)
+                                .build());
                 return CompletableFuture.completedFuture(null);
             } else {
                 return Futures.failedFuture(new AssertionError(String.format("Root pointer mismatch. Expected %s, Given %s.", expectedRootPointer, rootPointer)));
@@ -411,9 +416,9 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     //region Other Properties
 
-    void setOnGetAppendData(Runnable callback) {
+    long getAttributeRootPointer(long segmentId) {
         synchronized (this.lock) {
-            this.onGetAppendData = callback;
+            return this.attributeRootPointers.getOrDefault(segmentId, Attributes.NULL_ATTRIBUTE_VALUE);
         }
     }
 

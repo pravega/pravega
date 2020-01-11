@@ -1555,7 +1555,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         return this.dataSource
                 .persistAttributes(this.metadata.getId(), attributes, timer.getRemaining())
                 .thenComposeAsync(
-                        rootPointer -> this.dataSource.persistAttributeIndexRootPointer(this.metadata.getId(), rootPointer, timer.getRemaining()),
+                        rootPointer -> this.dataSource.notifyAttributesPersisted(this.metadata.getId(), rootPointer, -1, timer.getRemaining()),
                         this.executor);
     }
 

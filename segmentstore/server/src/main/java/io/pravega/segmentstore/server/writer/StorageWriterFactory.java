@@ -28,8 +28,9 @@ import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.Storage;
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -106,10 +107,11 @@ public class StorageWriterFactory implements WriterFactory {
         }
 
         @Override
-        public CompletableFuture<Void> persistAttributeIndexRootPointer(long segmentId, long rootPointer, Duration timeout) {
-            AttributeUpdate au = new AttributeUpdate(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, AttributeUpdateType.ReplaceIfGreater, rootPointer);
-            UpdateAttributesOperation op = new UpdateAttributesOperation(segmentId, Collections.singleton(au));
-            return this.operationLog.add(op, timeout);
+        public CompletableFuture<Void> notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, Duration timeout) {
+            List<AttributeUpdate> updates = Arrays.asList(
+                    new AttributeUpdate(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, AttributeUpdateType.ReplaceIfGreater, rootPointer),
+                    new AttributeUpdate(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, AttributeUpdateType.Replace, lastSequenceNumber));
+            return this.operationLog.add(new UpdateAttributesOperation(segmentId, updates), timeout);
         }
 
         @Override

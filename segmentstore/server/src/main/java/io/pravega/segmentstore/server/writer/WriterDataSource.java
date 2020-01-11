@@ -49,23 +49,26 @@ interface WriterDataSource {
      * @param attributes      The Attributes to persist (Key=AttributeId, Value=Attribute Value).
      * @param timeout         Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation completed and contain a value
-     * that would need to be passed to {@link #persistAttributeIndexRootPointer}. If the operation failed, this Future
+     * that would need to be passed to {@link #notifyAttributesPersisted}. If the operation failed, this Future
      * will complete with the appropriate exception.
      */
     CompletableFuture<Long> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout);
 
     /**
-     * Durably updates the {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER} for the given segment with the given value
-     * with the condition that the new value is greater than the current one.
+     * Indicates that a batch of Attributes for a Segment have been durably persisted in Storage (after an invocation of
+     * {@link #persistAttributes}) and updates the required Segment's Core Attributes to keep track of the state.
+     * of the current
      *
-     * @param segmentId   The Id of the Segment to persist for.
-     * @param rootPointer The Root Pointer to set.
-     * @param timeout     Timeout for the operation.
+     * @param segmentId          The Id of the Segment to persist for.
+     * @param rootPointer        The Root Pointer to set as {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER} for the segment.
+     * @param lastSequenceNumber The Sequence number of the last Operation that updated attributes. This will be set as
+     *                           {@link Attributes#ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO} for the segment.
+     * @param timeout            Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation
      * failed, this Future will complete with the appropriate exception. Notable exceptions:
      * - {@link BadAttributeUpdateException}: If the rootPointer is less than the current value for {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER}.
      */
-    CompletableFuture<Void> persistAttributeIndexRootPointer(long segmentId, long rootPointer, Duration timeout);
+    CompletableFuture<Void> notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, Duration timeout);
 
     /**
      * Instructs the DataSource to seal and compact the Attribute Index for the given Segment.

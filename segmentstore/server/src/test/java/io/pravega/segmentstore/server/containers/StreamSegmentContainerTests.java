@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
@@ -147,7 +148,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * Auto-generated attributes which are not set externally but maintained internally. To ease our testing, we will
      * exclude these from all our checks.
      */
-    private static final Collection<UUID> AUTO_ATTRIBUTES = Collections.singleton(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER);
+    private static final Collection<UUID> AUTO_ATTRIBUTES = Sets.newHashSet(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO);
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
