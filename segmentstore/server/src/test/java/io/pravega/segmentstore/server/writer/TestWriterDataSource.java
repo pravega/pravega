@@ -309,7 +309,10 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         return CompletableFuture.runAsync(() -> {
             synchronized (this.lock) {
                 Map<UUID, Long> segmentAttributes = this.attributeData.computeIfAbsent(streamSegmentId, k -> new HashMap<>());
-                this.attributeData.put(streamSegmentId, Collections.unmodifiableMap(segmentAttributes));
+                if (segmentAttributes instanceof HashMap) {
+                    // Having too many layers of Unmodifiable map will slow things down, so only do it once.
+                    this.attributeData.put(streamSegmentId, Collections.unmodifiableMap(segmentAttributes));
+                }
             }
         }, this.executor);
     }
@@ -509,6 +512,9 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     Map<UUID, Long> getPersistedAttributes(long segmentId) {
         synchronized (this.lock) {
             val m = this.attributeData.get(segmentId);
+            if (m != null) {
+                System.out.println("TWDS.GPA " + segmentId + " " + m.getClass().getName());
+            }
             return m == null ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(m));
         }
     }

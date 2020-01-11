@@ -411,11 +411,12 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
         // Then create the aggregator, and only register it after a successful initialization. Otherwise we risk
         // having a registered aggregator that is not initialized.
-        SegmentAggregator newAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer, this.executor);
-        ProcessorCollection pc = new ProcessorCollection(newAggregator, this.createProcessors.apply(segmentMetadata));
+        SegmentAggregator segmentAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer, this.executor);
+        AttributeAggregator attributeAggregator = new AttributeAggregator(segmentMetadata, this.dataSource, this.config, this.timer, this.executor);
+        ProcessorCollection pc = new ProcessorCollection(segmentAggregator, attributeAggregator, this.createProcessors.apply(segmentMetadata));
         try {
-            CompletableFuture<Void> init = newAggregator.initialize(this.config.getFlushTimeout());
-            Futures.exceptionListener(init, ex -> newAggregator.close());
+            CompletableFuture<Void> init = segmentAggregator.initialize(this.config.getFlushTimeout());
+            Futures.exceptionListener(init, ex -> segmentAggregator.close());
             return init.thenApply(ignored -> {
                 this.processors.put(streamSegmentId, pc);
                 return pc;
@@ -564,12 +565,15 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         private final SegmentAggregator aggregator;
         private final List<WriterSegmentProcessor> processors;
 
-        ProcessorCollection(SegmentAggregator aggregator, Collection<WriterSegmentProcessor> processors) {
+        ProcessorCollection(SegmentAggregator aggregator, AttributeAggregator attributeAggregator, Collection<WriterSegmentProcessor> processors) {
             // We separate out the main SegmentAggregator since we depend on it for some operations, however when we
             // generate the list of processors we make sure to put it first; if there are any issues with the operations
             // to process we need to ensure that no other processor may see those operations before the Segment Aggregator.
             this.aggregator = aggregator;
-            this.processors = ImmutableList.<WriterSegmentProcessor>builder().add(aggregator).addAll(processors).build();
+            this.processors = ImmutableList.<WriterSegmentProcessor>builder()
+                    .add(aggregator)
+                    .add(attributeAggregator)
+                    .addAll(processors).build();
         }
 
         //region SegmentAggregator direct wrapper
@@ -611,9 +615,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
         @Override
         public long getLowestUncommittedSequenceNumber() {
-            return this.processors.size() == 1
-                    ? this.processors.get(0).getLowestUncommittedSequenceNumber()
-                    : StorageWriter.this.ackCalculator.getLowestUncommittedSequenceNumber(this.processors);
+            return StorageWriter.this.ackCalculator.getLowestUncommittedSequenceNumber(this.processors);
         }
 
         @Override

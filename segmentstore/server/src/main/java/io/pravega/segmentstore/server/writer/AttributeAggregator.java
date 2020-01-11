@@ -14,6 +14,7 @@ import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -40,6 +41,9 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Aggregates Attribute Updates for a specific Segment.
+ *
+ * This class handles the following operations on a Segment: Attribute Updates (extended attributes only) and Sealing
+ * the Attribute Index. Any Attribute Index deletions are handled by {@link SegmentAggregator}.
  */
 @Slf4j
 class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
@@ -272,18 +276,23 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
                 return false;
             }
 
-            if (this.attributes.isEmpty()) {
-                this.firstSequenceNumber.set(operation.getSequenceNumber());
-            }
-
+            boolean anyUpdates = false;
             if (operation.getAttributeUpdates() != null) {
-                operation.getAttributeUpdates().stream()
-                         .filter(au -> !Attributes.isCoreAttribute(au.getAttributeId()))
-                         .forEach(au -> this.attributes.put(au.getAttributeId(), au.getValue()));
+                for (AttributeUpdate au : operation.getAttributeUpdates()) {
+                    if (!Attributes.isCoreAttribute(au.getAttributeId())) {
+                        this.attributes.put(au.getAttributeId(), au.getValue());
+                        anyUpdates = true;
+                    }
+                }
             }
 
-            this.lastSequenceNumber.set(operation.getSequenceNumber());
-            return true;
+            if (anyUpdates) {
+                // We use compareAndSet because we only want to update this if this is the first operation we process.
+                this.firstSequenceNumber.compareAndSet(Operation.NO_SEQUENCE_NUMBER, operation.getSequenceNumber());
+                this.lastSequenceNumber.set(operation.getSequenceNumber());
+            }
+
+            return anyUpdates;
         }
 
         long getFirstSequenceNumber() {

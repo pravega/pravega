@@ -133,6 +133,12 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
         val firstOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
         val lastOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
 
+        // Part 0: Empty operations.
+        context.aggregator.add(generateUpdateAttributesAndUpdateMetadata(0, context));
+        Assert.assertFalse("Unexpected value returned by mustFlush() after empty operation.", context.aggregator.mustFlush());
+        Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() after empty operation.",
+                firstOutstandingSeqNo.get(), context.aggregator.getLowestUncommittedSequenceNumber());
+
         // Part 1: flush triggered by accumulated counts.
         for (int i = 0; i < updateCount; i++) {
             // Add another operation.
