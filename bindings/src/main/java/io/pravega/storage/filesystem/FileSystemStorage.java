@@ -197,6 +197,14 @@ public class FileSystemStorage implements SyncStorage {
 
     //endregion
 
+    protected FileChannel getFileChannel(Path path, StandardOpenOption openOption) throws IOException {
+        return FileChannel.open(path, openOption);
+    }
+
+    protected long getFileSize(Path path) throws IOException {
+        return Files.size(path);
+    }
+
     //region private sync implementation
 
     private SegmentHandle doOpenRead(String streamSegmentName) throws StreamSegmentNotExistsException {
@@ -231,13 +239,13 @@ public class FileSystemStorage implements SyncStorage {
 
         Path path = Paths.get(config.getRoot(), handle.getSegmentName());
 
-        long fileSize = Files.size(path);
+        long fileSize = getFileSize(path);
         if (fileSize < offset) {
             throw new IllegalArgumentException(String.format("Reading at offset (%d) which is beyond the " +
                     "current size of segment (%d).", offset, fileSize));
         }
 
-        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
+        try (FileChannel channel = getFileChannel(path, StandardOpenOption.READ)) {
             int totalBytesRead = 0;
             long readOffset = offset;
             do {
@@ -305,7 +313,7 @@ public class FileSystemStorage implements SyncStorage {
         }
 
         long totalBytesWritten = 0;
-        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
+        try (FileChannel channel = getFileChannel(path, StandardOpenOption.WRITE)) {
             long fileSize = channel.size();
             if (fileSize != offset) {
                 throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
@@ -368,7 +376,7 @@ public class FileSystemStorage implements SyncStorage {
         Path sourcePath = Paths.get(config.getRoot(), sourceSegment);
         Path targetPath = Paths.get(config.getRoot(), targetHandle.getSegmentName());
 
-        long length = Files.size(sourcePath);
+        long length = getFileSize(sourcePath);
         try (FileChannel targetChannel = FileChannel.open(targetPath, StandardOpenOption.WRITE);
              RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
             if (isWritableFile(sourcePath)) {
