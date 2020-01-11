@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import com.google.common.collect.Streams;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
@@ -44,7 +45,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -61,6 +61,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -86,7 +88,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
     private static final int MAX_INSTANCE_COUNT = 4;
-    private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
+    private static final List<UUID> ATTRIBUTES = Streams.concat(Stream.of(Attributes.EVENT_COUNT), IntStream.range(0, 10).mapToObj(i -> UUID.randomUUID())).collect(Collectors.toList());
     private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
 
@@ -114,6 +116,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .include(WriterConfig
                     .builder()
                     .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
+                    .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, ATTRIBUTES.size() / 2)
                     .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
                     .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                     .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L));

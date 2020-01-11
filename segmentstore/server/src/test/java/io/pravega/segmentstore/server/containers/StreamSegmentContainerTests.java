@@ -195,6 +195,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final WriterConfig DEFAULT_WRITER_CONFIG = WriterConfig
             .builder()
             .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
+            .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, 3)
             .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
             .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
             .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)

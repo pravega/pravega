@@ -88,7 +88,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     private static final int APPENDS_PER_SEGMENT_RECOVERY = 500; // We use depth-first, which has slower performance.
     private static final int METADATA_CHECKPOINT_FREQUENCY = 50;
     private static final UUID CORE_ATTRIBUTE_ID = Attributes.EVENT_COUNT;
-    private static final UUID EXTENDED_ATTRIBUTE_ID = UUID.randomUUID();
+    private static final List<UUID> EXTENDED_ATTRIBUTE_IDS = Arrays.asList(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
     private static final WriterConfig DEFAULT_CONFIG = WriterConfig
             .builder()
             .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1000)
@@ -853,10 +853,13 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     private Collection<AttributeUpdate> generateAttributeUpdates(UpdateableSegmentMetadata segmentMetadata) {
         long coreAttributeValue = segmentMetadata.getAttributes().getOrDefault(CORE_ATTRIBUTE_ID, 0L) + 1;
-        long extendedAttributeValue = segmentMetadata.getAttributes().getOrDefault(EXTENDED_ATTRIBUTE_ID, 0L) + 13;
-        Collection<AttributeUpdate> attributeUpdates = Arrays.asList(
-                new AttributeUpdate(CORE_ATTRIBUTE_ID, AttributeUpdateType.Accumulate, coreAttributeValue),
-                new AttributeUpdate(EXTENDED_ATTRIBUTE_ID, AttributeUpdateType.Replace, extendedAttributeValue));
+        val attributeUpdates = new ArrayList<AttributeUpdate>();
+        attributeUpdates.add(new AttributeUpdate(CORE_ATTRIBUTE_ID, AttributeUpdateType.Accumulate, coreAttributeValue));
+        for (int i = 0; i < EXTENDED_ATTRIBUTE_IDS.size(); i++) {
+            UUID id = EXTENDED_ATTRIBUTE_IDS.get(i);
+            long extendedAttributeValue = segmentMetadata.getAttributes().getOrDefault(id, 0L) + 13 + i;
+            attributeUpdates.add(new AttributeUpdate(id, AttributeUpdateType.Replace, extendedAttributeValue));
+        }
         segmentMetadata.updateAttributes(
                 attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue)));
         return attributeUpdates;

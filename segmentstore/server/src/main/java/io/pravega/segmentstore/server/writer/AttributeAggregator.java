@@ -182,7 +182,6 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
         }
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-
         CompletableFuture<Void> result = handleAttributeException(persistPendingAttributes(
                 this.aggregatedAttributes.getAttributes(), this.aggregatedAttributes.getLastSequenceNumber(), timer));
         if (this.aggregatedAttributes.hasSeal()) {
@@ -190,6 +189,11 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
         }
 
         return result.thenApply(v -> {
+            if (aggregatedAttributes.size() > 0) {
+                log.debug("{}: Flushed. Count={}, SeqNo={}-{}.", this.traceObjectId, this.aggregatedAttributes.size(),
+                        this.aggregatedAttributes.getFirstSequenceNumber(), this.aggregatedAttributes.getLastSequenceNumber());
+            }
+
             WriterFlushResult r = new WriterFlushResult();
             r.withFlushedAttributes(this.aggregatedAttributes.size());
             this.aggregatedAttributes.acceptChanges();
@@ -208,12 +212,15 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         return this.dataSource
                 .persistAttributes(this.metadata.getId(), attributes, timer.getRemaining())
-                .thenComposeAsync(
-                        rootPointer -> this.dataSource.notifyAttributesPersisted(this.metadata.getId(), rootPointer, lastSeqNo, timer.getRemaining()),
-                        this.executor);
+                .thenComposeAsync(rootPointer -> {
+                     log.debug("{}: Persisted. Count={}, LastSeqNo={}, RootPointer={}.", this.traceObjectId, attributes.size(), lastSeqNo, rootPointer);
+                     return this.dataSource.notifyAttributesPersisted(this.metadata.getId(), rootPointer, lastSeqNo, timer.getRemaining());
+                },
+                this.executor);
     }
 
     private CompletableFuture<Void> sealAttributes(TimeoutTimer timer) {
+        log.debug("{}: Sealing Attribute Index.", this.traceObjectId);
         return this.dataSource.sealAttributes(this.metadata.getId(), timer.getRemaining());
     }
 
@@ -273,6 +280,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
         boolean include(AttributeUpdaterOperation operation) {
             Preconditions.checkState(!this.sealed.get(), "Cannot accept more operations after sealing.");
             if (operation.getSequenceNumber() <= this.lastPersistedSequenceNumber.get()) {
+                // This operation has already been processed. This usually happens after a recovery.
                 return false;
             }
 

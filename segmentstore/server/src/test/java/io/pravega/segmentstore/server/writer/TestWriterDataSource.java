@@ -512,9 +512,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     Map<UUID, Long> getPersistedAttributes(long segmentId) {
         synchronized (this.lock) {
             val m = this.attributeData.get(segmentId);
-            if (m != null) {
-                System.out.println("TWDS.GPA " + segmentId + " " + m.getClass().getName());
-            }
             return m == null ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(m));
         }
     }
