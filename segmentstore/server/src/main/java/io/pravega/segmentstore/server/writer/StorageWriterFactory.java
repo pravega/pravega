@@ -111,7 +111,9 @@ public class StorageWriterFactory implements WriterFactory {
             List<AttributeUpdate> updates = Arrays.asList(
                     new AttributeUpdate(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, AttributeUpdateType.ReplaceIfGreater, rootPointer),
                     new AttributeUpdate(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, AttributeUpdateType.Replace, lastSequenceNumber));
-            return this.operationLog.add(new UpdateAttributesOperation(segmentId, updates), timeout);
+            UpdateAttributesOperation op = new UpdateAttributesOperation(segmentId, updates);
+            op.setInternal(true); // This is internally generated, so we want to ensure it's accepted even on a sealed segment.
+            return this.operationLog.add(op, timeout);
         }
 
         @Override

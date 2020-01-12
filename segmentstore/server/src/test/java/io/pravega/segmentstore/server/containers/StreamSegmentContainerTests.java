@@ -91,6 +91,7 @@ import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
@@ -486,11 +487,31 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        // Seal the segments and wait for Storage sync.
+        // 4. Make an update, then immediately seal the segment, then verify the update updated the root pointer.
+        UUID attr = Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER;
+        val oldRootPointers = new HashMap<String, Long>();
         for (String segmentName : segmentNames) {
-            localContainer.sealStreamSegment(segmentName, TIMEOUT).join();
+            // Get the old root pointer, then make a random attribute update, then immediately seal the segment.
+            localContainer.getAttributes(segmentName, Collections.singleton(attr), false, TIMEOUT)
+                    .thenCompose(values -> {
+                        oldRootPointers.put(segmentName, values.get(attr));
+                        return CompletableFuture.allOf(
+                                localContainer.updateAttributes(segmentName, Collections.singleton(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.Replace, 1L)), TIMEOUT),
+                                localContainer.sealStreamSegment(segmentName, TIMEOUT));
+                    }).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
 
+        // We don't know the right value for Root Pointer, but we want to make sure it was increased (after the seal),
+        // which indicates the StorageWriter was able to successfully record it after its final Attribute Index update.
+        for (String segmentName : segmentNames) {
+            Long oldValue = oldRootPointers.get(segmentName);
+            TestUtils.await(() -> {
+                        val newVal = localContainer.getAttributes(segmentName, Collections.singleton(attr), false, TIMEOUT).join().get(attr);
+                        return oldValue < newVal;
+                    },
+                    10,
+                    TIMEOUT.toMillis());
+        }
         waitForSegmentsInStorage(segmentNames, localContainer, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         localContainer.stopAsync().awaitTerminated();
     }

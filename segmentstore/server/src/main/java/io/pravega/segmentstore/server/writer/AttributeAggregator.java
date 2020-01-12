@@ -155,11 +155,17 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
             this.aggregatedAttributes.seal();
             processed = true;
         } else if (operation instanceof AttributeUpdaterOperation) {
+            AttributeUpdaterOperation op = (AttributeUpdaterOperation) operation;
             if (this.aggregatedAttributes.hasSeal()) {
-                throw new DataCorruptionException(String.format("Illegal operation for a sealed Segment; received '%s'.", operation));
+                if (op.isInternal() && op.hasOnlyCoreAttributes()) {
+                    log.debug("{}: Ignored internal operation on sealed segment {}.", this.traceObjectId, operation);
+                    return;
+                } else {
+                    throw new DataCorruptionException(String.format("Illegal operation for a sealed Segment; received '%s'.", operation));
+                }
             }
 
-            processed = this.aggregatedAttributes.include((AttributeUpdaterOperation) operation);
+            processed = this.aggregatedAttributes.include(op);
         }
 
         if (processed) {

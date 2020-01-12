@@ -322,18 +322,23 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     @Override
     public void add(SegmentOperation operation) throws DataCorruptionException {
         ensureInitializedAndNotClosed();
+        if (!(operation instanceof StorageOperation)) {
+            // We only care about StorageOperations.
+            return;
+        }
 
         // Verify the operation is valid with respect to the state of this SegmentAggregator.
-        checkValidOperation(operation);
+        StorageOperation storageOp = (StorageOperation) operation;
+        checkValidOperation(storageOp);
 
-        boolean isDelete = isDeleteOperation(operation);
+        boolean isDelete = isDeleteOperation(storageOp);
         if (isDelete) {
-            addDeleteOperation((DeleteSegmentOperation) operation);
-            log.debug("{}: Add {}.", this.traceObjectId, operation);
-        } else if (!this.metadata.isDeleted() && operation instanceof StorageOperation) {
+            addDeleteOperation((DeleteSegmentOperation) storageOp);
+            log.debug("{}: Add {}.", this.traceObjectId, storageOp);
+        } else if (!this.metadata.isDeleted()) {
             // Process the operation.
-            addStorageOperation((StorageOperation) operation);
-            log.debug("{}: Add {}; OpCount={}, MergeCount={}, Seal={}.", this.traceObjectId, operation,
+            addStorageOperation(storageOp);
+            log.debug("{}: Add {}; OpCount={}, MergeCount={}, Seal={}.", this.traceObjectId, storageOp,
                     this.operations.size(), this.mergeTransactionCount, this.hasSealPending);
         }
     }
@@ -1476,7 +1481,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * @param operation The operation to check.
      * @throws IllegalArgumentException If any of the validations failed.
      */
-    private void checkValidOperation(SegmentOperation operation) throws DataCorruptionException {
+    private void checkValidOperation(StorageOperation operation) throws DataCorruptionException {
         // Verify that the SegmentOperation has been routed to the correct SegmentAggregator instance.
         Preconditions.checkArgument(
                 operation.getStreamSegmentId() == this.metadata.getId(),
@@ -1639,16 +1644,16 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     }
 
     /**
-     * Determines whether the given SegmentOperation's Offset must be match the current expected Offset.
+     * Determines whether the given StorageOperation's Offset must be match the current expected Offset.
      */
-    private boolean isTruncateOperation(SegmentOperation operation) {
+    private boolean isTruncateOperation(StorageOperation operation) {
         return operation instanceof StreamSegmentTruncateOperation;
     }
 
     /**
-     * Determines whether the given SegmentOperation is a {@link DeleteSegmentOperation}.
+     * Determines whether the given StorageOperation is a {@link DeleteSegmentOperation}.
      */
-    private boolean isDeleteOperation(SegmentOperation operation) {
+    private boolean isDeleteOperation(StorageOperation operation) {
         return operation instanceof DeleteSegmentOperation;
     }
 

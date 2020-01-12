@@ -297,7 +297,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             throw new StreamSegmentMergedException(this.name);
         }
 
-        if (this.sealed) {
+        if (this.sealed && !(operation.isInternal() && operation.hasOnlyCoreAttributes())) {
             // No operation may be accepted after a Segment has been sealed, except if it was internally generated and the
             // only thing that operation does is update exclusively Core Attributes.
             throw new StreamSegmentSealedException(this.name);

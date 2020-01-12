@@ -15,6 +15,8 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -35,6 +37,7 @@ import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
+import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.AssertExtensions;
@@ -219,6 +222,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         // Seal the parent, then truncate again.
         context.segmentAggregator.add(generateSealAndUpdateMetadata(SEGMENT_ID, context));
         context.segmentAggregator.add(generateTruncateAndUpdateMetadata(SEGMENT_ID, context));
+
+        // This should have no effect and not throw any errors.
+        context.segmentAggregator.add(new UpdateAttributesOperation(SEGMENT_ID,
+                Collections.singleton(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.Replace, 1))));
     }
 
     /**

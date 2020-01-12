@@ -324,7 +324,7 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
         Assert.assertTrue("Expecting a flush after a seal operation.", context.aggregator.mustFlush());
         val flushResult = context.aggregator.flush(TIMEOUT).join();
         Assert.assertEquals("Not all attributes were flushed.", outstandingAttributes.size(), flushResult.getFlushedAttributes());
-        Assert.assertFalse("Not expecting a flush required after flushing evertyhing.", context.aggregator.mustFlush());
+        Assert.assertFalse("Not expecting a flush required after flushing everything.", context.aggregator.mustFlush());
         checkAttributes(context);
         checkAutoAttributes(lastOutstandingSeqNo.get(), context);
         AssertExtensions.assertSuppliedFutureThrows(
