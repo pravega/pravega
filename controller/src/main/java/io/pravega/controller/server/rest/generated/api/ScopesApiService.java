@@ -41,5 +41,5 @@ public abstract class ScopesApiService {
     public abstract Response updateStream(String scopeName,String streamName,UpdateStreamRequest updateStreamRequest,SecurityContext securityContext) throws NotFoundException;
     public abstract Response updateStreamState(String scopeName,String streamName,StreamState updateStreamStateRequest,SecurityContext securityContext) throws NotFoundException;
     public abstract Response getEvent(String scopeName, String streamName, @NotNull Long segmentNumber, SecurityContext securityContext) throws NotFoundException;
-    public abstract Response createEvent(CreateEventRequest createEventRequest,SecurityContext securityContext) throws NotFoundException;
+    public abstract Response createEvent(String scopeName, String streamName, String message, SecurityContext securityContext) throws NotFoundException;
 }

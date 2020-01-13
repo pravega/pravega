@@ -11,7 +11,6 @@ package io.pravega.controller.server.rest.v1;
 
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
-import io.pravega.controller.server.rest.generated.model.CreateEventRequest;
 import io.pravega.controller.server.rest.generated.model.CreateEventResponse;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
@@ -333,9 +332,9 @@ public final class ApiV1 {
                              @Suspended final AsyncResponse asyncResponse);
 
 
-        @POST
-        @Path("/events")
-        @Consumes({"application/json"})
+        @PUT
+        @Path("/{scopeName}/streams/{streamName}/events")
+        @Consumes("text/plain")
         @Produces({"application/json"})
         @ApiOperation(
                 value = "", notes = "Creates a new event", response = CreateEventResponse.class, tags = {})
@@ -349,7 +348,9 @@ public final class ApiV1 {
                 @ApiResponse(
                         code = 500, message = "Server error", response = CreateEventResponse.class)})
         public void createEvent(
-                @ApiParam(value = "The event configuration", required = true) CreateEventRequest createEventRequest,
+                @ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
+                @ApiParam(value = "message", required = true) String message,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
     }

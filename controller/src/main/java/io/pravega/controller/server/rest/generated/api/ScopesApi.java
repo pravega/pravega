@@ -10,9 +10,7 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import io.swagger.jaxrs.*;
 
-
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
-import io.pravega.controller.server.rest.generated.model.CreateEventRequest;
 import io.pravega.controller.server.rest.generated.model.CreateEventResponse;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.GetEventResponse;
@@ -310,10 +308,9 @@ public class ScopesApi  {
         return delegate.getEvent(scopeName, streamName, segmentNumber, securityContext);
     }
 
-
     @POST
     @Path("/events")
-    @Consumes({"application/json"})
+    @Consumes("text/plain")
     @Produces({"application/json"})
     @io.swagger.annotations.ApiOperation(value = "", notes = "Create a new event", response = CreateEventResponse.class, tags={ "Events", })
     @io.swagger.annotations.ApiResponses(value = {
@@ -322,9 +319,11 @@ public class ScopesApi  {
             @io.swagger.annotations.ApiResponse(code = 409, message = "Event with the given name already exists", response = CreateEventResponse.class),
 
             @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while creating an event", response = CreateEventResponse.class) })
-    public Response createEvent(@ApiParam(value = "The event configuration" ,required=true) CreateEventRequest createEventRequest,
+    public Response createEvent(
+                                @ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                                @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
+                                @ApiParam(value = "message", required = true) String message,
                                 @Context SecurityContext securityContext) throws NotFoundException {
-        return delegate.createEvent(createEventRequest,securityContext);
+        return delegate.createEvent(scopeName, streamName, message, securityContext);
     }
-
 }

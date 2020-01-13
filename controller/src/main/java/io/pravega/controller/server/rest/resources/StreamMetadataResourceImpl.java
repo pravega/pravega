@@ -22,7 +22,6 @@ import io.pravega.controller.server.AuthResourceRepresentation;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.ModelHelper;
-import io.pravega.controller.server.rest.generated.model.CreateEventRequest;
 import io.pravega.controller.server.rest.generated.model.CreateEventResponse;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
@@ -753,8 +752,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
     /**
      * Implementation of getScope REST API.
-     *
      * @param scopeName Scope Name.
+     * @param streamName Stream Name.
      * @param securityContext The security for API access.
      * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing.
      */
@@ -804,36 +803,37 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
     /**
      * Implementation of createEvent REST API.
-     *
-     * @param createEventRequest  The object conforming to createEvent request json.
+     * @param scopeName Scope Name.
+     * @param streamName Stream Name.
+     * @param message Message.
      * @param securityContext     The security for API access.
      * @param asyncResponse       AsyncResponse provides means for asynchronous server side response processing.
      */
     @Override
-    public void createEvent(final CreateEventRequest createEventRequest, final SecurityContext securityContext,
+    public void createEvent(final String scopeName, final String streamName, final String message, final SecurityContext securityContext,
                             final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "createEvent");
         try {
-            NameUtils.validateUserScopeName(createEventRequest.getScopeName());
-            NameUtils.validateUserStreamName(createEventRequest.getStreamName());
+            NameUtils.validateUserScopeName(scopeName);
+            NameUtils.validateUserStreamName(streamName);
         } catch (IllegalArgumentException | NullPointerException e) {
             log.warn("Create event failed due to invalid scope name {} or stream name {}", 
-                    createEventRequest.getScopeName(), createEventRequest.getStreamName());
+                    scopeName, streamName);
             asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
             LoggerHelpers.traceLeave(log, "createEvent", traceId);
             return;
         }
         log.debug("createEvent scopeName:{}, streamName:{}, message:{}",
-                   createEventRequest.getScopeName(),
-                   createEventRequest.getStreamName(),
-                   createEventRequest.getMessage());
+                   scopeName,
+                   streamName,
+                   message);
 
         try {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(),
                     "/events", READ_UPDATE);
         } catch (AuthException e) {
             log.warn("Create event for scope {} and stream {} failed due to authentication failure {}.",
-                    createEventRequest.getScopeName(), createEventRequest.getStreamName(), e);
+                    scopeName, streamName, e);
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
             LoggerHelpers.traceLeave(log, "createEvent", traceId);
             return;
@@ -841,14 +841,14 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         log.debug("createEvent authorized");
 
         controllerService.createEvent(
-                createEventRequest.getRoutingKey(),
-                createEventRequest.getScopeName(),
-                createEventRequest.getStreamName(),
-                createEventRequest.getMessage()).thenApply(scope -> {
-                    return Response.status(Status.CREATED).entity(new CreateEventResponse().scopeName(createEventRequest.getScopeName())).build();
+                "",
+                scopeName,
+                streamName,
+                message).thenApply(scope -> {
+                    return Response.status(Status.CREATED).entity(new CreateEventResponse().scopeName(scopeName)).build();
         }).exceptionally(exception -> {
             log.warn("createEvent for scope: {} stream: {} failed, exception: {}",
-                    createEventRequest.getScopeName(), createEventRequest.getStreamName(), exception);
+                    scopeName, streamName, exception);
             return Response.status(Status.INTERNAL_SERVER_ERROR).entity(exception.getMessage()).build();
         }).thenApply(asyncResponse::resume)
                 .thenAccept(x -> LoggerHelpers.traceLeave(log, "createEvent", traceId));
