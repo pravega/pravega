@@ -9,6 +9,7 @@
  */
 package io.pravega.storage.filesystem;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.common.Exceptions;
@@ -196,11 +197,12 @@ public class FileSystemStorage implements SyncStorage {
     }
 
     //endregion
-
+    @VisibleForTesting
     protected FileChannel getFileChannel(Path path, StandardOpenOption openOption) throws IOException {
         return FileChannel.open(path, openOption);
     }
 
+    @VisibleForTesting
     protected long getFileSize(Path path) throws IOException {
         return Files.size(path);
     }

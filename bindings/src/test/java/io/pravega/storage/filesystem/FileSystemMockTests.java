@@ -98,12 +98,12 @@ public class FileSystemMockTests {
     /**
      * Test Class.
      */
-    class TestFileSystemStorage extends FileSystemStorage {
-        FileChannel channel;
+    private static class TestFileSystemStorage extends FileSystemStorage {
+        private final FileChannel channel;
 
         @Getter
         @Setter
-        long sizeToReturn;
+        private long sizeToReturn;
 
         public TestFileSystemStorage(FileSystemStorageConfig config, FileChannel channel) {
             super(config);
