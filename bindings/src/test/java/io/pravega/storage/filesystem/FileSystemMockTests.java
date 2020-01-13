@@ -68,7 +68,7 @@ public class FileSystemMockTests {
         String segmentName = "test";
 
         TestFileSystemStorage testStorage = new TestFileSystemStorage(storageConfig, channel);
-        testStorage.setSizeToReturn(2 * bufferSize);
+        testStorage.setSizeToReturn(2L * bufferSize);
         SegmentHandle handle = FileSystemSegmentHandle.readHandle(segmentName);
 
         // Force two reads.
