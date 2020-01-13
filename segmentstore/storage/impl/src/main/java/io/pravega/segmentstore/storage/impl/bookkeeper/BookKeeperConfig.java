@@ -36,6 +36,7 @@ public class BookKeeperConfig {
     public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("bkWriteQuorumSize", 3);
     public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("bkWriteTimeoutMillis", 60000);
     public static final Property<Integer> BK_READ_TIMEOUT = Property.named("readTimeoutMillis", 30000);
+    public static final Property<Integer> BK_READ_BATCH_SIZE = Property.named("readBatchSize", 64);
     public static final Property<Integer> MAX_OUTSTANDING_BYTES = Property.named("maxOutstandingBytes", 256 * 1024 * 1024);
     public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("bkLedgerMaxSize", 1024 * 1024 * 1024);
     public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
@@ -128,6 +129,12 @@ public class BookKeeperConfig {
     private final int bkReadTimeoutMillis;
 
     /**
+     * The number of Ledger Entries to read at once from BookKeeper.
+     */
+    @Getter
+    private final int bkReadBatchSize;
+
+    /**
      * The maximum number of bytes that can be outstanding per BookKeeperLog at any given time. This value should be used
      * for throttling purposes.
      */
@@ -184,6 +191,12 @@ public class BookKeeperConfig {
 
         this.bkWriteTimeoutMillis = properties.getInt(BK_WRITE_TIMEOUT);
         this.bkReadTimeoutMillis = properties.getInt(BK_READ_TIMEOUT);
+        this.bkReadBatchSize = properties.getInt(BK_READ_BATCH_SIZE);
+        if (this.bkReadBatchSize < 1) {
+            throw new InvalidPropertyValueException(String.format("Property %s (%d) must be a positive integer.",
+                    BK_READ_BATCH_SIZE, this.bkReadBatchSize));
+        }
+
         this.maxOutstandingBytes = properties.getInt(MAX_OUTSTANDING_BYTES);
         this.bkLedgerMaxSize = properties.getInt(BK_LEDGER_MAX_SIZE);
         this.bkPassword = properties.get(BK_PASSWORD).getBytes(StandardCharsets.UTF_8);
