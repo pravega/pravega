@@ -85,10 +85,4 @@ notifications:
     rooms:
       secure: Gv0RJx1Sa/y5fmvLNwY+2ivfWZYCM0ekrr6UAHqsegnid6P/DFZrSrfSpwvcVh2OVNH8DHLV0BoiuDJ7amtl1eMDMXz5/lLz8tFWFKaHv4yDSadm8ILY/KnYUoP4IRuM3NyKQmBrmZB9Or5KFXboG6ex6UkgbuYy0Zyl6syEe168Iw8hlCRx26Jei7/y+8eE2MIGFh09TLRZ/944YbULum9H3KQLYv8nFdPc7GmR5AK461fnwZ7iYjb7MXkCctE5Vml3p9+2Qliv1ZJqNsQeKmSFW6IhiP6pNZ1V8VJEWMQmX/nBr9745l/N+CoLQz9ajLonlxn9xHdWms4TEu1ynFk6uxEJjlcpXcvcEaKhqAKcTMl0GMMRab2m+/Vt3S/VutJnVXQmnhZGT9glLFQHwcdHNqM/LEbXtyisB7zmGImUQpF2InCwO25IXug5gv64IfOHGMzL56yNIhbRgBY9Ud4Tux+pmkV5ZxJiBkul7/FiHQX7tQLUrzQosD0oyCOmaWD7kmbt15A0TOkLgup4HE+sSS1ASwisa7J2+HsbI3Upy3rNVKuIJP0L4KSTn4HSlDlMLLcWM+nz/YCEfuwSRXJTIstotNYHdsLUZAZSYAX7ejpeiuBRed4a4AlCROeKbKKwCcSvqCOjmCaPTpwJAGeJByOXLL2hfQzpDMKCIKM=
   email:
-    - arvind.kandhare@dell.com
-    - tom.kaitchuck@dell.com
-    - andrei.paduroiu@dell.com
-    - shivesh.ranjan@dell.com
-    - sandeep.shridhar@dell.com
-    - Vijayalakshmi.Veerubhotla@emc.com
-    - Flavio.Junqueira@emc.com
+    - ravi.rajamani@dell.com

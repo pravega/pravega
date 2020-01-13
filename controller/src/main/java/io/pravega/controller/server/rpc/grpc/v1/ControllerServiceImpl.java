@@ -541,14 +541,17 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String scopeName = request.getScopeName();
         String streamName = request.getStreamName();
         Long  segmentNumber = request.getSegmentNumber();
-        log.info("getEvent called for segment {} ", request.getSegmentNumber());
-        controllerService.getEvent(routingKey, scopeName, streamName, segmentNumber);
-        // authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
-        //        AuthResourceRepresentation.ofStreamInScope(scopeName,
-        //                streamName), AuthHandler.Permissions.READ),
-        //        delegationToken -> controllerService.getEvent(routingKey, scopeName, streamName, segmentNumber)
-        //                .thenApply(ModelHelper::getEventResponse),
-        //        responseObserver);
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getEvent",
+                scopeName, streamName);
+        log.info(requestTag.getRequestId(), "getEvent called for stream {}/{}/{}.", scopeName, streamName, segmentNumber);
+
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                AuthResourceRepresentation.ofStreamInScope(scopeName, streamName),
+                AuthHandler.Permissions.READ),
+                delegationToken -> controllerService.getEvent(routingKey, scopeName, streamName, segmentNumber)
+                        .thenApply(none -> Controller.GetEventResponse.newBuilder()
+                                .build()),
+                responseObserver);
     }
 
     @Override
@@ -557,22 +560,20 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String scopeName = request.getScopeName();
         String streamName = request.getStreamName();
         String message = request.getMessage();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createStream",
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createEvent",
                 scopeName, streamName);
-        log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.", scopeName, streamName);
-        controllerService.createEvent(routingKey, scopeName, streamName, message);
-        // authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
-        //        AuthResourceRepresentation.ofStreamInScope(scopeName, streamName), AuthHandler.Permissions.READ_UPDATE)
-        //                .thenApply(ModelHelper::createEventResponse),
-        //        delegationToken -> controllerService.createEvent(routingKey, scopeName, streamName, message)
-        //                .thenApply(response -> {
-        //                    // response.setDelegationToken(delegationToken);
-        //                    return response.build();
-        //                }),
-        //        responseObserver, requestTag);
+        log.info(requestTag.getRequestId(), "createEvent called for stream {}/{}/{}.", scopeName, streamName, routingKey);
+
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                AuthResourceRepresentation.ofStreamInScope(scopeName, streamName),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.createEvent(routingKey, scopeName, streamName, message)
+                        .thenApply(none -> Controller.CreateEventResponse.newBuilder()
+                                .build()),
+                responseObserver);
     }
-    //endregion
-    
+    // endregion
+
     private void logIfEmpty(String delegationToken, String requestName, String scopeName, String streamName) {
         if (isAuthEnabled() && Strings.isNullOrEmpty(delegationToken)) {
             log.warn("Delegation token for request [{}] with scope [{}] and stream [{}], is: [{}]",
