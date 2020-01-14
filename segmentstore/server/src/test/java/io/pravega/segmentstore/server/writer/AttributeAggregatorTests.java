@@ -189,6 +189,7 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
             context.aggregator.add(op);
 
             // Call flush() and inspect the result.
+            Assert.assertFalse("Unexpected value returned by mustFlush() before time elapsed (time threshold).", context.aggregator.mustFlush());
             context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
             Assert.assertTrue("Unexpected value returned by mustFlush() (time threshold).", context.aggregator.mustFlush());
             Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (time threshold).",

@@ -203,6 +203,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
             WriterFlushResult r = new WriterFlushResult();
             r.withFlushedAttributes(this.aggregatedAttributes.size());
             this.aggregatedAttributes.acceptChanges();
+            this.lastFlush.set(this.timer.getElapsed());
             return r;
         });
     }
