@@ -1062,6 +1062,8 @@ distributions {
     }
 }
 
+project.gradle.startParameter.excludedTaskNames.add('uploadArchives')
+
 tasks.withType(Tar) {
     compression = Compression.GZIP
 }
