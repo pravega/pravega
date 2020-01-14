@@ -160,7 +160,7 @@ public class ControllerEventProcessorsTest {
         };
 
         try {
-            when(system.createEventProcessorGroup(any(), any())).thenReturn(processor);
+            when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(processor);
         } catch (CheckpointStoreException e) {
             e.printStackTrace();
         }

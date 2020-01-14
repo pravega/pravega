@@ -15,6 +15,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -239,6 +240,12 @@ public class ZkStreamTest {
         store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
         OperationContext context = store.createContext(SCOPE, streamName);
+
+        // set minimum number of segments to 1 so that we can also test scale downs
+        streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        store.startUpdateConfiguration(SCOPE, streamName, streamConfig, null, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = store.getConfigurationRecord(SCOPE, streamName, null, executor).join();
+        store.completeUpdateConfiguration(SCOPE, streamName, configRecord, null, executor).join();
 
         List<StreamSegmentRecord> segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 5);

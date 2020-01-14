@@ -13,6 +13,9 @@ import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.shared.controller.event.ControllerEvent;
 
+import javax.annotation.Nullable;
+import java.util.concurrent.ScheduledExecutorService;
+
 /**
  * It acts as the manager and wrapper around EventProcessor groups
  * processing events from Pravega Streams belonging to a specific scope.
@@ -45,10 +48,14 @@ public interface EventProcessorSystem {
      *              in the EventProcessorGroup.
      * @param checkpointStore Checkpoint store.
      * @param <T> Stream Event type parameter.
+     * @param rebalanceExecutor executor to run periodic checks for readergroup rebalance. 
+     *                          Pass null to disable rebalancing.
+     *                          
      * @return EventProcessorGroup reference.
      * @throws CheckpointStoreException on error accessing or updating checkpoint store.
      */
     <T extends ControllerEvent> EventProcessorGroup<T> createEventProcessorGroup(
-            final EventProcessorConfig<T> eventProcessorConfig, final CheckpointStore checkpointStore)
+            final EventProcessorConfig<T> eventProcessorConfig, final CheckpointStore checkpointStore,
+            @Nullable final ScheduledExecutorService rebalanceExecutor)
             throws CheckpointStoreException;
 }
