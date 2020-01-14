@@ -17,7 +17,6 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -959,16 +958,6 @@ public abstract class ScaleRequestHandlerTest {
         public CompletableFuture<Void>  writeEvent(String routingKey, ControllerEvent event) {
             queue.add(event);
             return CompletableFuture.completedFuture(null);
-        }
-
-        @Override
-        public Transaction<ControllerEvent> beginTxn() {
-            return null;
-        }
-
-        @Override
-        public Transaction<ControllerEvent> getTxn(UUID transactionId) {
-            return null;
         }
 
         @Override

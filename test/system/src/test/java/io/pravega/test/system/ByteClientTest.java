@@ -10,7 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ByteStreamClientFactory;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
@@ -123,7 +123,7 @@ public class ByteClientTest extends AbstractSystemTest {
                                                                            .clientConfig(Utils.buildClientConfig(controllerURI)).build(),
                 connectionFactory.getInternalExecutor());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
+        EventStreamClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
         log.info("Invoking byteClientTest test with Controller URI: {}", controllerURI);
         @Cleanup
         ByteStreamClientFactory byteStreamClient = new ByteStreamClientImpl(SCOPE, controller, connectionFactory);
