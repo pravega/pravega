@@ -27,6 +27,9 @@ import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collections;
+import java.util.Set;
+
 import static io.pravega.shared.MetricsTags.DEFAULT_HOSTNAME_KEY;
 import static io.pravega.shared.MetricsTags.createHostTag;
 
@@ -35,6 +38,7 @@ class StatsProviderImpl implements StatsProvider {
     @Getter
     private final CompositeMeterRegistry metrics;
     private final MetricsConfig conf;
+
 
     StatsProviderImpl(MetricsConfig conf) {
         this(conf, Metrics.globalRegistry);
@@ -75,7 +79,8 @@ class StatsProviderImpl implements StatsProvider {
     @Synchronized
     @Override
     public void startWithoutExporting() {
-        for (MeterRegistry registry : metrics.getRegistries()) {
+        Set<MeterRegistry> modifiableSet = Collections.checkedSet(metrics.getRegistries(), MeterRegistry.class);
+        for (MeterRegistry registry : modifiableSet) {
             metrics.remove(registry);
         }
         Metrics.addRegistry(new SimpleMeterRegistry());
@@ -85,7 +90,8 @@ class StatsProviderImpl implements StatsProvider {
     @Synchronized
     @Override
     public void close() {
-        for (MeterRegistry registry : metrics.getRegistries()) {
+        Set<MeterRegistry> modifiableSet = Collections.checkedSet(metrics.getRegistries(), MeterRegistry.class);
+        for (MeterRegistry registry : modifiableSet) {
             registry.close();
             metrics.remove(registry);
         }
