@@ -182,26 +182,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return new CheckpointImpl(checkpointName, map);
     }
 
-    /**
-     * Used to reset a reset a reader group to a checkpoint. This should be removed in time.
-     * @deprecated Use {@link ReaderGroup#resetReaderGroup(ReaderGroupConfig)} to reset readers to a given Checkpoint.
-     */
-    @Override
-    @Deprecated
-    public void resetReadersToCheckpoint(Checkpoint checkpoint) {
-        synchronizer.updateState((state, updates) -> {
-            ReaderGroupConfig config = state.getConfig();
-            Map<SegmentWithRange, Long> positions = new HashMap<>();
-            for (StreamCut cut : checkpoint.asImpl().getPositions().values()) {
-                for (Entry<Segment, Long> e : cut.asImpl().getPositions().entrySet()) {
-                    //TODO watermarking: deal with empty range information.
-                    positions.put(new SegmentWithRange(e.getKey(), null), e.getValue());
-                }
-            }
-            updates.add(new ReaderGroupStateInit(config, positions, getEndSegmentsForStreams(config)));
-        });
-    }
-
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
         Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
