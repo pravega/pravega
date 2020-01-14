@@ -137,6 +137,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
     @VisibleForTesting
     ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient, SegmentHelper segmentHelper,
                              ConnectionFactory connectionFactory, StreamMetadataStore streamStore) {
+        this(serviceConfig, storeClient, segmentHelper, connectionFactory, streamStore, null);
+    }
+
+    @VisibleForTesting
+    ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient, SegmentHelper segmentHelper,
+                             ConnectionFactory connectionFactory, StreamMetadataStore streamStore, StreamDataStore streamDataStore) {
         this.serviceConfig = serviceConfig;
         this.storeClient = storeClient;
         this.objectId = "ControllerServiceStarter";
