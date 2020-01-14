@@ -21,6 +21,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.SequentialProcessor;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentOperation;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
@@ -62,6 +63,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private final AckCalculator ackCalculator;
     private final WriterFactory.CreateProcessors createProcessors;
     private final SequentialProcessor ackProcessor;
+    private final SegmentStoreMetrics.StorageWriter metrics;
 
     //endregion
 
@@ -91,6 +93,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         this.timer = new Timer();
         this.ackCalculator = new AckCalculator(this.state);
         this.ackProcessor = new SequentialProcessor(this.executor);
+        this.metrics = new SegmentStoreMetrics.StorageWriter(dataSource.getId());
     }
 
     //endregion
@@ -137,7 +140,9 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private void endIteration() {
         // Perform internal cleanup (get rid of those SegmentProcessors that are closed).
         cleanup();
-        logStageEvent("Finish", "Elapsed " + this.state.getElapsedSinceIterationStart(this.timer).toMillis() + "ms");
+        Duration elapsed = this.state.getElapsedSinceIterationStart(this.timer);
+        this.metrics.iterationComplete(elapsed);
+        logStageEvent("Finish", "Elapsed " + elapsed.toMillis() + "ms");
     }
 
     private Void iterationErrorHandler(Throwable ex) {
@@ -168,6 +173,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         this.processors.values().forEach(ProcessorCollection::close);
         this.processors.clear();
         this.ackProcessor.close();
+        this.metrics.close();
     }
 
     //endregion
@@ -223,6 +229,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         InputReadStageResult result = new InputReadStageResult(this.state);
         if (readResult == null) {
             // This happens when we get a TimeoutException from the read operation.
+            this.metrics.readComplete(0);
             logStageEvent("InputRead", result);
             LoggerHelpers.traceLeave(log, this.traceObjectId, "processReadResult", traceId);
             return CompletableFuture.completedFuture(null);
@@ -300,6 +307,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flush");
 
         // Flush everything we can flush.
+        val timer = new Timer();
         val flushFutures = this.processors.values().stream()
                                           .filter(ProcessorCollection::mustFlush)
                                           .map(a -> a.flush(this.config.getFlushTimeout()))
@@ -310,10 +318,11 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                 .thenAcceptAsync(flushResults -> {
                     FlushStageResult result = new FlushStageResult();
                     flushResults.forEach(result::withFlushResult);
-                    if (result.getFlushedBytes() + result.getMergedBytes() + result.count > 0) {
+                    if (result.getFlushedBytes() + result.getMergedBytes() + result.getFlushedAttributes() > 0) {
                         logStageEvent("Flush", result);
                     }
 
+                    this.metrics.flushComplete(result.getFlushedBytes(), result.getMergedBytes(), result.getFlushedAttributes(), timer.getElapsed());
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "flush", traceId);
                 }, this.executor);
     }

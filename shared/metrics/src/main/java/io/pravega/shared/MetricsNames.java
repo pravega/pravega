@@ -116,6 +116,14 @@ public final class MetricsNames {
     public static final String BK_WRITE_QUEUE_FILL_RATE = PREFIX + "segmentstore.bookkeeper.write_queue_fill";       // Per-container Histogram
     public static final String BK_LEDGER_COUNT = PREFIX + "segmentstore.bookkeeper.ledger_count";                    // Per-container Gauge
 
+    // StorageWriter stats
+    public static final String STORAGE_WRITER_FLUSH_ELAPSED = PREFIX + "segmentstore.storagewriter.flush_elapsed_ms";         // Time to flush all processors. Per-container Histogram.
+    public static final String STORAGE_WRITER_ITERATION_ELAPSED = PREFIX + "segmentstore.storagewriter.iteration_elapsed_ms"; // Total Iteration Duration. Per-container Histogram
+    public static final String STORAGE_WRITER_READ_COUNT = PREFIX + "segmentstore.storagewriter.read_count";                  // Items read from DurableLog. Per-container Histogram.
+    public static final String STORAGE_WRITER_FLUSHED_BYTES = PREFIX + "segmentstore.storagewriter.flushed_bytes";            // Bytes written per iteration. Counter.
+    public static final String STORAGE_WRITER_MERGED_BYTES = PREFIX + "segmentstore.storagewriter.merged_bytes";              // Bytes merged per iteration. Counter.
+    public static final String STORAGE_WRITER_FLUSHED_ATTRIBUTES = PREFIX + "segmentstore.storagewriter.flushed_attributes";  // Attributes flushed per iteration. Counter.
+
     // Segment container metrics
     public static final String CONTAINER_APPEND_COUNT = PREFIX + "segmentstore.container.append_count";                          // Per-container Event Counter
     public static final String CONTAINER_APPEND_OFFSET_COUNT = PREFIX + "segmentstore.container.append_offset_count";            // Per-container Event Counter

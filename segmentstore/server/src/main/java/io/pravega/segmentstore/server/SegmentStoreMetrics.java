@@ -14,6 +14,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.shared.MetricsNames;
+import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
@@ -320,6 +321,75 @@ public final class SegmentStoreMetrics {
             DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_GET_INFO_COUNT, containerTag);
             DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_SEAL_COUNT, containerTag);
             DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_TRUNCATE_COUNT, containerTag);
+        }
+    }
+
+    //endregion
+
+    //region StorageWriter
+
+    /**
+     * StorageWriter metrics.
+     */
+    public final static class StorageWriter implements AutoCloseable {
+        /**
+         * Time elapsed for flushing all processors
+         */
+        private final OpStatsLogger flushElapsed;
+        /**
+         * Time elapsed for an iteration.
+         */
+        private final OpStatsLogger iterationElapsed;
+        /**
+         * Number of bytes flushed to Storage.
+         */
+        private final Counter flushedBytes;
+        /**
+         * Number of bytes merged in Storage.
+         */
+        private final Counter mergedBytes;
+        /**
+         * Number of attributes flushed to Storage.
+         */
+        private final Counter flushedAttributes;
+        /**
+         * Number of operations read from DurableLog.
+         */
+        private final Counter readCount;
+
+        public StorageWriter(int containerId) {
+            String[] containerTag = containerTag(containerId);
+            this.flushElapsed = STATS_LOGGER.createStats(MetricsNames.STORAGE_WRITER_FLUSH_ELAPSED, containerTag);
+            this.iterationElapsed = STATS_LOGGER.createStats(MetricsNames.STORAGE_WRITER_ITERATION_ELAPSED, containerTag);
+            this.readCount = STATS_LOGGER.createCounter(MetricsNames.STORAGE_WRITER_READ_COUNT, containerTag);
+            this.flushedBytes = STATS_LOGGER.createCounter(MetricsNames.STORAGE_WRITER_FLUSHED_BYTES, containerTag);
+            this.mergedBytes = STATS_LOGGER.createCounter(MetricsNames.STORAGE_WRITER_MERGED_BYTES, containerTag);
+            this.flushedAttributes = STATS_LOGGER.createCounter(MetricsNames.STORAGE_WRITER_FLUSHED_ATTRIBUTES, containerTag);
+        }
+
+        @Override
+        public void close() {
+            this.readCount.close();
+            this.flushElapsed.close();
+            this.iterationElapsed.close();
+            this.flushedBytes.close();
+            this.mergedBytes.close();
+            this.flushedAttributes.close();
+        }
+
+        public void readComplete(int operationCount) {
+            this.readCount.add(operationCount);
+        }
+
+        public void flushComplete(long flushedBytes, long mergedBytes, int flushedAttributes, Duration elapsed) {
+            this.flushedBytes.add(flushedBytes);
+            this.mergedBytes.add(mergedBytes);
+            this.flushedAttributes.add(flushedAttributes);
+            this.flushElapsed.reportSuccessEvent(elapsed);
+        }
+
+        public void iterationComplete(Duration elapsed) {
+            this.iterationElapsed.reportSuccessEvent(elapsed);
         }
     }
 
