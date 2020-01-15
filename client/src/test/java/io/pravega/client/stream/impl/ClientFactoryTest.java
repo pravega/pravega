@@ -10,7 +10,6 @@
 package io.pravega.client.stream.impl;
 
 
-import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -37,14 +36,14 @@ public class ClientFactoryTest {
 
     @Test
     public void testCloseWithExternalController() {
-        ClientFactory clientFactory = new ClientFactoryImpl("scope", controllerClient);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("scope", controllerClient);
         clientFactory.close();
         verify(controllerClient, times(1)).close();
     }
 
     @Test
     public void testCloseWithExternalControllerConnectionFactory() {
-        ClientFactory clientFactory = new ClientFactoryImpl("scope", controllerClient, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("scope", controllerClient, connectionFactory);
         clientFactory.close();
         verify(connectionFactory, times(1)).close();
         verify(controllerClient, times(1)).close();
