@@ -44,6 +44,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -91,10 +92,15 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private ErrorInjector<Exception> getAppendDataErrorInjector;
     @GuardedBy("lock")
     private ErrorInjector<Exception> persistAttributesErrorInjector;
+    /**
+     * Arg1: Root Pointer
+     * Arg2: LastSeqNo
+     * Return: True (validate root pointer), False (do not validate).
+     */
+    @GuardedBy("lock")
+    private BiFunction<Long, Long, CompletableFuture<Boolean>> notifyAttributesPersistedInterceptor;
     @GuardedBy("lock")
     private BiConsumer<Long, Long> completeMergeCallback;
-    @GuardedBy("lock")
-    private Runnable onGetAppendData;
     private final Object lock = new Object();
 
     //endregion
@@ -289,17 +295,30 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public CompletableFuture<Void> notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, Duration timeout) {
+        BiFunction<Long, Long, CompletableFuture<Boolean>> interceptor;
+        synchronized (this.lock) {
+            interceptor = this.notifyAttributesPersistedInterceptor;
+        }
+
+        if (interceptor == null) {
+            return CompletableFuture.runAsync(() -> notifyAttributesPersisted(segmentId, rootPointer, lastSequenceNumber, true), this.executor);
+        } else {
+            return interceptor.apply(rootPointer, lastSequenceNumber)
+                    .thenAcceptAsync(validate -> notifyAttributesPersisted(segmentId, rootPointer, lastSequenceNumber, validate), this.executor);
+        }
+    }
+
+    private void notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, boolean validateRootPointer) {
         synchronized (this.lock) {
             Long expectedRootPointer = this.attributeRootPointers.getOrDefault(segmentId, Long.MIN_VALUE);
-            if (expectedRootPointer == rootPointer) {
+            if (!validateRootPointer || expectedRootPointer == rootPointer) {
                 this.metadata.getStreamSegmentMetadata(segmentId).updateAttributes(
                         ImmutableMap.<UUID, Long>builder()
                                 .put(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, rootPointer)
                                 .put(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, lastSequenceNumber)
                                 .build());
-                return CompletableFuture.completedFuture(null);
             } else {
-                return Futures.failedFuture(new AssertionError(String.format("Root pointer mismatch. Expected %s, Given %s.", expectedRootPointer, rootPointer)));
+                throw new AssertionError(String.format("Root pointer mismatch. Expected %s, Given %s.", expectedRootPointer, rootPointer));
             }
         }
     }
@@ -356,18 +375,10 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public InputStream getAppendData(long streamSegmentId, long startOffset, int length) {
-        Runnable callback;
         AppendData ad;
         synchronized (this.lock) {
             ErrorInjector.throwSyncExceptionIfNeeded(this.getAppendDataErrorInjector);
-            callback = this.onGetAppendData;
-        }
 
-        if (callback != null) {
-            callback.run();
-        }
-
-        synchronized (this.lock) {
             // Perform the same validation checks as the ReadIndex would do.
             SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
             Preconditions.checkArgument(length >= 0, "length must be a non-negative number");
@@ -467,6 +478,12 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     void setCompleteMergeCallback(BiConsumer<Long, Long> callback) {
         synchronized (this.lock) {
             this.completeMergeCallback = callback;
+        }
+    }
+
+    void setNotifyAttributesPersistedInterceptor(BiFunction<Long, Long, CompletableFuture<Boolean>> interceptor) {
+        synchronized (this.lock) {
+            this.notifyAttributesPersistedInterceptor = interceptor;
         }
     }
 

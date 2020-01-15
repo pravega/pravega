@@ -36,6 +36,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.Data;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -56,8 +57,9 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
     private final String traceObjectId;
     private final WriterDataSource dataSource;
     private final AtomicReference<Duration> lastFlush;
-    private final AggregatedAttributes aggregatedAttributes;
+    private final State state;
     private final AtomicBoolean closed;
+    private final AtomicReference<RootPointerInfo> lastRootPointer;
 
     //endregion
 
@@ -83,8 +85,9 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         Preconditions.checkArgument(this.metadata.getContainerId() == dataSource.getId(), "SegmentMetadata.ContainerId is different from WriterDataSource.Id");
         this.traceObjectId = String.format("AttributeAggregator[%d-%d]", this.metadata.getContainerId(), this.metadata.getId());
-        this.aggregatedAttributes = new AggregatedAttributes(segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, Operation.NO_SEQUENCE_NUMBER));
+        this.state = new State(segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, Operation.NO_SEQUENCE_NUMBER));
         this.closed = new AtomicBoolean();
+        this.lastRootPointer = new AtomicReference<>();
     }
 
     //endregion
@@ -102,7 +105,16 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
 
     @Override
     public long getLowestUncommittedSequenceNumber() {
-        return this.aggregatedAttributes.getFirstSequenceNumber();
+        if (this.lastRootPointer.get() == null) {
+            // There is no async pending update for the root pointer attribute. The LUSN is whatever we accumulated in
+            // our buffers (if nothing, then this will return Operation.NO_SEQUENCE_NUMBER).
+            return this.state.getFirstSequenceNumber();
+        } else {
+            // There is an async pending update for the root pointer attribute. The LUSN can be calculated based off
+            // whatever we were last able to acknowledge.
+            long lpsn = this.state.getLastPersistedSequenceNumber();
+            return lpsn == Operation.NO_SEQUENCE_NUMBER ? this.state.getFirstSequenceNumber() : lpsn + 1;
+        }
     }
 
     @Override
@@ -110,25 +122,10 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
         return this.closed.get();
     }
 
-    /**
-     * Gets a value indicating whether a call to {@link #flush} is required given the current state of this aggregator.
-     */
-    @Override
-    public boolean mustFlush() {
-        if (isSegmentDeleted()) {
-            // There isn't more that we can do.
-            return false;
-        }
-
-        return this.aggregatedAttributes.hasSeal()
-                || this.aggregatedAttributes.size() >= config.getFlushAttributesThreshold()
-                || (this.aggregatedAttributes.size() > 0 && getElapsedSinceLastFlush().compareTo(this.config.getFlushThresholdTime()) >= 0);
-    }
-
     @Override
     public String toString() {
         return String.format("[%d: %s] Count = %d, LUSN = %d, LastSeqNo = %d, LastFlush = %ds", this.metadata.getId(), this.metadata.getName(),
-                this.aggregatedAttributes.size(), getLowestUncommittedSequenceNumber(), this.aggregatedAttributes.getLastSequenceNumber(), getElapsedSinceLastFlush().toMillis() / 1000);
+                this.state.size(), getLowestUncommittedSequenceNumber(), this.state.getLastSequenceNumber(), getElapsedSinceLastFlush().toMillis() / 1000);
     }
 
     /**
@@ -152,11 +149,11 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         boolean processed = false;
         if (operation instanceof StreamSegmentSealOperation) {
-            this.aggregatedAttributes.seal();
+            this.state.seal();
             processed = true;
         } else if (operation instanceof AttributeUpdaterOperation) {
             AttributeUpdaterOperation op = (AttributeUpdaterOperation) operation;
-            if (this.aggregatedAttributes.hasSeal()) {
+            if (this.state.hasSeal()) {
                 if (op.isInternal() && op.hasOnlyCoreAttributes()) {
                     log.debug("{}: Ignored internal operation on sealed segment {}.", this.traceObjectId, operation);
                     return;
@@ -165,12 +162,27 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
                 }
             }
 
-            processed = this.aggregatedAttributes.include(op);
+            processed = this.state.include(op);
         }
 
         if (processed) {
-            log.debug("{}: Add {}; OpCount={}.", this.traceObjectId, operation, this.aggregatedAttributes.size());
+            log.debug("{}: Add {}; OpCount={}.", this.traceObjectId, operation, this.state.size());
         }
+    }
+
+    /**
+     * Gets a value indicating whether a call to {@link #flush} is required given the current state of this aggregator.
+     */
+    @Override
+    public boolean mustFlush() {
+        if (isSegmentDeleted()) {
+            // There isn't more that we can do.
+            return false;
+        }
+
+        return this.state.hasSeal()
+                || this.state.size() >= this.config.getFlushAttributesThreshold()
+                || (this.state.size() > 0 && getElapsedSinceLastFlush().compareTo(this.config.getFlushThresholdTime()) >= 0);
     }
 
     /**
@@ -189,20 +201,20 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         CompletableFuture<Void> result = handleAttributeException(persistPendingAttributes(
-                this.aggregatedAttributes.getAttributes(), this.aggregatedAttributes.getLastSequenceNumber(), timer));
-        if (this.aggregatedAttributes.hasSeal()) {
+                this.state.getAttributes(), this.state.getLastSequenceNumber(), timer));
+        if (this.state.hasSeal()) {
             result = result.thenComposeAsync(v -> handleAttributeException(sealAttributes(timer)));
         }
 
         return result.thenApply(v -> {
-            if (this.aggregatedAttributes.size() > 0) {
-                log.debug("{}: Flushed. Count={}, SeqNo={}-{}.", this.traceObjectId, this.aggregatedAttributes.size(),
-                        this.aggregatedAttributes.getFirstSequenceNumber(), this.aggregatedAttributes.getLastSequenceNumber());
+            if (this.state.size() > 0) {
+                log.debug("{}: Flushed. Count={}, SeqNo={}-{}.", this.traceObjectId, this.state.size(),
+                        this.state.getFirstSequenceNumber(), this.state.getLastSequenceNumber());
             }
 
             WriterFlushResult r = new WriterFlushResult();
-            r.withFlushedAttributes(this.aggregatedAttributes.size());
-            this.aggregatedAttributes.acceptChanges();
+            r.withFlushedAttributes(this.state.size());
+            this.state.acceptChanges();
             this.lastFlush.set(this.timer.getElapsed());
             return r;
         });
@@ -217,18 +229,43 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
 
-        return this.dataSource
-                .persistAttributes(this.metadata.getId(), attributes, timer.getRemaining())
-                .thenComposeAsync(rootPointer -> {
-                     log.debug("{}: Persisted. Count={}, LastSeqNo={}, RootPointer={}.", this.traceObjectId, attributes.size(), lastSeqNo, rootPointer);
-                     return this.dataSource.notifyAttributesPersisted(this.metadata.getId(), rootPointer, lastSeqNo, timer.getRemaining());
-                },
-                this.executor);
+        return this.dataSource.persistAttributes(this.metadata.getId(), attributes, timer.getRemaining())
+                .thenAcceptAsync(rootPointer -> queueRootPointerUpdate(rootPointer, lastSeqNo), this.executor);
     }
 
     private CompletableFuture<Void> sealAttributes(TimeoutTimer timer) {
         log.debug("{}: Sealing Attribute Index.", this.traceObjectId);
         return this.dataSource.sealAttributes(this.metadata.getId(), timer.getRemaining());
+    }
+
+    public void queueRootPointerUpdate(long newRootPointer, long lastSeqNo) {
+        if (this.lastRootPointer.getAndSet(new RootPointerInfo(newRootPointer, lastSeqNo)) == null) {
+            // There was nothing else executing now.
+            // Initiate an async loop that will execute as long as we have a new value.
+            AtomicBoolean canContinue = new AtomicBoolean(this.lastRootPointer.get() != null);
+            Futures.loop(
+                    canContinue::get,
+                    () -> {
+                        RootPointerInfo rpi = this.lastRootPointer.get();
+                        log.debug("{}: Updating Root Pointer info to {}.", this.traceObjectId, rpi);
+                        return this.dataSource.notifyAttributesPersisted(this.metadata.getId(), rpi.getRootPointer(), rpi.getLastSequenceNumber(), this.config.getFlushTimeout())
+                                .whenCompleteAsync((r, ex) -> {
+                                    if (ex != null) {
+                                        log.error("{}: Unable to persist root pointer {}.", this.traceObjectId, rpi, ex);
+                                    } else {
+                                        this.state.setLastPersistedSequenceNumber(rpi.getLastSequenceNumber());
+                                    }
+
+                                    // Set the latest value to null ONLY if it hasn't changed in the meantime.
+                                    if (this.lastRootPointer.compareAndSet(rpi, null)) {
+                                        // No new value. Instruct the loop to stop processing.
+                                        canContinue.set(false);
+                                    }
+                                }, this.executor);
+
+                    },
+                    this.executor);
+        }
     }
 
     /**
@@ -256,19 +293,34 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
 
     //endregion
 
+    //region RootPointer
+
+    @Data
+    private static class RootPointerInfo {
+        private final long rootPointer;
+        private final long lastSequenceNumber;
+
+        @Override
+        public String toString() {
+            return String.format("RootPointer=%s, LastSeqNo=%s", this.rootPointer, this.lastSequenceNumber);
+        }
+    }
+
+    //endregion
+
     //region AggregatedAttributes
 
     /**
      * Aggregates pending Attribute Updates.
      */
-    private static class AggregatedAttributes {
+    private static class State {
         private final HashMap<UUID, Long> attributes;
         private final AtomicLong lastPersistedSequenceNumber;
         private final AtomicLong firstSequenceNumber;
         private final AtomicLong lastSequenceNumber;
         private final AtomicBoolean sealed;
 
-        AggregatedAttributes(long lastPersistedSequenceNumber) {
+        State(long lastPersistedSequenceNumber) {
             this.attributes = new HashMap<>();
             this.firstSequenceNumber = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
             this.lastSequenceNumber = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
@@ -304,6 +356,9 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
             if (anyUpdates) {
                 // We use compareAndSet because we only want to update this if this is the first operation we process.
                 this.firstSequenceNumber.compareAndSet(Operation.NO_SEQUENCE_NUMBER, operation.getSequenceNumber());
+
+                // We only want to update this one for the first ever operation processed on the segment.
+                this.lastPersistedSequenceNumber.compareAndSet(Operation.NO_SEQUENCE_NUMBER, operation.getSequenceNumber() - 1);
                 this.lastSequenceNumber.set(operation.getSequenceNumber());
             }
 
@@ -316,6 +371,14 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         long getLastSequenceNumber() {
             return this.lastSequenceNumber.get();
+        }
+
+        void setLastPersistedSequenceNumber(long value) {
+            this.lastPersistedSequenceNumber.set(value);
+        }
+
+        long getLastPersistedSequenceNumber() {
+            return this.lastPersistedSequenceNumber.get();
         }
 
         int size() {
@@ -333,7 +396,6 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
             this.attributes.clear();
             this.firstSequenceNumber.set(Operation.NO_SEQUENCE_NUMBER);
             this.lastSequenceNumber.set(Operation.NO_SEQUENCE_NUMBER);
-            this.lastPersistedSequenceNumber.set(this.lastSequenceNumber.get());
             this.sealed.set(false);
         }
     }
