@@ -333,7 +333,7 @@ public final class SegmentStoreMetrics {
      */
     public final static class StorageWriter implements AutoCloseable {
         /**
-         * Time elapsed for flushing all processors
+         * Time elapsed for flushing all processors.
          */
         private final OpStatsLogger flushElapsed;
         /**
