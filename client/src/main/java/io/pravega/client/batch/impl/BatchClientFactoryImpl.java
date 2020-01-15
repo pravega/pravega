@@ -14,7 +14,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.admin.impl.StreamCutHelper;
-import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.StreamSegmentsIterator;
@@ -32,24 +31,23 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.Cleanup;
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 @Beta
 @Slf4j
 @SuppressWarnings("deprecation")
-public class BatchClientFactoryImpl implements BatchClientFactory, io.pravega.client.batch.BatchClient {
+public class BatchClientFactoryImpl implements BatchClientFactory {
 
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
@@ -67,21 +65,6 @@ public class BatchClientFactoryImpl implements BatchClientFactory, io.pravega.cl
         this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
         this.streamCutHelper = new StreamCutHelper(controller, connectionFactory);
         this.latestDelegationToken = new AtomicReference<>();
-    }
-
-    /**
-     * Used to fetch the StreamInfo of a given stream. This should be removed in time.
-     * @deprecated Use {@link io.pravega.client.admin.StreamManager#getStreamInfo(String, String)} to fetch StreamInfo.
-     */
-    @Override
-    @Deprecated
-    public CompletableFuture<io.pravega.client.batch.StreamInfo> getStreamInfo(final Stream stream) {
-        Preconditions.checkNotNull(stream, "stream");
-
-        StreamManagerImpl streamManager = new StreamManagerImpl(this.controller, this.connectionFactory);
-        return streamManager.getStreamInfo(stream)
-                            .thenApply(info -> new io.pravega.client.batch.StreamInfo(
-                                    info.getScope(), info.getStreamName(), info.getTailStreamCut(), info.getHeadStreamCut()));
     }
 
     @Override

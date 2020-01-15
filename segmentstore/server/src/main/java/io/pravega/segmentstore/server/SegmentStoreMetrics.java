@@ -324,4 +324,18 @@ public final class SegmentStoreMetrics {
     }
 
     //endregion
+
+    //region RecoveryProcessor
+
+    /**
+     * Reports the time taken for a container recovery.
+     *
+     * @param duration Time taken for a Segment Store instance to perform the recovery of containers.
+     * @param containerId Container id related to the recovery process.
+     */
+    public static void recoveryCompleted(long duration, int containerId) {
+        DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CONTAINER_RECOVERY_TIME, duration, containerTag(containerId));
+    }
+
+    //endregion
 }

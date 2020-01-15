@@ -357,53 +357,31 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         long endOffset = offset + data.getLength();
         Exceptions.checkArgument(endOffset <= length, "offset", "The given range of bytes (%d-%d) is beyond the StreamSegment Length (%d).", offset, endOffset, length);
 
-        // Then append an entry for it in the ReadIndex. It's ok to insert into the cache outside of the lock here,
-        // since there is no chance of competing with another write request for the same offset at the same time.
         log.debug("{}: Append (Offset = {}, Length = {}).", this.traceObjectId, offset, data.getLength());
         Preconditions.checkArgument(this.lastAppendedOffset.get() < 0 || offset == this.lastAppendedOffset.get() + 1,
                 "The given range of bytes (Offset=%s) does not start right after the last appended offset (%s).", offset, this.lastAppendedOffset);
-        ReadIndexEntry lastEntry;
-        int appendableLength = -1;
+
+        // Try to append to an existing entry, if possible.
+        int appendLength = 0;
         synchronized (this.lock) {
-            lastEntry = this.indexEntries.getLast();
+            ReadIndexEntry lastEntry = this.indexEntries.getLast();
             if (lastEntry != null
                     && lastEntry.isDataEntry()
                     && lastEntry.getLastStreamSegmentOffset() == this.lastAppendedOffset.get()) {
-                appendableLength = this.cacheStorage.getAppendableLength((int) lastEntry.getLength());
-                if (appendableLength > 0) {
-                    // We are about to append to this entry; update its generation to prevent it from being evicted
-                    // while we are appending.
-                    int generation = this.summary.touchOne(lastEntry.getGeneration());
-                    lastEntry.setGeneration(generation);
-                }
+                appendLength = appendToEntry(data, (CacheIndexEntry) lastEntry);
             }
         }
 
-        if (appendableLength > 0) {
-            // We can append to the last entry.
-            BufferView toAppend;
-            if (data.getLength() <= appendableLength) {
-                // The whole buffer can fit as an append.
-                toAppend = data;
-                data = null;
-            } else {
-                // Only part of the buffer can fit as an append.
-                toAppend = data.slice(0, appendableLength);
-                data = data.slice(appendableLength, data.getLength() - appendableLength);
-            }
-
-            // Add append data to the Data Store.
-            int appendLength = this.cacheStorage.append(lastEntry.getCacheAddress(), (int) lastEntry.getLength(), toAppend);
-            assert appendLength <= appendableLength;
-            ((CacheIndexEntry) lastEntry).increaseLength(appendLength);
-            this.lastAppendedOffset.addAndGet(appendLength);
-            offset += appendLength;
-        }
-
-        if (data != null) {
+        assert appendLength <= data.getLength();
+        if (appendLength < data.getLength()) {
             // Add the remainder of the buffer as a new entry (with the offset updated).
-            CacheIndexEntry newEntry = addToCacheAndIndex(data, offset, "Append");
-            this.lastAppendedOffset.set(newEntry.getLastStreamSegmentOffset());
+            data = data.slice(appendLength, data.getLength() - appendLength);
+            offset += appendLength;
+            ReadIndexEntry lastEntry = addToCacheAndIndex(data, offset, "Append");
+            this.lastAppendedOffset.set(lastEntry.getLastStreamSegmentOffset());
+        } else {
+            // The entire buffer was added as a single append.
+            this.lastAppendedOffset.addAndGet(appendLength);
         }
     }
 
@@ -532,6 +510,36 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 offset, data.getLength(), this.metadata.getStorageLength());
 
         addToCacheAndIndex(data, offset, "Insert");
+    }
+
+    /**
+     * Tries to append the given {@link BufferView} to the given {@link CacheIndexEntry}, if possible.
+     * Even tough this is not modifying the index structure, this needs to be executed under a lock ({@link #lock} because
+     * we are modifying the last {@link CacheIndexEntry} and we want to ensure that a concurrent eviction (via
+     * {@link #updateGenerations}) will not remove the entry while we're updating it.
+     *
+     * @param data  The {@link BufferView} to append.
+     * @param entry The {@link CacheIndexEntry} to append to.
+     * @return The number of bytes appended.
+     */
+    @GuardedBy("lock")
+    private int appendToEntry(BufferView data, CacheIndexEntry entry) {
+        int appendLength = this.cacheStorage.getAppendableLength((int) entry.getLength());
+        if (appendLength == 0) {
+            return appendLength;
+        }
+
+        // We can append to the last entry.
+        if (data.getLength() > appendLength) {
+            // Only part of the buffer can fit as an append.
+            data = data.slice(0, appendLength);
+        }
+
+        // Add append data to the Data Store.
+        appendLength = this.cacheStorage.append(entry.getCacheAddress(), (int) entry.getLength(), data);
+        entry.increaseLength(appendLength);
+        entry.setGeneration(this.summary.touchOne(entry.getGeneration()));
+        return appendLength;
     }
 
     private CacheIndexEntry addToCacheAndIndex(BufferView data, long offset, String operationName) {
