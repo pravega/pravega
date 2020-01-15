@@ -116,6 +116,7 @@ public class BTreeIndex {
     private final GetLength getLength;
     private final AtomicReference<IndexState> state;
     private final Executor executor;
+    private final String traceObjectId;
 
     //endregion
 
@@ -131,14 +132,16 @@ public class BTreeIndex {
      * @param writePages  A Function that writes contents of one or more contiguous pages to an external data source.
      * @param getLength   A Function that returns the length of the index, in bytes, as stored in an external data source.
      * @param executor    Executor for async operations.
+     * @param traceObjectId An identifier to add to all log entries.
      */
     @Builder
     public BTreeIndex(int maxPageSize, int keyLength, int valueLength, @NonNull ReadPage readPage, @NonNull WritePages writePages,
-                      @NonNull GetLength getLength, @NonNull Executor executor) {
+                      @NonNull GetLength getLength, @NonNull Executor executor, String traceObjectId) {
         this.read = readPage;
         this.write = writePages;
         this.getLength = getLength;
         this.executor = executor;
+        this.traceObjectId = traceObjectId;
 
         // BTreePage.Config validates the arguments so we don't need to.
         this.indexPageConfig = new BTreePage.Config(keyLength, INDEX_VALUE_LENGTH, maxPageSize, true);
@@ -178,7 +181,7 @@ public class BTreeIndex {
      */
     public CompletableFuture<Void> initialize(Duration timeout) {
         if (isInitialized()) {
-            log.warn("Reinitializing.");
+            log.warn("{}: Reinitializing.", this.traceObjectId);
         }
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -207,14 +210,15 @@ public class BTreeIndex {
      */
     private void initialize(ByteArraySegment footer, long footerOffset, long indexLength) {
         if (footer.getLength() != FOOTER_LENGTH) {
-            throw new IllegalDataFormatException(String.format("Wrong footer length. Expected %s, actual %s.", FOOTER_LENGTH, footer.getLength()));
+            throw new IllegalDataFormatException(String.format("[%s] Wrong footer length. Expected %s, actual %s.",
+                    this.traceObjectId, FOOTER_LENGTH, footer.getLength()));
         }
 
         long rootPageOffset = getRootPageOffset(footer);
         int rootPageLength = getRootPageLength(footer);
         if (rootPageOffset + rootPageLength > footerOffset) {
-            throw new IllegalDataFormatException(String.format("Wrong footer information. RootPage Offset (%s) + Length (%s) exceeds Footer Offset (%s).",
-                    rootPageOffset, rootPageLength, footerOffset));
+            throw new IllegalDataFormatException(String.format("[%s] Wrong footer information. RootPage Offset (%s) + Length (%s) exceeds Footer Offset (%s).",
+                    this.traceObjectId, rootPageOffset, rootPageLength, footerOffset));
         }
 
         setState(indexLength, rootPageOffset, rootPageLength);
@@ -802,7 +806,7 @@ public class BTreeIndex {
     private void setState(long length, long rootPageOffset, int rootPageLength) {
         IndexState s = new IndexState(length, rootPageOffset, rootPageLength);
         this.state.set(s);
-        log.debug("IndexState: {}.", s);
+        log.debug("{}: IndexState: {}.", this.traceObjectId, s);
     }
 
     private long getFooterOffset(long indexLength) {

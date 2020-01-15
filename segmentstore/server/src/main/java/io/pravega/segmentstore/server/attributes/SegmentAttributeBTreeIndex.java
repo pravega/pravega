@@ -129,6 +129,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         this.config = config;
         this.executor = executor;
         this.handle = new AtomicReference<>();
+        this.traceObjectId = String.format("AttributeIndex[%d-%d]", this.segmentMetadata.getContainerId(), this.segmentMetadata.getId());
         this.index = BTreeIndex.builder()
                                .keyLength(KEY_LENGTH)
                                .valueLength(VALUE_LENGTH)
@@ -137,10 +138,10 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                                .getLength(this::getLength)
                                .readPage(this::readPage)
                                .writePages(this::writePages)
+                               .traceObjectId(this.traceObjectId)
                                .build();
 
         this.cacheEntries = new HashMap<>();
-        this.traceObjectId = String.format("AttributeIndex[%d-%d]", this.segmentMetadata.getContainerId(), this.segmentMetadata.getId());
         this.closed = new AtomicBoolean();
     }
 
