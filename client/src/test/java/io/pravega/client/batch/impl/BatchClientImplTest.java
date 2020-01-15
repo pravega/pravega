@@ -22,9 +22,7 @@ import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
-import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -37,7 +35,6 @@ import org.mockito.stubbing.Answer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -101,61 +98,6 @@ public class BatchClientImplTest {
         assertTrue(segments.hasNext());
         assertEquals(2L, segments.next().asImpl().getSegment().getSegmentId());
         assertFalse(segments.hasNext());
-    }
-
-    @Test(timeout = 5000)
-    @SuppressWarnings("deprecation")
-    public void testStreamInfo() throws Exception {
-        final String scope = "scope";
-        final String streamName = STREAM;
-        final Stream stream = new StreamImpl(scope, streamName);
-
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        ClientConnection connection = mock(ClientConnection.class);
-        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                CreateSegment request = (CreateSegment) invocation.getArgument(0);
-                connectionFactory.getProcessor(location)
-                                 .process(new SegmentCreated(request.getRequestId(), request.getSegment()));
-                return null;
-            }
-        }).when(connection).sendAsync(Mockito.any(CreateSegment.class),
-                                      Mockito.any(ClientConnection.CompletedCallback.class));
-
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                GetStreamSegmentInfo request = (GetStreamSegmentInfo) invocation.getArgument(0);
-                connectionFactory.getProcessor(location)
-                                 .process(new StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
-                                         false, false, 0, 0, 0));
-                return null;
-            }
-        }).when(connection).sendAsync(Mockito.any(GetStreamSegmentInfo.class),
-                                      Mockito.any(ClientConnection.CompletedCallback.class));
-        connectionFactory.provideConnection(location, connection);
-        MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
-                connectionFactory, false);
-        BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, connectionFactory);
-
-        mockController.createScope(scope);
-        mockController.createStream(scope, streamName, StreamConfiguration.builder()
-                                                       .scalingPolicy(ScalingPolicy.fixed(3))
-                                                       .build()).join();
-
-        io.pravega.client.batch.StreamInfo info = client.getStreamInfo(stream).join();
-
-        //validate results.
-        assertEquals(scope, info.getScope());
-        assertEquals(streamName, info.getStreamName());
-        assertNotNull(info.getTailStreamCut());
-        assertEquals(stream, info.getTailStreamCut().asImpl().getStream());
-        assertEquals(3, info.getTailStreamCut().asImpl().getPositions().size());
-        assertNotNull(info.getHeadStreamCut());
-        assertEquals(stream, info.getHeadStreamCut().asImpl().getStream());
-        assertEquals(3, info.getHeadStreamCut().asImpl().getPositions().size());
     }
 
     private Stream createStream(String scope, String streamName, int numSegments, MockController mockController) {

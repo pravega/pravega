@@ -12,20 +12,16 @@ package io.pravega.segmentstore.server.host.stat;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.ThreadPooledTestSuite;
-
 import java.net.URI;
 import java.time.Duration;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.Test;
 
@@ -222,16 +218,6 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
             public CompletableFuture<Void> writeEvent(String routingKey, AutoScaleEvent event) {
                 consumer.accept(event);
                 return CompletableFuture.<Void>completedFuture(null);
-            }
-
-            @Override
-            public Transaction<AutoScaleEvent> beginTxn() {
-                return null;
-            }
-
-            @Override
-            public Transaction<AutoScaleEvent> getTxn(UUID transactionId) {
-                return null;
             }
 
             @Override
