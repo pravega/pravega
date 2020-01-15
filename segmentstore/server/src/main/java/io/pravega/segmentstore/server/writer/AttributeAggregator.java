@@ -320,6 +320,13 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
         private final AtomicLong lastSequenceNumber;
         private final AtomicBoolean sealed;
 
+        /**
+         * Creates a new instance of the {@link State} class.
+         *
+         * @param lastPersistedSequenceNumber The Sequence number of the last {@link SegmentOperation} that has been
+         *                                    successfully persisted by the owning AttributeAggregator.
+         *                                    See {@link #getLastPersistedSequenceNumber()} for details.
+         */
         State(long lastPersistedSequenceNumber) {
             this.attributes = new HashMap<>();
             this.firstSequenceNumber = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
@@ -328,14 +335,32 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
             this.sealed = new AtomicBoolean(false);
         }
 
+        /**
+         * Indicates that a {@link StreamSegmentSealOperation} has been processed. This will prevent any future operations
+         * from being included.
+         */
         void seal() {
             this.sealed.set(true);
         }
 
+        /**
+         * Gets a value indicating whether {@link #seal()} has been invoked.
+         *
+         * @return True if sealed, false otherwise.
+         */
         boolean hasSeal() {
             return this.sealed.get();
         }
 
+        /**
+         * Processes the given {@link AttributeUpdaterOperation} and includes its contents into the aggregator.
+         *
+         * The operation will not be processed if its Sequence Number is less than or equal to {@link #getLastPersistedSequenceNumber()}
+         * or if it does not contain any Extended Attributes (the {@link AttributeAggregator} does not handle Core Attributes.
+         *
+         * @param operation The operation to include.
+         * @return True if the operation has been processed, false otherwise.
+         */
         boolean include(AttributeUpdaterOperation operation) {
             Preconditions.checkState(!this.sealed.get(), "Cannot accept more operations after sealing.");
             if (operation.getSequenceNumber() <= this.lastPersistedSequenceNumber.get()) {
@@ -365,32 +390,80 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
             return anyUpdates;
         }
 
+        /**
+         * Gets the Sequence Number of the first {@link SegmentOperation} that has been included in this instance after
+         * its creation or the last invocation of {@link #acceptChanges()}.
+         *
+         * This value is not necessarily the same as {@link #getLowestUncommittedSequenceNumber()}.
+         *
+         * @return The Sequence Number of the first aggregated operation or {@link Operation#NO_SEQUENCE_NUMBER} if no
+         * operation has been aggregated.
+         */
         long getFirstSequenceNumber() {
             return this.firstSequenceNumber.get();
         }
 
+        /**
+         * Gets the Sequence Number of the last {@link SegmentOperation} that has been included in this instance after
+         * its creation or the last invocation of {@link #acceptChanges()}.
+         *
+         * @return The Sequence Number of the last aggregated operation or {@link Operation#NO_SEQUENCE_NUMBER} if no
+         * * operation has been aggregated.
+         */
         long getLastSequenceNumber() {
             return this.lastSequenceNumber.get();
         }
 
+        /**
+         * Records the Sequence Number of the last {@link SegmentOperation} that has been successfully processed. This
+         * value should be consistent with that stored in the Segment's Metadata.
+         *
+         * @param value The last persisted Sequence Number.
+         */
         void setLastPersistedSequenceNumber(long value) {
             this.lastPersistedSequenceNumber.set(value);
         }
 
+        /**
+         * Gets a value indicating the Sequence Number of the last {@link SegmentOperation} that has been successfully
+         * processed.
+         *
+         * @return The last persisted Sequence Number, or {@link Operation#NO_SEQUENCE_NUMBER} if no operation has
+         * ever been processed successfully on this Segment.
+         */
         long getLastPersistedSequenceNumber() {
             return this.lastPersistedSequenceNumber.get();
         }
 
+        /**
+         * Gets a value indicating the number of distinct attributes pending an update. Note that this value is at most
+         * equal to the number of {@link AttributeUpdate}s processed via {@link #include} (since it only preserves the
+         * latest values).
+         *
+         * @return The number of distinct attributes pending an update.
+         */
         int size() {
             return this.attributes.size();
         }
 
+        /**
+         * Gets all the attributes and their latest values for all the attributes pending an update.
+         *
+         * @return The attributes and their latest values.
+         */
         Map<UUID, Long> getAttributes() {
             return this.attributes;
         }
 
         /**
-         * Notifies that the pending updates have been persisted. Resets the contents of this instance.
+         * Notifies that the pending updates have been persisted. Resets the following values:
+         * - {@link #getFirstSequenceNumber()}
+         * - {@link #getLastSequenceNumber()}
+         * - {@link #hasSeal()}
+         * - {@link #getAttributes()}
+         * - {@link #size()}
+         *
+         * This does not touch {@link #getLastPersistedSequenceNumber()}.
          */
         void acceptChanges() {
             this.attributes.clear();
