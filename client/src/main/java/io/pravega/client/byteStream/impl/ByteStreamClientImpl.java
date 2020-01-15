@@ -30,8 +30,7 @@ import lombok.AllArgsConstructor;
 import lombok.NonNull;
 
 @AllArgsConstructor
-@SuppressWarnings("deprecation")
-public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega.client.byteStream.ByteStreamClient {
+public class ByteStreamClientImpl implements ByteStreamClientFactory {
     @NonNull
     private final String scope;
     @NonNull

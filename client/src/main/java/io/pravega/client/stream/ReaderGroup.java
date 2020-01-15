@@ -10,9 +10,7 @@
 package io.pravega.client.stream;
 
 import com.google.common.annotations.Beta;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.stream.notifications.ReaderGroupNotificationListener;
-
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -57,7 +55,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * received the notification and resumed reading the future will return a {@link Checkpoint}
      * object which contains the StreamCut of the reader group at the time they received the
      * checkpoint. This can be used to reset the group to this point in the stream by calling
-     * {@link #resetReadersToCheckpoint(Checkpoint)} if the checkpoint fails or the result cannot be
+     * {@link ReaderGroup#resetReaderGroup(ReaderGroupConfig)} if the checkpoint fails or the result cannot be
      * obtained an exception will be set on the future.
      * 
      * This method can be called and a new checkpoint can be initiated while another is still in
@@ -72,21 +70,6 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      *         position.
      */
     CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor);
-    
-    /**
-     * Given a Checkpoint, restore the reader group to the provided checkpoint. All readers in the
-     * group will encounter a {@link ReinitializationRequiredException} and when they rejoin the
-     * group they will resume from the position the provided checkpoint was taken. (The mapping of
-     * segments to readers may not be the same, and the current readers need not be the same ones as
-     * existed at the time of the checkpoint.)
-     *
-     * @deprecated
-     * Use {@link ReaderGroup#resetReaderGroup(ReaderGroupConfig)} to reset readers to a given Checkpoint.
-     * 
-     * @param checkpoint The checkpoint to restore to.
-     */
-    @Deprecated
-    void resetReadersToCheckpoint(Checkpoint checkpoint);
 
     /**
      * Reset a reader group with the provided {@link ReaderGroupConfig}.

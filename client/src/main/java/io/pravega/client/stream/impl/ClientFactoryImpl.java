@@ -13,15 +13,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
-import io.pravega.client.BatchClientFactory;
-import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.batch.impl.BatchClientFactoryImpl;
-import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.security.auth.DelegationTokenProvider;
@@ -60,9 +55,6 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
-
-import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
-
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -70,8 +62,10 @@ import java.util.function.Supplier;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
+
 @Slf4j
-public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactory, SynchronizerClientFactory {
+public class ClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory {
 
     private final String scope;
     private final Controller controller;
@@ -137,7 +131,6 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         return createEventWriter(UUID.randomUUID().toString(), streamName, s, config);
     }
@@ -167,7 +160,6 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
                                                  ReaderConfig config) {
         log.info("Creating reader: {} under readerGroup: {} with configuration: {}", readerId, readerGroup, config);
@@ -201,7 +193,6 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     }
     
     @Override
-    @SuppressWarnings("deprecation")
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
@@ -222,7 +213,6 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT>
         createStateSynchronizer(String streamName,
                                 Serializer<UpdateT> updateSerializer,
@@ -241,36 +231,6 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
             throw new InvalidStreamException("Stream does not exist: " + streamName);
         }
         return currentSegments.getSegmentForKey(0.0);
-    }
-
-    /**
-     * Create a new batch client. A batch client can be used to perform bulk unordered reads without
-     * the need to create a reader group.
-     *
-     * Please note this is an experimental API.
-     *
-     * @return A batch client
-     * @deprecated Use {@link BatchClientFactory#withScope(String, ClientConfig)}
-     */
-    @Override
-    @Deprecated
-    public BatchClientFactoryImpl createBatchClient() {
-        return new BatchClientFactoryImpl(controller, connectionFactory);
-    }
-    
-    /**
-     * Creates a new ByteStreamClient. The byteStreamClient can create readers and writers that work
-     * on a stream of bytes. The stream must be pre-created with a single fixed segment. Sharing a
-     * stream between the byte stream API and the Event stream readers/writers will CORRUPT YOUR
-     * DATA in an unrecoverable way.
-     * 
-     * @return A byteStreamClient
-     * @deprecated Use {@link ByteStreamClientFactory#withScope(String, ClientConfig)}
-     */
-    @Override
-    @Deprecated
-    public ByteStreamClientImpl createByteStreamClient() {
-        return new ByteStreamClientImpl(scope, controller, connectionFactory);
     }
 
     @Override
