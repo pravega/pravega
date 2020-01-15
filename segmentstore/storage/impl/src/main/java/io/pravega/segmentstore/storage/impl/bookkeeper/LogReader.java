@@ -10,20 +10,23 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.BufferedIterator;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Enumeration;
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerEntry;
 import org.apache.bookkeeper.client.LedgerHandle;
@@ -105,7 +108,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             return null;
         }
 
-        return new LogReader.ReadItem(this.currentLedger.reader.nextElement(), this.currentLedger.metadata);
+        return new LogReader.ReadItem(this.currentLedger.reader.next(), this.currentLedger.metadata);
     }
 
     private void openNextLedger(LedgerAddress address) throws DurableDataLogException {
@@ -135,16 +138,14 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         if (lastEntryId < address.getEntryId()) {
             // This ledger is empty.
             Ledgers.close(ledger);
-            this.currentLedger = new ReadLedger(metadata, ledger, null);
+            this.currentLedger = ReadLedger.empty(metadata, ledger);
             return;
         }
 
         ReadLedger previousLedger;
         try {
-            val reader = Exceptions.handleInterruptedCall(
-                    () -> ledger.readEntries(address.getEntryId(), lastEntryId));
             previousLedger = this.currentLedger;
-            this.currentLedger = new ReadLedger(metadata, ledger, reader);
+            this.currentLedger = new ReadLedger(metadata, ledger, address.getEntryId(), lastEntryId, this.config.getBkReadBatchSize());
             if (previousLedger != null) {
                 // Close previous ledger handle.
                 Ledgers.close(previousLedger.handle);
@@ -155,6 +156,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             throw new DurableDataLogException("Error while reading from BookKeeper.", ex);
         }
     }
+
 
     //endregion
 
@@ -185,14 +187,34 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
 
     //region ReadLedger
 
-    @RequiredArgsConstructor
     private static class ReadLedger {
         final LedgerMetadata metadata;
         final LedgerHandle handle;
-        final Enumeration<LedgerEntry> reader;
+        final BufferedIterator<LedgerEntry> reader;
+
+        ReadLedger(@NonNull LedgerMetadata metadata, @NonNull LedgerHandle handle, long firstEntryId, long lastEntryId, int batchSize) {
+            this.metadata = metadata;
+            this.handle = handle;
+            if (lastEntryId >= firstEntryId) {
+                this.reader = new BufferedIterator<>(this::readRange, firstEntryId, lastEntryId, batchSize);
+            } else {
+                // Empty ledger;
+                this.reader = null;
+            }
+
+        }
+
+        @SneakyThrows(BKException.class)
+        private Iterator<LedgerEntry> readRange(long fromEntryId, long toEntryId) {
+            return Iterators.forEnumeration(Exceptions.handleInterruptedCall(() -> this.handle.readEntries(fromEntryId, toEntryId)));
+        }
+
+        static ReadLedger empty(@NonNull LedgerMetadata metadata, @NonNull LedgerHandle handle) {
+            return new ReadLedger(metadata, handle, Long.MAX_VALUE, Long.MIN_VALUE, 1);
+        }
 
         boolean canRead() {
-            return this.reader != null && this.reader.hasMoreElements();
+            return this.reader != null && this.reader.hasNext();
         }
     }
 

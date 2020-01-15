@@ -46,7 +46,6 @@ public interface EventStreamReader<T> extends AutoCloseable {
      * @return An instance of {@link EventRead}, which contains the next event in the stream. In the case the timeoutMillis
      *         is reached, {@link EventRead#getEvent()} returns null.
      * @throws ReinitializationRequiredException Is thrown in the event that
-     *             {@link ReaderGroup#resetReadersToCheckpoint(Checkpoint)} or
      *             {@link ReaderGroup#resetReaderGroup(ReaderGroupConfig)} was called
      *             which requires readers to be reinitialized.
      * @throws TruncatedDataException if the data that would be read next has been truncated away
