@@ -20,6 +20,7 @@ import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
@@ -81,6 +82,11 @@ public abstract class StreamTestBase {
                                                         .scalingPolicy(ScalingPolicy.fixed(numOfSegments)).build();
         stream.create(config, time, startingSegmentNumber)
               .thenCompose(x -> stream.updateState(State.ACTIVE)).join();
+
+        // set minimum number of segments to 1 so that we can also test scale downs
+        stream.startUpdateConfiguration(StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build()).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = stream.getVersionedConfigurationRecord().join();
+        stream.completeUpdateConfiguration(configRecord).join();
 
         return stream;
     }
@@ -586,8 +592,29 @@ public abstract class StreamTestBase {
         etrRef.set(stream.getEpochTransition().join());
         AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s1), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.PreConditionFailureException);
-    }
 
+        etrRef.set(stream.getEpochTransition().join());
+
+        // get current number of segments.
+        List<Long> segments = stream.getActiveSegments().join().stream()
+                                    .map(StreamSegmentRecord::segmentId).collect(Collectors.toList());
+
+        // set minimum number of segments to segments.size. 
+        stream.startUpdateConfiguration(
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(segments.size())).build()).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = stream.getVersionedConfigurationRecord().join();
+        stream.completeUpdateConfiguration(configRecord).join();
+
+        // attempt a scale down which should be rejected in submit scale. 
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 1.0));
+        newRangesRef.set(newRanges);
+
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(segments, newRangesRef.get(), 
+                timestamp, etrRef.get()),
+                e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.PreConditionFailureException);
+    }
+    
     private VersionedMetadata<EpochTransitionRecord> resetScale(VersionedMetadata<EpochTransitionRecord> etr, Stream stream) {
         stream.completeScale(etr).join();
         stream.updateState(State.ACTIVE).join();
@@ -1498,5 +1525,45 @@ public abstract class StreamTestBase {
         streamObj.generateMarksForTransactions(record.getObject()).join();
         mark = streamObj.getWriterMark(writer1).join();
         assertEquals(mark.getTimestamp(), time);
+    }
+    
+    @Test(timeout = 30000L)
+    public void testTransactionMarkFromSingleWriter() {
+        PersistentStreamBase streamObj = spy(createStream("txnMark", "txnMark", System.currentTimeMillis(), 1, 0));
+
+        String writer = "writer";
+
+        UUID txnId1 = new UUID(0L, 0L);
+        UUID txnId2 = new UUID(0L, 1L);
+        UUID txnId3 = new UUID(0L, 2L);
+        UUID txnId4 = new UUID(0L, 3L);
+        long time = 1L;
+        // create 4 transactions with same writer id. 
+        // two of the transactions should have same highest time. 
+        VersionedTransactionData tx01 = streamObj.createTransaction(txnId1, 100, 100).join();
+        streamObj.sealTransaction(txnId1, true, Optional.of(tx01.getVersion()), writer, time).join();
+
+        VersionedTransactionData tx02 = streamObj.createTransaction(txnId2, 100, 100).join();
+        streamObj.sealTransaction(txnId2, true, Optional.of(tx02.getVersion()), writer, time + 1L).join();
+
+        VersionedTransactionData tx03 = streamObj.createTransaction(txnId3, 100, 100).join();
+        streamObj.sealTransaction(txnId3, true, Optional.of(tx03.getVersion()), writer, time + 4L).join();
+
+        VersionedTransactionData tx04 = streamObj.createTransaction(txnId4, 100, 100).join();
+        streamObj.sealTransaction(txnId4, true, Optional.of(tx04.getVersion()), writer, time + 4L).join();
+
+        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions().join();
+        streamObj.recordCommitOffsets(txnId1, Collections.singletonMap(0L, 1L)).join();
+        streamObj.recordCommitOffsets(txnId2, Collections.singletonMap(0L, 2L)).join();
+        streamObj.recordCommitOffsets(txnId3, Collections.singletonMap(0L, 3L)).join();
+        streamObj.recordCommitOffsets(txnId4, Collections.singletonMap(0L, 4L)).join();
+        streamObj.generateMarksForTransactions(record.getObject()).join();
+
+        // verify that writer mark is created in the store
+        WriterMark mark = streamObj.getWriterMark(writer).join();
+        assertEquals(mark.getTimestamp(), time + 4L);
+        
+        // verify that only one call to note time is made
+        verify(streamObj, times(1)).noteWriterMark(anyString(), anyLong(), any());
     }
 }

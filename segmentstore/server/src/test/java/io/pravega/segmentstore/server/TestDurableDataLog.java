@@ -16,6 +16,8 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
+import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.test.common.ErrorInjector;
 import java.time.Duration;
@@ -105,8 +107,8 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public int getMaxAppendLength() {
-        return this.wrappedLog.getMaxAppendLength();
+    public WriteSettings getWriteSettings() {
+        return this.wrappedLog.getWriteSettings();
     }
 
     @Override
@@ -117,6 +119,11 @@ public class TestDurableDataLog implements DurableDataLog {
     @Override
     public QueueStats getQueueStatistics() {
         return this.wrappedLog.getQueueStatistics();
+    }
+
+    @Override
+    public void registerQueueStateChangeListener(ThrottleSourceListener listener) {
+        this.wrappedLog.registerQueueStateChangeListener(listener);
     }
 
     //endregion

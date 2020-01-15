@@ -13,8 +13,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import org.junit.After;
@@ -27,6 +25,7 @@ public class FileSystemIntegrationTest extends BookKeeperIntegrationTestBase {
     /**
      * Starts BookKeeper.
      */
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -34,6 +33,7 @@ public class FileSystemIntegrationTest extends BookKeeperIntegrationTestBase {
                 .with(FileSystemStorageConfig.ROOT, getBaseDir().getAbsolutePath()));
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -45,7 +45,6 @@ public class FileSystemIntegrationTest extends BookKeeperIntegrationTestBase {
 
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
                         getBookkeeper().getZkClient(), setup.getCoreExecutor()));

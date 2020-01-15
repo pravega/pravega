@@ -14,7 +14,9 @@ import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -80,6 +82,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     protected final String hostId;
     protected final ScheduledExecutorService executor;
+    protected final ScheduledExecutorService eventExecutor;
 
     private final StreamMetadataStore streamMetadataStore;
     private final SegmentHelper segmentHelper;
@@ -97,12 +100,14 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
+                                          final ScheduledExecutorService eventExecutor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
                                           final GrpcAuthHelper authHelper) {
         this.hostId = hostId;
         this.executor = executor;
+        this.eventExecutor = eventExecutor;
         this.streamMetadataStore = streamMetadataStore;
         this.segmentHelper = segmentHelper;
         this.authHelper = authHelper;
@@ -112,21 +117,34 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         this.abortWriterFuture = new CompletableFuture<>();
     }
 
+    @VisibleForTesting
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
+                                          final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
                                           final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, hostId, timeoutServiceConfig, null, authHelper);
+        this(streamMetadataStore, segmentHelper, executor, executor, hostId, timeoutServiceConfig, taskCompletionQueue, authHelper);
     }
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
+                                          final ScheduledExecutorService eventExecutor,
+                                          final String hostId,
+                                          final TimeoutServiceConfig timeoutServiceConfig,
+                                          final GrpcAuthHelper authHelper) {
+        this(streamMetadataStore, segmentHelper, executor, eventExecutor, hostId, timeoutServiceConfig, null, authHelper);
+    }
+
+    @VisibleForTesting
+    public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                                          final SegmentHelper segmentHelper,
+                                          final ScheduledExecutorService executor,
                                           final String hostId,
                                           final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, hostId, TimeoutServiceConfig.defaultConfig(), authHelper);
+        this(streamMetadataStore, segmentHelper, executor, executor, hostId, TimeoutServiceConfig.defaultConfig(), authHelper);
     }
 
     private void setReady() {
@@ -461,7 +479,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         // Step 3. Update txn node data in the store,thus updating its version
         //         and fencing other processes from tracking this txn's timeout.
         // Step 4. Add this txn to timeout service and start managing timeout for this txn.
-        return streamMetadataStore.getTransactionData(scope, stream, txnId, ctx, executor).thenComposeAsync(txnData -> {
+        CompletableFuture<PingTxnStatus> pingTxnFuture = streamMetadataStore.getTransactionData(scope, stream, txnId, ctx, executor).thenComposeAsync(txnData -> {
             final TxnStatus txnStatus = txnData.getStatus();
             if (!txnStatus.equals(TxnStatus.OPEN)) { // transaction is not open, dont ping it
                 return CompletableFuture.completedFuture(getPingTxnStatus(txnStatus));
@@ -518,6 +536,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 }, executor);
             }
         }, executor);
+        return Futures.exceptionallyComposeExpecting(pingTxnFuture,
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException,
+                () -> streamMetadataStore.transactionStatus(scope, stream, txnId, ctx, executor)
+                                   .thenApply(this::getPingTxnStatus)
+                );
     }
 
     private PingTxnStatus getPingTxnStatus(final TxnStatus txnStatus) {
@@ -637,7 +660,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     public CompletableFuture<Void> writeCommitEvent(CommitEvent event) {
         return commitWriterFuture
-                .thenCompose(commitWriter -> commitWriter.writeEvent(event.getKey(), event));
+                .thenComposeAsync(commitWriter -> commitWriter.writeEvent(event.getKey(), event), eventExecutor);
     }
 
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
@@ -656,7 +679,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     public CompletableFuture<Void> writeAbortEvent(AbortEvent event) {
         return abortWriterFuture
-                .thenCompose(abortWriter -> abortWriter.writeEvent(event.getKey(), event));
+                .thenComposeAsync(abortWriter -> abortWriter.writeEvent(event.getKey(), event), eventExecutor);
     }
 
     CompletableFuture<TxnStatus> writeAbortEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
@@ -675,10 +698,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
                                                       final List<StreamSegmentRecord> segments, final UUID txnId) {
+        Timer timer = new Timer();
         return Futures.allOf(segments.stream()
                 .parallel()
                 .map(segment -> notifyTxnCreation(scope, stream, segment.segmentId(), txnId))
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()))
+                .thenRun(() -> TransactionMetrics.getInstance().createTransactionSegments(timer.getElapsed()));
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,

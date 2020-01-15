@@ -12,8 +12,8 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -28,7 +28,7 @@ import lombok.val;
  * Throttling utilities for the {@link OperationProcessor} class.
  */
 @Slf4j
-class Throttler implements CacheUtilizationProvider.CleanupListener, AutoCloseable {
+class Throttler implements ThrottleSourceListener, AutoCloseable {
     //region Members
 
     private final ThrottlerCalculator throttlerCalculator;
@@ -71,10 +71,10 @@ class Throttler implements CacheUtilizationProvider.CleanupListener, AutoCloseab
 
     //endregion
 
-    //region CacheUtilizationProvider.CleanupListener Implementation
+    //region ThrottleSourceListener Implementation
 
     @Override
-    public void cacheCleanupComplete() {
+    public void notifyThrottleSourceChanged() {
         val currentDelay = this.currentDelay.get();
         if (currentDelay != null && isInterruptible(currentDelay.source)) {
             // We were actively throttling due to a reason that is eligible for re-throttling. Terminate the current
@@ -139,9 +139,10 @@ class Throttler implements CacheUtilizationProvider.CleanupListener, AutoCloseab
 
     private CompletableFuture<Void> throttleOnce(ThrottlerCalculator.DelayResult delay) {
         this.metrics.processingDelay(delay.getDurationMillis());
-        if (delay.isMaximum() || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.CommitBacklog) {
+        if (delay.isMaximum()
+                || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.DurableDataLog) {
             // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
-            // processing of operations) or if this is due to the Commit Processor not being able to keep up.
+            // processing of operations) or if this is due to us not being able to ingest items quickly enough.
             log.warn("{}: Processing delay = {}.", this.traceObjectId, delay);
         } else {
             log.debug("{}: Processing delay = {}.", this.traceObjectId, delay);
@@ -165,7 +166,8 @@ class Throttler implements CacheUtilizationProvider.CleanupListener, AutoCloseab
     }
 
     private boolean isInterruptible(ThrottlerCalculator.ThrottlerName name) {
-        return name == ThrottlerCalculator.ThrottlerName.Cache;
+        return name == ThrottlerCalculator.ThrottlerName.Cache
+                || name == ThrottlerCalculator.ThrottlerName.DurableDataLog;
     }
 
     @VisibleForTesting

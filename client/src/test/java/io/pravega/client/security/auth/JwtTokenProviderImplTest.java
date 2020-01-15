@@ -9,13 +9,19 @@
  */
 package io.pravega.client.security.auth;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.Controller;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Test;
-
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.common.util.RetriesExhaustedException;
+import java.net.URI;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executors;
 import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
 
 import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
 import static io.pravega.client.security.auth.JwtTestUtils.dummyToken;
@@ -25,6 +31,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -51,7 +58,7 @@ public class JwtTokenProviderImplTest {
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 token, mock(Controller.class), "somescope", "somestream");
-        assertEquals(token, objectUnderTest.retrieveToken());
+        assertEquals(token, objectUnderTest.retrieveToken().join());
     }
 
     @Test
@@ -131,7 +138,7 @@ public class JwtTokenProviderImplTest {
                 token, mockController, "somescope", "somestream");
 
         // Act
-        String newToken = objectUnderTest.retrieveToken();
+        String newToken = objectUnderTest.retrieveToken().join();
         log.debug("new token: {}", newToken);
 
         assertTrue(newToken.startsWith("newtokenheader"));
@@ -139,13 +146,15 @@ public class JwtTokenProviderImplTest {
 
     @Test
     public void testRetrievesSameTokenOutsideOfTokenRefreshThresholdWhenTokenIsNull() {
+
+        final String token = String.format("newtokenheader.%s.signature", createJwtBody(
+                JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         // Setup mock
         Controller mockController = mock(Controller.class);
         CompletableFuture<String> future = CompletableFuture.supplyAsync(new Supplier<String>() {
             @Override
             public String get() {
-                return String.format("newtokenheader.%s.signature", createJwtBody(
-                        JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
+                return token;
             }
         });
         when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
@@ -155,9 +164,7 @@ public class JwtTokenProviderImplTest {
         DelegationTokenProvider objectUnderTest = new JwtTokenProviderImpl(mockController,
                 "somescope", "somestream");
 
-        // Act
-        String token = objectUnderTest.retrieveToken();
-        assertEquals(token, objectUnderTest.retrieveToken());
+        assertEquals(token, objectUnderTest.retrieveToken().join());
     }
 
     @Test
@@ -191,7 +198,7 @@ public class JwtTokenProviderImplTest {
 
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(token, dummyController, "testscope",
                 "teststream");
-        assertEquals(token, objectUnderTest.retrieveToken());
+        assertEquals(token, objectUnderTest.retrieveToken().join());
     }
 
     @Test
@@ -254,7 +261,7 @@ public class JwtTokenProviderImplTest {
         DelegationTokenProvider objectUnderTest = new JwtTokenProviderImpl(mockController, "somescope", "somestream");
 
         // Act
-        String token = objectUnderTest.retrieveToken();
+        String token = objectUnderTest.retrieveToken().join();
         log.debug(token);
 
         assertTrue(token.startsWith("newtokenheader"));
@@ -307,5 +314,66 @@ public class JwtTokenProviderImplTest {
                 JwtTestUtils.createJwtBody(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
                 "base64-encoded-signature");
         assertTrue(objectUnderTest.populateToken(newToken));
+    }
+
+    @Test(expected = CompletionException.class)
+    public void testRetrieveTokenFailsWhenClientCallToControllerFails() {
+        Controller mockController = mock(Controller.class);
+
+        CompletableFuture<String> tokenFuture = new CompletableFuture<>();
+        tokenFuture.completeExceptionally(new CompletionException(new RuntimeException("Failed to connect to server")));
+
+        when(mockController.getOrRefreshDelegationTokenFor("test-scope", "test-stream"))
+                .thenReturn(tokenFuture);
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(mockController, "test-scope", "test-stream");
+        try {
+            tokenProvider.retrieveToken().join();
+        } catch (CompletionException e) {
+            assertEquals(RuntimeException.class.getName(), e.getCause().getClass().getName());
+            throw e;
+        }
+    }
+
+    @Test(expected = CompletionException.class)
+    public void testRefreshTokenCompletesUponFailure() {
+        ClientConfig config = ClientConfig.builder().controllerURI(URI.create("tcp://non-existent-cluster:9090")).build();
+        Controller controllerClient = new ControllerImpl(
+                ControllerImplConfig.builder().clientConfig(config).retryAttempts(1).build(),
+                Executors.newScheduledThreadPool(1));
+
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controllerClient, "bob-0", "bob-0");
+        try {
+            tokenProvider.retrieveToken().join();
+        } catch (CompletionException e) {
+            assertEquals(RetriesExhaustedException.class.getName(), e.getCause().getClass().getName());
+            throw e;
+        }
+    }
+
+    @Test
+    public void testTokenRefreshFutureIsClearedUponFailure() throws InterruptedException {
+        ClientConfig config = ClientConfig.builder().controllerURI(
+                URI.create("tcp://non-existent-cluster:9090")).build();
+
+        Controller controllerClient = new ControllerImpl(
+                ControllerImplConfig.builder().clientConfig(config).retryAttempts(1).build(),
+                Executors.newScheduledThreadPool(1));
+
+        JwtTokenProviderImpl tokenProvider = (JwtTokenProviderImpl) DelegationTokenProviderFactory.create(controllerClient,
+                "bob-0", "bob-0");
+
+        try {
+            String token = tokenProvider.retrieveToken().join();
+            fail("Didn't expect the control to come here");
+        } catch (CompletionException e) {
+            log.info("Encountered CompletionException as expected");
+            assertNull("Expected a null tokenRefreshFuture", tokenProvider.getTokenRefreshFuture().get());
+        }
+        try {
+            tokenProvider.retrieveToken().join();
+        } catch (CompletionException e) {
+            log.info("Encountered CompletionException as expected");
+            assertNull("Expected a null tokenRefreshFuture", tokenProvider.getTokenRefreshFuture().get());
+        }
     }
 }

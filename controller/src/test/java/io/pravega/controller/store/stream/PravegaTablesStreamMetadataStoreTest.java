@@ -10,14 +10,21 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BitConverter;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -29,11 +36,13 @@ import org.junit.Test;
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,8 +53,12 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 /**
  * Zookeeper based stream metadata store tests.
@@ -104,6 +117,12 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         store.createScope(scope).get();
         store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // set minimum number of segments to 1 so that we can also test scale downs
+        configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        store.startUpdateConfiguration(scope, stream, configuration, null, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = store.getConfigurationRecord(scope, stream, null, executor).join();
+        store.completeUpdateConfiguration(scope, stream, configRecord, null, executor).join();
 
         List<ScaleMetadata> scaleIncidents = store.getScaleMetadata(scope, stream, 0, Long.MAX_VALUE, null, executor).get();
         assertTrue(scaleIncidents.size() == 1);
@@ -387,6 +406,56 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         assertTrue(stale.isEmpty());
     }
 
+    @Test
+    public void testPartiallyCreatedScope() {
+        PravegaTablesStreamMetadataStore store = (PravegaTablesStreamMetadataStore) this.store;
+        PravegaTablesStoreHelper storeHelper = store.getStoreHelper();
+
+        String newScope = "newScope";
+        Controller.CreateScopeStatus status = store.createScope(newScope).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, status.getStatus());
+
+        status = store.createScope(newScope).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS, status.getStatus());
+
+        // now partially create a scope
+        String scopeName = "partial";
+        byte[] idBytes = new byte[2 * Long.BYTES];
+        UUID id = UUID.randomUUID();
+        BitConverter.writeUUID(idBytes, 0, id);
+
+        // add entry for a scope in scopes table 
+        storeHelper.addNewEntry(PravegaTablesStreamMetadataStore.SCOPES_TABLE, scopeName, idBytes).join();
+        
+        // verify that streams in scope table does not exist
+        PravegaTablesScope scope = (PravegaTablesScope) store.getScope(scopeName);
+        ByteBuf token = Unpooled.wrappedBuffer(Base64.getDecoder().decode(""));
+
+        Supplier<CompletableFuture<Map.Entry<ByteBuf, List<String>>>> tableCheckSupplier = 
+                () -> scope.getStreamsInScopeTableName()
+                           .thenCompose(tableName -> storeHelper.getKeysPaginated(tableName, token, 10));
+        AssertExtensions.assertFutureThrows("Table should not exist", tableCheckSupplier.get(), 
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        
+        status = store.createScope(scopeName).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS, status.getStatus());
+        
+        // verify that table is created. 
+        assertTrue(Futures.await(tableCheckSupplier.get()));
+        
+        // create scope idempotent
+        status = store.createScope(scopeName).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS, status.getStatus());
+
+        PravegaTablesStoreHelper spy = spy(storeHelper);
+        PravegaTablesScope scopeObj = new PravegaTablesScope("thirdScope", spy);
+        StoreException unknown = StoreException.create(StoreException.Type.UNKNOWN, "unknown");
+        doReturn(Futures.failedFuture(unknown)).when(spy).addNewEntry(anyString(), anyString(), any());
+        AssertExtensions.assertFutureThrows("Create scope should have thrown exception",
+                scopeObj.createScope(), 
+                e -> Exceptions.unwrap(e).equals(unknown));
+    }
+    
     private Set<Integer> getAllBatches(PravegaTablesStreamMetadataStore testStore) {
         Set<Integer> batches = new ConcurrentSkipListSet<>();
         testStore.getStoreHelper().getAllKeys(COMPLETED_TRANSACTIONS_BATCHES_TABLE)

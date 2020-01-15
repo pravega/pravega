@@ -167,8 +167,6 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @Override
     public CompletableFuture<SegmentRead> read(long offset, int length) {
         Exceptions.checkNotClosed(closed.get(), this);
-        WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length,
-                                                                        this.tokenProvider.retrieveToken(), requestId);
         return backoffSchedule.retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
             if (closed.get()) {
@@ -177,9 +175,11 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 log.warn("Exception while reading from Segment : {}", segmentId, ex);
             }
             return ex instanceof Exception && !(ex instanceof ConnectionClosedException) && !(ex instanceof SegmentTruncatedException);
-        }).runAsync(() -> {
+        }).runAsync(() -> this.tokenProvider.retrieveToken().thenComposeAsync(token -> {
+            final WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length,
+                    token, requestId);
             return getConnection()
-                    .whenComplete((connection, ex) -> {
+                    .whenComplete((connection1, ex) -> {
                         if (ex != null) {
                             log.warn("Exception while establishing connection with Pravega node", ex);
                             closeConnection(new ConnectionFailedException(ex));
@@ -192,7 +192,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                                 }
                             })
                     );
-        }, connectionFactory.getInternalExecutor());
+        }, connectionFactory.getInternalExecutor()), connectionFactory.getInternalExecutor());
     }
         
     private CompletableFuture<SegmentRead> sendRequestOverConnection(WireCommands.ReadSegment request, ClientConnection c) {

@@ -9,19 +9,31 @@
  */
 package io.pravega.segmentstore.server;
 
+import com.google.common.collect.Iterators;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.storage.cache.CacheState;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
+import io.pravega.segmentstore.storage.cache.NoOpCache;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import lombok.Cleanup;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,12 +43,49 @@ import org.junit.rules.Timeout;
  * Unit tests for the CacheManager class.
  */
 public class CacheManagerTests extends ThreadPooledTestSuite {
+    private static final int CLEANUP_TIMEOUT_MILLIS = 2000;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10);
 
     @Override
     protected int getThreadPoolSize() {
         return 3;
+    }
+
+    /**
+     * Tests {@link CacheManager.CacheStatus#fromGenerations}.
+     */
+    @Test
+    public void testCacheStatusFromGenerations() {
+        val empty = CacheManager.CacheStatus.fromGenerations(Collections.emptyIterator());
+        Assert.assertTrue("Unexpected isEmpty() when provided empty iterator.", empty.isEmpty());
+        Assert.assertEquals("Unexpected OG when provided empty iterator.", CacheManager.CacheStatus.EMPTY_VALUE, empty.getOldestGeneration());
+        Assert.assertEquals("Unexpected NG when provided empty iterator.", CacheManager.CacheStatus.EMPTY_VALUE, empty.getNewestGeneration());
+
+        val nonEmpty = CacheManager.CacheStatus.fromGenerations(Iterators.forArray(1, 2, 3, 100));
+        Assert.assertFalse("Unexpected isEmpty() when provided non-empty iterator.", nonEmpty.isEmpty());
+        Assert.assertEquals("Unexpected OG when provided non-empty iterator.", 1, nonEmpty.getOldestGeneration());
+        Assert.assertEquals("Unexpected NG when provided non-empty iterator.", 100, nonEmpty.getNewestGeneration());
+    }
+
+    /**
+     * Tests {@link CacheManager.CacheStatus#combine}.
+     */
+    @Test
+    public void testCacheStatusCombine() {
+        val empty = CacheManager.CacheStatus.combine(Collections.emptyIterator());
+        Assert.assertTrue("Unexpected isEmpty() when provided empty iterator.", empty.isEmpty());
+        Assert.assertEquals("Unexpected OG when provided empty iterator.", CacheManager.CacheStatus.EMPTY_VALUE, empty.getOldestGeneration());
+        Assert.assertEquals("Unexpected NG when provided empty iterator.", CacheManager.CacheStatus.EMPTY_VALUE, empty.getNewestGeneration());
+
+        val nonEmpty = CacheManager.CacheStatus.combine(Iterators.forArray(
+                new CacheManager.CacheStatus(1, 10),
+                new CacheManager.CacheStatus(2, 11),
+                new CacheManager.CacheStatus(3, 9),
+                new CacheManager.CacheStatus(5, 5)));
+        Assert.assertFalse("Unexpected isEmpty() when provided non-empty iterator.", nonEmpty.isEmpty());
+        Assert.assertEquals("Unexpected OG when provided non-empty iterator.", 1, nonEmpty.getOldestGeneration());
+        Assert.assertEquals("Unexpected NG when provided non-empty iterator.", 11, nonEmpty.getNewestGeneration());
     }
 
     /**
@@ -50,10 +99,14 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         Random random = RandomFactory.create();
 
         @Cleanup
-        TestCacheManager cm = new TestCacheManager(policy, executorService());
+        val cache = new TestCache(policy.getMaxSize());
+        cache.setStoredBytes(1); // The Cache Manager won't do anything if there's no stored data.
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
 
         // Register a number of clients
         ArrayList<TestClient> clients = new ArrayList<>();
+        cm.register(new EmptyCacheClient()); // Register, but don't keep track of it.
         for (int i = 0; i < clientCount; i++) {
             TestClient c = new TestClient();
             clients.add(c);
@@ -67,18 +120,18 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
             HashSet<TestClient> updatedClients = new HashSet<>();
 
             // Initially, declare each client as having no activity this cycle
-            clients.forEach(c -> c.setCacheStatus(1, 0, Math.max(0, currentGeneration.get() - 1)));
+            clients.forEach(c -> c.setCacheStatus(0, Math.max(0, currentGeneration.get() - 1)));
 
             if (activityInCycle) {
                 // Active cycle: pick a single, random client that will declare it had activity in the last generation.
-                clients.get(random.nextInt(clients.size())).setCacheStatus(1, 0, currentGeneration.get());
+                clients.get(random.nextInt(clients.size())).setCacheStatus(0, currentGeneration.get());
 
                 // Fail the test if we get an unexpected value for currentGeneration.
                 clients.forEach(c ->
                         c.setUpdateGenerationsImpl((current, oldest) -> {
                             Assert.assertEquals("Unexpected value for current generation.", currentGeneration.get(), (int) current);
                             updatedClients.add(c);
-                            return -1L;
+                            return false;
                         }));
 
                 // There was activity in this cycle, so increment the expected current generation so we match what the CacheManager s doing.
@@ -88,16 +141,18 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                 clients.forEach(c ->
                         c.setUpdateGenerationsImpl((current, oldest) -> {
                             updatedClients.add(c);
-                            return -1L;
+                            return false;
                         }));
             }
 
             cm.applyCachePolicy();
 
             if (activityInCycle) {
-                Assert.assertEquals("CacheManager did not update all Clients with generation information when activity did happen during the cycle.", clients.size(), updatedClients.size());
+                Assert.assertEquals("CacheManager did not update all Clients with generation information when activity did happen during the cycle.",
+                        clients.size(), updatedClients.size());
             } else {
-                Assert.assertEquals("CacheManager updated Generations when no activity happened during the cycle.", 0, updatedClients.size());
+                Assert.assertEquals("CacheManager updated Generations when no activity happened during the cycle.",
+                        0, updatedClients.size());
             }
         }
     }
@@ -116,17 +171,23 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         final CachePolicy policy = new CachePolicy(maxSize, targetUtilization, maxUtilization, Duration.ofHours(10 * cycleCount), Duration.ofHours(1));
         final long excess = policy.getMaxSize(); // This is the excess size when we want to test Oldest Generation increases.
         @Cleanup
-        TestCacheManager cm = new TestCacheManager(policy, executorService());
+        val cache = new TestCache(policy.getMaxSize());
+        cache.setStoredBytes(1); // The Cache Manager won't do anything if there's no stored data.
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
 
         // Use a single client (we tested multiple clients with Newest Generation).
         TestClient client = new TestClient();
         cm.register(client);
 
+        // Register an Empty Cache Client to validate behavior in its presence.
+        cm.register(new EmptyCacheClient());
+
         // First do a dry-run - we need this to make sure the current generation advances enough.
         AtomicInteger currentGeneration = new AtomicInteger();
         for (int cycleId = 0; cycleId < cycleCount * 3; cycleId++) {
-            client.setCacheStatus(1, 0, currentGeneration.get());
-            client.setUpdateGenerationsImpl((current, oldest) -> -1L);
+            client.setCacheStatus(0, currentGeneration.get());
+            client.setUpdateGenerationsImpl((current, oldest) -> false);
             cm.applyCachePolicy();
             currentGeneration.incrementAndGet();
         }
@@ -139,24 +200,30 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
             boolean smallReductionsButNoRepeat = smallReductions && cycleId % 8 == 0;
             AtomicInteger callCount = new AtomicInteger();
             if (exceeds) {
-                // If the total size does exceed the policy limit, repeated calls to 'update' should be made until either the cache is within limits or no change can be made.
-                client.setCacheStatus(policy.getEvictionThreshold() + excess, currentOldestGeneration.get(), currentGeneration.get());
+                // If the total size does exceed the policy limit, repeated calls to 'update' should be made until either
+                // the cache is within limits or no change can be made.
+                cache.setUsedBytes(policy.getEvictionThreshold() + excess);
+                client.setCacheStatus(currentOldestGeneration.get(), currentGeneration.get());
                 client.setUpdateGenerationsImpl((current, oldest) -> {
                     AssertExtensions.assertGreaterThan("Expected an increase in oldestGeneration.", currentOldestGeneration.get(), oldest);
                     currentOldestGeneration.set(oldest);
                     callCount.incrementAndGet();
                     if (smallReductionsButNoRepeat && callCount.get() > 0) {
-                        return 0L; // Returning 0 indicates we were not able to chop away anything.
+                        return false;
                     } else {
-                        return smallReductions ? excess / 2 : excess; // Small Reductions == we only chop away half of the items each time (to verify the loop).
+                        long reduction = smallReductions ? excess / 2 : excess;
+                        cache.setUsedBytes(cache.getUsedBytes() - reduction);
+                        return true;
                     }
                 });
             } else {
                 // If the total size does not exceed the policy limit, nothing should change
-                client.setCacheStatus(policy.getEvictionThreshold() - 1, defaultOldestGeneration, currentGeneration.get());
+                cache.setStoredBytes(policy.getEvictionThreshold() - 1);
+                cache.setUsedBytes(policy.getEvictionThreshold() - 1);
+                client.setCacheStatus(defaultOldestGeneration, currentGeneration.get());
                 client.setUpdateGenerationsImpl((current, oldest) -> {
                     Assert.assertEquals("Not expecting a change for oldestGeneration", currentOldestGeneration.get(), (int) oldest);
-                    return 0L;
+                    return false;
                 });
             }
 
@@ -187,22 +254,24 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
     public void testClientAutoUnregister() {
         final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
         @Cleanup
-        TestCacheManager cm = new TestCacheManager(policy, executorService());
+        val cache = new TestCache(policy.getMaxSize());
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
         TestClient client = new TestClient();
         cm.register(client);
 
         // Setup the client so that it throws ObjectClosedException when updateGenerations is called.
-        client.setCacheStatus(1, 0, 0);
+        client.setCacheStatus(0, 0);
         client.setUpdateGenerationsImpl((current, oldest) -> {
             throw new ObjectClosedException(this);
         });
         cm.applyCachePolicy();
 
         // Now do the actual verification.
-        client.setCacheStatus(1, 0, 1);
+        client.setCacheStatus(0, 1);
         client.setUpdateGenerationsImpl((current, oldest) -> {
             Assert.fail("Client was not unregistered after throwing ObjectClosedException.");
-            return -1L;
+            return false;
         });
         cm.applyCachePolicy();
     }
@@ -214,57 +283,194 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
     public void testEmptyClients() {
         final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
         @Cleanup
-        TestCacheManager cm = new TestCacheManager(policy, executorService());
-        TestClient client = new TestClient();
+        val cache = new TestCache(policy.getMaxSize());
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
+        TestClient client = new EmptyCacheClient();
         cm.register(client);
 
-        // Setup the client so that it throws ObjectClosedException when updateGenerations is called.
-        client.setCacheStatus(policy.getMaxSize() + 1, 0, 0);
+        // Test the case when we have more data in the cache than allowed by our policy (so CacheManager is forced to
+        // do something) but our client reports that it has no data in the cache.
+        cache.setStoredBytes(policy.getMaxSize() + 1);
+        cache.setUsedBytes(policy.getMaxSize() + 1);
+        AtomicInteger updatedOldest = new AtomicInteger(-1);
+        AtomicInteger updatedCurrent = new AtomicInteger(-1);
         client.setUpdateGenerationsImpl((current, oldest) -> {
-            Assert.assertEquals("Expected current generation to change.", 1, (long) current);
-            Assert.assertEquals("Expected oldest generation to change.", 1, (long) oldest);
-            return 1L;
+            updatedOldest.set(oldest);
+            updatedCurrent.set(current);
+            return true;
         });
+        Assert.assertTrue(client.getCacheStatus().isEmpty()); // Verify before we execute.
         cm.applyCachePolicy();
-        client.setCacheStatus(0, 0, 0);
+        Assert.assertEquals("Expected current generation to change.", 1, updatedCurrent.get());
+        Assert.assertEquals("Expected oldest generation to change.", 1, updatedOldest.get());
+
+        // Test the case when we have some data in the cache (so this is not why the CacheManager would not run), but our
+        // client reports that it has no data in the cache.
+        cache.setStoredBytes(10);
+        cache.setUsedBytes(10);
+        updatedCurrent.set(-1);
+        updatedOldest.set(-1);
         client.setUpdateGenerationsImpl((current, oldest) -> {
-            Assert.fail("Not expecting any updates in generations.");
-            return -1L;
+            updatedOldest.set(oldest);
+            updatedCurrent.set(current);
+            return false;
         });
+        Assert.assertTrue(client.getCacheStatus().isEmpty()); // Verify before we execute.
         cm.applyCachePolicy();
+        Assert.assertTrue("Not expecting any updates in generations.", updatedCurrent.get() == -1 && updatedOldest.get() == -1);
     }
 
     /**
-     * Tests the ability to register, invoke and auto-unregister {@link CacheUtilizationProvider.CleanupListener} instances.
+     * Tests the ability to auto-cleanup the cache if it indicates it has reached capacity and needs some eviction(s)
+     * in order to accommodate more data.
+     */
+    @Test
+    public void testCacheFullCleanup() {
+        final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
+        @Cleanup
+        val cache = new DirectMemoryCache(policy.getMaxSize());
+        int maxCacheSize = (int) cache.getState().getMaxBytes();
+
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
+        TestClient client = new TestClient();
+        cm.register(client);
+
+        // Almost fill up the cache.
+        int length1 = maxCacheSize / 2;
+        val write1 = cache.insert(new ByteArraySegment(new byte[length1]));
+
+        // Setup the TestClient to evict write1 when requested.
+        val cleanupRequestCount = new AtomicInteger(0);
+        client.setCacheStatus(0, 1);
+        client.setUpdateGenerationsImpl((ng, og) -> {
+            cleanupRequestCount.incrementAndGet();
+            cache.delete(write1);
+            return true;
+        });
+
+        // Insert an entry that would fill up the cache.
+        int length2 = maxCacheSize / 2 + 1;
+        val write2 = cache.insert(new ByteArraySegment(new byte[length2]));
+
+        // Verify we were asked to cleanup.
+        Assert.assertEquals("Unexpected number of cleanup requests.", 1, cleanupRequestCount.get());
+        Assert.assertEquals("New entry was not inserted.", length2, cache.get(write2).getLength());
+        Assert.assertEquals("Unexpected number of stored bytes.", length2, cache.getState().getStoredBytes());
+    }
+
+    /**
+     * Tests the ability to handle concurrent requests to {@link  CacheManager#applyCachePolicy()}.
+     */
+    @Test
+    public void testApplyPolicyConcurrency() throws Exception {
+        // Almost fill up the cache.
+        final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
+        @Cleanup
+        val cache = new DirectMemoryCache(policy.getMaxSize());
+        int maxCacheSize = (int) cache.getState().getMaxBytes();
+
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
+        TestClient client = new TestClient();
+        cm.register(client);
+
+        // Almost fill up the cache (75%)
+        int initialLength = maxCacheSize * 3 / 4;
+        val initialWrite = cache.insert(new ByteArraySegment(new byte[initialLength]));
+
+        // Setup the TestClient to evict write1 when requested.
+        val firstCleanupRequested = new CompletableFuture<Void>();
+        val firstCleanupBlock = new CompletableFuture<Void>();
+        val cleanupRequestCount = new AtomicInteger(0);
+        val concurrentRequest = new AtomicBoolean(false);
+        client.setCacheStatus(0, 1);
+        client.setUpdateGenerationsImpl((ng, og) -> {
+            int rc = cleanupRequestCount.incrementAndGet();
+            if (rc == 1) {
+                // This is the first concurrent request requesting a cleanup.
+                // Notify that cleanup has been requested.
+                firstCleanupRequested.complete(null);
+
+                // Wait until we are ready to proceed.
+                firstCleanupBlock.join();
+
+                // We only need to delete this once.
+                cache.delete(initialWrite);
+            } else {
+                // This is the second concurrent request requesting a cleanup.
+                if (!firstCleanupBlock.isDone()) {
+                    // This has executed before the first reuqest completed.
+                    concurrentRequest.set(true);
+                }
+            }
+
+            return true;
+        });
+
+        // Send one write that would end up filling the cache.
+        int length1 = maxCacheSize / 3;
+        val write1Future = CompletableFuture.supplyAsync(() -> cache.insert(new ByteArraySegment(new byte[length1])), executorService());
+
+        // Wait for the cleanup to be requested.
+        firstCleanupRequested.get(CLEANUP_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+
+        // Send another write that would also fill up the cache.
+        int length2 = length1 + 1;
+        val write2Future = CompletableFuture.supplyAsync(() -> cache.insert(new ByteArraySegment(new byte[length2])), executorService());
+
+        Thread.sleep(50);
+
+        // Unblock the first cleanup.
+        firstCleanupBlock.complete(null);
+
+        // Get the results of the two suspended writes.
+        val write1 = write1Future.get(CLEANUP_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        val write2 = write2Future.get(CLEANUP_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+
+        // Verify that things did work as intended.
+        Assert.assertFalse("Concurrent call to applyCachePolicy detected.", concurrentRequest.get());
+        Assert.assertEquals("Unexpected number of cleanup requests", 2, cleanupRequestCount.get());
+        Assert.assertEquals("Unexpected entry #2.", length1, cache.get(write1).getLength());
+        Assert.assertEquals("Unexpected entry #3.", length2, cache.get(write2).getLength());
+    }
+
+    /**
+     * Tests the ability to register, invoke and auto-unregister {@link ThrottleSourceListener} instances.
      */
     @Test
     public void testCleanupListeners() {
         final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
         @Cleanup
-        TestCacheManager cm = new TestCacheManager(policy, executorService());
+        val cache = new DirectMemoryCache(policy.getMaxSize());
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
         TestClient client = new TestClient();
         cm.register(client);
         TestCleanupListener l1 = new TestCleanupListener();
         TestCleanupListener l2 = new TestCleanupListener();
         cm.registerCleanupListener(l1);
         cm.registerCleanupListener(l2);
-        client.setUpdateGenerationsImpl((current, oldest) -> 1L); // We always remove something.
+        client.setUpdateGenerationsImpl((current, oldest) -> true); // We always remove something.
 
         // In the first iteration, we should invoke both listeners.
-        client.setCacheStatus(policy.getMaxSize() + 1, 0, 0);
+        client.setCacheStatus(0, 0);
+        cache.insert(new ByteArraySegment(new byte[1])); // Put something in the cache so the cleanup can execute.
         cm.runOneIteration();
         Assert.assertEquals("Expected cleanup listener to be invoked the first time.", 1, l1.getCallCount());
         Assert.assertEquals("Expected cleanup listener to be invoked the first time.", 1, l2.getCallCount());
 
         // Close one of the listeners, and verify that only the other one is invoked now.
         l2.setClosed(true);
-        client.setCacheStatus(policy.getMaxSize() + 1, 0, 1);
+        client.setCacheStatus(0, 1);
         cm.runOneIteration();
         Assert.assertEquals("Expected cleanup listener to be invoked the second time.", 2, l1.getCallCount());
         Assert.assertEquals("Not expecting cleanup listener to be invoked the second time for closed listener.", 1, l2.getCallCount());
+        cm.registerCleanupListener(l2); // This should have no effect.
     }
 
-    private static class TestCleanupListener implements CacheUtilizationProvider.CleanupListener {
+    private static class TestCleanupListener implements ThrottleSourceListener {
         @Getter
         private int callCount = 0;
         @Setter
@@ -272,20 +478,20 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         private boolean closed;
 
         @Override
-        public void cacheCleanupComplete() {
+        public void notifyThrottleSourceChanged() {
             this.callCount++;
         }
     }
 
     private static class TestClient implements CacheManager.Client {
         private CacheManager.CacheStatus currentStatus;
-        private BiFunction<Integer, Integer, Long> updateGenerationsImpl = (current, oldest) -> -1L;
+        private BiFunction<Integer, Integer, Boolean> updateGenerationsImpl = (current, oldest) -> false;
 
-        void setCacheStatus(long size, int oldestGeneration, int newestGeneration) {
-            this.currentStatus = new CacheManager.CacheStatus(size, oldestGeneration, newestGeneration);
+        void setCacheStatus(int oldestGeneration, int newestGeneration) {
+            this.currentStatus = new CacheManager.CacheStatus(oldestGeneration, newestGeneration);
         }
 
-        void setUpdateGenerationsImpl(BiFunction<Integer, Integer, Long> function) {
+        void setUpdateGenerationsImpl(BiFunction<Integer, Integer, Boolean> function) {
             this.updateGenerationsImpl = function;
         }
 
@@ -295,8 +501,30 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public long updateGenerations(int currentGeneration, int oldestGeneration) {
+        public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
             return this.updateGenerationsImpl.apply(currentGeneration, oldestGeneration);
+        }
+    }
+
+    private static class EmptyCacheClient extends TestClient {
+        EmptyCacheClient() {
+            setCacheStatus(CacheManager.CacheStatus.EMPTY_VALUE, CacheManager.CacheStatus.EMPTY_VALUE);
+        }
+    }
+
+
+    @RequiredArgsConstructor
+    @Getter
+    @Setter
+    private static class TestCache extends NoOpCache {
+        private long storedBytes;
+        private long usedBytes;
+        private final long maxBytes;
+
+        @Override
+        public CacheState getState() {
+            val s = super.getState();
+            return new CacheState(this.storedBytes, this.usedBytes, 0, 0, this.maxBytes);
         }
     }
 }

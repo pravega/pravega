@@ -18,7 +18,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -32,6 +31,8 @@ import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
@@ -82,6 +83,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -105,10 +107,10 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.mock;
 
 /**
  * Tests for StreamTransactionMetadataTasks.
@@ -177,6 +179,8 @@ public class StreamTransactionMetadataTasksTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
     }
 
     @After
@@ -187,6 +191,8 @@ public class StreamTransactionMetadataTasksTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
@@ -585,17 +591,40 @@ public class StreamTransactionMetadataTasksTest {
         streamStoreMock.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis(), null, executor).join();
         streamStoreMock.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
 
-        // Verify Ping transaction on committed transaction.
+        // Verify Ping transaction on committing transaction.
         Pair<VersionedTransactionData, List<StreamSegmentRecord>> txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, null).join();
         UUID txnId = txn.getKey().getId();
         txnTasks.commitTxn(SCOPE, STREAM, txnId, null).join();
         assertEquals(PingTxnStatus.Status.COMMITTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
 
-        // Verify Ping transaction on an aborted transaction.
+        // complete commit of transaction. 
+        streamStoreMock.startCommitTransactions(SCOPE, STREAM, null, executor).join();
+        val record = streamStoreMock.getVersionedCommittingTransactionsRecord(SCOPE, STREAM, null, executor).join();
+        streamStoreMock.completeCommitTransactions(SCOPE, STREAM, record, null, executor).join();
+
+        // verify that transaction is removed from active txn
+        AssertExtensions.assertFutureThrows("Fetching Active Txn record should throw DNF",
+                streamStoreMock.getTransactionData(SCOPE, STREAM, txnId, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        assertEquals(PingTxnStatus.Status.COMMITTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
+
+        // Verify Ping transaction on an aborting transaction.
         txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, null).join();
         txnId = txn.getKey().getId();
         txnTasks.abortTxn(SCOPE, STREAM, txnId, null, null).join();
         assertEquals(PingTxnStatus.Status.ABORTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
+
+        // now complete abort so that the transaction is removed from active txn and added to completed txn.
+        streamStoreMock.abortTransaction(SCOPE, STREAM, txnId, null, executor).join();
+        AssertExtensions.assertFutureThrows("Fetching Active Txn record should throw DNF", 
+                streamStoreMock.getTransactionData(SCOPE, STREAM, txnId, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        assertEquals(PingTxnStatus.Status.ABORTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
+
+        // try with a non existent transaction id 
+        assertEquals(PingTxnStatus.Status.UNKNOWN, 
+                txnTasks.pingTxn(SCOPE, STREAM, UUID.randomUUID(), 10000L, null).join().getStatus());
     }
     
     @Test(timeout = 10000)
@@ -722,16 +751,6 @@ public class StreamTransactionMetadataTasksTest {
         }
 
         @Override
-        public Transaction<T> beginTxn() {
-            return null;
-        }
-
-        @Override
-        public Transaction<T> getTxn(UUID transactionId) {
-            return null;
-        }
-
-        @Override
         public EventWriterConfig getConfig() {
             return null;
         }
@@ -782,7 +801,7 @@ public class StreamTransactionMetadataTasksTest {
                 .supplier(factory)
                 .build();
 
-        system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore());
+        system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore(), executor);
     }
 
     public static class RegularBookKeeperLogTests extends StreamTransactionMetadataTasksTest {

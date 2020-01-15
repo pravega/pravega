@@ -10,8 +10,7 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.auth.TokenException;
-import io.pravega.auth.TokenExpiredException;
+import io.pravega.auth.InvalidTokenException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
@@ -23,6 +22,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentIsTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.test.common.AssertExtensions;
@@ -103,6 +103,66 @@ public class SegmentMetadataClientTest {
             }
         }).when(connection).sendAsync(any(WireCommands.TruncateSegment.class), Mockito.any(ClientConnection.CompletedCallback.class));
         client.truncateSegment(123L);
+        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")),
+                                             Mockito.any(ClientConnection.CompletedCallback.class));
+    }
+
+    @Test(timeout = 10000)
+    public void testTruncateWithSegmentTruncationException() {
+        Segment segment = new Segment("scope", "testTruncate", 4);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
+        @Cleanup
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
+        client.getConnection();
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        AtomicLong requestId = new AtomicLong();
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.TruncateSegment truncateSegment = invocation.getArgument(0);
+                processor.process(new SegmentIsTruncated(truncateSegment.getRequestId(), segment.getScopedName(), 124L, "", 124L));
+                requestId.set(truncateSegment.getRequestId());
+                return null;
+            }
+        }).when(connection).sendAsync(any(WireCommands.TruncateSegment.class), Mockito.any(ClientConnection.CompletedCallback.class));
+        client.truncateSegment(123L);
+        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")),
+                                             Mockito.any(ClientConnection.CompletedCallback.class));
+    }
+
+    @Test(timeout = 10000)
+    public void testTruncateNoSuchSegmentError() {
+        Segment segment = new Segment("scope", "testTruncate", 4);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
+        @Cleanup
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
+        client.getConnection();
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        AtomicLong requestId = new AtomicLong();
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.TruncateSegment truncateSegment = invocation.getArgument(0);
+                processor.process(new WireCommands.NoSuchSegment(truncateSegment.getRequestId(), segment.getScopedName(), "", 123L));
+                requestId.set(truncateSegment.getRequestId());
+                return null;
+            }
+        }).when(connection).sendAsync(any(WireCommands.TruncateSegment.class), Mockito.any(ClientConnection.CompletedCallback.class));
+        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> client.truncateSegment(123L));
         Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")),
                                              Mockito.any(ClientConnection.CompletedCallback.class));
     }
@@ -327,9 +387,42 @@ public class SegmentMetadataClientTest {
         }).when(connection).sendAsync(any(WireCommands.GetStreamSegmentInfo.class),
                 Mockito.any(ClientConnection.CompletedCallback.class));
 
-        AssertExtensions.assertThrows("TokenExpiredException was not thrown or server stacktrace contained unexpected content.",
+        AssertExtensions.assertThrows("ConnectionFailedException was not thrown or server stacktrace contained unexpected content.",
+                () -> client.getStreamSegmentInfo().join(),
+                e -> e instanceof ConnectionFailedException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
+    }
+
+    @Test(timeout = 10000)
+    public void testTokenCheckFailed() {
+        Segment segment = new Segment("scope", "testRetry", 4);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
+        @Cleanup
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
+        client.getConnection();
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+
+                WireCommands.GetStreamSegmentInfo getStreamInfo = invocation.getArgument(0);
+                processor.process(new WireCommands.AuthTokenCheckFailed(getStreamInfo.getRequestId(), "server-stacktrace",
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
+                return null;
+            }
+        }).when(connection).sendAsync(any(WireCommands.GetStreamSegmentInfo.class),
+                Mockito.any(ClientConnection.CompletedCallback.class));
+
+        AssertExtensions.assertThrows("TokenException was not thrown or server stacktrace contained unexpected content.",
                 () -> client.fetchCurrentSegmentLength(),
-                e -> e instanceof TokenExpiredException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
+                e -> e instanceof InvalidTokenException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
     }
 
     @Test(timeout = 10000)
@@ -362,6 +455,6 @@ public class SegmentMetadataClientTest {
 
         AssertExtensions.assertThrows("TokenException was not thrown or server stacktrace contained unexpected content.",
                 () -> client.fetchCurrentSegmentLength(),
-                e -> e instanceof TokenException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
+                e -> e instanceof InvalidTokenException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
     }
 }
