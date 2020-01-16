@@ -28,6 +28,7 @@ import io.pravega.segmentstore.server.logs.operations.AttributeUpdaterOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +37,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -313,8 +315,9 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
     /**
      * Aggregates pending Attribute Updates.
      */
+    @ThreadSafe
     private static class State {
-        private final HashMap<UUID, Long> attributes;
+        private final Map<UUID, Long> attributes;
         private final AtomicLong lastPersistedSequenceNumber;
         private final AtomicLong firstSequenceNumber;
         private final AtomicLong lastSequenceNumber;
@@ -328,7 +331,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
          *                                    See {@link #getLastPersistedSequenceNumber()} for details.
          */
         State(long lastPersistedSequenceNumber) {
-            this.attributes = new HashMap<>();
+            this.attributes = Collections.synchronizedMap(new HashMap<>());
             this.firstSequenceNumber = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
             this.lastSequenceNumber = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
             this.lastPersistedSequenceNumber = new AtomicLong(lastPersistedSequenceNumber);

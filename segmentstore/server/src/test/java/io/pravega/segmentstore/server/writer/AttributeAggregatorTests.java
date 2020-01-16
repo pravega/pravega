@@ -67,7 +67,8 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
     private static final String SEGMENT_NAME = "Segment";
     private static final byte[] APPEND_DATA = SEGMENT_NAME.getBytes();
     private static final UUID CORE_ATTRIBUTE_ID = Attributes.EVENT_COUNT;
-    private static final List<UUID> EXTENDED_ATTRIBUTE_IDS = IntStream.range(0, 20).mapToObj(i -> UUID.randomUUID()).collect(Collectors.toList());
+    private static final List<UUID> EXTENDED_ATTRIBUTE_IDS = Collections.unmodifiableList(
+            IntStream.range(0, 20).mapToObj(i -> UUID.randomUUID()).collect(Collectors.toList()));
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final Duration SHORT_TIMEOUT = Duration.ofSeconds(5);
     private static final WriterConfig DEFAULT_CONFIG = WriterConfig
