@@ -156,12 +156,13 @@ initialize_cluster() {
 
 format_bookie_data_and_metadata() {
     if [ `find $BK_journalDirectory $BK_ledgerDirectories $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
-      # The container already contains data in BK directories. This is probably because
-      # the container has been restarted; or, if running on Kubernetes, it has probably been
-      # updated or evacuated without losing its persistent volumes.
+      # The container already contains data in BK directories. Examples of when this can happen include:
+      #    - A container was restarted, say, in a non-Kubernetes deployment.
+      #    - A container running on Kubernetes was updated/evacuated, and
+      #      it did not lose its persistent volumes.
       echo "Data available in bookkeeper directories; not formatting the bookie"
     else
-      # The container does not contain any BK data, it is probably a new
+      # The container does not contain any BK data, and it is likely a new
       # bookie. We will format any pre-existent data and metadata before starting
       # the bookie to avoid potential conflicts.
       echo "Formatting bookie data and metadata"
@@ -169,6 +170,13 @@ format_bookie_data_and_metadata() {
     fi
 }
 
+# The reason for creating custom journal and ledger files here is to support
+# multi ledger/journal scenarios for better write performance. It was found that
+# performance can be increased by increasing write parallelism for those files.
+#
+# However, during those experiments it was also found that index dir has a very low write
+# throughput, so using the default settings for it should not have any negative effect
+# on performance. Therefore, we do not set the paths for index directories below.
 echo "Creating directories for Bookkeeper journal and ledgers"
 create_bookie_dirs "${BK_journalDirectories}"
 create_bookie_dirs "${BK_ledgerDirectories}"
