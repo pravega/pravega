@@ -102,7 +102,7 @@ public class DelegationTokenTest {
      * This test verifies that a event stream reader continues to read events as a result of automatic delegation token
      * renewal, after the initial delegation token it uses expires.
      *
-     * We use an extraordinarily high test timeout and read time outs to account for any inordinate delays that may be
+     * We use an extraordinarily high test timeout and read timeouts to account for any inordinate delays that may be
      * encountered in testing environments.
      */
     @Test(timeout = 50000)
@@ -189,7 +189,7 @@ public class DelegationTokenTest {
      * This test verifies that a batch client continues to read events as a result of automatic delegation token
      * renewal, after the initial delegation token it uses expires.
      * <p>
-     * We use an extraordinarily high test timeout and read time outs to account for any inordinate delays that may be
+     * We use an extraordinarily high test timeout and read timeouts to account for any inordinate delays that may be
      * encountered in testing environments.
      */
     @Test(timeout = 50000)
