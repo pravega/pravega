@@ -450,8 +450,8 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         cm.register(client);
         TestCleanupListener l1 = new TestCleanupListener();
         TestCleanupListener l2 = new TestCleanupListener();
-        cm.registerCleanupListener(l1);
-        cm.registerCleanupListener(l2);
+        cm.getUtilizationProvider().registerCleanupListener(l1);
+        cm.getUtilizationProvider().registerCleanupListener(l2);
         client.setUpdateGenerationsImpl((current, oldest) -> true); // We always remove something.
 
         // In the first iteration, we should invoke both listeners.
@@ -467,7 +467,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         cm.runOneIteration();
         Assert.assertEquals("Expected cleanup listener to be invoked the second time.", 2, l1.getCallCount());
         Assert.assertEquals("Not expecting cleanup listener to be invoked the second time for closed listener.", 1, l2.getCallCount());
-        cm.registerCleanupListener(l2); // This should have no effect.
+        cm.getUtilizationProvider().registerCleanupListener(l2); // This should have no effect.
     }
 
     private static class TestCleanupListener implements ThrottleSourceListener {
