@@ -121,6 +121,11 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
     }
 
     @Override
+    public long getCacheLength() {
+        return this.data.getLength();
+    }
+
+    @Override
     public String toString() {
         return String.format(
                 "%s, Offset = %s, Length = %d, Attributes = %d",
