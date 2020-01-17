@@ -37,7 +37,6 @@ import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -53,7 +52,6 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     private final SegmentInputStreamFactory inputStreamFactory;
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
     private final StreamCutHelper streamCutHelper;
-    private final AtomicReference<DelegationTokenProvider> delegationTokenProvider;
 
     public BatchClientFactoryImpl(Controller controller, ConnectionFactory connectionFactory) {
         this.controller = controller;
@@ -61,7 +59,6 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
         this.streamCutHelper = new StreamCutHelper(controller, connectionFactory);
-        this.delegationTokenProvider = new AtomicReference<>();
     }
 
     @Override
@@ -105,12 +102,12 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
         StreamSegmentSuccessors segments = getAndHandleExceptions(controller.getSegments(startStreamCut, endStreamCut),
                 RuntimeException::new);
         final SortedSet<Segment> segmentSet = new TreeSet<>(segments.getSegments());
-        delegationTokenProvider.compareAndSet(null,
-                DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, stream.getScope(), stream.getStreamName()));
+        final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
+                .create(segments.getDelegationToken(), controller, stream.getScope(), stream.getStreamName());
         log.debug("List of Segments between the start and end stream cuts : {}", segmentSet);
 
         Iterator<SegmentRange> iterator = Iterators.transform(segmentSet.iterator(),
-                s -> getSegmentRange(s, startStreamCut, endStreamCut));
+                s -> getSegmentRange(s, startStreamCut, endStreamCut, tokenProvider));
         return StreamSegmentsInfoImpl.builder().segmentRangeIterator(iterator)
                                      .startStreamCut(startStreamCut)
                                      .endStreamCut(endStreamCut).build();
@@ -122,7 +119,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
      * - If segment is not part of the streamCuts fetch the data using SegmentMetadataClient.
      */
     private SegmentRange getSegmentRange(final Segment segment, final StreamCut startStreamCut,
-                                         final StreamCut endStreamCut) {
+                                         final StreamCut endStreamCut, final DelegationTokenProvider tokenProvider) {
         SegmentRangeImpl.SegmentRangeImplBuilder segmentRangeBuilder = SegmentRangeImpl.builder()
                                                                                        .segment(segment);
         if (startStreamCut.asImpl().getPositions().containsKey(segment) && endStreamCut.asImpl().getPositions().containsKey(segment)) {
@@ -131,16 +128,16 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                                .endOffset(endStreamCut.asImpl().getPositions().get(segment));
         } else {
             //use segment meta data client to fetch the segment offsets.
-            SegmentInfo r = segmentToInfo(segment);
+            SegmentInfo r = segmentToInfo(segment, tokenProvider);
             segmentRangeBuilder.startOffset(startStreamCut.asImpl().getPositions().getOrDefault(segment, r.getStartingOffset()))
                                .endOffset(endStreamCut.asImpl().getPositions().getOrDefault(segment, r.getWriteOffset()));
         }
         return segmentRangeBuilder.build();
     }
 
-    private SegmentInfo segmentToInfo(Segment s) {
+    private SegmentInfo segmentToInfo(Segment s, DelegationTokenProvider tokenProvider) {
         @Cleanup
-        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, delegationTokenProvider.get());
+        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, tokenProvider);
         return client.getSegmentInfo();
     }
 
