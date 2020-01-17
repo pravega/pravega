@@ -9,6 +9,7 @@
  */
 package io.pravega.client.batch.impl;
 
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.segment.impl.Segment;
@@ -18,6 +19,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -27,7 +29,11 @@ import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+
+import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -36,7 +42,10 @@ import org.mockito.stubbing.Answer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 public class BatchClientImplTest {
 
@@ -98,6 +107,33 @@ public class BatchClientImplTest {
         assertTrue(segments.hasNext());
         assertEquals(2L, segments.next().asImpl().getSegment().getSegmentId());
         assertFalse(segments.hasNext());
+    }
+
+    @Test(timeout = 5000)
+    public void testGetSegmentsWithMultipleSegments() throws Exception {
+
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
+        MockController mockController = new MockController(location.getEndpoint(), location
+                .getPort(), connectionFactory, false);
+        MockController stubbedController = spy(mockController);
+        Stream stream = createStream(SCOPE, STREAM, 2, stubbedController);
+        Set<Segment> segments = ImmutableSet.<Segment>builder().add(new Segment(SCOPE, STREAM, 0L),
+                new Segment(SCOPE, STREAM, 1L), new Segment(SCOPE, STREAM, 2L)).build();
+        // Setup mock.
+        doReturn(CompletableFuture.completedFuture(new StreamSegmentSuccessors(segments, "")))
+                .when(stubbedController).getSegments(any(StreamCut.class), any(StreamCut.class));
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(stubbedController, connectionFactory);
+
+        Iterator<SegmentRange> segmentIterator = client.getSegments(stream, null, null).getIterator();
+        assertTrue(segmentIterator.hasNext());
+        assertEquals(0L, segmentIterator.next().asImpl().getSegment().getSegmentId());
+        assertTrue(segmentIterator.hasNext());
+        assertEquals(1L, segmentIterator.next().asImpl().getSegment().getSegmentId());
+        assertTrue(segmentIterator.hasNext());
+        assertEquals(2L, segmentIterator.next().asImpl().getSegment().getSegmentId());
+        assertFalse(segmentIterator.hasNext());
     }
 
     private Stream createStream(String scope, String streamName, int numSegments, MockController mockController) {
