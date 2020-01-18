@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -262,6 +263,31 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the behavior of the index when it identifies extraneous data written to the file, but it has an accurate
+     * root pointer to read from.
+     */
+    @Test
+    public void testRootPointer() {
+        final int count = 100;
+        val ds = new DataSource();
+        val index = defaultBuilder(ds).build();
+        index.initialize(TIMEOUT).join();
+        val entries = generate(count);
+        index.update(entries, TIMEOUT).join();
+
+        // Verify index.
+        check("after insert", index, entries, 0);
+
+        // Corrupt the tail part of the index (simulate a partial update).
+        ds.appendData(new byte[1234]);
+
+        // Verify index after a full recovery.
+        val recoveredIndex = defaultBuilder(ds).build();
+        recoveredIndex.initialize(TIMEOUT).join();
+        check("after recovery", recoveredIndex, entries, 0);
+    }
+
+    /**
      * Tests the behavior of the BTreeIndex when there are more than one writers modifying the index at the same time.
      */
     @Test
@@ -469,6 +495,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     private class DataSource {
         @GuardedBy("data")
         private final EnhancedByteArrayOutputStream data;
+        private final AtomicLong rootPointer;
         @GuardedBy("data")
         private final HashMap<Long, Boolean> offsets; // Key: Offset, Value: valid(true), obsolete(false).
         private final AtomicReference<CompletableFuture<Void>> writeInterceptor = new AtomicReference<>();
@@ -476,11 +503,13 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
 
         DataSource() {
             this.data = new EnhancedByteArrayOutputStream();
+            this.rootPointer = new AtomicLong(BTreeIndex.IndexInfo.EMPTY.getRootPointer());
             this.offsets = new HashMap<>();
         }
 
         DataSource(DataSource other) {
             this.data = other.data;
+            this.rootPointer = other.rootPointer;
             this.offsets = new HashMap<>();
         }
 
@@ -492,10 +521,10 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             this.checkOffsets.set(check);
         }
 
-        CompletableFuture<Long> getLength(Duration timeout) {
+        CompletableFuture<BTreeIndex.IndexInfo> getLength(Duration timeout) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.data) {
-                    return (long) this.data.size();
+                    return new BTreeIndex.IndexInfo(this.data.size(), this.rootPointer.get());
                 }
             }, executorService());
         }
@@ -523,6 +552,12 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                 return wi.thenCompose(v -> writeInternal(toWrite, obsoleteOffsets, truncateOffset));
             } else {
                 return writeInternal(toWrite, obsoleteOffsets, truncateOffset);
+            }
+        }
+
+        void appendData(byte[] data) {
+            synchronized (this.data) {
+                this.data.write(data);
             }
         }
 
@@ -576,6 +611,9 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                             .filter(offset -> offset < truncateOffset)
                             .collect(Collectors.toList());
                     toRemove.forEach(this.offsets::remove);
+
+                    // Update root pointer.
+                    this.rootPointer.set(Math.max(this.rootPointer.get(), toWrite.get(toWrite.size() - 1).getKey())); // Last thing to write is the root pointer.
                     return (long) this.data.size();
                 }
             }, executorService());

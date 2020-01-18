@@ -25,6 +25,7 @@ public class WriterConfig {
 
     public static final Property<Integer> FLUSH_THRESHOLD_BYTES = Property.named("flushThresholdBytes", 4 * 1024 * 1024);
     public static final Property<Long> FLUSH_THRESHOLD_MILLIS = Property.named("flushThresholdMillis", 30 * 1000L);
+    public static final Property<Integer> FLUSH_ATTRIBUTES_THRESHOLD = Property.named("flushAttributesThreshold", 200);
     public static final Property<Integer> MAX_FLUSH_SIZE_BYTES = Property.named("maxFlushSizeBytes", FLUSH_THRESHOLD_BYTES.getDefaultValue());
     public static final Property<Integer> MAX_ITEMS_TO_READ_AT_ONCE = Property.named("maxItemsToReadAtOnce", 1000);
     public static final Property<Long> MIN_READ_TIMEOUT_MILLIS = Property.named("minReadTimeoutMillis", 2 * 1000L);
@@ -51,6 +52,12 @@ public class WriterConfig {
      */
     @Getter
     private final Duration flushThresholdTime;
+
+    /**
+     * The minimum number of attributes that should accumulate before flushing them into the Attribute Index.
+     */
+    @Getter
+    private final int flushAttributesThreshold;
 
     /**
      * The maximum number of bytes that can be flushed with a single write operation.
@@ -123,6 +130,11 @@ public class WriterConfig {
         }
 
         this.flushThresholdTime = Duration.ofMillis(properties.getLong(FLUSH_THRESHOLD_MILLIS));
+        this.flushAttributesThreshold = properties.getInt(FLUSH_ATTRIBUTES_THRESHOLD);
+        if (this.flushAttributesThreshold < 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", FLUSH_THRESHOLD_BYTES));
+        }
+
         this.maxFlushSizeBytes = properties.getInt(MAX_FLUSH_SIZE_BYTES);
         this.maxItemsToReadAtOnce = properties.getInt(MAX_ITEMS_TO_READ_AT_ONCE);
         if (this.maxItemsToReadAtOnce <= 0) {
