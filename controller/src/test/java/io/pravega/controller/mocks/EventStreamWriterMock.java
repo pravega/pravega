@@ -12,10 +12,8 @@ package io.pravega.controller.mocks;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.Transaction;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -37,16 +35,6 @@ public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
     public CompletableFuture<Void> writeEvent(String routingKey, T event) {
         eventList.add(event);
         return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    public Transaction<T> beginTxn() {
-        throw new NotImplementedException("beginTxn");
-    }
-
-    @Override
-    public Transaction<T> getTxn(UUID transactionId) {
-        throw new NotImplementedException("getTxn");
     }
 
     @Override

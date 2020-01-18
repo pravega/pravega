@@ -10,6 +10,8 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import lombok.val;
@@ -46,10 +48,30 @@ public final class SegmentMetadataComparer {
      *
      * @param message  The message to include in the assertion failures.
      * @param expected The expected set of Attributes.
-     * @param toCheck The SegmentProperties instance to verify.
+     * @param toCheck  The SegmentProperties instance to verify.
      */
     public static void assertSameAttributes(String message, Map<UUID, Long> expected, SegmentProperties toCheck) {
-        val actual = toCheck.getAttributes();
+        assertSameAttributes(message, expected, toCheck, null);
+    }
+
+    /**
+     * Verifies that the given SegmentMetadata instance has the expected Attributes.
+     *
+     * @param message  The message to include in the assertion failures.
+     * @param expected The expected set of Attributes.
+     * @param toCheck  The SegmentProperties instance to verify.
+     * @param excludedAttributes A Collection of Attribute Ids to exclude from the comparison. If non-null and non-empty,
+     *                           these attributes will not be considered in either expected or toCheck.
+     */
+    public static void assertSameAttributes(String message, Map<UUID, Long> expected, SegmentProperties toCheck, Collection<UUID> excludedAttributes) {
+        Map<UUID, Long> actual = toCheck.getAttributes();
+        if (excludedAttributes != null && !excludedAttributes.isEmpty()) {
+            actual = exclude(actual, excludedAttributes);
+            if (expected != null) {
+                expected = exclude(expected, excludedAttributes);
+            }
+        }
+
         if (expected == null) {
             Assert.assertEquals(message + " No attributes expected.", 0, actual.size());
             return;
@@ -61,5 +83,11 @@ public final class SegmentMetadataComparer {
             long actualValue = actual.get(e.getKey());
             Assert.assertEquals(message + " value differs.", (long) e.getValue(), actualValue);
         }
+    }
+
+    private static Map<UUID, Long> exclude(Map<UUID, Long> from, Collection<UUID> keysToExclude) {
+        val result = new HashMap<>(from);
+        keysToExclude.forEach(result::remove);
+        return result;
     }
 }

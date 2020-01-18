@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +47,7 @@ import static io.pravega.client.segment.impl.SegmentAttribute.RevisionStreamClie
 @Slf4j
 public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> {
 
+    private static final long READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(30);
     private final Segment segment;
     @GuardedBy("lock")
     private final EventSegmentReader in;
@@ -163,7 +165,12 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 log.trace("Iterator reading entry at {}", offset.get());
                 in.setOffset(offset.get());
                 try {
-                    data = in.read();
+                    do {
+                        data = in.read(READ_TIMEOUT_MS);
+                        if (data == null) {
+                            log.warn("Timeout while attempting to read offset:{} on segment:{} where the endOffset is {}", offset, segment, endOffset);
+                        }
+                    } while (data == null);
                 } catch (EndOfSegmentException e) {
                     throw new IllegalStateException("SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
                 } catch (SegmentTruncatedException e) {

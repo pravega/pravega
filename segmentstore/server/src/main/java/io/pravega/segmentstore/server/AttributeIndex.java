@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.segmentstore.contracts.Attributes;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
@@ -28,10 +29,11 @@ public interface AttributeIndex {
      *
      * @param values  The Attributes to insert.
      * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed, indicates that all the Attributes have been successfully inserted.
+     * @return A CompletableFuture that, when completed, indicates that all the Attributes have been successfully inserted and
+     * will contain the value that should be set as {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER} for the segment.
      * If the operation fails, this will complete with the appropriate exception.
      */
-    CompletableFuture<Void> update(Map<UUID, Long> values, Duration timeout);
+    CompletableFuture<Long> update(Map<UUID, Long> values, Duration timeout);
 
     /**
      * Bulk-fetches a set of Attributes. This is preferred to calling get(UUID, Duration) repeatedly over a set of Attributes

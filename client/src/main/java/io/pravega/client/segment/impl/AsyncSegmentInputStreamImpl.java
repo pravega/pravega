@@ -122,13 +122,13 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         @Override
         public void processingFailure(Exception error) {
-            log.warn("Processing failure: ", error);
+            log.warn("Processing failure on segment {}", segmentId, error);
             closeConnection(error);
         }
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            log.warn("Auth failed {}", authTokenCheckFailed);
+            log.warn("Auth check failed for reads on segment {} with {}",  segmentId, authTokenCheckFailed);
             closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
         }
 
@@ -167,35 +167,32 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @Override
     public CompletableFuture<SegmentRead> read(long offset, int length) {
         Exceptions.checkNotClosed(closed.get(), this);
-
-        return this.tokenProvider.retrieveToken().thenComposeAsync(token -> {
-            WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length,
+        return backoffSchedule.retryWhen(t -> {
+            Throwable ex = Exceptions.unwrap(t);
+            if (closed.get()) {
+                log.debug("Exception: {} while reading from Segment : {}", ex.toString(), segmentId);
+            } else {
+                log.warn("Exception while reading from Segment : {}", segmentId, ex);
+            }
+            return ex instanceof Exception && !(ex instanceof ConnectionClosedException) && !(ex instanceof SegmentTruncatedException);
+        }).runAsync(() -> this.tokenProvider.retrieveToken().thenComposeAsync(token -> {
+            final WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length,
                     token, requestId);
-            return backoffSchedule.retryWhen(t -> {
-                Throwable ex = Exceptions.unwrap(t);
-                if (closed.get()) {
-                    log.debug("Exception while reading from Segment : {}", segmentId, ex);
-                } else {
-                    log.warn("Exception while reading from Segment : {}", segmentId, ex);
-                }
-                return ex instanceof Exception && !(ex instanceof ConnectionClosedException) && !(ex instanceof SegmentTruncatedException);
-            }).runAsync(() -> {
-                return getConnection()
-                        .whenComplete((connection, ex) -> {
-                            if (ex != null) {
-                                log.warn("Exception while establishing connection with Pravega node", ex);
-                                closeConnection(new ConnectionFailedException(ex));
-                            }
-                        }).thenCompose(c -> sendRequestOverConnection(request, c)
-                                .whenComplete((reply, ex) -> {
-                                    if (ex instanceof ConnectionFailedException) {
-                                        log.debug("ConnectionFailedException observed when sending request {}", request, ex);
-                                        closeConnection((ConnectionFailedException) ex);
-                                    }
-                                })
-                        );
-            }, connectionFactory.getInternalExecutor());
-        }, connectionFactory.getInternalExecutor());
+            return getConnection()
+                    .whenComplete((connection1, ex) -> {
+                        if (ex != null) {
+                            log.warn("Exception while establishing connection with Pravega node", ex);
+                            closeConnection(new ConnectionFailedException(ex));
+                        }
+                    }).thenCompose(c -> sendRequestOverConnection(request, c)
+                            .whenComplete((reply, ex) -> {
+                                if (ex instanceof ConnectionFailedException) {
+                                    log.debug("ConnectionFailedException observed when sending request {}", request, ex);
+                                    closeConnection((ConnectionFailedException) ex);
+                                }
+                            })
+                    );
+        }, connectionFactory.getInternalExecutor()), connectionFactory.getInternalExecutor());
     }
         
     private CompletableFuture<SegmentRead> sendRequestOverConnection(WireCommands.ReadSegment request, ClientConnection c) {
@@ -259,7 +256,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     private void failAllInflight(Exception e) {
-        log.info("Connection failed due to a {}. Read requests will be retransmitted.", e.toString());
+        log.info("Connection failed due to a {}. Read requests for segment {} will be retransmitted.", e.toString(), segmentId);
         List<CompletableFuture<WireCommands.SegmentRead>> readsToFail;
         synchronized (lock) {
             readsToFail = new ArrayList<>(outstandingRequests.values());
