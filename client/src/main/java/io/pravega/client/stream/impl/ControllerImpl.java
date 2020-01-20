@@ -142,7 +142,7 @@ public class ControllerImpl implements Controller {
     public ControllerImpl(final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
         this(NettyChannelBuilder.forTarget(config.getClientConfig().getControllerURI().toString())
-                                .nameResolverFactory(new ControllerResolverFactory())
+                                .nameResolverFactory(new ControllerResolverFactory(executor))
                                 .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
                                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
                 config, executor);
@@ -495,7 +495,7 @@ public class ControllerImpl implements Controller {
         startScaleInternal(stream, sealedSegments, newKeyRanges, "scaleStream", requestId)
                 .whenComplete((startScaleResponse, e) -> {
                     if (e != null) {
-                        log.error(requestId, "failed to start scale {}", e);
+                        log.error(requestId, "Failed to start scale for stream {}", stream, e);
                         cancellableRequest.start(() -> Futures.failedFuture(e), any -> true, executor);
                     } else {
                         try {

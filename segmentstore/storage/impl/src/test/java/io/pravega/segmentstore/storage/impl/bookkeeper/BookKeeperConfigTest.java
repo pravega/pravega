@@ -35,6 +35,7 @@ public class BookKeeperConfigTest {
         Assert.assertEquals(3, cfg.getBkWriteQuorumSize());
         Assert.assertEquals(60000, cfg.getBkWriteTimeoutMillis());
         Assert.assertEquals(30000, cfg.getBkReadTimeoutMillis());
+        Assert.assertEquals(64, cfg.getBkReadBatchSize());
         Assert.assertEquals(256 * 1024 * 1024, cfg.getMaxOutstandingBytes());
         Assert.assertEquals(1024 * 1024 * 1024, cfg.getBkLedgerMaxSize());
         Assert.assertEquals(0, cfg.getBKPassword().length);
@@ -42,6 +43,25 @@ public class BookKeeperConfigTest {
         Assert.assertEquals(false, cfg.isTLSEnabled());
         Assert.assertEquals("config/client.truststore.jks", cfg.getTlsTrustStore());
         Assert.assertEquals("", cfg.getTlsTrustStorePasswordPath());
+    }
+
+    @Test
+    public void testBadValues() {
+        AssertExtensions.assertThrows(
+                BookKeeperConfig.ZK_HIERARCHY_DEPTH.toString(),
+                () -> BookKeeperConfig.builder().with(BookKeeperConfig.ZK_HIERARCHY_DEPTH, -1).build(),
+                ex -> ex instanceof InvalidPropertyValueException);
+
+        AssertExtensions.assertThrows(
+                BookKeeperConfig.BK_WRITE_QUORUM_SIZE.toString(),
+                () -> BookKeeperConfig.builder().with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 2)
+                        .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 3).build(),
+                ex -> ex instanceof InvalidPropertyValueException);
+
+        AssertExtensions.assertThrows(
+                BookKeeperConfig.BK_READ_BATCH_SIZE.toString(),
+                () -> BookKeeperConfig.builder().with(BookKeeperConfig.BK_READ_BATCH_SIZE, -1).build(),
+                ex -> ex instanceof InvalidPropertyValueException);
     }
 
     @Test

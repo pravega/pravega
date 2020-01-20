@@ -53,7 +53,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     private static final Pattern JWT_EXPIRATION_PATTERN = Pattern.compile("\"exp\":\\s?(\\d+)");
 
     /**
-     * Represents the hreshold (in seconds) for triggering delegation token refresh.
+     * Represents the threshold (in seconds) for triggering delegation token refresh.
      */
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
