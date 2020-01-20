@@ -125,11 +125,13 @@ public class OperationComparer {
     private void assertSame(String message, StreamSegmentAppendOperation expected, CachedStreamSegmentAppendOperation cachedActual) {
         Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(), cachedActual.getStreamSegmentOffset());
         Assert.assertEquals(message + " Unexpected Length.", expected.getData().getLength(), cachedActual.getLength());
+        Assert.assertEquals(message + " Unexpected CacheLength.", expected.getCacheLength(), cachedActual.getCacheLength());
         assertSame(message + " Unexpected attributes:", expected.getAttributeUpdates(), cachedActual.getAttributeUpdates());
     }
 
     private void assertSame(String message, CachedStreamSegmentAppendOperation expected, CachedStreamSegmentAppendOperation actual) {
         Assert.assertEquals(message + " Unexpected Length.", expected.getLength(), actual.getLength());
+        Assert.assertEquals(message + " Unexpected CacheLength.", expected.getCacheLength(), actual.getCacheLength());
         assertSame(message + " Unexpected attributes:", expected.getAttributeUpdates(), actual.getAttributeUpdates());
     }
 

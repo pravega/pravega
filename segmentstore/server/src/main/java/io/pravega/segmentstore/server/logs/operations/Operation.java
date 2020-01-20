@@ -52,6 +52,15 @@ public abstract class Operation implements SequencedItemList.Element {
     }
 
     /**
+     * Gets a value indicating the number of bytes that this operation requires in the cache.
+     *
+     * @return The number of bytes required, or 0 if it doesn't involve any cache operations.
+     */
+    public long getCacheLength() {
+        return 0;
+    }
+
+    /**
      * Sets the Sequence Number for this operation, if not already set.
      *
      * @param value The Sequence Number to set.

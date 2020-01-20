@@ -495,7 +495,7 @@ public class ControllerImpl implements Controller {
         startScaleInternal(stream, sealedSegments, newKeyRanges, "scaleStream", requestId)
                 .whenComplete((startScaleResponse, e) -> {
                     if (e != null) {
-                        log.error(requestId, "failed to start scale {}", e);
+                        log.error(requestId, "Failed to start scale for stream {}", stream, e);
                         cancellableRequest.start(() -> Futures.failedFuture(e), any -> true, executor);
                     } else {
                         try {
