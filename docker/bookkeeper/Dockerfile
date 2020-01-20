@@ -54,4 +54,7 @@ RUN chmod +x -R /opt/bookkeeper/scripts/
 ENTRYPOINT [ "/bin/bash", "/opt/bookkeeper/scripts/pravega_entrypoint.sh" ]
 CMD ["bookie"]
 
-HEALTHCHECK --interval=10s --timeout=60s CMD /bin/bash /opt/bookkeeper/scripts/healthcheck.sh
+# BookKeeper healthcheck was broken in 4.7.3 and was not fixed until 4.9.0
+# This overrides the healthcheck to the default BK healthcheck method
+# https://github.com/apache/bookkeeper/issues/1687
+HEALTHCHECK --interval=10s --timeout=60s CMD /opt/bookkeeper/bin/bookkeeper shell bookiesanity
