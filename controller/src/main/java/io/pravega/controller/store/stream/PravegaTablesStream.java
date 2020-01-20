@@ -611,6 +611,21 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
+    CompletableFuture<List<ActiveTxnRecord>> getTransactionRecords(int epoch, List<String> txnIds) {
+        return getTransactionsInEpochTable(epoch)
+                .thenCompose(epochTxnTable -> storeHelper.getEntries(epochTxnTable, txnIds, (x, y) -> {
+                    ActiveTxnRecord activeTxnRecord;
+                    if (x.asLongVersion().getLongValue() >= 0) {
+                        activeTxnRecord = ActiveTxnRecord.fromBytes(y);
+                    } else {
+                        activeTxnRecord = ActiveTxnRecord.EMPTY;
+                    }
+                    return new VersionedMetadata<>(activeTxnRecord, x); 
+                }))
+        .thenApply(res -> res.stream().map(VersionedMetadata::getObject).collect(Collectors.toList()));
+    }
+
+    @Override
     public CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch) {
         Map<UUID, ActiveTxnRecord> result = new ConcurrentHashMap<>();
         return getTransactionsInEpochTable(epoch)

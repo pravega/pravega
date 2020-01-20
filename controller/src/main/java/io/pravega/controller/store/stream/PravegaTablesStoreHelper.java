@@ -305,6 +305,39 @@ public class PravegaTablesStoreHelper {
     }
 
     /**
+     * Method to retrieve the value for a given key from a table. This method takes a deserialization function and deserializes
+     * the received byte[] using the supplied function.
+     * @param tableName tableName
+     * @param keys keys to read
+     * @param fromBytes deserialization function
+     * @param <T> Type of deserialized object
+     * @return CompletableFuture which when completed will have the versionedMetadata retrieved from the store.
+     */
+    public <T> CompletableFuture<List<VersionedMetadata<T>>> getEntries(String tableName, List<String> keys, 
+                                                                        BiFunction<Version, byte[], VersionedMetadata<T>> fromBytes) {
+        log.trace("get entries called for : {} keys : {}", tableName, keys);
+        List<TableKey<byte[]>> tableKeys = keys.stream().map(key -> new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null))
+                                           .collect(Collectors.toList());
+        CompletableFuture<List<VersionedMetadata<T>>> result = new CompletableFuture<>();
+
+        String message = "get entry: key: %s table: %s";
+        withRetries(() -> segmentHelper.readTable(tableName, tableKeys, authToken.get(), RequestTag.NON_EXISTENT_ID),
+                () -> String.format(message, keys, tableName))
+                .thenApplyAsync(entries -> entries.stream().map(entry -> fromBytes.apply(
+                        new Version.LongVersion(entry.getKey().getVersion().getSegmentVersion()), entry.getValue()))
+                        .collect(Collectors.toList()), executor)
+                .whenCompleteAsync((r, e) -> {
+                   if (e != null) {
+                       result.completeExceptionally(e);
+                   } else {
+                       result.complete(r);
+                   }
+                }, executor);
+        
+        return result;
+    }
+
+    /**
      * Method to remove entry from the store.
      * @param tableName tableName
      * @param key key
