@@ -11,7 +11,6 @@ package io.pravega.shared;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
@@ -29,6 +28,7 @@ public final class MetricsTags {
     public static final String TAG_TRANSACTION = "transaction";
     public static final String TAG_EPOCH = "epoch";
     public static final String TAG_CLASS = "class";
+    public static final String TAG_EXCEPTION = "exception";
 
     private static final String TRANSACTION_DELIMITER = "#transaction.";
     private static final String EPOCH_DELIMITER = ".#epoch.";
@@ -168,13 +168,17 @@ public final class MetricsTags {
     }
 
     /**
-     * Generate a Class Name tag (string array) on the input class name.
+     * Generate an Exception tag (string array) on the input class name.
      *
-     * @param className The name of the class to create a tag for.
-     * @return string array as the class name tag of metric.
+     * @param loggingClassName   The name of the class that recorded the exception.
+     * @param exceptionClassName The name of the exception class that was recorded. May be null.
+     * @return A String array containing the necessary tags. If exceptionClassName is null, the result will have two
+     * elements, otherwise it will have four.
      */
-    public static String[] classNameTag(String className) {
-        return new String[]{TAG_CLASS, getSimpleClassName(className)};
+    public static String[] exceptionTag(String loggingClassName, String exceptionClassName) {
+        return exceptionClassName == null
+                ? new String[]{TAG_CLASS, getSimpleClassName(loggingClassName)}
+                : new String[]{TAG_CLASS, getSimpleClassName(loggingClassName), TAG_EXCEPTION, getSimpleClassName(exceptionClassName)};
     }
 
     private static String getSimpleClassName(String name) {

@@ -11,6 +11,7 @@ package io.pravega.shared.metrics;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.core.Appender;
 import ch.qos.logback.core.Context;
 import ch.qos.logback.core.LogbackException;
@@ -37,10 +38,15 @@ public class MetricsLogAppender implements Appender<ILoggingEvent> {
     @Override
     public void doAppend(ILoggingEvent event) throws LogbackException {
         if (event.getLevel() == Level.ERROR) {
-            DYNAMIC_LOGGER.incCounterValue(MetricsNames.LOG_ERRORS, 1, MetricsTags.classNameTag(event.getLoggerName()));
+            recordEvent(MetricsNames.LOG_ERRORS, event);
         } else if (event.getLevel() == Level.WARN) {
-            DYNAMIC_LOGGER.incCounterValue(MetricsNames.LOG_WARNINGS, 1, MetricsTags.classNameTag(event.getLoggerName()));
+            recordEvent(MetricsNames.LOG_WARNINGS, event);
         }
+    }
+
+    private void recordEvent(String metricName, ILoggingEvent event) {
+        IThrowableProxy p = event.getThrowableProxy();
+        DYNAMIC_LOGGER.recordMeterEvents(metricName, 1, MetricsTags.exceptionTag(event.getLoggerName(), p == null ? null : p.getClassName()));
     }
 
     //endregion

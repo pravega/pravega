@@ -18,9 +18,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static io.pravega.shared.MetricsTags.DEFAULT_HOSTNAME_KEY;
-import static io.pravega.shared.MetricsTags.classNameTag;
 import static io.pravega.shared.MetricsTags.containerTag;
 import static io.pravega.shared.MetricsTags.createHostTag;
+import static io.pravega.shared.MetricsTags.exceptionTag;
 import static io.pravega.shared.MetricsTags.hostTag;
 import static io.pravega.shared.MetricsTags.segmentTags;
 import static io.pravega.shared.MetricsTags.streamTags;
@@ -160,7 +160,7 @@ public class MetricsTagsTest {
     }
 
     @Test
-    public void testCreateNameTags() {
+    public void testExceptionTags() {
         val classNames = ImmutableMap
                 .<String, String>builder()
                 .put("A", "A")
@@ -168,10 +168,22 @@ public class MetricsTagsTest {
                 .put(".C", "C")
                 .put("D.E.F", "F")
                 .build();
-        for (val e : classNames.entrySet()) {
-            val tags = classNameTag(e.getKey());
+        for (val logClassName : classNames.entrySet()) {
+            // Check without exception.
+            String[] tags = exceptionTag(logClassName.getKey(), null);
+            Assert.assertEquals(2, tags.length);
             Assert.assertEquals(MetricsTags.TAG_CLASS, tags[0]);
-            Assert.assertEquals(e.getValue(), tags[1]);
+            Assert.assertEquals(logClassName.getValue(), tags[1]);
+
+            // Check with exceptions.
+            for (val exceptionClassName : classNames.entrySet()) {
+                tags = exceptionTag(logClassName.getKey(), exceptionClassName.getKey());
+                Assert.assertEquals(4, tags.length);
+                Assert.assertEquals(MetricsTags.TAG_CLASS, tags[0]);
+                Assert.assertEquals(logClassName.getValue(), tags[1]);
+                Assert.assertEquals(MetricsTags.TAG_EXCEPTION, tags[2]);
+                Assert.assertEquals(exceptionClassName.getValue(), tags[3]);
+            }
         }
     }
 }
