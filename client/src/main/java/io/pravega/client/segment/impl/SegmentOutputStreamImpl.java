@@ -379,7 +379,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 log.warn("Connection setup could not be completed because connection is already failed for writer {}", writerId);
                 return;
             }
-            if (toRetransmit == null || toRetransmit.isEmpty()) {
+            if (toRetransmit.isEmpty()) {
                 log.info("Connection setup complete for writer {}", writerId);
                 state.connectionSetupComplete(connection);
             } else {
@@ -473,7 +473,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 log.trace("Sending append request: {}", append);
                 connection.send(append);
             } catch (ConnectionFailedException e) {
-                log.warn("Connection " + writerId + " failed due to: ", e);
+                log.warn("Failed writing event through writer " + writerId + "due to: ", e);
                 reconnect(); // As the message is inflight, this will perform the retransmission.
             }
         }

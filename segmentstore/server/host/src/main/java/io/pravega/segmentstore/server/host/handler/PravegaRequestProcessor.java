@@ -943,7 +943,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                      segment, containerId, operation);
             invokeSafely(connection::send, new WrongHost(requestId, segment, "", clientReplyStackTrace), failureHandler);
         } else if (u instanceof ReadCancellationException) {
-            log.info(requestId, "Closing connection {} while reading segment {} due to CancellationException.",
+            log.info(requestId, "Sending empty response on connection {} while reading segment {} due to CancellationException.",
                      connection, segment);
             invokeSafely(connection::send, new SegmentRead(segment, offset, true, false, EMPTY_BYTE_BUFFER, requestId), failureHandler);
         } else if (u instanceof CancellationException) {

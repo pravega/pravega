@@ -25,10 +25,10 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.storage.cache.CacheFullException;
-import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,7 +37,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @ThreadSafe
 @Slf4j
-class MemoryStateUpdater implements CacheUtilizationProvider {
+class MemoryStateUpdater {
     //region Private
 
     private final ReadIndex readIndex;
@@ -68,24 +68,14 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
 
     //region Operations
 
-    @Override
-    public double getCacheUtilization() {
-        return this.readIndex.getCacheUtilization();
-    }
-
-    @Override
-    public double getCacheTargetUtilization() {
-        return this.readIndex.getCacheTargetUtilization();
-    }
-
-    @Override
-    public double getCacheMaxUtilization() {
-        return this.readIndex.getCacheMaxUtilization();
-    }
-
-    @Override
-    public void registerCleanupListener(ThrottleSourceListener listener) {
-        this.readIndex.registerCleanupListener(listener);
+    /**
+     * Gets the {@link CacheUtilizationProvider} shared across all Segment Containers hosted in this process that can
+     * be used to query the Cache State.
+     *
+     * @return The {@link CacheUtilizationProvider}.
+     */
+    public CacheUtilizationProvider getCacheUtilizationProvider() {
+        return this.readIndex.getCacheUtilizationProvider();
     }
 
     /**
@@ -113,23 +103,37 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
      * Processes the given operations and applies them to the ReadIndex and InMemory OperationLog.
      *
      * @param operations An Iterator iterating over the operations to process (in sequence).
+     * @param callback   A Consumer that will be invoked on EVERY {@link Operation} in the operations iterator, in the
+     *                   order returned from the iterator, regardless of whether the operation was processed or not.
      * @throws DataCorruptionException If a serious, non-recoverable, data corruption was detected, such as trying to
      *                                 append operations out of order.
-     * @throws CacheFullException If any operation in the given iterator contains data that needs to be added to the
-     * {@link ReadIndex} but it could not be done due to the cache being full and unable to evict anything to make room
-     * for more.
+     * @throws CacheFullException      If any operation in the given iterator contains data that needs to be added to the
+     *                                 {@link ReadIndex} but it could not be done due to the cache being full and unable
+     *                                 to evict anything to make room for more.
      */
-    void process(Iterator<Operation> operations) throws DataCorruptionException, CacheFullException {
+    void process(Iterator<Operation> operations, Consumer<Operation> callback) throws DataCorruptionException, CacheFullException {
         HashSet<Long> segmentIds = new HashSet<>();
-        while (operations.hasNext()) {
-            Operation op = operations.next();
-            process(op);
-            if (op instanceof SegmentOperation) {
-                // Record recent activity on stream segment, if applicable. This should be recorded for any kind
-                // of Operation that touches a Segment, since when we issue 'triggerFutureReads' on the readIndex,
-                // it should include 'sealed' StreamSegments too - any Future Reads waiting on that Offset will be cancelled.
-                segmentIds.add(((SegmentOperation) op).getStreamSegmentId());
+        Operation op = null;
+        try {
+            while (operations.hasNext()) {
+                op = operations.next();
+                process(op);
+                callback.accept(op);
+                if (op instanceof SegmentOperation) {
+                    // Record recent activity on stream segment, if applicable. This should be recorded for any kind
+                    // of Operation that touches a Segment, since when we issue 'triggerFutureReads' on the readIndex,
+                    // it should include 'sealed' StreamSegments too - any Future Reads waiting on that Offset will be cancelled.
+                    segmentIds.add(((SegmentOperation) op).getStreamSegmentId());
+                }
             }
+            op = null;
+        } catch (Throwable ex) {
+            // Invoke the callback on every remaining operation (including the failed one, which is no longer part of the iterator).
+            if (op != null) {
+                callback.accept(op);
+            }
+            operations.forEachRemaining(callback);
+            throw ex;
         }
 
         if (!this.recoveryMode.get()) {
