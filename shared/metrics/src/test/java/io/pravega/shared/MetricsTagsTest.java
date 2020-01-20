@@ -10,12 +10,15 @@
 package io.pravega.shared;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
+import java.net.InetAddress;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.junit.Assert;
 import org.junit.Test;
 
-import java.net.InetAddress;
-
 import static io.pravega.shared.MetricsTags.DEFAULT_HOSTNAME_KEY;
+import static io.pravega.shared.MetricsTags.classNameTag;
 import static io.pravega.shared.MetricsTags.containerTag;
 import static io.pravega.shared.MetricsTags.createHostTag;
 import static io.pravega.shared.MetricsTags.hostTag;
@@ -154,5 +157,21 @@ public class MetricsTagsTest {
         assertEquals("scope/stream/tablesInStream", tags[5]);
         assertEquals(MetricsTags.TAG_EPOCH, tags[6]);
         assertEquals("0", tags[7]);
+    }
+
+    @Test
+    public void testCreateNameTags() {
+        val classNames = ImmutableMap
+                .<String, String>builder()
+                .put("A", "A")
+                .put("B.", "B.")
+                .put(".C", "C")
+                .put("D.E.F", "F")
+                .build();
+        for (val e : classNames.entrySet()) {
+            val tags = classNameTag(e.getKey());
+            Assert.assertEquals(MetricsTags.TAG_CLASS, tags[0]);
+            Assert.assertEquals(e.getValue(), tags[1]);
+        }
     }
 }

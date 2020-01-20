@@ -28,6 +28,7 @@ public final class MetricsTags {
     public static final String TAG_SEGMENT = "segment";
     public static final String TAG_TRANSACTION = "transaction";
     public static final String TAG_EPOCH = "epoch";
+    public static final String TAG_CLASS = "class";
 
     private static final String TRANSACTION_DELIMITER = "#transaction.";
     private static final String EPOCH_DELIMITER = ".#epoch.";
@@ -164,5 +165,24 @@ public final class MetricsTags {
             hostTag[1] = "unknown";
         }
         return hostTag;
+    }
+
+    /**
+     * Generate a Class Name tag (string array) on the input class name.
+     *
+     * @param className The name of the class to create a tag for.
+     * @return string array as the class name tag of metric.
+     */
+    public static String[] classNameTag(String className) {
+        return new String[]{TAG_CLASS, getSimpleClassName(className)};
+    }
+
+    private static String getSimpleClassName(String name) {
+        int lastSeparator = name.lastIndexOf(".");
+        if (lastSeparator < 0 || lastSeparator >= name.length() - 1) {
+            return name;
+        } else {
+            return name.substring(lastSeparator + 1);
+        }
     }
 }
