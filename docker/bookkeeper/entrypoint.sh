@@ -129,9 +129,9 @@ initialize_cluster() {
                 exit
             fi
         else
-            echo "Others may be initializing the cluster at the same time."
+            echo "Another instance might be initializing the cluster at the same time."
             tenSeconds=1
-            while [ ${tenSeconds} -lt 100 ]
+            while [ ${tenSeconds} -lt 20 ]
             do
                 sleep 10
                 zk-shell --run-once "ls ${BK_zkLedgersRootPath}/available/readonly" ${BK_zkServers}
@@ -145,8 +145,8 @@ initialize_cluster() {
                 fi
             done
 
-            if [ ${tenSeconds} -eq 100 ]; then
-                echo "Waited 100 seconds for bookkeeper cluster to initialize, but to no avail. Something is wrong, please check."
+            if [ ${tenSeconds} -eq 20 ]; then
+                echo "Waited ${tenSeconds} * 20 seconds for bookkeeper cluster to initialize, but to no avail. Something is wrong, please check."
                 exit
             fi
         fi
