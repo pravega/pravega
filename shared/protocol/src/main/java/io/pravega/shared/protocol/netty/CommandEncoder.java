@@ -54,9 +54,8 @@ import static io.pravega.shared.segment.StreamSegmentNameUtils.segmentTags;
  *
  * If the channel is free, then the Appends are written in blocks so that the server does
  * not need to decode the contents of the block.
- * The block identifies which stream is appending so that each event does not have to and each each
- * event does not
- * have to be parsed individually. Events inside the block are encoded normally (with their Type and
+ * The block identifies which stream is appending so that each event does not have to
+ * be parsed individually. Events inside the block are encoded normally (with their Type and
  * Length). If an event does not fully fit inside of a block it can be wrapped in a PartialEvent
  * command. In this case the fist part of the Event is written as the value of the PartialEvent and
  * the remainder goes in the AppendBlockEnd.
