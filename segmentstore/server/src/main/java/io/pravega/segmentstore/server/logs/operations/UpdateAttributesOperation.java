@@ -17,6 +17,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import java.io.IOException;
 import java.util.Collection;
 import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Log Operation that represents an Update to a Segment's Attribute collection.
@@ -28,6 +29,13 @@ public class UpdateAttributesOperation extends MetadataOperation implements Attr
     private long streamSegmentId;
     @Getter
     private Collection<AttributeUpdate> attributeUpdates;
+    /**
+     * Whether this operation is internally generated.
+     * This field is not serialized; upon deserialization (recovery) all instances will be marked as Internal (true).
+     */
+    @Getter
+    @Setter
+    private boolean internal;
 
     //endregion
 
@@ -95,6 +103,7 @@ public class UpdateAttributesOperation extends MetadataOperation implements Attr
             b.instance.setSequenceNumber(source.readLong());
             b.instance.streamSegmentId = source.readLong();
             b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdate00);
+            b.instance.internal = true;
         }
 
         private void writeAttributeUpdate00(RevisionDataOutput target, AttributeUpdate au) throws IOException {

@@ -102,11 +102,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @Override
-    public EventRead<Type> readNextEvent(long timeout) throws ReinitializationRequiredException, TruncatedDataException {
+    public EventRead<Type> readNextEvent(long timeoutMillis) throws ReinitializationRequiredException, TruncatedDataException {
         synchronized (readers) {
             Preconditions.checkState(!closed, "Reader is closed");
             try {
-                return readNextEventInternal(timeout);
+                return readNextEventInternal(timeoutMillis);
             } catch (ReaderNotInReaderGroupException e) {
                 close();
                 throw new ReinitializationRequiredException(e);
@@ -146,6 +146,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         } while (buffer == null && timer.getElapsedMillis() < timeout);
 
         if (buffer == null) {
+            log.debug("Empty event returned for reader {} ", groupState.getReaderId());
             return createEmptyEvent(null);
         } 
         lastRead = Sequence.create(segment.getSegmentId(), offset);

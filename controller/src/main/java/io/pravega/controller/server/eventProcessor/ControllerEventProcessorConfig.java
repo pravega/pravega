@@ -122,4 +122,11 @@ public interface ControllerEventProcessorConfig {
      * @return Checkpoint configuration for request stream event processors.
      */
     CheckpointConfig getRequestStreamCheckpointConfig();
+    
+    /**
+     * Fetches rebalance interval set for event processors.
+     *
+     * @return period in milliseconds.
+     */
+    long getRebalanceIntervalMillis();
 }

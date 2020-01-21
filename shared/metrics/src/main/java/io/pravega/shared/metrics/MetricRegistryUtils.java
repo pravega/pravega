@@ -17,6 +17,9 @@ import io.micrometer.core.instrument.DistributionSummary;
 
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Utility class to access metrics stored in the local cache of the metrics registry.
+ */
 @Slf4j
 public class MetricRegistryUtils {
 

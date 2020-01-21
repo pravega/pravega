@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.util.ArrayDeque;
@@ -49,6 +50,7 @@ public class WriteQueueTests {
 
         int expectedSize = 0;
         long firstItemTime = 0;
+        val writeResults = new ArrayList<CompletableFuture<LogAddress>>();
         for (int i = 0; i < ITEM_COUNT; i++) {
             time.addAndGet(timeIncrement);
             if (i == 0) {
@@ -56,15 +58,26 @@ public class WriteQueueTests {
             }
 
             int writeSize = i * 10000;
-            q.add(new Write(new ByteArraySegment(new byte[writeSize]), new TestWriteLedger(i), CompletableFuture.completedFuture(null)));
+            val writeResult = new CompletableFuture<LogAddress>();
+            q.add(new Write(new ByteArraySegment(new byte[writeSize]), new TestWriteLedger(i), writeResult));
+            writeResults.add(writeResult);
             expectedSize += writeSize;
 
+            q.removeFinishedWrites();
             val stats = q.getStatistics();
             val expectedFillRatio = (double) expectedSize / stats.getSize() / BookKeeperConfig.MAX_APPEND_LENGTH;
             val expectedProcTime = (time.get() - firstItemTime) / AbstractTimer.NANOS_TO_MILLIS;
             Assert.assertEquals("Unexpected getSize.", i + 1, stats.getSize());
             Assert.assertEquals("Unexpected getAverageFillRate.", expectedFillRatio, stats.getAverageItemFillRatio(), 0.01);
             Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis.", expectedProcTime, stats.getExpectedProcessingTimeMillis());
+        }
+
+        // Now verify the stats are also updated when finishing writes.
+        for (int i = 0; i < writeResults.size(); i++) {
+            writeResults.get(i).complete(null);
+            val cs = q.removeFinishedWrites();
+            Assert.assertEquals("Unexpected number of removed items", 1, cs.getRemovedCount());
+            Assert.assertEquals("Unexpected size after removing " + (i + 1), ITEM_COUNT - i - 1, q.getStatistics().getSize());
         }
     }
 

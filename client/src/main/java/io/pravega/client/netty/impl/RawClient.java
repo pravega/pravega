@@ -71,13 +71,13 @@ public class RawClient implements AutoCloseable {
 
         @Override
         public void processingFailure(Exception error) {
-            log.warn("Processing failure: ", error);
+            log.warn("Processing failure on segment {}", segmentId, error);
             closeConnection(error);
         }
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            log.warn("Auth token failure: {}", authTokenCheckFailed);
+            log.warn("Auth token check failed on segment {} with {}", segmentId, authTokenCheckFailed);
             closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
         }
     }
@@ -109,7 +109,7 @@ public class RawClient implements AutoCloseable {
         if (closed.get() || exceptionToInflightRequests instanceof ConnectionClosedException) {
             log.debug("Closing connection as requested");
         } else {
-            log.warn("Closing connection with exception", exceptionToInflightRequests);
+            log.warn("Closing connection to segment {} with exception", segmentId, exceptionToInflightRequests);
         }
         if (closed.compareAndSet(false, true)) {
             connection.thenAccept(c -> {
