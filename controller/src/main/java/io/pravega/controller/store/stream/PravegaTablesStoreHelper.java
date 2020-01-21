@@ -310,11 +310,12 @@ public class PravegaTablesStoreHelper {
      * @param tableName tableName
      * @param keys keys to read
      * @param fromBytes deserialization function
+     * @param nonExistent entry to populate for non existent keys
      * @param <T> Type of deserialized object
      * @return CompletableFuture which when completed will have the versionedMetadata retrieved from the store.
      */
     public <T> CompletableFuture<List<VersionedMetadata<T>>> getEntries(String tableName, List<String> keys, 
-                                                                        BiFunction<Version, byte[], VersionedMetadata<T>> fromBytes) {
+                                                                        Function<byte[], T> fromBytes, VersionedMetadata<T> nonExistent) {
         log.trace("get entries called for : {} keys : {}", tableName, keys);
         List<TableKey<byte[]>> tableKeys = keys.stream().map(key -> new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null))
                                            .collect(Collectors.toList());
@@ -323,9 +324,14 @@ public class PravegaTablesStoreHelper {
         String message = "get entry: key: %s table: %s";
         withRetries(() -> segmentHelper.readTable(tableName, tableKeys, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format(message, keys, tableName))
-                .thenApplyAsync(entries -> entries.stream().map(entry -> fromBytes.apply(
-                        new Version.LongVersion(entry.getKey().getVersion().getSegmentVersion()), entry.getValue()))
-                        .collect(Collectors.toList()), executor)
+                .thenApplyAsync(entries -> entries.stream().map(entry -> {
+                    if (entry.getKey().getVersion().equals(KeyVersion.NOT_EXISTS)) {
+                        return nonExistent;
+                    } else {
+                        return new VersionedMetadata<>(fromBytes.apply(entry.getValue()), 
+                                new Version.LongVersion(entry.getKey().getVersion().getSegmentVersion()));
+                    }
+                }).collect(Collectors.toList()), executor)
                 .whenCompleteAsync((r, e) -> {
                    if (e != null) {
                        result.completeExceptionally(e);

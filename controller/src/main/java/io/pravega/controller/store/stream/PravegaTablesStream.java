@@ -94,6 +94,10 @@ class PravegaTablesStream extends PersistentStreamBase {
     // completed transactions key
     private static final String STREAM_KEY_PREFIX = "Key" + SEPARATOR + "%s" + SEPARATOR + "%s" + SEPARATOR; // scoped stream name
     private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_KEY_PREFIX + "/%s";
+    
+    // non existent records
+    private static final VersionedMetadata<ActiveTxnRecord> NON_EXISTENT_TXN = 
+            new VersionedMetadata<>(ActiveTxnRecord.EMPTY, new Version.LongVersion(Long.MIN_VALUE));
 
     private final PravegaTablesStoreHelper storeHelper;
 
@@ -613,15 +617,8 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<List<ActiveTxnRecord>> getTransactionRecords(int epoch, List<String> txnIds) {
         return getTransactionsInEpochTable(epoch)
-                .thenCompose(epochTxnTable -> storeHelper.getEntries(epochTxnTable, txnIds, (x, y) -> {
-                    ActiveTxnRecord activeTxnRecord;
-                    if (x.asLongVersion().getLongValue() >= 0) {
-                        activeTxnRecord = ActiveTxnRecord.fromBytes(y);
-                    } else {
-                        activeTxnRecord = ActiveTxnRecord.EMPTY;
-                    }
-                    return new VersionedMetadata<>(activeTxnRecord, x); 
-                }))
+                .thenCompose(epochTxnTable -> storeHelper.getEntries(epochTxnTable, txnIds, 
+                        ActiveTxnRecord::fromBytes, NON_EXISTENT_TXN))
         .thenApply(res -> res.stream().map(VersionedMetadata::getObject).collect(Collectors.toList()));
     }
 

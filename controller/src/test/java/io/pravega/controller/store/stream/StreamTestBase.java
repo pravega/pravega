@@ -15,6 +15,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
@@ -1565,5 +1566,29 @@ public abstract class StreamTestBase {
         
         // verify that only one call to note time is made
         verify(streamObj, times(1)).noteWriterMark(anyString(), anyLong(), any());
+    }
+    
+    @Test(timeout = 30000L)
+    public void testgetTransactions() {
+        PersistentStreamBase streamObj = spy(createStream("txn", "txn", System.currentTimeMillis(), 1, 0));
+        
+        UUID txnId1 = new UUID(0L, 0L);
+        UUID txnId2 = new UUID(0L, 1L);
+        UUID txnId3 = new UUID(0L, 2L);
+        UUID txnId4 = new UUID(0L, 3L);
+        List<UUID> txns = Lists.newArrayList(txnId1, txnId2, txnId3, txnId4);
+        // create 1 2 and 4. dont create 3.
+        streamObj.createTransaction(txnId1, 1000L, 1000L).join();
+        streamObj.createTransaction(txnId2, 1000L, 1000L).join();
+        streamObj.sealTransaction(txnId2, true, Optional.empty(), "w", 1000L).join();
+        streamObj.createTransaction(txnId4, 1000L, 1000L).join();
+        streamObj.sealTransaction(txnId4, false, Optional.empty(), "w", 1000L).join();
+        List<ActiveTxnRecord> transactions = 
+                streamObj.getTransactionRecords(0, txns.stream().map(UUID::toString).collect(Collectors.toList())).join();
+        assertEquals(4, transactions.size());
+        assertEquals(transactions.get(0).getTxnStatus(), TxnStatus.OPEN);
+        assertEquals(transactions.get(1).getTxnStatus(), TxnStatus.COMMITTING);
+        assertEquals(transactions.get(2), ActiveTxnRecord.EMPTY);
+        assertEquals(transactions.get(3).getTxnStatus(), TxnStatus.ABORTING);
     }
 }
