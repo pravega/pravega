@@ -26,6 +26,7 @@ import org.apache.bookkeeper.client.EnsemblePlacementPolicy;
 import org.apache.bookkeeper.client.ITopologyAwareEnsemblePlacementPolicy;
 import org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy;
 import org.apache.bookkeeper.conf.ClientConfiguration;
+import org.apache.bookkeeper.net.CommonConfigurationKeys;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
@@ -160,6 +161,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         config = config.setMetadataServiceUri(metadataServiceUri);
 
         config = config.setEnsemblePlacementPolicy(RackawareEnsemblePlacementPolicy.class);
+        config.setProperty(CommonConfigurationKeys.NET_TOPOLOGY_SCRIPT_FILE_NAME_KEY, "/opt/pravega/conf/bookkeeper-topology.sh");
 
         return new BookKeeper(config);
     }
