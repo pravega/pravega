@@ -12,7 +12,6 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
-import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BufferedIterator;
 import io.pravega.common.util.CloseableIterator;
@@ -25,15 +24,13 @@ import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.apache.bookkeeper.client.api.BKException;
 import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.api.LedgerEntry;
 import org.apache.bookkeeper.client.api.LedgerEntries;
 import org.apache.bookkeeper.client.api.ReadHandle;
 import lombok.NonNull;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-import org.apache.bookkeeper.client.BKException;
 
 /**
  * Performs read from BookKeeper Logs.
@@ -181,14 +178,14 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         }
     }
 
-    private DurableDataLog.ReadItem wrapItem(LedgerEntry entry, LedgerMetadata metadata) {
+    private static DurableDataLog.ReadItem wrapItem(LedgerEntry entry, LedgerMetadata metadata) {
         ByteBuf content = entry.getEntryBuffer();
         return new LogReader.ReadItem(entry.getEntryId(),
-                new ByteBufInputStream(content, false /*relaseOnClose*/),
-                content.readableBytes(), metadata);
+               new ByteBufInputStream(content, false /*relaseOnClose*/),
+               content.readableBytes(), metadata);
     }
 
-    
+
     //endregion
 
     //region ReadLedger
@@ -220,7 +217,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             // Release memory held by BookKeeper internals.
             // we have to prevent a double free
             if (closed.compareAndSet(false, true)) {
-                
+
                 if (currentLedgerEntries != null) {
                     currentLedgerEntries.close();
                 }
@@ -234,13 +231,13 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             }
         }
 
-        @SneakyThrows(org.apache.bookkeeper.client.api.BKException.class)
-        private LedgerEntries readRange(long fromEntryId, long toEntryId) {
+        @SneakyThrows(BKException.class)
+        private Iterator<LedgerEntry> readRange(long fromEntryId, long toEntryId) {
             if (currentLedgerEntries != null) {
                 currentLedgerEntries.close();
             }
             currentLedgerEntries = Exceptions.handleInterruptedCall(() -> this.handle.read(fromEntryId, toEntryId));
-            return currentLedgerEntries;
+            return currentLedgerEntries.iterator();
         }
 
         static ReadLedger empty(@NonNull LedgerMetadata metadata, @NonNull ReadHandle handle) {
