@@ -892,7 +892,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         // We want to make sure that both the main segment and its attribute segment have been sync-ed to Storage. In case
         // of the attribute segment, the only thing we can easily do is verify that it has been sealed when the main segment
         // it is associated with has also been sealed.
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(sp.getName());
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(sp.getName());
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         AtomicBoolean tryAgain = new AtomicBoolean(true);
         return Futures.loop(

@@ -54,8 +54,6 @@ import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
-import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;

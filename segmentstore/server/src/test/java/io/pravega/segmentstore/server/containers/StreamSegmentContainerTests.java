@@ -2081,7 +2081,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                         && segmentProps.getLength() >= metadataProps.getLength()
                         && context.storageFactory.truncationOffsets.getOrDefault(metadataProps.getName(), 0L) >= metadataProps.getStartOffset();
 
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(metadataProps.getName());
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataProps.getName());
         AtomicBoolean canContinue = new AtomicBoolean(true);
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         return Futures.loop(

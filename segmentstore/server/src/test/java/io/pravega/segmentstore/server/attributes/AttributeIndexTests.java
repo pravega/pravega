@@ -602,7 +602,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         // 2. Write some garbage data at the end of the segment. This simulates a partial (incomplete update) that did not
         // fully write the BTree pages to the end of the segment.
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(SEGMENT_NAME);
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(SEGMENT_NAME);
         byte[] partialUpdate = new byte[1234];
         context.storage.openWrite(attributeSegmentName)
                 .thenCompose(handle -> context.storage.write(
