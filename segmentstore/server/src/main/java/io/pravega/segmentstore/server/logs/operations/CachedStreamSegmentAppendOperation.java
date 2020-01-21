@@ -88,5 +88,10 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation impleme
         return this.length;
     }
 
+    @Override
+    public long getCacheLength() {
+        return this.length;
+    }
+
     //endregion
 }

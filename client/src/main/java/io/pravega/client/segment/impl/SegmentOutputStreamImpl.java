@@ -379,7 +379,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 log.warn("Connection setup could not be completed because connection is already failed for writer {}", writerId);
                 return;
             }
-            if (toRetransmit == null || toRetransmit.isEmpty()) {
+            if (toRetransmit.isEmpty()) {
                 log.info("Connection setup complete for writer {}", writerId);
                 state.connectionSetupComplete(connection);
             } else {

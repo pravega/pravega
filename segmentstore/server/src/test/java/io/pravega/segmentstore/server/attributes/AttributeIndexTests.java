@@ -572,6 +572,62 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability of the Attribute Index to recover correctly after a partial update has been written to Storage.
+     * This simulates how it should be used by a caller: after every update, the {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER}
+     * attribute of the segment should be set to the return value from {@link AttributeIndex#update} in order to perform
+     * a correct recovery.
+     */
+    @Test
+    public void testRecoveryAfterIncompleteUpdate() {
+        final int attributeCount = 1000;
+        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> new UUID(i, i)).collect(Collectors.toList());
+        @Cleanup
+        val context = new TestContext(DEFAULT_CONFIG);
+        populateSegments(context);
+
+        // 1. Populate and verify first index.
+        val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        val expectedValues = new HashMap<UUID, Long>();
+        val updateBatch = new HashMap<UUID, Long>();
+        AtomicLong nextValue = new AtomicLong(0);
+        for (UUID attributeId : attributes) {
+            long value = nextValue.getAndIncrement();
+            expectedValues.put(attributeId, value);
+            updateBatch.put(attributeId, value);
+        }
+
+        // Perform the update and remember the root pointer.
+        long rootPointer = idx.update(updateBatch, TIMEOUT).join();
+        context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID).updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, rootPointer));
+
+        // 2. Write some garbage data at the end of the segment. This simulates a partial (incomplete update) that did not
+        // fully write the BTree pages to the end of the segment.
+        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(SEGMENT_NAME);
+        byte[] partialUpdate = new byte[1234];
+        context.storage.openWrite(attributeSegmentName)
+                .thenCompose(handle -> context.storage.write(
+                        handle,
+                        context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join().getLength(),
+                        new ByteArrayInputStream(partialUpdate),
+                        partialUpdate.length, TIMEOUT))
+                .join();
+
+        // 3. Reload index and verify it still has the correct values. This also forces a cache cleanup so we read data
+        // directly from Storage.
+        context.index.cleanup(null);
+        val storageRead = new AtomicBoolean();
+        context.storage.readInterceptor = (name, offset, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true));
+        val idx2 = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        checkIndex(idx2, expectedValues);
+        Assert.assertTrue("Expecting storage reads after reload.", storageRead.get());
+
+        // 4. Remove all values (and thus force an update - validates conditional updates still work in this case).
+        idx2.update(toDelete(expectedValues.keySet()), TIMEOUT).join();
+        expectedValues.replaceAll((key, v) -> Attributes.NULL_ATTRIBUTE_VALUE);
+        checkIndex(idx2, expectedValues);
+    }
+
+    /**
      * Tests the ability to create the Attribute Segment only upon the first write.
      */
     @Test

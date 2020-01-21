@@ -27,6 +27,7 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
@@ -88,13 +89,16 @@ public class TransactionTest {
                                                          .disableAutomaticCheckpoints()
                                                          .build());
         MockClientFactory clientFactory = streamManager.getClientFactory();
+        EventWriterConfig eventWriterConfig = EventWriterConfig.builder().transactionTimeoutTime(60000).build();
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
-                                                                             EventWriterConfig.builder()
-                                                                                              .transactionTimeoutTime(60000)
-                                                                                              .build());
+                                                                                eventWriterConfig);
+        @Cleanup
+        TransactionalEventStreamWriter<String> txnProducer = clientFactory.createTransactionalEventWriter(streamName,
+                                                                                                          new JavaSerializer<>(),
+                                                                                                          eventWriterConfig);
         producer.writeEvent(routingKey, nonTxEvent);
-        Transaction<String> transaction = producer.beginTxn();
+        Transaction<String> transaction = txnProducer.beginTxn();
         producer.writeEvent(routingKey, nonTxEvent);
         transaction.writeEvent(routingKey, txnEvent);
         producer.writeEvent(routingKey, nonTxEvent);
@@ -154,11 +158,13 @@ public class TransactionTest {
         streamManager.createScope("scope");
         streamManager.createStream("scope", streamName, null);
         MockClientFactory clientFactory = streamManager.getClientFactory();
+        EventWriterConfig eventWriterConfig = EventWriterConfig.builder()
+                          .transactionTimeoutTime(60000)
+                          .build();
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
-                                                                             EventWriterConfig.builder()
-                                                                                              .transactionTimeoutTime(60000)
-                                                                                              .build());
+        TransactionalEventStreamWriter<String> producer = clientFactory.createTransactionalEventWriter(streamName,
+                                                                                                       new JavaSerializer<>(),
+                                                                                                       eventWriterConfig);
         Transaction<String> transaction = producer.beginTxn();
         transaction.writeEvent(routingKey, event);
         transaction.commit();
@@ -191,13 +197,15 @@ public class TransactionTest {
                                                          .disableAutomaticCheckpoints()
                                                          .build());
         MockClientFactory clientFactory = streamManager.getClientFactory();
+        EventWriterConfig eventWriterConfig = EventWriterConfig.builder()
+                          .transactionTimeoutTime(60000)
+                          .build();
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
-                                                                             EventWriterConfig.builder()
-                                                                                              .transactionTimeoutTime(60000)
-                                                                                              .build());
+        TransactionalEventStreamWriter<String> txnProducer = clientFactory.createTransactionalEventWriter(streamName,
+                                                                                                       new JavaSerializer<>(),
+                                                                                                       eventWriterConfig);
 
-        Transaction<String> transaction = producer.beginTxn();
+        Transaction<String> transaction = txnProducer.beginTxn();
         transaction.writeEvent(routingKey, txnEvent);
         transaction.flush();
         transaction.abort();
@@ -210,6 +218,9 @@ public class TransactionTest {
                                                                                                  groupName,
                                                                                                  new JavaSerializer<>(),
                                                                                                  ReaderConfig.builder().build());
+        @Cleanup
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
+                                                                             eventWriterConfig);
         producer.writeEvent(routingKey, nonTxEvent);
         producer.flush();
         assertEquals(nonTxEvent, consumer.readNextEvent(1500).getEvent());

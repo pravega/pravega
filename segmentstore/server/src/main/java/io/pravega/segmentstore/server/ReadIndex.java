@@ -19,7 +19,7 @@ import java.util.Collection;
 /**
  * Defines a ReadIndex for StreamSegments, that allows adding data only at the end.
  */
-public interface ReadIndex extends AutoCloseable, CacheUtilizationProvider {
+public interface ReadIndex extends AutoCloseable {
     /**
      * Appends a range of bytes at the end of the Read Index for the given StreamSegmentId.
      *
@@ -148,6 +148,14 @@ public interface ReadIndex extends AutoCloseable, CacheUtilizationProvider {
      *                                 the Read Index or it has conflicting information about it.
      */
     void exitRecoveryMode(boolean successfulRecovery) throws DataCorruptionException;
+
+    /**
+     * Gets the {@link CacheUtilizationProvider} shared across all Segment Containers hosted in this process that can
+     * be used to query the Cache State.
+     *
+     * @return The {@link CacheUtilizationProvider}.
+     */
+    CacheUtilizationProvider getCacheUtilizationProvider();
 
     @Override
     void close();

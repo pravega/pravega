@@ -317,7 +317,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
                     getChannel().writeAndFlush(new WireCommands.KeepAlive()).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
                 }
             } catch (Exception e) {
-                log.warn("Keep alive failed, killing connection {} due to {}", connectionName, e.getMessage());
+                log.warn("Failed to send KeepAlive to {}. Closing this connection.", connectionName, e);
                 close();
             }
         }

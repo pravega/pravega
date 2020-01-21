@@ -17,6 +17,9 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -44,6 +47,7 @@ import io.pravega.test.integration.selftest.TestConfig;
 import java.io.File;
 import java.time.Duration;
 import java.util.AbstractMap;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +71,8 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 class SegmentStoreAdapter extends StoreAdapter {
     //region Members
 
+    private static final long EVENT_SEQ_NO_PREFIX = 1L;
+    private static final long EVENT_RK_PREFIX = 2L;
     private final ScheduledExecutorService testExecutor;
     private final TestConfig config;
     private final ServiceBuilderConfig builderConfig;
@@ -188,7 +194,11 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
         ensureRunning();
-        return Futures.toVoid(this.streamSegmentStore.append(streamName, new ByteBufWrapper(event.getWriteBuffer()), null, timeout)
+        val au = Arrays.asList(
+                new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.Replace, 1),
+                new AttributeUpdate(new UUID(EVENT_SEQ_NO_PREFIX, event.getOwnerId()), AttributeUpdateType.Replace, event.getSequence()),
+                new AttributeUpdate(new UUID(EVENT_RK_PREFIX, event.getOwnerId()), AttributeUpdateType.Replace, event.getRoutingKey()));
+        return Futures.toVoid(this.streamSegmentStore.append(streamName, new ByteBufWrapper(event.getWriteBuffer()), au, timeout)
                                                      .exceptionally(ex -> attemptReconcile(ex, streamName, timeout)));
     }
 

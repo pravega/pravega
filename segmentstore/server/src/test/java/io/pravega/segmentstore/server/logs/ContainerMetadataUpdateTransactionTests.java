@@ -277,6 +277,57 @@ public class ContainerMetadataUpdateTransactionTests {
         testWithBadAttributes(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
     }
 
+    /**
+     * Tests the ability of the ContainerMetadataUpdateTransaction to handle UpdateAttributeOperations after the segment
+     * has been sealed.
+     */
+    @Test
+    public void testUpdateAttributesSealedSegment() throws Exception {
+        final UUID coreAttribute = Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER;
+        final UUID extAttribute = UUID.randomUUID();
+
+        UpdateableContainerMetadata metadata = createMetadata();
+        val txn = createUpdateTransaction(metadata);
+
+        // Seal the segment.
+        val sealOp = createSeal();
+        txn.preProcessOperation(sealOp);
+        txn.acceptOperation(sealOp);
+
+        // 1. Core attribute, but not internal.
+        val coreUpdate = new UpdateAttributesOperation(SEGMENT_ID,
+                Collections.singleton(new AttributeUpdate(coreAttribute, AttributeUpdateType.Replace, 1L)));
+        AssertExtensions.assertThrows(
+                "Non-internal update of core attribute succeeded.",
+                () -> txn.preProcessOperation(coreUpdate),
+                ex -> ex instanceof StreamSegmentSealedException);
+
+        // 2. Core attribute, internal update.
+        coreUpdate.setInternal(true);
+        txn.preProcessOperation(coreUpdate);
+        txn.acceptOperation(coreUpdate);
+        Assert.assertEquals("Core attribute was not updated.",
+                1L, (long) txn.getStreamSegmentMetadata(SEGMENT_ID).getAttributes().get(coreAttribute));
+
+        // 3. Extended attributes.
+        val extUpdate1 = new UpdateAttributesOperation(SEGMENT_ID,
+                Collections.singleton(new AttributeUpdate(extAttribute, AttributeUpdateType.Replace, 1L)));
+        extUpdate1.setInternal(true);
+        AssertExtensions.assertThrows(
+                "Extended attribute update succeeded.",
+                () -> txn.preProcessOperation(extUpdate1),
+                ex -> ex instanceof StreamSegmentSealedException);
+
+        val extUpdate2 = new UpdateAttributesOperation(SEGMENT_ID, Arrays.asList(
+                new AttributeUpdate(coreAttribute, AttributeUpdateType.Replace, 2L),
+                new AttributeUpdate(extAttribute, AttributeUpdateType.Replace, 3L)));
+        extUpdate1.setInternal(true);
+        AssertExtensions.assertThrows(
+                "Mixed attribute update succeeded.",
+                () -> txn.preProcessOperation(extUpdate2),
+                ex -> ex instanceof StreamSegmentSealedException);
+    }
+
     private void testWithAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation) throws Exception {
         final UUID attributeNoUpdate = UUID.randomUUID();
         final UUID attributeAccumulate = UUID.randomUUID();
