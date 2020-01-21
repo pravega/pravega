@@ -64,6 +64,10 @@ public final class MetricsNames {
     // PREFIX can be loaded from config when config becomes dependency.
     public static final String PREFIX = "pravega" + ".";
 
+    // Metrics for all services
+    public static final String LOG_ERRORS = PREFIX + "logged_errors";     // Counter
+    public static final String LOG_WARNINGS = PREFIX + "logged_warnings"; // Counter
+
     // Metrics in Segment Store Service
     // Segment-related stats
     public static final String SEGMENT_CREATE_LATENCY = PREFIX + "segmentstore.segment.create_latency_ms";              // Histogram
