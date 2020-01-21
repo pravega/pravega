@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import lombok.Getter;
+import org.apache.bookkeeper.conf.ClientConfiguration;
 
 /**
  * General configuration for BookKeeper Client.
@@ -44,6 +45,10 @@ public class BookKeeperConfig {
     public static final Property<Boolean> BK_TLS_ENABLED = Property.named("tlsEnabled", false);
     public static final Property<String> TLS_TRUST_STORE_PATH = Property.named("tlsTrustStorePath", "config/client.truststore.jks");
     public static final Property<String> TLS_TRUST_STORE_PASSWORD_PATH = Property.named("tlsTrustStorePasswordPath", "");
+    public static final Property<Boolean> BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE = Property.named("enforceMinNumRacksPerWriteQuorum", false);
+    public static final Property<Integer> BK_MIN_NUM_RACKS_PER_WRITE_QUORUM = Property.named("minNumRacksPerWriteQuorum", 2);
+    public static final Property<String> BK_ENSEMBLE_PLACEMENT_POLICY = Property.named("ensemblePlacementPolicy",
+            "org.apache.bookkeeper.client.DefaultEnsemblePlacementPolicy");
 
     public static final String COMPONENT_CODE = "bookkeeper";
     /**
@@ -159,6 +164,15 @@ public class BookKeeperConfig {
     @Getter
     private final String tlsTrustStorePasswordPath;
 
+    @Getter
+    private final boolean enforceMinNumRacksPerWriteQuorum;
+
+    @Getter
+    private final int minNumRacksPerWriteQuorum;
+
+    @Getter
+    private final String ensemblePlacementPolicy;
+
     //endregion
 
     //region Constructor
@@ -203,6 +217,10 @@ public class BookKeeperConfig {
         this.isTLSEnabled = properties.getBoolean(BK_TLS_ENABLED);
         this.tlsTrustStore = properties.get(TLS_TRUST_STORE_PATH);
         this.tlsTrustStorePasswordPath = properties.get(TLS_TRUST_STORE_PASSWORD_PATH);
+
+        this.enforceMinNumRacksPerWriteQuorum = properties.getBoolean(BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE);
+        this.minNumRacksPerWriteQuorum = properties.getInt(BK_MIN_NUM_RACKS_PER_WRITE_QUORUM);
+        this.ensemblePlacementPolicy = properties.get(BK_ENSEMBLE_PLACEMENT_POLICY);
     }
 
     /**

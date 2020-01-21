@@ -20,7 +20,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.apache.bookkeeper.bookie.LocalBookieEnsemblePlacementPolicy;
 import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.EnsemblePlacementPolicy;
+import org.apache.bookkeeper.client.ITopologyAwareEnsemblePlacementPolicy;
+import org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -153,7 +157,9 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         } else {
             metadataServiceUri += this.config.getBkLedgerPath();
         }
-        config.setMetadataServiceUri(metadataServiceUri);
+        config = config.setMetadataServiceUri(metadataServiceUri);
+
+        config = config.setEnsemblePlacementPolicy(RackawareEnsemblePlacementPolicy.class);
 
         return new BookKeeper(config);
     }
