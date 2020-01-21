@@ -760,7 +760,7 @@ public class ControllerImpl implements Controller {
 
         return getSegmentsBetweenStreamCuts(from, StreamCut.UNBOUNDED).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("getSuccessorsFromCut for {} failed: ", stream e);
+                log.warn("getSuccessorsFromCut for {} failed: ", stream, e);
             }
             LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
         });
