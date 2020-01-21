@@ -171,19 +171,21 @@ public class MetricsTagsTest {
         for (val logClassName : classNames.entrySet()) {
             // Check without exception.
             String[] tags = exceptionTag(logClassName.getKey(), null);
-            Assert.assertEquals(2, tags.length);
-            Assert.assertEquals(MetricsTags.TAG_CLASS, tags[0]);
-            Assert.assertEquals(logClassName.getValue(), tags[1]);
+            checkExceptionTags(tags, logClassName.getValue(), "none");
 
             // Check with exceptions.
             for (val exceptionClassName : classNames.entrySet()) {
                 tags = exceptionTag(logClassName.getKey(), exceptionClassName.getKey());
-                Assert.assertEquals(4, tags.length);
-                Assert.assertEquals(MetricsTags.TAG_CLASS, tags[0]);
-                Assert.assertEquals(logClassName.getValue(), tags[1]);
-                Assert.assertEquals(MetricsTags.TAG_EXCEPTION, tags[2]);
-                Assert.assertEquals(exceptionClassName.getValue(), tags[3]);
+                checkExceptionTags(tags, logClassName.getValue(), exceptionClassName.getValue());
             }
         }
+    }
+
+    private void checkExceptionTags(String[] tags, String expectedClassTag, String expectedExceptionTag) {
+        Assert.assertEquals(4, tags.length);
+        Assert.assertEquals(MetricsTags.TAG_CLASS, tags[0]);
+        Assert.assertEquals(expectedClassTag, tags[1]);
+        Assert.assertEquals(MetricsTags.TAG_EXCEPTION, tags[2]);
+        Assert.assertEquals(expectedExceptionTag, tags[3]);
     }
 }

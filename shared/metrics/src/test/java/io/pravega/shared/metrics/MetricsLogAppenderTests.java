@@ -15,10 +15,14 @@ import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.classic.spi.LoggerContextVO;
 import ch.qos.logback.classic.spi.StackTraceElementProxy;
 import com.google.common.collect.ImmutableMap;
+import io.pravega.common.Exceptions;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.MetricsTags;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +54,7 @@ public class MetricsLogAppenderTests {
      * Tests the {@link MetricsNames#LOG_WARNINGS} metric.
      */
     @Test
-    public void testWarn() {
+    public void testLogWarn() {
         testLog(Level.WARN, MetricsNames.LOG_WARNINGS, true);
     }
 
@@ -111,7 +115,14 @@ public class MetricsLogAppenderTests {
                 .put("D.E.F", "F")
                 .build();
 
-        val exceptions = new Throwable[]{null, new Exception(), new IllegalStateException(), new NullPointerException()};
+        // Create a set of exceptions; add them as-is and then wrap them in either CompletionException or ExecutionException.
+        val baseExceptions = Arrays.<Exception>asList(null, new Exception(), new IllegalStateException(), new NullPointerException());
+        val exceptions = new ArrayList<Exception>();
+        baseExceptions.forEach(t -> {
+            exceptions.add(t);
+            exceptions.add(new CompletionException(t));
+            exceptions.add(new ExecutionException(t));
+        });
 
         val appender = new MetricsLogAppender();
         for (val logClassName : classNames.entrySet()) {
@@ -122,9 +133,16 @@ public class MetricsLogAppenderTests {
 
         for (val logClassName : classNames.entrySet()) {
             for (val ex : exceptions) {
-                val c = MetricRegistryUtils.getMeter(metricName, MetricsTags.exceptionTag(logClassName.getValue(), ex == null ? null : ex.getClass().getName()));
+                val unwrapped = Exceptions.unwrap(ex);
+                val c = MetricRegistryUtils.getMeter(metricName, MetricsTags.exceptionTag(logClassName.getValue(),
+                        ex == null ? null : unwrapped.getClass().getName()));
                 int expectedValue = expectValues ? 1 : 0;
-                Assert.assertEquals("Unexpected counter value for " + logClassName, expectedValue, (int) c.totalAmount());
+                if (unwrapped != null && baseExceptions.contains(unwrapped)) {
+                    // Exceptions are reported 3 times: once by themselves, and twice wrapped in others.
+                    expectedValue *= 3;
+                }
+                Assert.assertNotNull(c);
+                Assert.assertEquals("Unexpected counter value for " + logClassName + "-" + unwrapped, expectedValue, (int) c.totalAmount());
             }
         }
     }
@@ -144,6 +162,11 @@ public class MetricsLogAppenderTests {
         }
 
         @Override
+        public IThrowableProxy getCause() {
+            return t.getCause() == null ? null : new TestProxy(t.getCause());
+        }
+
+        @Override
         public StackTraceElementProxy[] getStackTraceElementProxyArray() {
             return new StackTraceElementProxy[0];
         }
@@ -151,11 +174,6 @@ public class MetricsLogAppenderTests {
         @Override
         public int getCommonFrames() {
             return 0;
-        }
-
-        @Override
-        public IThrowableProxy getCause() {
-            return null;
         }
 
         @Override

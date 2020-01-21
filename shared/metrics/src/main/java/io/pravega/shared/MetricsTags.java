@@ -172,13 +172,14 @@ public final class MetricsTags {
      *
      * @param loggingClassName   The name of the class that recorded the exception.
      * @param exceptionClassName The name of the exception class that was recorded. May be null.
-     * @return A String array containing the necessary tags. If exceptionClassName is null, the result will have two
-     * elements, otherwise it will have four.
+     * @return A String array containing the necessary tags.
      */
     public static String[] exceptionTag(String loggingClassName, String exceptionClassName) {
-        return exceptionClassName == null
-                ? new String[]{TAG_CLASS, getSimpleClassName(loggingClassName)}
-                : new String[]{TAG_CLASS, getSimpleClassName(loggingClassName), TAG_EXCEPTION, getSimpleClassName(exceptionClassName)};
+        String[] result = new String[]{TAG_CLASS, getSimpleClassName(loggingClassName), TAG_EXCEPTION, "none"};
+        if (exceptionClassName != null) {
+            result[3] = getSimpleClassName(exceptionClassName);
+        }
+        return result;
     }
 
     private static String getSimpleClassName(String name) {

@@ -21,12 +21,16 @@ import ch.qos.logback.core.status.Status;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.MetricsTags;
 import java.util.List;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Log Appender that intercepts all events with {@link Level#ERROR} or {@link Level#WARN} and records a metric for them.
  */
 public class MetricsLogAppender implements Appender<ILoggingEvent> {
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    private static final String COMPLETION_EXCEPTION_NAME = CompletionException.class.getSimpleName();
+    private static final String EXECUTION_EXCEPTION_NAME = ExecutionException.class.getSimpleName();
 
     //region Appender Implementation
 
@@ -46,7 +50,20 @@ public class MetricsLogAppender implements Appender<ILoggingEvent> {
 
     private void recordEvent(String metricName, ILoggingEvent event) {
         IThrowableProxy p = event.getThrowableProxy();
+        while (shouldUnwrap(p)) {
+            p = p.getCause();
+        }
+
         DYNAMIC_LOGGER.recordMeterEvents(metricName, 1, MetricsTags.exceptionTag(event.getLoggerName(), p == null ? null : p.getClassName()));
+    }
+
+    private boolean shouldUnwrap(IThrowableProxy p) {
+        // Most of our exceptions are wrapped in CompletionException or ExecutionException. Since these are not very useful
+        // in terms of determining the root cause, we should unwrap them to get to the actual exception that caused the event.
+        return p != null
+                && p.getCause() != null
+                && (p.getClassName().endsWith(COMPLETION_EXCEPTION_NAME) || p.getClassName().endsWith(EXECUTION_EXCEPTION_NAME));
+
     }
 
     //endregion
