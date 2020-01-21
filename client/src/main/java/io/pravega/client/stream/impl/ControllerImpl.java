@@ -760,7 +760,7 @@ public class ControllerImpl implements Controller {
 
         return getSegmentsBetweenStreamCuts(from, StreamCut.UNBOUNDED).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("getSuccessorsFromCut failed: ", e);
+                log.warn("getSuccessorsFromCut for {} failed: ", stream e);
             }
             LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
         });
@@ -779,7 +779,7 @@ public class ControllerImpl implements Controller {
 
         return getSegmentsBetweenStreamCuts(fromStreamCut, toStreamCut).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("getSegments failed: ", e);
+                log.warn("getSegments for {} failed: ", stream, e);
             }
             LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
         });
@@ -949,7 +949,7 @@ public class ControllerImpl implements Controller {
             }
         }).whenComplete((s, e) -> {
             if (e != null) {
-                log.warn("PingTransaction failed:", e);
+                log.warn("PingTransaction {} failed:", txId, e);
             }
             LoggerHelpers.traceLeave(log, "pingTransaction", traceId);
         });
