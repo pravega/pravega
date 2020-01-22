@@ -161,8 +161,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         config = config.setMetadataServiceUri(metadataServiceUri);
 
         config = config.setEnsemblePlacementPolicy(RackawareEnsemblePlacementPolicy.class);
-        config.setProperty(CommonConfigurationKeys.NET_TOPOLOGY_SCRIPT_FILE_NAME_KEY, "/opt/pravega/conf/bookkeeper-topology-2.sh");
-        log.info("SET TOPOLOGY FILE FOR BOOKKEEPER: /opt/pravega/conf/bookkeeper-topology-2.sh");
+        config.setProperty(CommonConfigurationKeys.NET_TOPOLOGY_SCRIPT_FILE_NAME_KEY, "/opt/pravega/scripts/bookkeeper-topology-2.sh");
+        log.info("SET TOPOLOGY FILE FOR BOOKKEEPER: /opt/pravega/scripts/bookkeeper-topology-2.sh");
         return new BookKeeper(config);
     }
 
