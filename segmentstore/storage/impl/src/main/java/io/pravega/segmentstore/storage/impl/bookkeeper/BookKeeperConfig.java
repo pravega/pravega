@@ -18,7 +18,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import lombok.Getter;
-import org.apache.bookkeeper.conf.ClientConfiguration;
 
 /**
  * General configuration for BookKeeper Client.
@@ -47,8 +46,8 @@ public class BookKeeperConfig {
     public static final Property<String> TLS_TRUST_STORE_PASSWORD_PATH = Property.named("tlsTrustStorePasswordPath", "");
     public static final Property<Boolean> BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE = Property.named("enforceMinNumRacksPerWriteQuorum", false);
     public static final Property<Integer> BK_MIN_NUM_RACKS_PER_WRITE_QUORUM = Property.named("minNumRacksPerWriteQuorum", 2);
-    public static final Property<String> BK_ENSEMBLE_PLACEMENT_POLICY = Property.named("ensemblePlacementPolicy",
-            "org.apache.bookkeeper.client.DefaultEnsemblePlacementPolicy");
+    public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopologyScriptFileName",
+            "/opt/pravega/scripts/sample-bookkeeper-topology.sh");
 
     public static final String COMPONENT_CODE = "bookkeeper";
     /**
@@ -171,7 +170,7 @@ public class BookKeeperConfig {
     private final int minNumRacksPerWriteQuorum;
 
     @Getter
-    private final String ensemblePlacementPolicy;
+    private final String networkTopologyFileName;
 
     //endregion
 
@@ -220,7 +219,7 @@ public class BookKeeperConfig {
 
         this.enforceMinNumRacksPerWriteQuorum = properties.getBoolean(BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE);
         this.minNumRacksPerWriteQuorum = properties.getInt(BK_MIN_NUM_RACKS_PER_WRITE_QUORUM);
-        this.ensemblePlacementPolicy = properties.get(BK_ENSEMBLE_PLACEMENT_POLICY);
+        this.networkTopologyFileName = properties.get(BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME);
     }
 
     /**

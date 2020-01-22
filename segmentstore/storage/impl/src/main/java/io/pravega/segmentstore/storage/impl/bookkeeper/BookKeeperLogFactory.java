@@ -20,10 +20,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.bookkeeper.bookie.LocalBookieEnsemblePlacementPolicy;
 import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.EnsemblePlacementPolicy;
-import org.apache.bookkeeper.client.ITopologyAwareEnsemblePlacementPolicy;
 import org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.net.CommonConfigurationKeys;
@@ -160,14 +157,13 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         }
         config = config.setMetadataServiceUri(metadataServiceUri);
 
-        config = config.setEnsemblePlacementPolicy(RackawareEnsemblePlacementPolicy.class);
-        log.info("setEnsemblePlacementPolicy");
-        config.setProperty(CommonConfigurationKeys.NET_TOPOLOGY_SCRIPT_FILE_NAME_KEY, "/opt/pravega/scripts/bookkeeper-topology-2.sh");
-        log.info("SET TOPOLOGY FILE FOR BOOKKEEPER: /opt/pravega/scripts/bookkeeper-topology-2.sh");
-        config.setMinNumRacksPerWriteQuorum(2);
-        log.info("setMinNumRacksPerWriteQuorum");
-        config.setEnforceMinNumRacksPerWriteQuorum(true);
-        log.info("setEnforceMinNumRacksPerWriteQuorum");
+        if (this.config.isEnforceMinNumRacksPerWriteQuorum()) {
+            config = config.setEnsemblePlacementPolicy(RackawareEnsemblePlacementPolicy.class);
+            config.setEnforceMinNumRacksPerWriteQuorum(this.config.isEnforceMinNumRacksPerWriteQuorum());
+            config.setMinNumRacksPerWriteQuorum(this.config.getMinNumRacksPerWriteQuorum());
+            config.setProperty(CommonConfigurationKeys.NET_TOPOLOGY_SCRIPT_FILE_NAME_KEY, this.config.getNetworkTopologyFileName());
+        }
+
         return new BookKeeper(config);
     }
 
