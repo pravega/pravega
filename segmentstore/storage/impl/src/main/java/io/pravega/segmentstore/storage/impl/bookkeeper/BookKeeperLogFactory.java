@@ -161,8 +161,13 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         config = config.setMetadataServiceUri(metadataServiceUri);
 
         config = config.setEnsemblePlacementPolicy(RackawareEnsemblePlacementPolicy.class);
+        log.info("setEnsemblePlacementPolicy");
         config.setProperty(CommonConfigurationKeys.NET_TOPOLOGY_SCRIPT_FILE_NAME_KEY, "/opt/pravega/scripts/bookkeeper-topology-2.sh");
         log.info("SET TOPOLOGY FILE FOR BOOKKEEPER: /opt/pravega/scripts/bookkeeper-topology-2.sh");
+        config.setMinNumRacksPerWriteQuorum(2);
+        log.info("setMinNumRacksPerWriteQuorum");
+        config.setEnforceMinNumRacksPerWriteQuorum(true);
+        log.info("setEnforceMinNumRacksPerWriteQuorum");
         return new BookKeeper(config);
     }
 
