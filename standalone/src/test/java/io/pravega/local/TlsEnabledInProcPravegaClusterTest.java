@@ -68,6 +68,20 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
         super.testWriteAndReadEventWithValidClientConfig();
     }
 
+    @Test
+    public void testWriteAndReadEventWithHostNameVerificationTurnedOff() throws ExecutionException, InterruptedException {
+        // Note we are not setting any truststore here. So, this would work, only if hostname verification is turned off
+        // for communications with both controller and segment store (or alternatively, if the certificate is in the
+        // system truststore)
+        ClientConfig clientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
+                .validateHostName(false)
+                .build();
+
+        this.writeAndReadEvent("scopehnoff", "stream", 1, "test message",
+                clientConfig);
+    }
+
     /**
      * This test verifies that create stream fails when the client config is invalid.
      *

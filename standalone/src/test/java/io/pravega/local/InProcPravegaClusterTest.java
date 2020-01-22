@@ -135,6 +135,10 @@ public class InProcPravegaClusterTest {
 
         ClientConfig clientConfig = prepareValidClientConfig();
 
+        writeAndReadEvent(scope, streamName, numSegments, message, clientConfig);
+    }
+
+    protected void writeAndReadEvent(String scope, String streamName, int numSegments, String message, ClientConfig clientConfig) throws InterruptedException, ExecutionException {
         @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);
         assertNotNull(streamManager);
