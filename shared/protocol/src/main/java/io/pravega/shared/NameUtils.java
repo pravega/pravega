@@ -34,12 +34,6 @@ public final class NameUtils {
     public static final String READER_GROUP_STREAM_PREFIX = INTERNAL_NAME_PREFIX + "RG";
 
     /**
-     * Prefix for identifying system created mark segments for storing watermarks. 
-     */
-    @Getter(AccessLevel.PACKAGE)
-    private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
-
-    /**
      * This is used for composing metric tags.
      */
     static final String TAG_SCOPE = "scope";
@@ -98,7 +92,12 @@ public final class NameUtils {
      * This is used in composing table names as `scope`/_tables
      */
     private static final String TABLES = "_tables";
-    private static final String MARK = "_MARK";
+    
+    /**
+     * Prefix for identifying system created mark segments for storing watermarks. 
+     */
+    @Getter(AccessLevel.PACKAGE)
+    private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
 
     //endregion
 
@@ -556,7 +555,7 @@ public final class NameUtils {
     /**
      * Validates a readerId.
      *
-     * @param name ReaderId to validate.
+     * @param readerId ReaderId to validate.
      * @return The name in the case is valid.
      */
     public static String validateReaderId(String readerId) {
@@ -566,7 +565,7 @@ public final class NameUtils {
     /**
      * Validates a writerId.
      *
-     * @param name ReaderId to validate.
+     * @param writerId ReaderId to validate.
      * @return The name in the case is valid.
      */
     public static String validateWriterId(String writerId) {

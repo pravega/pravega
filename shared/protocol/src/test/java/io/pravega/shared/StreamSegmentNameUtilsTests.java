@@ -9,7 +9,6 @@
  */
 package io.pravega.shared;
 
-import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.util.List;
 import java.util.Stack;
