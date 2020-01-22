@@ -32,5 +32,5 @@
 for var in "$@"
 do
     i=$((${#var}-1))
-    echo /${var:$i:1}
+    echo -n /${var:$i:1}
 done
