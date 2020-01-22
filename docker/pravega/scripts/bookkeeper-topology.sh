@@ -24,4 +24,4 @@
 # 2) 'xargs' will enforce that we print a single argv value per line
 # 3) 'awk' will split fields on dots and append the last field to the string '/rack-'. If awk
 #    fails to split on four dots, it will still print '/rack-' last field value
-echo $@ | xargs -n 1 | awk -F '.' '{print "/rack-"$NF}'
+echo $@ | xargs -n 1 | awk -F '.' '{print "/datacenter/rack-"$NF}'
