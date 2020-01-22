@@ -236,7 +236,7 @@ public class ExtendedS3Storage implements SyncStorage {
             ExtendedS3Metrics.READ_LATENCY.reportSuccessEvent(elapsed);
             ExtendedS3Metrics.READ_BYTES.add(length);
 
-            log.debug("Read  segment={} offset={} bytesWritten={} latency={}.", handle.getSegmentName(), offset, length, elapsed);
+            log.debug("Read segment={} offset={} bytesWritten={} latency={}.", handle.getSegmentName(), offset, length, elapsed.toMillis());
 
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
@@ -327,7 +327,7 @@ public class ExtendedS3Storage implements SyncStorage {
         ExtendedS3Metrics.CREATE_LATENCY.reportSuccessEvent(elapsed);
         ExtendedS3Metrics.CREATE_COUNT.inc();
 
-        log.debug("Create  segment={} latency={}.", elapsed);
+        log.debug("Create segment={} latency={}.", streamSegmentName, elapsed.toMillis());
 
         LoggerHelpers.traceLeave(log, "create", traceId);
         return ExtendedS3SegmentHandle.getWriteHandle(streamSegmentName);
@@ -356,7 +356,7 @@ public class ExtendedS3Storage implements SyncStorage {
         ExtendedS3Metrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
         ExtendedS3Metrics.WRITE_BYTES.add(length);
 
-        log.debug("Write  segment={} offset={} bytesWritten={} latency={}.", handle.getSegmentName(), offset, length, elapsed);
+        log.debug("Write segment={} offset={} bytesWritten={} latency={}.", handle.getSegmentName(), offset, length, elapsed.toMillis());
 
         LoggerHelpers.traceLeave(log, "write", traceId);
         return null;
@@ -445,7 +445,7 @@ public class ExtendedS3Storage implements SyncStorage {
         client.deleteObject(config.getBucket(), config.getRoot() + sourceSegment);
         Duration elapsed = timer.getElapsed();
 
-        log.debug("Concat  target={} source={} offset={} bytesWritten={} latency={}.", targetHandle.getSegmentName(), sourceSegment, offset, si.getLength(), elapsed);
+        log.debug("Concat target={} source={} offset={} bytesWritten={} latency={}.", targetHandle.getSegmentName(), sourceSegment, offset, si.getLength(), elapsed.toMillis());
 
         ExtendedS3Metrics.CONCAT_LATENCY.reportSuccessEvent(elapsed);
         ExtendedS3Metrics.CONCAT_BYTES.add(si.getLength());
@@ -465,7 +465,7 @@ public class ExtendedS3Storage implements SyncStorage {
         ExtendedS3Metrics.DELETE_LATENCY.reportSuccessEvent(elapsed);
         ExtendedS3Metrics.DELETE_COUNT.inc();
 
-        log.debug("Delete  segment={} latency={}.", elapsed);
+        log.debug("Delete segment={} latency={}.", handle.getSegmentName(), elapsed.toMillis());
 
         LoggerHelpers.traceLeave(log, "delete", traceId);
         return null;
