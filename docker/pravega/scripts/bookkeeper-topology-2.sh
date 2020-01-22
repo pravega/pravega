@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 #
 #/**
 # * Copyright 2016 The Apache Software Foundation
