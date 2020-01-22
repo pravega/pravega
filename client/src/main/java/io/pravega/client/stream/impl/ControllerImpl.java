@@ -23,6 +23,7 @@ import io.grpc.netty.NegotiationType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.NoSuchScopeException;
@@ -167,9 +168,13 @@ public class ControllerImpl implements Controller {
             SslContextBuilder sslContextBuilder;
             String trustStore = config.getClientConfig().getTrustStore();
             sslContextBuilder = GrpcSslContexts.forClient();
-            if (!Strings.isNullOrEmpty(trustStore)) {
+
+            if (!config.getClientConfig().isValidateHostName()) {
+                sslContextBuilder = sslContextBuilder.trustManager(InsecureTrustManagerFactory.INSTANCE);
+            } else if (!Strings.isNullOrEmpty(trustStore)) {
                 sslContextBuilder = sslContextBuilder.trustManager(new File(trustStore));
             }
+
             try {
                 channelBuilder = ((NettyChannelBuilder) channelBuilder).sslContext(sslContextBuilder.build())
                                                                        .negotiationType(NegotiationType.TLS);
