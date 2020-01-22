@@ -36,8 +36,11 @@ You may obtain a copy of the License at
         </encoder>
     </appender>
 
+    <appender name="Metrics" class="io.pravega.shared.metrics.MetricsLogAppender"/>
+
     <root level="${log.level:-INFO}">
         <appender-ref ref="consoleAppender"/>
         <appender-ref ref="FILE"/>
+        <appender-ref ref="Metrics"/>
     </root>
 </configuration>
