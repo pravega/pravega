@@ -13,8 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.common.Exceptions;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
-
+import io.pravega.shared.NameUtils;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -25,8 +24,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
+import static io.pravega.shared.NameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.getSegmentNumber;
 
 public class RecordHelper {
     
@@ -94,12 +93,12 @@ public class RecordHelper {
 
         if (newRangeMatch) {
             final Set<Integer> segmentNumbersToSeal = isManualScale ? 
-                    segmentsToSeal.stream().map(StreamSegmentNameUtils::getSegmentNumber).collect(Collectors.toSet()) :
+                    segmentsToSeal.stream().map(NameUtils::getSegmentNumber).collect(Collectors.toSet()) :
                     null;
             return segmentsToSeal.stream().allMatch(segmentId -> {
                 if (isManualScale) {
                     // compare segmentNumbers
-                    return segmentNumbersToSeal.contains(StreamSegmentNameUtils.getSegmentNumber(segmentId));
+                    return segmentNumbersToSeal.contains(NameUtils.getSegmentNumber(segmentId));
                 } else {
                     // compare segmentIds
                     return record.getSegmentsToSeal().contains(segmentId);

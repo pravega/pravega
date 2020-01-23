@@ -26,7 +26,7 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -65,7 +65,7 @@ class TableMetadataStore extends MetadataStore {
     TableMetadataStore(Connector connector, @NonNull TableStore tableStore, Executor executor) {
         super(connector, executor);
         this.tableStore = tableStore;
-        this.metadataSegmentName = StreamSegmentNameUtils.getMetadataSegmentName(connector.getContainerMetadata().getContainerId());
+        this.metadataSegmentName = NameUtils.getMetadataSegmentName(connector.getContainerMetadata().getContainerId());
         this.initialized = new AtomicBoolean(false);
     }
 

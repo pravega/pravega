@@ -37,8 +37,8 @@ import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
@@ -574,7 +574,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             val txnList = new ArrayList<String>(TRANSACTIONS_PER_SEGMENT);
             transactions.put(segmentName, txnList);
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
-                String txnName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+                String txnName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
                 txnList.add(txnName);
                 futures.add(store.createStreamSegment(txnName, null, TIMEOUT));
             }
@@ -892,7 +892,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         // We want to make sure that both the main segment and its attribute segment have been sync-ed to Storage. In case
         // of the attribute segment, the only thing we can easily do is verify that it has been sealed when the main segment
         // it is associated with has also been sealed.
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(sp.getName());
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(sp.getName());
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         AtomicBoolean tryAgain = new AtomicBoolean(true);
         return Futures.loop(
