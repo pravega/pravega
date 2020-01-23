@@ -10,7 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.controller.store.client.StoreType;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import lombok.Getter;
 
 import java.util.Set;
@@ -87,6 +87,6 @@ public interface BucketStore {
     }
 
     static String getScopedStreamName(String scope, String stream) {
-        return StreamSegmentNameUtils.getScopedStreamName(scope, stream);
+        return NameUtils.getScopedStreamName(scope, stream);
     }
 }
