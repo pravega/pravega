@@ -114,8 +114,6 @@ initialize_cluster() {
     else
         # Create a persistent zk node `bkInitLock` for use as a lock.
         lock=`zk-shell --run-once "create ${BK_CLUSTER_ROOT_PATH}/bkInitLock '' false false false" ${BK_zkServers}`
-        zk-shell --run-once "ls ${BK_CLUSTER_ROOT_PATH}/" ${BK_zkServers}
-
         if [ -z "$lock" ]; then
             echo "Bookkeeper znodes do not exist in Zookeeper. Initializing a new Bookeekeper cluster."
 
