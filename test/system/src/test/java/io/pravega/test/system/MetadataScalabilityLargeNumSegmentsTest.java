@@ -13,7 +13,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ControllerImpl;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.system.framework.SystemTestRunner;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -67,7 +67,7 @@ public class MetadataScalabilityLargeNumSegmentsTest extends MetadataScalability
     Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sortedCurrentSegments) {
         int i = counter.incrementAndGet();
         List<Long> segmentsToSeal = sortedCurrentSegments.stream()
-                                          .filter(x -> i - 1 == StreamSegmentNameUtils.getSegmentNumber(x.getSegmentId()) % NUM_SEGMENTS)
+                                          .filter(x -> i - 1 == NameUtils.getSegmentNumber(x.getSegmentId()) % NUM_SEGMENTS)
                                           .map(Segment::getSegmentId).collect(Collectors.toList());
         Map<Double, Double> newRanges = new HashMap<>();
         double delta = 1.0 / NUM_SEGMENTS;

@@ -29,8 +29,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.NameUtils.segmentTags;
 import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_APPEND_LATENCY;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.segmentTags;
 
 @Slf4j
 public class ClientConnectionImpl implements ClientConnection {

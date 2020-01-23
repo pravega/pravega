@@ -61,8 +61,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
@@ -1547,7 +1547,7 @@ public class ControllerImplTest {
         Stream stream = Stream.of(deadline, deadline);
 
         CompletableFuture<PravegaNodeUri> getEndpointFuture = controller.getEndpointForSegment(
-                StreamSegmentNameUtils.getQualifiedStreamSegmentName(deadline, deadline, 0L));
+                NameUtils.getQualifiedStreamSegmentName(deadline, deadline, 0L));
         AssertExtensions.assertFutureThrows("", getEndpointFuture, deadlinePredicate);
 
         CompletableFuture<StreamSegments> getSegmentFuture = controller.getCurrentSegments(deadline, deadline);
