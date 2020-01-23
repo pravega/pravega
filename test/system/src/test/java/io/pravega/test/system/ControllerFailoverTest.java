@@ -18,7 +18,7 @@ import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
@@ -158,7 +158,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
             Thread.sleep(30000);
         }
 
-        segmentsToSeal = Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(1, 1));
+        segmentsToSeal = Collections.singletonList(NameUtils.computeSegmentId(1, 1));
 
         newRangesToCreate = new HashMap<>();
         newRangesToCreate.put(0.0, 0.5);
