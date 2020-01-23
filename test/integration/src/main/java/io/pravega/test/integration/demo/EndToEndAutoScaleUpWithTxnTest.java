@@ -39,7 +39,6 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import java.util.Collections;
 import java.util.HashMap;
@@ -147,7 +146,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
                     .throwingOn(RuntimeException.class)
                     .runAsync(() -> controller.getCurrentSegments("test", "test")
                             .thenAccept(streamSegments -> {
-                                if (streamSegments.getSegments().stream().anyMatch(x -> StreamSegmentNameUtils.getEpoch(x.getSegmentId()) > 5)) {
+                                if (streamSegments.getSegments().stream().anyMatch(x -> NameUtils.getEpoch(x.getSegmentId()) > 5)) {
                                     System.err.println("Success");
                                     log.info("Success");
                                     System.exit(0);
