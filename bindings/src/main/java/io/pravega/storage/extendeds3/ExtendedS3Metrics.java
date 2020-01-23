@@ -19,7 +19,7 @@ import io.pravega.shared.metrics.StatsLogger;
  * Defines all Metrics used by the ExtendedS3Storage class.
  */
 final class ExtendedS3Metrics {
-    private static final StatsLogger ECS_LOGGER = MetricsProvider.createStatsLogger("ecs");
+    private static final StatsLogger ECS_LOGGER = MetricsProvider.createStatsLogger("ExtendedS3");
     static final OpStatsLogger READ_LATENCY = ECS_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);
     static final OpStatsLogger WRITE_LATENCY = ECS_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);
     static final OpStatsLogger CREATE_LATENCY = ECS_LOGGER.createStats(MetricsNames.STORAGE_CREATE_LATENCY);
