@@ -112,8 +112,10 @@ initialize_cluster() {
     if [ $? -eq 0 ]; then
         echo "Cluster metadata already exists"
     else
-        # Create an ephemeral zk node `bkInitLock` for use as a lock.
-        lock=`zk-shell --run-once "create ${BK_CLUSTER_ROOT_PATH}/bkInitLock '' true false false" ${BK_zkServers}`
+        # Create a persistent zk node `bkInitLock` for use as a lock.
+        lock=`zk-shell --run-once "create ${BK_CLUSTER_ROOT_PATH}/bkInitLock '' false false false" ${BK_zkServers}`
+        zk-shell --run-once "ls ${BK_CLUSTER_ROOT_PATH}/" ${BK_zkServers}
+
         if [ -z "$lock" ]; then
             echo "Bookkeeper znodes do not exist in Zookeeper. Initializing a new Bookeekeper cluster."
 
@@ -122,10 +124,14 @@ initialize_cluster() {
             /opt/bookkeeper/bin/bookkeeper shell initnewcluster
             if [ $? -eq 0 ]; then
                 echo "initnewcluster operation succeeded"
+                zk-shell --run-once "rm ${BK_CLUSTER_ROOT_PATH}/bkInitLock" ${BK_zkServers}
+                echo "Deleted znode ${BK_CLUSTER_ROOT_PATH}/bkInitLock"
             else
                 echo "initnewcluster operation failed. Please check the reason."
                 echo "Exit status of initnewcluster"
                 echo $?
+                zk-shell --run-once "rm ${BK_CLUSTER_ROOT_PATH}/bkInitLock" ${BK_zkServers}
+                echo "Deleted znode ${BK_CLUSTER_ROOT_PATH}/bkInitLock"
                 exit
             fi
         else
