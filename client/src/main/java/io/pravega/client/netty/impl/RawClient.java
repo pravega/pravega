@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -116,7 +116,7 @@ public class RawClient implements AutoCloseable {
                 try {
                     c.close();
                 } catch (Exception e) {
-                    log.warn("Exception tearing down connection: ", e);
+                    log.warn("Exception tearing down connection {} : ", c, e);
                 }
             });
         }

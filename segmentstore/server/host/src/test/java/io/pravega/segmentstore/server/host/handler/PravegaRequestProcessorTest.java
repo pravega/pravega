@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,12 +37,12 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentService;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
@@ -62,8 +62,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -317,11 +317,11 @@ public class PravegaRequestProcessorTest {
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
 
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
         order.verify(connection).send(Mockito.argThat(t -> {
             return t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists();
@@ -330,13 +330,13 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, 2));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
+                .send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
         txnid = UUID.randomUUID();
-        transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection).send(Mockito.argThat(t -> {
@@ -346,27 +346,27 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentDeleted(requestId, transactionName));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
+                .send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
         // Verify the case when the transaction segment is already sealed. This simulates the case when the process
         // crashed after sealing, but before issuing the merge.
         txnid = UUID.randomUUID();
-        transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
 
         // Seal the transaction in the SegmentStore.
-        String txnName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        String txnName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
         store.sealStreamSegment(txnName, Duration.ZERO).join();
 
         processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
         order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, 4));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
+                .send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
         order.verifyNoMoreInteractions();
     }
@@ -392,7 +392,7 @@ public class PravegaRequestProcessorTest {
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
 
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
@@ -400,7 +400,7 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, 0));
 
         txnid = UUID.randomUUID();
-        transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).sealStreamSegment(
                 anyString(), any());
@@ -411,7 +411,7 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
         processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
 
-        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName,
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName,
                                                                                                                        txnid), "", -1L));
     }
 
@@ -435,7 +435,7 @@ public class PravegaRequestProcessorTest {
                 TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnId);
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
         processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         processor.mergeSegments(new WireCommands.MergeSegments(2, streamSegmentName, transactionName, ""));
         verify(recorderMock).merge(streamSegmentName, 100L, 10, (long) streamSegmentName.hashCode());

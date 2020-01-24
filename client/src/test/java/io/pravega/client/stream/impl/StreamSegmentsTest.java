@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Range;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.shared.NameUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,10 +28,9 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -50,7 +50,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("" + i);
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
+            counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -61,7 +61,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey(r.nextDouble());
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
+            counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -88,7 +88,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("" + i);
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
+            counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         assertEquals(0, counts[0]);
         assertEquals(0, counts[1]);
@@ -167,7 +167,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("" + i);
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
+            counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         assertEquals(0, counts[0]);
         assertEquals(0, counts[1]);
@@ -197,7 +197,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("Foo");
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
+            counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         assertArrayEquals(new int[] { 20, 0, 0, 0 }, counts);
     }
@@ -1439,7 +1439,7 @@ public class StreamSegmentsTest {
     }
 
     private Segment createSegment(int num, int epoch) {
-        return new Segment("scope", "stream", StreamSegmentNameUtils.computeSegmentId(num, epoch));
+        return new Segment("scope", "stream", NameUtils.computeSegmentId(num, epoch));
     }
     
 }

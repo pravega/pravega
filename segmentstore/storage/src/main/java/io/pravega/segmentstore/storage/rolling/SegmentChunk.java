@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,7 +11,7 @@ package io.pravega.segmentstore.storage.rolling;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -64,7 +64,7 @@ class SegmentChunk {
      * @return A new SegmentChunk.
      */
     static SegmentChunk forSegment(String segmentName, long startOffset) {
-        return new SegmentChunk(StreamSegmentNameUtils.getSegmentChunkName(segmentName, startOffset), startOffset);
+        return new SegmentChunk(NameUtils.getSegmentChunkName(segmentName, startOffset), startOffset);
     }
 
     /**

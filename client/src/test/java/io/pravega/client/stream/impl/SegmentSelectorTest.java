@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventWriterConfig;
 
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.shared.NameUtils;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,13 +31,11 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.computeSegmentId;
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static java.util.Collections.singletonList;
 import static org.junit.Assert.*;
@@ -72,7 +71,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = selector.getSegmentForEvent("" + i);
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
+            counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -104,7 +103,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 100; i++) {
             Segment segment = selector.getSegmentForEvent(null);
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
+            counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -132,7 +131,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = selector.getSegmentForEvent("Foo");
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
+            counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         assertArrayEquals(new int[] { 20, 0, 0, 0 }, counts);
     }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -67,7 +67,7 @@ class RollingSegmentHandle implements SegmentHandle {
     RollingSegmentHandle(SegmentHandle headerHandle, SegmentRollingPolicy rollingPolicy, List<SegmentChunk> segmentChunks) {
         this.headerHandle = Preconditions.checkNotNull(headerHandle, "headerHandle");
         this.readOnly = this.headerHandle.isReadOnly();
-        this.segmentName = StreamSegmentNameUtils.getSegmentNameFromHeader(headerHandle.getSegmentName());
+        this.segmentName = NameUtils.getSegmentNameFromHeader(headerHandle.getSegmentName());
         Exceptions.checkNotNullOrEmpty(this.segmentName, "headerHandle.getSegmentName()");
         this.rollingPolicy = rollingPolicy == null ? SegmentRollingPolicy.NO_ROLLING : rollingPolicy;
         this.segmentChunks = Preconditions.checkNotNull(segmentChunks, "segmentChunks");
