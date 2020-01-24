@@ -185,7 +185,6 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
                content.readableBytes(), metadata);
     }
 
-
     //endregion
 
     //region ReadLedger
@@ -217,7 +216,6 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             // Release memory held by BookKeeper internals.
             // we have to prevent a double free
             if (closed.compareAndSet(false, true)) {
-
                 if (currentLedgerEntries != null) {
                     currentLedgerEntries.close();
                 }

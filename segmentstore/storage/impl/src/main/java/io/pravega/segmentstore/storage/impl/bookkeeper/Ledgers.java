@@ -15,9 +15,12 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKNotEnoughBookiesException;
+import org.apache.bookkeeper.client.BKException.BKUnexpectedConditionException;
 import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.api.DigestType;
 import org.apache.bookkeeper.client.api.Handle;
@@ -38,6 +41,20 @@ final class Ledgers {
     private static final DigestType LEDGER_DIGEST_TYPE = DigestType.MAC;
 
     /**
+     * Converts exceptions to BKException. Fallback to BKUnexpectedConditionException
+     * for non BookKeeper exceptions.
+     */
+    private static final Function<Throwable, BKException> BK_EXCEPTION_HANDLER = cause -> {
+        if (cause instanceof BKException) {
+            return (BKException) cause;
+        } else {
+            BKUnexpectedConditionException wrapper = new BKUnexpectedConditionException();
+            wrapper.initCause(cause);
+            return wrapper;
+        }
+    };
+
+    /**
      * Creates a new Ledger in BookKeeper.
      *
      * @return A WriteHandle for the new ledger.
@@ -55,10 +72,10 @@ final class Ledgers {
                             .withAckQuorumSize(config.getBkAckQuorumSize())
                             .withDigestType(LEDGER_DIGEST_TYPE)
                             .withPassword(config.getBKPassword())
-                            .execute()));
+                            .execute(), BK_EXCEPTION_HANDLER) );
         } catch (BKNotEnoughBookiesException bkEx) {
             throw new DataLogNotAvailableException("Unable to create new BookKeeper Ledger.", bkEx);
-        } catch (Exception bkEx) {
+        } catch (BKException bkEx) {
             throw new DurableDataLogException("Unable to create new BookKeeper Ledger.", bkEx);
         }
     }
@@ -81,8 +98,8 @@ final class Ledgers {
                     .withDigestType(LEDGER_DIGEST_TYPE)
                     .withPassword(config.getBKPassword())
                     .withRecovery(true)
-                    .execute()));
-        } catch (Exception bkEx) {
+                    .execute(), BK_EXCEPTION_HANDLER));
+        } catch (BKException bkEx) {
             throw new DurableDataLogException(String.format("Unable to open-fence ledger %d.", ledgerId), bkEx);
         }
     }
@@ -105,8 +122,8 @@ final class Ledgers {
                     .withDigestType(LEDGER_DIGEST_TYPE)
                     .withPassword(config.getBKPassword())
                     .withRecovery(false)
-                    .execute()));
-        } catch (Exception bkEx) {
+                    .execute(), BK_EXCEPTION_HANDLER));
+        } catch (BKException bkEx) {
             throw new DurableDataLogException(String.format("Unable to open-read ledger %d.", ledgerId), bkEx);
         }
     }
@@ -166,9 +183,9 @@ final class Ledgers {
             Exceptions.handleInterrupted(() -> FutureUtils.result(bookKeeper
                     .newDeleteLedgerOp()
                     .withLedgerId(ledgerId)
-                    .execute())
+                    .execute(), BK_EXCEPTION_HANDLER)
             );
-        } catch (Exception bkEx) {
+        } catch (BKException bkEx) {
             throw new DurableDataLogException(String.format("Unable to delete Ledger %d.", ledgerId), bkEx);
         }
     }
