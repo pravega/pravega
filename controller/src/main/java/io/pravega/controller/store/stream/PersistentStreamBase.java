@@ -39,8 +39,7 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
-
+import io.pravega.shared.NameUtils;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -69,8 +68,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
+import static io.pravega.shared.NameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.getSegmentNumber;
 import static java.util.stream.Collectors.groupingBy;
 
 @Slf4j
@@ -335,7 +334,7 @@ public abstract class PersistentStreamBase implements Stream {
         // extract epoch from segment id.
         // fetch epoch record for the said epoch
         // extract segment record from it.
-        int epoch = StreamSegmentNameUtils.getEpoch(segmentId);
+        int epoch = NameUtils.getEpoch(segmentId);
         return getEpochRecord(epoch)
                 .thenApply(epochRecord -> {
                     Optional<StreamSegmentRecord> segmentRecord = epochRecord.getSegments().stream()
@@ -614,8 +613,8 @@ public abstract class PersistentStreamBase implements Stream {
     CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> computeStreamCutSpan(Map<Long, Long> streamCut) {
         long mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
         long oldest = streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
-        int epochLow = StreamSegmentNameUtils.getEpoch(oldest);
-        int epochHigh = StreamSegmentNameUtils.getEpoch(mostRecent);
+        int epochLow = NameUtils.getEpoch(oldest);
+        int epochHigh = NameUtils.getEpoch(mostRecent);
 
         return fetchEpochs(epochLow, epochHigh, true).thenApply(epochs ->  {
             List<Long> toFind = new ArrayList<>(streamCut.keySet());
@@ -639,7 +638,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut) {
-        Map<Integer, List<Long>> groupByEpoch = streamCut.keySet().stream().collect(groupingBy(StreamSegmentNameUtils::getEpoch));
+        Map<Integer, List<Long>> groupByEpoch = streamCut.keySet().stream().collect(groupingBy(NameUtils::getEpoch));
 
         CompletableFuture<List<List<Map.Entry<Double, Double>>>> segmentRangesByEpoch = Futures.allOfWithResults(groupByEpoch.entrySet().stream().map(epochGroup -> {
             return getEpochRecord(epochGroup.getKey())
@@ -1780,7 +1779,7 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     private int getShardNumber(long segmentId) {
-        return StreamSegmentNameUtils.getEpoch(segmentId) / shardSize.get();
+        return NameUtils.getEpoch(segmentId) / shardSize.get();
     }
 
     private ImmutableMap<StreamSegmentRecord, Integer> convertToSpan(EpochRecord epochRecord) {
@@ -1864,7 +1863,7 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     private StreamSegmentRecord newSegmentRecord(long segmentId, long time, Double low, Double high) {
-        return newSegmentRecord(StreamSegmentNameUtils.getEpoch(segmentId), StreamSegmentNameUtils.getSegmentNumber(segmentId),
+        return newSegmentRecord(NameUtils.getEpoch(segmentId), NameUtils.getSegmentNumber(segmentId),
                 time, low, high);
     }
 

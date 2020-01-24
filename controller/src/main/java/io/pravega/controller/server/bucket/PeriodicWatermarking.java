@@ -26,22 +26,17 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.SegmentWithRange;
 import io.pravega.shared.watermarks.Watermark;
-import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.StreamMetadataStore;
-import lombok.Synchronized;
-import org.slf4j.LoggerFactory;
-
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -49,6 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.LongSummaryStatistics;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -59,8 +55,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static java.util.Map.Entry;
+import javax.annotation.ParametersAreNonnullByDefault;
+import lombok.Synchronized;
+import org.slf4j.LoggerFactory;
 
 public class PeriodicWatermarking {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PeriodicWatermarking.class));
@@ -306,7 +303,7 @@ public class PeriodicWatermarking {
         }
 
         return Futures.doWhileLoop(() -> {
-            int highestEpoch = streamCut.keySet().stream().mapToInt(x -> StreamSegmentNameUtils.getEpoch(x.getSegmentId()))
+            int highestEpoch = streamCut.keySet().stream().mapToInt(x -> NameUtils.getEpoch(x.getSegmentId()))
                                         .max().orElse(-1);
             assert highestEpoch >= 0;
             

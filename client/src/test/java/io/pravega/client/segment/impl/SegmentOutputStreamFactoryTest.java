@@ -21,7 +21,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.isTransactionSegment;
+import static io.pravega.shared.NameUtils.isTransactionSegment;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;

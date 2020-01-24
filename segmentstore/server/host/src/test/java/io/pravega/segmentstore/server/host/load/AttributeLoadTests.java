@@ -26,9 +26,9 @@ import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.shared.NameUtils;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.NoOpCache;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -365,7 +365,7 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
 
             // Setup the segment in the metadata.
             this.segmentId = 0L;
-            this.attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(segmentName);
+            this.attributeSegmentName = NameUtils.getAttributeSegmentName(segmentName);
             this.containerMetadata.mapStreamSegmentId(segmentName, this.segmentId);
 
             // Cleanup any existing data.

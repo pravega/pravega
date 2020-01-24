@@ -33,7 +33,7 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -646,7 +646,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         initializeSegment(segmentId, context);
 
         long transactionId = segmentId + 1;
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+        String transactionName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
         context.metadata.mapStreamSegmentId(transactionName, transactionId);
         initializeSegment(transactionId, context);
 

@@ -29,7 +29,7 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -115,7 +115,7 @@ public class EndToEndStatsTest {
         TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter("test", new JavaSerializer<>(),
                 writerConfig);
 
-        String[] tags = segmentTags(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L));
+        String[] tags = segmentTags(NameUtils.getQualifiedStreamSegmentName("test", "test", 0L));
 
         for (int i = 0; i < 10; i++) {
             eventWriter.writeEvent("test").get();
@@ -167,7 +167,7 @@ public class EndToEndStatsTest {
 
         @Override
         public void recordAppend(String streamSegmentName, long dataLength, int numOfEvents, Duration elapsed) {
-            if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
+            if (!NameUtils.isTransactionSegment(streamSegmentName)) {
                 Counter eventCounter = registry.counter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
                 Counter byteCounter = registry.counter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
                 references.add(eventCounter);

@@ -21,7 +21,7 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -210,8 +210,8 @@ public class StreamTest {
 
         long scale = System.currentTimeMillis();
         ArrayList<Long> sealedSegments = Lists.newArrayList(0L);
-        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
-        long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
+        long one = NameUtils.computeSegmentId(1, 1);
+        long two = NameUtils.computeSegmentId(2, 1);
         VersionedMetadata<EpochTransitionRecord> response = stream.submitScale(sealedSegments, newRanges, scale, null).join();
         Map<Long, Map.Entry<Double, Double>> newSegments = response.getObject().getNewSegmentsWithRange();
         VersionedMetadata<State> state = stream.getVersionedState().join();
