@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@ import io.pravega.common.MathHelpers;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -74,7 +74,7 @@ public class HandleSerializerTests {
             // Every now and then, add a new SegmentChunk to the source, to verify how deserializing Concats (whether successful
             // or not) works with this.
             if (i % addChunkAfterEveryConcat == 0) {
-                val chunk = new SegmentChunk(StreamSegmentNameUtils.getSegmentChunkName(source.getSegmentName(), source.length()), source.length());
+                val chunk = new SegmentChunk(NameUtils.getSegmentChunkName(source.getSegmentName(), source.length()), source.length());
                 chunk.setLength(i + 1);
                 source.addChunks(Collections.singletonList(chunk));
                 os.write(HandleSerializer.serializeChunk(chunk));
@@ -115,7 +115,7 @@ public class HandleSerializerTests {
         long offset = 0;
         val rnd = new Random(0);
         for (int i = 0; i < chunkCount; i++) {
-            val chunk = new SegmentChunk(StreamSegmentNameUtils.getSegmentChunkName(segmentName, offset), offset);
+            val chunk = new SegmentChunk(NameUtils.getSegmentChunkName(segmentName, offset), offset);
             chunk.setLength(MathHelpers.abs(rnd.nextInt()));
             if (i < chunkCount - 1) {
                 chunk.markSealed();
@@ -124,7 +124,7 @@ public class HandleSerializerTests {
             offset += chunk.getLength();
         }
 
-        return new RollingSegmentHandle(new TestHandle(StreamSegmentNameUtils.getHeaderSegmentName(segmentName), false),
+        return new RollingSegmentHandle(new TestHandle(NameUtils.getHeaderSegmentName(segmentName), false),
                 TEST_ROLLING_POLICY, chunks);
     }
 

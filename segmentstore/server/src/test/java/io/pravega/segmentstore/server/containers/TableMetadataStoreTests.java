@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.containers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.TableStoreMock;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
@@ -72,7 +72,7 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
         @SneakyThrows
         void initialize() {
             this.tableStore
-                    .createSegment(StreamSegmentNameUtils.getMetadataSegmentName(this.connector.getContainerMetadata().getContainerId()), TIMEOUT)
+                    .createSegment(NameUtils.getMetadataSegmentName(this.connector.getContainerMetadata().getContainerId()), TIMEOUT)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             this.metadataStore
                     .initialize(TIMEOUT)

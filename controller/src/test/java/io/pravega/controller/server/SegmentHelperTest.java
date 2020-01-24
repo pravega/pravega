@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.common.Exceptions.unwrap;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
+import static io.pravega.shared.NameUtils.getQualifiedStreamSegmentName;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

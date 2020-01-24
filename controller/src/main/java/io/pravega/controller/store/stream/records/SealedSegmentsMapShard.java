@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
@@ -109,7 +109,7 @@ public class SealedSegmentsMapShard {
     }
 
     public static int getShardNumber(long segmentId, int shardChunkSize) {
-        return StreamSegmentNameUtils.getEpoch(segmentId) / shardChunkSize;
+        return NameUtils.getEpoch(segmentId) / shardChunkSize;
     }
 
     private static class SealedSegmentsMapShardSerializer

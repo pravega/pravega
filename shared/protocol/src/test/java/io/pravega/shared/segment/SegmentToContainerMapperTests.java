@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.segment;
 
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.nio.CharBuffer;
 import java.util.HashMap;
@@ -97,7 +98,7 @@ public class SegmentToContainerMapperTests {
             String segmentName = getSegmentName(segmentId);
             int containerId = m.getContainerId(segmentName);
             for (int i = 0; i < transactionPerParentCount; i++) {
-                String transcationName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+                String transcationName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
                 int transactionContainerId = m.getContainerId(transcationName);
                 Assert.assertEquals("Parent and Transaction were not assigned to the same container.", containerId, transactionContainerId);
             }
@@ -113,12 +114,12 @@ public class SegmentToContainerMapperTests {
 
         // Generate all possible names with the given length and assign them to a container.
         for (int segmentId = 0; segmentId < streamSegmentCount; segmentId++) {
-            String segmentName = StreamSegmentNameUtils.getQualifiedStreamSegmentName("scope", "stream",
-                    StreamSegmentNameUtils.computeSegmentId(segmentId, 0));
+            String segmentName = NameUtils.getQualifiedStreamSegmentName("scope", "stream",
+                    NameUtils.computeSegmentId(segmentId, 0));
             int containerId = m.getContainerId(segmentName);
             for (int i = 0; i < epochCount; i++) {
-                String duplicate = StreamSegmentNameUtils.getQualifiedStreamSegmentName("scope", "stream",
-                        StreamSegmentNameUtils.computeSegmentId(segmentId, i));
+                String duplicate = NameUtils.getQualifiedStreamSegmentName("scope", "stream",
+                        NameUtils.computeSegmentId(segmentId, i));
                 int duplicateContainerId = m.getContainerId(duplicate);
                 Assert.assertEquals("Parent and Transaction were not assigned to the same container.", containerId, duplicateContainerId);
             }

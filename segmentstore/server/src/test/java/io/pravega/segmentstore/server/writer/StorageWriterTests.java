@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
@@ -904,7 +904,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             transactions.put(parentId, segmentTransactions);
             SegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
-                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
+                String transactionName = NameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
                 context.transactionIds.put(transactionId, parentId);
                 context.metadata.mapStreamSegmentId(transactionName, transactionId);
                 initializeSegment(transactionId, context);

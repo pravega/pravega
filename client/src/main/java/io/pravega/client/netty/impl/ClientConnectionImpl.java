@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,8 +29,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.NameUtils.segmentTags;
 import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_APPEND_LATENCY;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.segmentTags;
 
 @Slf4j
 public class ClientConnectionImpl implements ClientConnection {

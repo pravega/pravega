@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -238,7 +238,7 @@ public class RollingStorage implements SyncStorage {
     @Override
     public SegmentHandle create(String segmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
         Preconditions.checkNotNull(rollingPolicy, "rollingPolicy");
-        String headerName = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
+        String headerName = NameUtils.getHeaderSegmentName(segmentName);
         long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, rollingPolicy);
 
         // First, check if the segment exists but with no header (it might have been created prior to applying
@@ -634,7 +634,7 @@ public class RollingStorage implements SyncStorage {
         Preconditions.checkArgument(handle.getHeaderHandle() == null, "handle already has a header.");
 
         // Create a new Header SegmentChunk.
-        String headerName = StreamSegmentNameUtils.getHeaderSegmentName(handle.getSegmentName());
+        String headerName = NameUtils.getHeaderSegmentName(handle.getSegmentName());
         this.baseStorage.create(headerName);
         val headerHandle = this.baseStorage.openWrite(headerName);
 
@@ -700,7 +700,7 @@ public class RollingStorage implements SyncStorage {
     }
 
     private SegmentProperties getHeaderInfo(String segmentName) throws StreamSegmentException {
-        String headerSegment = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
+        String headerSegment = NameUtils.getHeaderSegmentName(segmentName);
         val headerInfo = this.baseStorage.getStreamSegmentInfo(headerSegment);
         if (headerInfo.getLength() == 0) {
             // We treat empty header files as inexistent segments.

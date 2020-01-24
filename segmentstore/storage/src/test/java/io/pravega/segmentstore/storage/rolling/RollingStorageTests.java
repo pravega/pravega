@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.io.ByteArrayInputStream;
@@ -64,7 +64,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         Assert.assertEquals("Unexpected segment length.", writtenData.length, s.getStreamSegmentInfo(SEGMENT_NAME).getLength());
         int checkedLength = 0;
         while (checkedLength < writtenData.length) {
-            String chunkName = StreamSegmentNameUtils.getSegmentChunkName(SEGMENT_NAME, checkedLength);
+            String chunkName = NameUtils.getSegmentChunkName(SEGMENT_NAME, checkedLength);
             Assert.assertTrue("Inexistent SegmentChunk: " + chunkName, baseStorage.exists(chunkName));
             val chunkInfo = baseStorage.getStreamSegmentInfo(chunkName);
             int expectedLength = (int) Math.min(DEFAULT_ROLLING_POLICY.getMaxLength(), writtenData.length - checkedLength);
@@ -236,7 +236,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         s.initialize(1);
 
         // Create an empty header file. This simulates a create() operation that failed mid-way.
-        baseStorage.create(StreamSegmentNameUtils.getHeaderSegmentName(SEGMENT_NAME));
+        baseStorage.create(NameUtils.getHeaderSegmentName(SEGMENT_NAME));
         Assert.assertFalse("Not expecting Segment to exist.", s.exists(SEGMENT_NAME));
         AssertExtensions.assertThrows(
                 "Not expecting Segment to exist (getStreamSegmentInfo).",
@@ -488,7 +488,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
                 ex -> ex instanceof StreamSegmentExistsException);
         Assert.assertTrue("Non-Header Segment does not exist after failed create() attempt.", baseStorage.exists(segmentName));
         Assert.assertFalse("A header was left behind (after create).",
-                baseStorage.exists(StreamSegmentNameUtils.getHeaderSegmentName(segmentName)));
+                baseStorage.exists(NameUtils.getHeaderSegmentName(segmentName)));
 
         // Verify exists().
         Assert.assertTrue("Unexpected result from exists() when called on a non-header Segment.", s.exists(segmentName));
@@ -500,7 +500,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         s.seal(writeHandle);
         byte[] writtenData = os.toByteArray();
         Assert.assertFalse("A header was left behind (after write).",
-                baseStorage.exists(StreamSegmentNameUtils.getHeaderSegmentName(segmentName)));
+                baseStorage.exists(NameUtils.getHeaderSegmentName(segmentName)));
 
         // Verify getInfo().
         val baseInfo = baseStorage.getStreamSegmentInfo(segmentName);

@@ -11,7 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -83,9 +83,9 @@ public abstract class BucketStoreTest {
         streams = getAllStreams(serviceType);
 
         assertEquals(2, streams.size());
-        assertTrue(streams.contains(StreamSegmentNameUtils.getScopedStreamName(scope, stream1)));
-        assertTrue(streams.contains(StreamSegmentNameUtils.getScopedStreamName(scope, stream3)));
-        assertFalse(streams.contains(StreamSegmentNameUtils.getScopedStreamName(scope, stream2)));
+        assertTrue(streams.contains(NameUtils.getScopedStreamName(scope, stream1)));
+        assertTrue(streams.contains(NameUtils.getScopedStreamName(scope, stream3)));
+        assertFalse(streams.contains(NameUtils.getScopedStreamName(scope, stream2)));
     }
 
     private List<String> getAllStreams(BucketStore.ServiceType serviceType) {
