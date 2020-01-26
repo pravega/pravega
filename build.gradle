@@ -301,6 +301,25 @@ project('segmentstore:storage') {
         compile project(':shared:protocol')
         compile project(':segmentstore:contracts')
         compile project(':shared:metrics')
+        compile project(":shared:authplugin")
+        compile project(":shared:security")
+        compile project(":shared:controller-api")
+        compile project(':shared:cluster')
+        compile project(":client")
+        compile project(":shared:metrics")
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
+        compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
+            exclude group: 'com.google.guava', module: 'guava'
+        }
+        compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
+        compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
+        compile group: 'org.apache.curator', name: 'curator-client', version: apacheCuratorVersion
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
+
         testCompile project(':test:testcommon')
     }
     javadoc {

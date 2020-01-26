@@ -44,8 +44,6 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
 
     //endregion
 
-    //region StreamSegmentStore Implementation
-
     @Override
     public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return invoke(

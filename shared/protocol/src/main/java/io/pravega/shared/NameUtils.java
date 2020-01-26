@@ -67,6 +67,18 @@ public class NameUtils {
     }
 
     /**
+     * Validates a user created stream name.
+     *
+     * @param name User supplied stream name to validate.
+     * @return The name in the case is valid.
+     */
+    public static String validateUserStreamSegmentName(String name) {
+        Preconditions.checkNotNull(name);
+        Preconditions.checkArgument(name.matches("[\\p{Alnum}\\.\\-]+"), "Name must be a-z, 0-9, ., -.");
+        return name;
+    }
+
+    /**
      * Validates an internal stream name.
      *
      * @param name Stream name to validate.
