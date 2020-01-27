@@ -134,6 +134,7 @@ public class ReaderGroupStateManager {
      * @param lastPosition The last position the reader successfully read from.
      */
     static void readerShutdown(String readerId, Position lastPosition, StateSynchronizer<ReaderGroupState> sync) {
+        sync.fetchUpdates();
         sync.updateState((state, updates) -> {
             Set<Segment> segments = state.getSegments(readerId);
             if (segments == null) {
