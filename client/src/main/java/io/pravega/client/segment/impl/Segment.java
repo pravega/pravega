@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,11 +11,10 @@ package io.pravega.client.segment.impl;
 
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.shared.NameUtils;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.List;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Data;
 import lombok.NonNull;
 
@@ -44,11 +43,11 @@ public class Segment implements Comparable<Segment>, Serializable {
     }
 
     public String getScopedStreamName() {
-        return StreamSegmentNameUtils.getScopedStreamName(scope, streamName);
+        return NameUtils.getScopedStreamName(scope, streamName);
     }
 
     public String getScopedName() {
-        return StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, streamName, segmentId);
+        return NameUtils.getQualifiedStreamSegmentName(scope, streamName, segmentId);
     }
 
     public Stream getStream() {
@@ -67,11 +66,11 @@ public class Segment implements Comparable<Segment>, Serializable {
      * @return Segment name.
      */
     public static Segment fromScopedName(String qualifiedName) {
-        if (StreamSegmentNameUtils.isTransactionSegment(qualifiedName)) {
-            String originalSegmentName = StreamSegmentNameUtils.getParentStreamSegmentName(qualifiedName);
+        if (NameUtils.isTransactionSegment(qualifiedName)) {
+            String originalSegmentName = NameUtils.getParentStreamSegmentName(qualifiedName);
             return fromScopedName(originalSegmentName);
         } else {
-            List<String> tokens = StreamSegmentNameUtils.extractSegmentTokens(qualifiedName);
+            List<String> tokens = NameUtils.extractSegmentTokens(qualifiedName);
             if (tokens.size() == 2) { // scope not present
                 String scope = null;
                 String streamName = tokens.get(0);

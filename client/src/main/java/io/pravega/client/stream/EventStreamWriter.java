@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,8 +55,8 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * @param event The event to be written to the stream (Null is disallowed)
      * @return A completableFuture that will complete when the event has been durably stored on the configured
      *         number of replicas, and is available for readers to see. This future may complete exceptionally
-     *         cannot happen, however these exceptions are not transient failures. Failures that occur as a
-     *         if this result of connection drops or host death are handled internally with multiple retires and
+     *         if this cannot happen, however these exceptions are not transient failures. Failures that occur 
+     *         as a result of connection drops or host death are handled internally with multiple retires and
      *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
      */
     CompletableFuture<Void> writeEvent(String routingKey, Type event);

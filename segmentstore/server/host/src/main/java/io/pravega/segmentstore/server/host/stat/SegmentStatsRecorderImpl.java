@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,12 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.segment.ScaleType;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
@@ -109,7 +109,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         SegmentAggregates aggregates = cache.getIfPresent(streamSegmentName);
 
         if (aggregates == null &&
-                !StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
+                !NameUtils.isTransactionSegment(streamSegmentName)) {
             loadAsynchronously(streamSegmentName);
         }
 
@@ -150,7 +150,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     @Override
     public void deleteSegment(String streamSegmentName) {
         // Do not close the counter of parent segment when deleting transaction segment.
-        if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
+        if (!NameUtils.isTransactionSegment(streamSegmentName)) {
             getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
             getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
             getDynamicLogger().freezeCounter(SEGMENT_READ_BYTES, segmentTags(streamSegmentName));
@@ -160,7 +160,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     @Override
     public void sealSegment(String streamSegmentName) {
         // Do not close the counter of parent segment when sealing transaction segment.
-        if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
+        if (!NameUtils.isTransactionSegment(streamSegmentName)) {
             getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
             getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
         }
@@ -200,7 +200,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         DynamicLogger dl = getDynamicLogger();
         dl.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), dataLength);
         dl.incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), numOfEvents);
-        if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
+        if (!NameUtils.isTransactionSegment(streamSegmentName)) {
             //Don't report segment specific metrics if segment is a transaction
             //The parent segment metrics will be updated once the transaction is merged
             dl.incCounterValue(SEGMENT_WRITE_BYTES, dataLength, segmentTags(streamSegmentName));

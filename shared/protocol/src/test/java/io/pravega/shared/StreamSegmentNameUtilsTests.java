@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -7,29 +7,25 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.segment;
+package io.pravega.shared;
 
 import io.pravega.test.common.AssertExtensions;
 import java.util.List;
 import java.util.Stack;
 import java.util.UUID;
-import java.util.regex.Matcher;
-
 import org.junit.Assert;
 import org.junit.Test;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.SEGMENT_TAGS_PATTERN;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_EPOCH;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_SCOPE;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_SEGMENT;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_STREAM;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_WRITER;
+import static io.pravega.shared.NameUtils.TAG_EPOCH;
+import static io.pravega.shared.NameUtils.TAG_SCOPE;
+import static io.pravega.shared.NameUtils.TAG_SEGMENT;
+import static io.pravega.shared.NameUtils.TAG_STREAM;
+import static io.pravega.shared.NameUtils.TAG_WRITER;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Unit tests for StreamSegmentNameUtils class.
+ * Unit tests for NameUtils class.
  */
 public class StreamSegmentNameUtilsTests {
     /**
@@ -39,15 +35,15 @@ public class StreamSegmentNameUtilsTests {
     public void testSimpleBatchNameGeneration() {
         int transactionCount = 100;
         String segmentName = "foo";
-        String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(segmentName);
-        assertNull("getParentStreamSegmentName() extracted a parent name when none was expected.", parentName);
+        String parentName = NameUtils.getParentStreamSegmentName(segmentName);
+        Assert.assertNull("getParentStreamSegmentName() extracted a parent name when none was expected.", parentName);
 
         for (int i = 0; i < transactionCount; i++) {
-            String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+            String transactionName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
             AssertExtensions.assertNotNullOrEmpty("getTransactionNameFromId() did not return any Segment Name.", transactionName);
             AssertExtensions.assertGreaterThan("getTransactionNameFromId() returned a Segment Name that is shorter than the base.", segmentName.length(), transactionName.length());
 
-            parentName = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
+            parentName = NameUtils.getParentStreamSegmentName(transactionName);
             assertEquals("getParentStreamSegmentName() generated an unexpected value for parent.", segmentName, parentName);
         }
     }
@@ -64,54 +60,54 @@ public class StreamSegmentNameUtilsTests {
         names.push("foo"); // Base segment.
         for (int i = 0; i < recursionCount; i++) {
             // Generate a batch name for the last generated name.
-            names.push(StreamSegmentNameUtils.getTransactionNameFromId(names.peek(), UUID.randomUUID()));
+            names.push(NameUtils.getTransactionNameFromId(names.peek(), UUID.randomUUID()));
         }
 
         // Make sure we can retrace our roots.
         String lastName = names.pop();
         while (names.size() > 0) {
             String expectedName = names.pop();
-            String actualName = StreamSegmentNameUtils.getParentStreamSegmentName(lastName);
+            String actualName = NameUtils.getParentStreamSegmentName(lastName);
             assertEquals("Unexpected parent name.", expectedName, actualName);
             lastName = expectedName;
         }
 
-        assertNull("Unexpected parent name when none was expected.", StreamSegmentNameUtils.getParentStreamSegmentName(lastName));
+        Assert.assertNull("Unexpected parent name when none was expected.", NameUtils.getParentStreamSegmentName(lastName));
     }
 
     @Test
     public void testSegmentId() {
         // compute segment id and then extract primary and secondary ids
-        long segmentId = StreamSegmentNameUtils.computeSegmentId(10, 14);
-        assertEquals(10, StreamSegmentNameUtils.getSegmentNumber(segmentId));
-        assertEquals(14, StreamSegmentNameUtils.getEpoch(segmentId));
+        long segmentId = NameUtils.computeSegmentId(10, 14);
+        assertEquals(10, NameUtils.getSegmentNumber(segmentId));
+        assertEquals(14, NameUtils.getEpoch(segmentId));
 
-        AssertExtensions.assertThrows("Negative integers not allowed", () -> StreamSegmentNameUtils.computeSegmentId(-1, 10),
+        AssertExtensions.assertThrows("Negative integers not allowed", () -> NameUtils.computeSegmentId(-1, 10),
                 e -> e instanceof IllegalArgumentException);
     }
 
     @Test
     public void testQualifiedStreamSegmentName() {
-        long segmentId = StreamSegmentNameUtils.computeSegmentId(10, 100);
-        String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName("scope", "stream", segmentId);
+        long segmentId = NameUtils.computeSegmentId(10, 100);
+        String qualifiedName = NameUtils.getQualifiedStreamSegmentName("scope", "stream", segmentId);
 
         UUID transactionId = UUID.randomUUID();
-        String txnSegment = StreamSegmentNameUtils.getTransactionNameFromId(qualifiedName, transactionId);
-        assertTrue(StreamSegmentNameUtils.isTransactionSegment(txnSegment));
-        assertEquals(qualifiedName, StreamSegmentNameUtils.getParentStreamSegmentName(txnSegment));
+        String txnSegment = NameUtils.getTransactionNameFromId(qualifiedName, transactionId);
+        assertTrue(NameUtils.isTransactionSegment(txnSegment));
+        assertEquals(qualifiedName, NameUtils.getParentStreamSegmentName(txnSegment));
 
-        String primary = StreamSegmentNameUtils.extractPrimaryStreamSegmentName(qualifiedName);
+        String primary = NameUtils.extractPrimaryStreamSegmentName(qualifiedName);
         assertEquals("scope/stream/10", primary);
 
-        String primaryFromTxn = StreamSegmentNameUtils.extractPrimaryStreamSegmentName(txnSegment);
+        String primaryFromTxn = NameUtils.extractPrimaryStreamSegmentName(txnSegment);
         assertEquals("scope/stream/10", primaryFromTxn);
     }
 
     @Test
     public void testSegmentTokens() {
-        long segmentId = StreamSegmentNameUtils.computeSegmentId(10, 100);
-        String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName("scope", "stream", segmentId);
-        List<String> tokens = StreamSegmentNameUtils.extractSegmentTokens(qualifiedName);
+        long segmentId = NameUtils.computeSegmentId(10, 100);
+        String qualifiedName = NameUtils.getQualifiedStreamSegmentName("scope", "stream", segmentId);
+        List<String> tokens = NameUtils.extractSegmentTokens(qualifiedName);
         assertEquals(3, tokens.size());
         assertEquals("scope", tokens.get(0));
         assertEquals("stream", tokens.get(1));
@@ -120,19 +116,19 @@ public class StreamSegmentNameUtilsTests {
 
     @Test
     public void testMetadataSegmentName() {
-        Assert.assertEquals("_system/containers/metadata_123", StreamSegmentNameUtils.getMetadataSegmentName(123));
+        Assert.assertEquals("_system/containers/metadata_123", NameUtils.getMetadataSegmentName(123));
         AssertExtensions.assertThrows(
                 "getMetadataSegmentName allowed negative container ids.",
-                () -> StreamSegmentNameUtils.getMetadataSegmentName(-1),
+                () -> NameUtils.getMetadataSegmentName(-1),
                 ex -> ex instanceof IllegalArgumentException);
     }
     
     @Test
     public void testTableSegmentName() {
-        String name = StreamSegmentNameUtils.getQualifiedTableName("scope", "tok1", "tok2", "tok3");
+        String name = NameUtils.getQualifiedTableName("scope", "tok1", "tok2", "tok3");
         assertEquals("scope/_tables/tok1/tok2/tok3", name);
-        assertTrue(StreamSegmentNameUtils.isTableSegment(name));
-        List<String> tokens = StreamSegmentNameUtils.extractTableSegmentTokens(name);
+        assertTrue(NameUtils.isTableSegment(name));
+        List<String> tokens = NameUtils.extractTableSegmentTokens(name);
         
         assertEquals(4, tokens.size());
         assertEquals("scope", tokens.get(0));
@@ -140,84 +136,84 @@ public class StreamSegmentNameUtilsTests {
         assertEquals("tok2", tokens.get(2));
         assertEquals("tok3", tokens.get(3));
 
-        AssertExtensions.assertThrows("No tokens supplied", () -> StreamSegmentNameUtils.getQualifiedTableName("scope"), 
+        AssertExtensions.assertThrows("No tokens supplied", () -> NameUtils.getQualifiedTableName("scope"), 
                 e -> e instanceof IllegalArgumentException);
     }
 
     @Test
     public void testGetAttributeSegmentName() {
-       String name = StreamSegmentNameUtils.getAttributeSegmentName("foo");
+       String name = NameUtils.getAttributeSegmentName("foo");
         AssertExtensions.assertThrows(
                 "getAttributeSegmentName did not fail to add the attribute suffix.",
-                () -> StreamSegmentNameUtils.getAttributeSegmentName(name),
+                () -> NameUtils.getAttributeSegmentName(name),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testGetHeaderSegmentName() {
-        String name = StreamSegmentNameUtils.getHeaderSegmentName("foo");
+        String name = NameUtils.getHeaderSegmentName("foo");
         AssertExtensions.assertThrows(
                 "getHeaderSegmentName did not fail to add the header suffix.",
-                () -> StreamSegmentNameUtils.getHeaderSegmentName(name),
+                () -> NameUtils.getHeaderSegmentName(name),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testGetSegmentNameFromHeader() {
-        String name = StreamSegmentNameUtils.getSegmentNameFromHeader(StreamSegmentNameUtils.getHeaderSegmentName("foo"));
+        String name = NameUtils.getSegmentNameFromHeader(NameUtils.getHeaderSegmentName("foo"));
         AssertExtensions.assertThrows(
                 "getSegmentNameFromHeader did not fail to remove the header suffix.",
-                () -> StreamSegmentNameUtils.getSegmentNameFromHeader("foo"),
+                () -> NameUtils.getSegmentNameFromHeader("foo"),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testGetSegmentNameChunkName() {
-        String name = StreamSegmentNameUtils.getSegmentChunkName("foo", 0);
+        String name = NameUtils.getSegmentChunkName("foo", 0);
         AssertExtensions.assertThrows(
                 "getSegmentChunkName did not fail to concatenate the offset.",
-                () -> StreamSegmentNameUtils.getSegmentChunkName(name, 0),
+                () -> NameUtils.getSegmentChunkName(name, 0),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testGetScopedStreamName() {
-        String name = StreamSegmentNameUtils.getScopedStreamName("scope", "stream");
+        String name = NameUtils.getScopedStreamName("scope", "stream");
         Assert.assertTrue(name.equals("scope/stream"));
-        name = StreamSegmentNameUtils.getScopedStreamName("", "stream");
+        name = NameUtils.getScopedStreamName("", "stream");
         Assert.assertTrue(name.equals("stream"));
-        name = StreamSegmentNameUtils.getScopedStreamName(null, "stream");
+        name = NameUtils.getScopedStreamName(null, "stream");
         Assert.assertTrue(name.equals("stream"));
     }
 
     @Test
     public void testComputeSegmentId() {
-        long sid = StreamSegmentNameUtils.computeSegmentId(1, 1);
+        long sid = NameUtils.computeSegmentId(1, 1);
         Assert.assertEquals(sid, (long) (0x1L << 32) + 1);
 
         AssertExtensions.assertThrows(
                 "Accepted a negative epoch",
-                () -> StreamSegmentNameUtils.computeSegmentId(1, -1),
+                () -> NameUtils.computeSegmentId(1, -1),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
     public void testExtractSegmentTokens() {
-        String name  = StreamSegmentNameUtils.getQualifiedStreamSegmentName("scope", "stream", 0);
-        List<String> tokens = StreamSegmentNameUtils.extractSegmentTokens(name);
+        String name  = NameUtils.getQualifiedStreamSegmentName("scope", "stream", 0);
+        List<String> tokens = NameUtils.extractSegmentTokens(name);
         Assert.assertEquals(tokens.size(), 3);
         Assert.assertTrue(tokens.get(0).equals("scope"));
         Assert.assertTrue(tokens.get(1).equals("stream"));
         Assert.assertTrue(tokens.get(2).equals("0"));
 
-        name  = StreamSegmentNameUtils.getQualifiedStreamSegmentName("", "stream", 0);
-        tokens = StreamSegmentNameUtils.extractSegmentTokens(name);
+        name  = NameUtils.getQualifiedStreamSegmentName("", "stream", 0);
+        tokens = NameUtils.extractSegmentTokens(name);
         Assert.assertEquals(tokens.size(), 2);
         Assert.assertTrue(tokens.get(0).equals("stream"));
         Assert.assertTrue(tokens.get(1).equals("0"));
 
-        name  = StreamSegmentNameUtils.getQualifiedStreamSegmentName(null, "stream", 0);
-        tokens = StreamSegmentNameUtils.extractSegmentTokens(name);
+        name  = NameUtils.getQualifiedStreamSegmentName(null, "stream", 0);
+        tokens = NameUtils.extractSegmentTokens(name);
         Assert.assertEquals(tokens.size(), 2);
         Assert.assertTrue(tokens.get(0).equals("stream"));
         Assert.assertTrue(tokens.get(1).equals("0"));
@@ -225,7 +221,7 @@ public class StreamSegmentNameUtilsTests {
 
     @Test
     public void testSegmentTags() {
-        String[] tags = StreamSegmentNameUtils.segmentTags("scope/stream/segment.#epoch.1552095534");
+        String[] tags = NameUtils.segmentTags("scope/stream/segment.#epoch.1552095534");
         assertEquals(8, tags.length);
         assertEquals(TAG_SCOPE, tags[0]);
         assertEquals("scope", tags[1]);
@@ -237,7 +233,7 @@ public class StreamSegmentNameUtilsTests {
         assertEquals("1552095534", tags[7]);
 
         //test missing scope and epoch
-        tags = StreamSegmentNameUtils.segmentTags("stream/segment");
+        tags = NameUtils.segmentTags("stream/segment");
         assertEquals(8, tags.length);
         assertEquals(TAG_SCOPE, tags[0]);
         assertEquals("default", tags[1]);
@@ -249,7 +245,7 @@ public class StreamSegmentNameUtilsTests {
         assertEquals("0", tags[7]);
 
         // test missing scope, stream and epoch
-        tags = StreamSegmentNameUtils.segmentTags("segment");
+        tags = NameUtils.segmentTags("segment");
         assertEquals(8, tags.length);
         assertEquals(TAG_SCOPE, tags[0]);
         assertEquals("default", tags[1]);
@@ -263,12 +259,12 @@ public class StreamSegmentNameUtilsTests {
 
     @Test
     public void testSegmentTagsForTransactions() {
-        long segmentId = StreamSegmentNameUtils.computeSegmentId(10, 100);
-        String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName("scope", "stream", segmentId);
+        long segmentId = NameUtils.computeSegmentId(10, 100);
+        String qualifiedName = NameUtils.getQualifiedStreamSegmentName("scope", "stream", segmentId);
         UUID transactionId = UUID.randomUUID();
-        String txnSegment = StreamSegmentNameUtils.getTransactionNameFromId(qualifiedName, transactionId);
+        String txnSegment = NameUtils.getTransactionNameFromId(qualifiedName, transactionId);
 
-        String[] tags = StreamSegmentNameUtils.segmentTags(txnSegment);
+        String[] tags = NameUtils.segmentTags(txnSegment);
         assertEquals(8, tags.length);
         assertEquals(TAG_SCOPE, tags[0]);
         assertEquals("scope", tags[1]);
@@ -283,7 +279,7 @@ public class StreamSegmentNameUtilsTests {
     @Test
     public void testSegmentTagsWithWriterId() {
 
-        String[] tags = StreamSegmentNameUtils.segmentTags("scope/stream/segment.#epoch.1552095534", "writer01");
+        String[] tags = NameUtils.segmentTags("scope/stream/segment.#epoch.1552095534", "writer01");
         assertEquals(10, tags.length);
         assertEquals(TAG_SCOPE, tags[0]);
         assertEquals("scope", tags[1]);
@@ -297,7 +293,7 @@ public class StreamSegmentNameUtilsTests {
         assertEquals("writer01", tags[9]);
 
         //test missing scope and epoch
-        tags = StreamSegmentNameUtils.segmentTags("stream/segment", "writer01");
+        tags = NameUtils.segmentTags("stream/segment", "writer01");
         assertEquals(10, tags.length);
         assertEquals(TAG_SCOPE, tags[0]);
         assertEquals("default", tags[1]);
@@ -311,7 +307,7 @@ public class StreamSegmentNameUtilsTests {
         assertEquals("writer01", tags[9]);
 
         // test missing scope, stream and epoch
-        tags = StreamSegmentNameUtils.segmentTags("segment", "writer01");
+        tags = NameUtils.segmentTags("segment", "writer01");
         assertEquals(10, tags.length);
         assertEquals(TAG_SCOPE, tags[0]);
         assertEquals("default", tags[1]);
@@ -328,59 +324,11 @@ public class StreamSegmentNameUtilsTests {
 
     @Test
     public void testWriterTags() {
-        String[] tags = StreamSegmentNameUtils.writerTags("writer-01");
+        String[] tags = NameUtils.writerTags("writer-01");
         assertEquals(2, tags.length);
         assertEquals(TAG_WRITER, tags[0]);
         assertEquals("writer-01", tags[1]);
         // validate error conditions.
-        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> StreamSegmentNameUtils.writerTags(""));
-    }
-
-    @Test
-    public void testUpdateSegmentTagsPattern() {
-
-        final String segmentName1 = "scope1/20191115.114403.995/0.#epoch.0";
-        final Matcher m1 = SEGMENT_TAGS_PATTERN.matcher(segmentName1);
-        assertTrue(m1.find());
-        assertEquals(8, m1.groupCount());
-        assertEquals("scope1", m1.group(3));
-        assertEquals("20191115.114403.995", m1.group(5));
-        assertEquals("0", m1.group(6));
-        assertEquals("0", m1.group(8));
-
-        final String segmentName2 = "scope1/20191115.114403.995/0";
-        final Matcher m2 = SEGMENT_TAGS_PATTERN.matcher(segmentName2);
-        assertTrue(m2.find());
-        assertEquals(8, m2.groupCount());
-        assertEquals("scope1", m2.group(3));
-        assertEquals("20191115.114403.995", m2.group(5));
-        assertEquals("0", m2.group(6));
-
-        final String segmentName3 = "20191115.114403.995/0.#epoch.0";
-        final Matcher m3 = SEGMENT_TAGS_PATTERN.matcher(segmentName3);
-        assertTrue(m3.find());
-        assertEquals(8, m3.groupCount());
-        assertNull(m3.group(3));
-        assertEquals("20191115.114403.995", m3.group(5));
-        assertEquals("0", m3.group(6));
-        assertEquals("0", m3.group(8));
-
-        final String segmentName4 = "0.#epoch.0";
-        final Matcher m4 = SEGMENT_TAGS_PATTERN.matcher(segmentName4);
-        assertTrue(m4.find());
-        assertEquals(8, m4.groupCount());
-        assertNull(m4.group(3));
-        assertNull(m4.group(5));
-        assertEquals("0", m4.group(6));
-        assertEquals("0", m4.group(8));
-
-        final String segmentName5 = "0";
-        final Matcher m5 = SEGMENT_TAGS_PATTERN.matcher(segmentName5);
-        assertTrue(m5.find());
-        assertEquals(8, m5.groupCount());
-        assertNull(m5.group(3));
-        assertNull(m5.group(5));
-        assertEquals("0", m5.group(6));
-        assertNull(m5.group(8));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.writerTags(""));
     }
 }

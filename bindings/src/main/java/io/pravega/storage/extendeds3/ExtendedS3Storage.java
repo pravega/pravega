@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -40,6 +41,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
@@ -207,6 +209,7 @@ public class ExtendedS3Storage implements SyncStorage {
 
     private int doRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName(), offset, bufferOffset, length);
+        Timer timer = new Timer();
 
         if (offset < 0 || bufferOffset < 0 || length < 0) {
             throw new ArrayIndexOutOfBoundsException();
@@ -227,6 +230,13 @@ public class ExtendedS3Storage implements SyncStorage {
             }
 
             int bytesRead = StreamHelpers.readAll(reader, buffer, bufferOffset, length);
+
+            Duration elapsed = timer.getElapsed();
+
+            ExtendedS3Metrics.READ_LATENCY.reportSuccessEvent(elapsed);
+            ExtendedS3Metrics.READ_BYTES.add(length);
+
+            log.debug("Read segment={} offset={} bytesWritten={} latency={}.", handle.getSegmentName(), offset, length, elapsed.toMillis());
 
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
@@ -276,6 +286,8 @@ public class ExtendedS3Storage implements SyncStorage {
     private SegmentHandle doCreate(String streamSegmentName) throws StreamSegmentExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
 
+        Timer timer = new Timer();
+
         if (!client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName).getObjects().isEmpty()) {
             throw new StreamSegmentExistsException(streamSegmentName);
         }
@@ -310,13 +322,20 @@ public class ExtendedS3Storage implements SyncStorage {
         }
         client.putObject(request);
 
+        Duration elapsed = timer.getElapsed();
+
+        ExtendedS3Metrics.CREATE_LATENCY.reportSuccessEvent(elapsed);
+        ExtendedS3Metrics.CREATE_COUNT.inc();
+
+        log.debug("Create segment={} latency={}.", streamSegmentName, elapsed.toMillis());
+
         LoggerHelpers.traceLeave(log, "create", traceId);
         return ExtendedS3SegmentHandle.getWriteHandle(streamSegmentName);
     }
 
     private Void doWrite(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
-
+        Timer timer = new Timer();
         long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
 
         SegmentProperties si = doGetStreamSegmentInfo(handle.getSegmentName());
@@ -331,6 +350,14 @@ public class ExtendedS3Storage implements SyncStorage {
 
         client.putObject(this.config.getBucket(), this.config.getRoot() + handle.getSegmentName(),
                 Range.fromOffsetLength(offset, length), data);
+
+        Duration elapsed = timer.getElapsed();
+
+        ExtendedS3Metrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
+        ExtendedS3Metrics.WRITE_BYTES.add(length);
+
+        log.debug("Write segment={} offset={} bytesWritten={} latency={}.", handle.getSegmentName(), offset, length, elapsed.toMillis());
+
         LoggerHelpers.traceLeave(log, "write", traceId);
         return null;
     }
@@ -371,7 +398,7 @@ public class ExtendedS3Storage implements SyncStorage {
     private Void doConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentNotExistsException {
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "target handle must not be read-only.");
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(), offset, sourceSegment);
-
+        Timer timer = new Timer();
         SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
         String targetPath = config.getRoot() + targetHandle.getSegmentName();
         String uploadId = client.initiateMultipartUpload(config.getBucket(), targetPath);
@@ -416,13 +443,31 @@ public class ExtendedS3Storage implements SyncStorage {
                 targetPath, uploadId).withParts(partEtags));
 
         client.deleteObject(config.getBucket(), config.getRoot() + sourceSegment);
+        Duration elapsed = timer.getElapsed();
+
+        log.debug("Concat target={} source={} offset={} bytesWritten={} latency={}.", targetHandle.getSegmentName(), sourceSegment, offset, si.getLength(), elapsed.toMillis());
+
+        ExtendedS3Metrics.CONCAT_LATENCY.reportSuccessEvent(elapsed);
+        ExtendedS3Metrics.CONCAT_BYTES.add(si.getLength());
+        ExtendedS3Metrics.CONCAT_COUNT.inc();
+
         LoggerHelpers.traceLeave(log, "concat", traceId);
 
         return null;
     }
 
     private Void doDelete(SegmentHandle handle) {
+        long traceId = LoggerHelpers.traceEnter(log, "delete", handle.getSegmentName());
+        Timer timer = new Timer();
         client.deleteObject(config.getBucket(), config.getRoot() + handle.getSegmentName());
+        Duration elapsed = timer.getElapsed();
+
+        ExtendedS3Metrics.DELETE_LATENCY.reportSuccessEvent(elapsed);
+        ExtendedS3Metrics.DELETE_COUNT.inc();
+
+        log.debug("Delete segment={} latency={}.", handle.getSegmentName(), elapsed.toMillis());
+
+        LoggerHelpers.traceLeave(log, "delete", traceId);
         return null;
     }
 

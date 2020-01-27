@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,12 +48,12 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.net.InetAddress;
@@ -81,7 +81,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -415,12 +415,12 @@ public abstract class ScaleRequestHandlerTest {
         EpochRecord epochThree = streamStore.getEpoch(scope, stream, 3, null, executor).join();
         assertEquals(0, epochTwo.getReferenceEpoch());
         assertEquals(epochZero.getSegments().size(), epochTwo.getSegments().size());
-        assertEquals(epochZero.getSegments().stream().map(x -> StreamSegmentNameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()),
-                epochTwo.getSegments().stream().map(x -> StreamSegmentNameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()));
+        assertEquals(epochZero.getSegments().stream().map(x -> NameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()),
+                epochTwo.getSegments().stream().map(x -> NameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()));
         assertEquals(1, epochThree.getReferenceEpoch());
         assertEquals(epochOne.getSegments().size(), epochThree.getSegments().size());
-        assertEquals(epochOne.getSegments().stream().map(x -> StreamSegmentNameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()),
-                epochThree.getSegments().stream().map(x -> StreamSegmentNameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()));
+        assertEquals(epochOne.getSegments().stream().map(x -> NameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()),
+                epochThree.getSegments().stream().map(x -> NameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()));
 
         EpochRecord activeEpoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(epochThree, activeEpoch);
@@ -827,7 +827,7 @@ public abstract class ScaleRequestHandlerTest {
         // let this run to completion. this should succeed 
         scaleRequestHandler2.execute(event).join();
 
-        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
+        long one = NameUtils.computeSegmentId(1, 1);
         ScaleOpEvent event2 = new ScaleOpEvent(scope, stream, Lists.newArrayList(one),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis(), System.currentTimeMillis());
         if (isManual) {
@@ -878,7 +878,7 @@ public abstract class ScaleRequestHandlerTest {
         
         // perform scaling
         scaleRequestHandler.execute(event).join();
-        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
+        long one = NameUtils.computeSegmentId(1, 1);
         assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
         assertEquals(1, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         
@@ -906,7 +906,7 @@ public abstract class ScaleRequestHandlerTest {
         // now set the state to SCALING and run a new scaling job. This should succeed.
         this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
 
-        long two = StreamSegmentNameUtils.computeSegmentId(2, 2);
+        long two = NameUtils.computeSegmentId(2, 2);
         ScaleOpEvent event3 = new ScaleOpEvent(scope, stream, Lists.newArrayList(two), newRange, false,
                 System.currentTimeMillis(), System.currentTimeMillis());
         scaleRequestHandler.execute(event3).join();
@@ -928,7 +928,7 @@ public abstract class ScaleRequestHandlerTest {
         EventWriterMock writer = new EventWriterMock();
         streamMetadataTasks.setRequestEventWriter(writer);
 
-        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, StreamSegmentNameUtils.computeSegmentId(2, 1),
+        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, NameUtils.computeSegmentId(2, 1),
                 AutoScaleEvent.UP, System.currentTimeMillis(), 1, false, System.currentTimeMillis());
         assertTrue(Futures.await(multiplexer.process(scaleUpEvent, () -> false)));
 

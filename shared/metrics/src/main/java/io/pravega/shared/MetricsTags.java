@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,7 +11,6 @@ package io.pravega.shared;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
@@ -28,6 +27,8 @@ public final class MetricsTags {
     public static final String TAG_SEGMENT = "segment";
     public static final String TAG_TRANSACTION = "transaction";
     public static final String TAG_EPOCH = "epoch";
+    public static final String TAG_CLASS = "class";
+    public static final String TAG_EXCEPTION = "exception";
 
     private static final String TRANSACTION_DELIMITER = "#transaction.";
     private static final String EPOCH_DELIMITER = ".#epoch.";
@@ -164,5 +165,29 @@ public final class MetricsTags {
             hostTag[1] = "unknown";
         }
         return hostTag;
+    }
+
+    /**
+     * Generate an Exception tag (string array) on the input class name.
+     *
+     * @param loggingClassName   The name of the class that recorded the exception.
+     * @param exceptionClassName The name of the exception class that was recorded. May be null.
+     * @return A String array containing the necessary tags.
+     */
+    public static String[] exceptionTag(String loggingClassName, String exceptionClassName) {
+        String[] result = new String[]{TAG_CLASS, getSimpleClassName(loggingClassName), TAG_EXCEPTION, "none"};
+        if (exceptionClassName != null) {
+            result[3] = getSimpleClassName(exceptionClassName);
+        }
+        return result;
+    }
+
+    private static String getSimpleClassName(String name) {
+        int lastSeparator = name.lastIndexOf(".");
+        if (lastSeparator < 0 || lastSeparator >= name.length() - 1) {
+            return name;
+        } else {
+            return name.substring(lastSeparator + 1);
+        }
     }
 }
