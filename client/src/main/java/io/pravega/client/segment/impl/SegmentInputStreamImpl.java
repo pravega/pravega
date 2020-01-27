@@ -82,13 +82,15 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             receivedTruncated = false;
         }
         if (offset != this.offset || resendRequest) {
-            log.debug("Cancelling the read request for segment {} at offset {}. The new read offset is {} ", this.offset, asyncInput.getSegmentId(), offset);
+            if (outstandingRequest != null) {
+                log.debug("Cancelling the read request for segment {} at offset {}. The new read offset is {}", asyncInput.getSegmentId(), this.offset, offset);
+                outstandingRequest.cancel(true);
+                log.debug("Completed cancelling the read request for segment {}", asyncInput.getSegmentId());
+                outstandingRequest = null;
+            }
             this.offset = offset;
             buffer.clear();
             receivedEndOfSegment = false;
-            outstandingRequest.cancel(true);
-            log.debug("Completed cancelling the read request for segment {}", asyncInput.getSegmentId());
-            outstandingRequest = null;        
         }
     }
 
