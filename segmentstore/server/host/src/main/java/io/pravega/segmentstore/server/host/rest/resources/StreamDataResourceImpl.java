@@ -17,16 +17,10 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.server.rpc.auth.AuthHandlerManager;
 import io.pravega.segmentstore.server.rpc.auth.RESTAuthHelper;
 import io.pravega.segmentstore.server.store.StreamSegmentService;
-import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
-import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.host.rest.v1.ApiV1;
 import io.pravega.shared.NameUtils;
-import java.security.Principal;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
@@ -37,13 +31,8 @@ import lombok.extern.slf4j.Slf4j;
 import static io.pravega.auth.AuthHandler.Permissions;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
-import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
-import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
-import java.util.Collections;
 
 import java.time.Duration;
-import java.util.Collection;
-import java.util.Map;
 import java.util.UUID;
 
 
@@ -98,7 +87,7 @@ public class StreamDataResourceImpl implements ApiV1.StreamsApi {
 
     private List<AttributeUpdate> toList(AttributeUpdate[] attributeUpdates) {
         List<AttributeUpdate> attributeUpdatesList = new ArrayList<>();
-        for(AttributeUpdate attributeUpdate : attributeUpdates) {
+        for (AttributeUpdate attributeUpdate : attributeUpdates) {
             attributeUpdatesList.add(attributeUpdate);
         }
         return attributeUpdatesList;
@@ -106,7 +95,7 @@ public class StreamDataResourceImpl implements ApiV1.StreamsApi {
 
     private List<UUID> toList(UUID[] uuids) {
         List<UUID> uuidList = new ArrayList<>();
-        for(UUID uuid : uuids) {
+        for (UUID uuid : uuids) {
            uuidList.add(uuid);
         }
         return uuidList;
@@ -127,51 +116,15 @@ public void from this method completes.
      * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
-     * @return A @Override
-public void that, when completed normally, will indicate the append completed
-     *         successfully and contains the new length of the segment. If the operation failed, the
-     *         future will be failed with the causing exception. (NOTE: the length is not
-     *         necessarily the same as offset immediately following the data because the append may
-     *         have been batched together with others internally.)
      * @throws NullPointerException If any of the arguments are null, except attributeUpdates.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't
      *                                  check if the StreamSegment does not exist - that exception
      *                                  will be set in the returned @Override
 public void).
      */
-/*
-    @Override
-    public void append(String streamSegmentName, BufferView data, AttributeUpdate[] attributeUpdates, Duration timeout, final SecurityContext securityContext,
-                       final AsyncResponse asyncResponse)
-    {
-        String methodName = "append";
-        long traceId = LoggerHelpers.traceEnter(log, methodName);
-        if (!validateUserStreamSegmentName(streamSegmentName, methodName)) {
-            asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
-            LoggerHelpers.traceLeave(log, methodName, traceId);
-            return;
-        }
-        int responseCode = checkAuthorization(streamSegmentName, methodName, READ_UPDATE);
-        if (responseCode != 0) {
-            asyncResponse.resume(Response.status(Status.fromStatusCode(responseCode)).build());
-            LoggerHelpers.traceLeave(log, methodName, traceId);
-            return;
-        }
-        streamSegmentService.append(streamSegmentName, data, toList(attributeUpdates), timeout)
-                .thenApply(response -> {
-                    return Response.status(Status.OK).entity(response).build();
-                })
-                .exceptionally( exception -> {
-                        log.warn(" failed with exception: {}", methodName, exception);
-                        return Response.status(Status.INTERNAL_SERVER_ERROR).entity(exception.getMessage()).build();
-                }).thenApply(asyncResponse::resume)
-                .thenAccept(x -> LoggerHelpers.traceLeave(log, methodName, traceId));
-    }
-*/
     @Override
     public void append(String streamSegmentName, Long offset, BufferView data, AttributeUpdate[] attributeUpdates, Duration timeout, final SecurityContext securityContext,
-                       final AsyncResponse asyncResponse)
-    {
+                       final AsyncResponse asyncResponse) {
         String methodName = "append";
         long traceId = LoggerHelpers.traceEnter(log, methodName);
         if (!validateUserStreamSegmentName(streamSegmentName, methodName)) {
@@ -194,7 +147,6 @@ public void).
                         return Response.status(Status.INTERNAL_SERVER_ERROR).entity(exception.getMessage()).build();
                 }).thenApply(asyncResponse::resume)
                 .thenAccept(x -> LoggerHelpers.traceLeave(log, methodName, traceId));
-
     }
 
     /**
@@ -204,18 +156,13 @@ public void).
      * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
-     * @return A @Override
-public void that, when completed normally, will indicate the update completed successfully.
-     * If the operation failed, the future will be failed with the causing exception.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
-     *                                  does not exist - that exception will be set in the returned @Override
-public void).
+     *                                  does not exist - that exception will be set in the returned.
      */
     @Override
     public void updateAttributes(String streamSegmentName, AttributeUpdate[] attributeUpdates, Duration timeout, final SecurityContext securityContext,
-                                 final AsyncResponse asyncResponse)
-    {
+                                 final AsyncResponse asyncResponse) {
         String methodName = "updateAttributes";
         long traceId = LoggerHelpers.traceEnter(log, methodName);
         if (!validateUserStreamSegmentName(streamSegmentName, methodName)) {
@@ -253,18 +200,13 @@ public void).
      *                          Metadata cache will be atomically added using a conditional update (comparing against a missing value).
      *                          This argument will be ignored if the StreamSegment is currently Sealed.
      * @param timeout           Timeout for the operation.
-     * @return A Completable future that, when completed, will contain a Map of Attribute Ids to their latest values. Any
-     * Attribute that is not set will also be returned (with a value equal to Attributes.NULL_ATTRIBUTE_VALUE). If the operation
-     * failed, the future will be failed with the causing exception.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
-     *                                  does not exist - that exception will be set in the returned @Override
-public void).
+     *                                  does not exist - that exception will be set in the returned.
      */
     @Override
     public void getAttributes(String streamSegmentName, UUID[] attributeIds, Boolean cache, Duration timeout, final SecurityContext securityContext,
-                                               final AsyncResponse asyncResponse)
-    {
+                                               final AsyncResponse asyncResponse) {
         String methodName = "getAttributes";
         long traceId = LoggerHelpers.traceEnter(log, methodName);
         if (!validateUserStreamSegmentName(streamSegmentName, methodName)) {
@@ -297,11 +239,6 @@ public void).
      * @param offset            The offset within the stream to start reading at.
      * @param maxLength         The maximum number of bytes to read.
      * @param timeout           Timeout for the operation.
-     * @return A @Override
-public void that, when completed normally, will contain a ReadResult instance that can be used to
-     * consume the read data. If the operation failed, the future will be failed with the causing exception. The future
-     * will be failed with a {@link java.util.concurrent.CancellationException} if the segment container is shutting down
-     * or the segment is evicted from memory.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
@@ -337,16 +274,11 @@ public void that, when completed normally, will contain a ReadResult instance th
      *
      * @param streamSegmentName The name of the StreamSegment.
      * @param timeout           Timeout for the operation.
-     * @return A @Override
-public void that, when completed normally, will contain the result. If the operation failed, the
-     * future will be failed with the causing exception. Note that this result will only contain those attributes that
-     * are loaded in memory (if any) or Core Attributes. To ensure that Extended Attributes are also included, you must use
-     * getAttributes(), which will fetch all attributes, regardless of where they are currently located.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     @Override
     public void getStreamSegmentInfo(String streamSegmentName, Duration timeout, final SecurityContext securityContext,
-                                     final AsyncResponse asyncResponse){
+                                     final AsyncResponse asyncResponse) {
         String methodName = "getStreamSegmentInfo";
         long traceId = LoggerHelpers.traceEnter(log, methodName);
         if (!validateUserStreamSegmentName(streamSegmentName, methodName)) {
@@ -378,9 +310,6 @@ public void that, when completed normally, will contain the result. If the opera
      * @param attributes        A Collection of Attribute-Values to set on the newly created StreamSegment. May be null.
      *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation.
-     * @return A @Override
-public void that, when completed normally, will indicate the operation completed. If the operation
-     * failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     @Override
@@ -417,15 +346,11 @@ public void that, when completed normally, will indicate the operation completed
      * @param targetSegmentName The name of the StreamSegment to merge into.
      * @param sourceSegmentName The name of the StreamSegment to merge.
      * @param timeout           Timeout for the operation.
-     * @return A @Override
-public void that, when completed normally, will contain a MergeStreamSegmentResult instance with information about the 
-     * source and target Segments. If the operation failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     @Override
     public void mergeStreamSegment(String targetSegmentName, String sourceSegmentName, Duration timeout, final SecurityContext securityContext,
-                                   final AsyncResponse asyncResponse)
-    {
+                                   final AsyncResponse asyncResponse) {
         String methodName = "mergeStreamSegment";
         long traceId = LoggerHelpers.traceEnter(log, methodName);
         if (!validateUserStreamSegmentName(targetSegmentName, methodName)) {
@@ -455,14 +380,11 @@ public void that, when completed normally, will contain a MergeStreamSegmentResu
      *
      * @param streamSegmentName The name of the StreamSegment to seal.
      * @param timeout           Timeout for the operation
-     * @return A @Override
-public void that, when completed normally, will contain the final length of the StreamSegment.
-     * If the operation failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     @Override
     public void sealStreamSegment(String streamSegmentName, Duration timeout, final SecurityContext securityContext,
-                                  final AsyncResponse asyncResponse){
+                                  final AsyncResponse asyncResponse) {
         String methodName = "sealStreamSegment";
         long traceId = LoggerHelpers.traceEnter(log, methodName);
         if (!validateUserStreamSegmentName(streamSegmentName, methodName)) {
@@ -492,14 +414,11 @@ public void that, when completed normally, will contain the final length of the 
      *
      * @param streamSegmentName The name of the StreamSegment to delete.
      * @param timeout           Timeout for the operation.
-     * @return A @Override
-public void that, when completed normally, will indicate the operation completed. If the operation
-     * failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     @Override
     public void deleteStreamSegment(String streamSegmentName, Duration timeout, final SecurityContext securityContext,
-                                    final AsyncResponse asyncResponse){
+                                    final AsyncResponse asyncResponse) {
         String methodName = "deleteStreamSegment";
         long traceId = LoggerHelpers.traceEnter(log, methodName);
         if (!validateUserStreamSegmentName(streamSegmentName, methodName)) {
@@ -532,9 +451,6 @@ public void that, when completed normally, will indicate the operation completed
      *                          offset and no larger than the StreamSegment's length. After the operation is complete,
      *                          no offsets below this one will be accessible anymore.
      * @param timeout           Timeout for the operation.
-     * @return A @Override
-public void that, when completed normally, will indicate the operation completed. If the operation
-     * failed, the future will be failed with the causing exception.
      */
 
     @Override
