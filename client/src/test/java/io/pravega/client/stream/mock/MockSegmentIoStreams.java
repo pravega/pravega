@@ -66,6 +66,11 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
+    public void setOffset(long offset) {
+        setOffset(offset, false);
+    }
+
+    @Override
     @Synchronized
     public long getOffset() {
         return readOffset;
@@ -176,11 +181,6 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     public Segment getSegmentId() {
         return segment;
-    }
-
-    @Override
-    public void setOffset(long offset) {
-        setOffset(offset, false);
     }
 
     @Override
