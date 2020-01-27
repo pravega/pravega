@@ -17,9 +17,9 @@
 # - github.com/apache/bookkeeper/blob/branch-4.9/docker/Dockerfile
 #
 
-FROM apache/bookkeeper:4.8.2
+FROM apache/bookkeeper:4.9.2
 
-ARG BK_VERSION=4.8.2
+ARG BK_VERSION=4.9.2
 ARG DISTRO_NAME=bookkeeper-all-${BK_VERSION}-bin
 
 RUN set -x \
@@ -54,7 +54,4 @@ RUN chmod +x -R /opt/bookkeeper/scripts/
 ENTRYPOINT [ "/bin/bash", "/opt/bookkeeper/scripts/pravega_entrypoint.sh" ]
 CMD ["bookie"]
 
-# BookKeeper healthcheck was broken in 4.7.3 and was not fixed until 4.9.0
-# This overrides the healthcheck to the default BK healthcheck method
-# https://github.com/apache/bookkeeper/issues/1687
-HEALTHCHECK --interval=10s --timeout=60s CMD /opt/bookkeeper/bin/bookkeeper shell bookiesanity
+HEALTHCHECK --interval=10s --timeout=60s CMD /bin/bash /opt/bookkeeper/scripts/healthcheck.sh
