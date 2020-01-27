@@ -39,8 +39,8 @@ class EventSegmentReaderImpl implements EventSegmentReader {
 
     @Override
     @Synchronized
-    public void setOffset(long offset) {
-        in.setOffset(offset);
+    public void setOffset(long offset, boolean resendRequest) {
+        in.setOffset(offset, resendRequest);
     }
 
     @Override
