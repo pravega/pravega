@@ -16,6 +16,7 @@ import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.ToString;
@@ -27,6 +28,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @ToString
 class EventSegmentReaderImpl implements EventSegmentReader {
+
+    // Flaky network
+    private static final long READ_TIMEOUT_MS = 500;
 
     @GuardedBy("$lock")
     private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
@@ -54,30 +58,44 @@ class EventSegmentReaderImpl implements EventSegmentReader {
      */
     @Override
     @Synchronized
-    public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
+    public ByteBuffer read(long firstByteTimeoutMillis) throws EndOfSegmentException, SegmentTruncatedException {
         long originalOffset = in.getOffset();
-        long traceId = LoggerHelpers.traceEnter(log, "read", in.getSegmentId(), originalOffset, timeout);
+        long traceId = LoggerHelpers.traceEnter(log, "read", in.getSegmentId(), originalOffset, firstByteTimeoutMillis);
         boolean success = false;
+        boolean timeout = false;
         try {
-            ByteBuffer result = readEvent(timeout);
+            ByteBuffer result = readEvent(firstByteTimeoutMillis);
             success = true;
             return result;
+        } catch (TimeoutException e) {
+            timeout = true;
+            log.warn("Timeout observed while trying to read data from Segment store, the read request will be retransmitted. Details: {}", e.getMessage());
+            return null;
         } finally {
-            LoggerHelpers.traceLeave(log, "read", traceId, in.getSegmentId(), originalOffset, timeout, success);
+            LoggerHelpers.traceLeave(log, "read", traceId, in.getSegmentId(), originalOffset, firstByteTimeoutMillis, success);
             if (!success) {
-                in.setOffset(originalOffset);
+                if (timeout) {
+                    in.setOffset(originalOffset, true);
+                } else {
+                    in.setOffset(originalOffset);
+                }
             }
         }
     }
         
-    public ByteBuffer readEvent(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
+    public ByteBuffer readEvent(long firstByteTimeoutMillis) throws EndOfSegmentException, SegmentTruncatedException, TimeoutException {
         headerReadingBuffer.clear();
-        int read = in.read(headerReadingBuffer, timeout);
+        int read = in.read(headerReadingBuffer, firstByteTimeoutMillis);
         if (read == 0) {
+            // a resend will not be triggered in-case of a firstByteTimeout.
             return null;
         }
         while (headerReadingBuffer.hasRemaining()) {
-            in.read(headerReadingBuffer, Long.MAX_VALUE);
+            if (in.read(headerReadingBuffer, READ_TIMEOUT_MS) == 0) {
+                log.warn("Timeout out while trying to read WireCommand headers during read of segment {} at offset {}",
+                        in.getSegmentId(), in.getOffset());
+                throw new TimeoutException("Timeout while trying to read WireCommand headers");
+            }
         }
         headerReadingBuffer.flip();
         int type = headerReadingBuffer.getInt();
@@ -89,9 +107,16 @@ class EventSegmentReaderImpl implements EventSegmentReader {
             throw new InvalidMessageException("Event of invalid length: " + length);
         }
         ByteBuffer result = ByteBuffer.allocate(length);
-        in.read(result, Long.MAX_VALUE);
+
+        if (in.read(result, READ_TIMEOUT_MS) == 0) {
+            log.warn("Timeout while trying to read Event data of segment {} at offset {}", in.getSegmentId(), in.getOffset());
+            throw new TimeoutException("Timeout while trying to read event data");
+        }
         while (result.hasRemaining()) {
-            in.read(result, Long.MAX_VALUE);
+            if (in.read(result, READ_TIMEOUT_MS) == 0) {
+                log.warn("Timeout while trying to read Event data of segment {} at offset {}", in.getSegmentId(), in.getOffset());
+                throw new TimeoutException("Timeout while trying to read event data");
+            }
         }
         result.flip();
         return result;
