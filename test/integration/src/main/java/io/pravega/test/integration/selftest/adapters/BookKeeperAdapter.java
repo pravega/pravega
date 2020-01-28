@@ -147,7 +147,7 @@ class BookKeeperAdapter extends StoreAdapter {
             try {
                 ledger = getBookKeeper()
                         .newCreateLedgerOp()
-                        .withEnsembleSize(this.bkConfig.getBkEnsembleSize())                        
+                        .withEnsembleSize(this.bkConfig.getBkEnsembleSize())
                         .withWriteQuorumSize(this.bkConfig.getBkWriteQuorumSize())
                         .withAckQuorumSize(this.bkConfig.getBkAckQuorumSize())
                         .withDigestType(DigestType.MAC)
@@ -174,7 +174,6 @@ class BookKeeperAdapter extends StoreAdapter {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public CompletableFuture<Void> append(String logName, Event event, Duration timeout) {
         ensureRunning();
         WriteHandle lh = this.ledgers.getOrDefault(logName, null);
@@ -183,9 +182,8 @@ class BookKeeperAdapter extends StoreAdapter {
         }
 
         ArrayView s = event.getSerialization();
-        // appendAsync returns CompletableFuture<Long> 
-        return (CompletableFuture) lh
-                .appendAsync(s.array(), s.arrayOffset(), s.getLength());
+        return Futures.toVoid(lh
+                .appendAsync(s.array(), s.arrayOffset(), s.getLength()));
     }
 
     @Override
