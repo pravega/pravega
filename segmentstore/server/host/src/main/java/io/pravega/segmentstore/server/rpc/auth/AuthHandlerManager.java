@@ -9,7 +9,10 @@
  */
 package io.pravega.segmentstore.server.rpc.auth;
 
+import io.pravega.auth.AuthException;
 import lombok.extern.slf4j.Slf4j;
+import java.security.Principal;
+import com.google.common.base.Preconditions;
 
 /**
  * Manages instances of {@link AuthHandler} for the SegmentStore REST interfaces.
@@ -19,4 +22,16 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class AuthHandlerManager {
+    /**
+     *
+     * API to authenticate a given credential.
+     * @param credentials  Credentials used for authentication.
+     *
+     * @return Returns the Principal if the entity represented by credentials is authenticated.
+     * @throws AuthException if an authentication failure occurred.
+     */
+    public Principal authenticate(String credentials) throws AuthException {
+        Preconditions.checkNotNull(credentials, "credentials");
+        return null;
+    }
 }

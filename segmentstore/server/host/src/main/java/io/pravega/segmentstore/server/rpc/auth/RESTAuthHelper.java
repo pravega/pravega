@@ -27,5 +27,6 @@ public class RESTAuthHelper {
 
   public void authenticateAuthorize(List<String> authHeader, String resource, Permissions permission)
           throws AuthException {
+          this.authHandlerManager.authenticate("");
   }
 }
