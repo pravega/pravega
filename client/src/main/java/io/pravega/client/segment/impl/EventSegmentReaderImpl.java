@@ -31,7 +31,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
 
     /* Partial data timeout. This timeout is the maximum amount of time the reader will wait in the case of
      * partial data being received by the client. After this timeout the client will resend the request. */
-    private static final long READ_TIMEOUT_MS = 500;
+    static final long READ_TIMEOUT_MS = 500;
 
     @GuardedBy("$lock")
     private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
