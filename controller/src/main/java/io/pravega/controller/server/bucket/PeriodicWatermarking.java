@@ -367,6 +367,11 @@ public class PeriodicWatermarking {
         return missingRanges;
     }
 
+    @VisibleForTesting
+    boolean checkExistsInCache(Stream stream) {
+        return watermarkClientCache.asMap().containsKey(stream);
+    }
+        
     static class WatermarkClient {
         private final RevisionedStreamClient<Watermark> client;
         
