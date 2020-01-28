@@ -301,6 +301,7 @@ project('segmentstore:storage') {
         compile project(':segmentstore:contracts')
         compile project(':shared:protocol')
         compile project(":shared:authplugin")
+        compile project(':shared:metrics')
         compile project(":shared:security")
         compile project(':shared:cluster')
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
