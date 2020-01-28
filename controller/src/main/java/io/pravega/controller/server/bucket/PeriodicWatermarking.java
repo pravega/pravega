@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.SynchronizerClientFactory;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
@@ -121,7 +122,17 @@ public class PeriodicWatermarking {
         return allWriterMarks.thenCompose(writers -> {
             WatermarkClient watermarkClient = watermarkClientCache.getUnchecked(stream);
 
-            watermarkClient.reinitialize();
+            try {
+                watermarkClient.reinitialize();
+            } catch (Exception e) {
+                log.warn("Watermarking client for stream {} threw exception {} during reinitialize.",
+                        stream, Exceptions.unwrap(e).getClass());
+                if (Exceptions.unwrap(e) instanceof NoSuchSegmentException) {
+                    log.info("Invalidating the watermark client in cache for stream {}.", stream);
+                    watermarkClientCache.invalidate(stream);
+                }
+                throw e;
+            }
             return streamMetadataStore.getConfiguration(scope, streamName, context, executor)
                 .thenCompose(config -> filterWritersAndComputeWatermark(scope, streamName, context, watermarkClient, writers, config));
         }).exceptionally(e -> {
