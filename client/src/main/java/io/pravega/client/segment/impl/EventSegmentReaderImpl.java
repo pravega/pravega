@@ -29,7 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 @ToString
 class EventSegmentReaderImpl implements EventSegmentReader {
 
-    // Flaky network
+    /* Partial data timeout. This timeout is the maximum amount of time the reader will wait in the case of
+     * partial data being received by the client. After this timeout the client will resend the request. */
     private static final long READ_TIMEOUT_MS = 500;
 
     @GuardedBy("$lock")
@@ -92,7 +93,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
         }
         while (headerReadingBuffer.hasRemaining()) {
             if (in.read(headerReadingBuffer, READ_TIMEOUT_MS) == 0) {
-                log.warn("Timeout out while trying to read WireCommand headers during read of segment {} at offset {}",
+                log.warn("Timeout out while trying to read WireCommand header during read of segment {} at offset {}",
                         in.getSegmentId(), in.getOffset());
                 throw new TimeoutException("Timeout while trying to read WireCommand headers");
             }
