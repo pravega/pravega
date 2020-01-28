@@ -372,7 +372,16 @@ project('segmentstore:server') {
         compile project(':common')
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
+        compile project(':shared:protocol')
         compile project(':shared:metrics')
+        compile project(":shared:authplugin")
+        compile project(":shared:security")
+        compile project(':shared:cluster')
+        compile project(":client")
+        compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
+            exclude group: 'com.google.guava', module: 'guava'
+        }
+
         testCompile project(':test:testcommon')
     }
     javadoc {

@@ -79,10 +79,7 @@ class StatsProviderImpl implements StatsProvider {
     @Synchronized
     @Override
     public void startWithoutExporting() {
-        Set<MeterRegistry> modifiableSet = Collections.checkedSet(metrics.getRegistries(), MeterRegistry.class);
-        for (MeterRegistry registry : modifiableSet) {
-            metrics.remove(registry);
-        }
+        close();
         Metrics.addRegistry(new SimpleMeterRegistry());
         metrics.config().commonTags(createHostTag(DEFAULT_HOSTNAME_KEY));
     }
