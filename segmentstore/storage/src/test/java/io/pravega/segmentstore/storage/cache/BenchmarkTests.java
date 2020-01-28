@@ -133,7 +133,7 @@ public class BenchmarkTests {
                     }
 
                     if (insert) {
-                        int insertedId = s.insert(writeBuffer.subSegment(0, length));
+                        int insertedId = s.insert(writeBuffer.slice(0, length));
                         synchronized (ids) {
                             ids.add(insertedId);
                         }

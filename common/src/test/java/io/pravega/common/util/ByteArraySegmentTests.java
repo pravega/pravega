@@ -201,7 +201,7 @@ public class ByteArraySegmentTests {
      * Tests the ability for the ByteArraySegment to create sub-segments.
      */
     @Test
-    public void testSubSegment() {
+    public void testSlice() {
         final byte[] buffer = createFormattedBuffer();
         ByteArraySegment segment = new ByteArraySegment(buffer);
 
@@ -214,17 +214,17 @@ public class ByteArraySegmentTests {
 
             // Check correctness.
             for (int i = 0; i < segment.getLength(); i++) {
-                Assert.assertEquals(String.format("Unexpected value at offset %d for subsegment (O=%d, L=%d), iteration %d.", i, startOffset, segment.getLength(), iteration), buffer[i + startOffset], segment.get(i));
+                Assert.assertEquals(String.format("Unexpected value at offset %d for slice (O=%d, L=%d), iteration %d.", i, startOffset, segment.getLength(), iteration), buffer[i + startOffset], segment.get(i));
             }
 
-            // Pick a new size and create a new subsegment.
+            // Pick a new size and create a new slice.
             if (iteration % 2 == 0) {
                 // Upper half for even iterations.
                 startOffset = startOffset + segment.getLength() / 2;
-                segment = segment.subSegment(segment.getLength() / 2, segment.getLength() - segment.getLength() / 2);
+                segment = segment.slice(segment.getLength() / 2, segment.getLength() - segment.getLength() / 2);
             } else {
                 // Lower half for odd iterations.
-                segment = segment.subSegment(0, segment.getLength() / 2);
+                segment = segment.slice(0, segment.getLength() / 2);
             }
         }
     }

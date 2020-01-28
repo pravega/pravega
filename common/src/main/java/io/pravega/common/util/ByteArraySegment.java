@@ -249,7 +249,6 @@ public class ByteArraySegment implements ArrayView {
      * @throws ArrayIndexOutOfBoundsException If offset or length are invalid.
      */
     public ByteArraySegment subSegment(int offset, int length) {
-        // TODO: drop this in favor of slice(). https://github.com/pravega/pravega/issues/4318
         return subSegment(offset, length, this.readOnly);
     }
 
