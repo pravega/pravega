@@ -251,7 +251,7 @@ public class ByteArraySegmentTests {
             Assert.assertEquals("One of the 'mutator' methods modified the buffer at index " + i, i, buffer[i]);
         }
 
-        // Check that a subsegment is also read-only.
+        // Check that a sub-segment is also read-only.
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment.", segment.subSegment(0, 1).isReadOnly());
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment (when attempting to create a non-read-only segment).", segment.subSegment(0, 1, false).isReadOnly());
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment.", new ByteArraySegment(buffer).subSegment(0, 1, true).isReadOnly());
