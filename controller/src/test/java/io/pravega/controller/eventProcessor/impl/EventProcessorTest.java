@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -67,7 +68,10 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * Event processor test.
@@ -608,6 +612,14 @@ public class EventProcessorTest {
         assertFalse(eventProcessorMap.containsKey(readerIds.get(0)));
         assertFalse(eventProcessorMap.containsKey(readerIds.get(1)));
 
+        Enumeration<String> keys = eventProcessorMap.keys();
+        String firstReplacement = keys.nextElement();
+        String secondReplacement = keys.nextElement();
+        
+        // verify that checkpointstore.addreader is called twice
+        verify(checkpointStore, times(2)).addReader(any(), any(), eq(firstReplacement));
+        verify(checkpointStore, times(2)).addReader(any(), any(), eq(secondReplacement));
+        
         // update the readers in the readergroup
         readerIds = eventProcessorMap.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
 
@@ -695,6 +707,31 @@ public class EventProcessorTest {
         // Stop the group, and await its termmination.
         group.stopAsync();
         group.awaitTerminated();
+        
+        // call rebalance after shutdown such that replace cell is called - this should throw precondition failed exception
+        readerIds = eventProcessorMap.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
+
+        distribution = new HashMap<>();
+        distribution.put(readerIds.get(0), 2);
+        distribution.put(readerIds.get(1), 2);
+        distribution.put(reader2, 0);
+        distribution.put(reader3, 0);
+
+        readerSegmentDistribution = ReaderSegmentDistribution
+                .builder().readerSegmentDistribution(distribution).unassignedSegments(0).build();
+        Mockito.when(readerGroup.getReaderSegmentDistribution()).thenReturn(readerSegmentDistribution);
+
+        // calling rebalance on terminated group will result in Precondition failure with exception logged and ignored 
+        // and no rebalance occurring.
+
+        // exception should have been thrown and handled
+        group.rebalance();
+
+        eventProcessorMap = group.getEventProcessorMap();
+        assertEquals(2, eventProcessorMap.size());
+        assertTrue(eventProcessorMap.containsKey(readerIds.get(0)));
+        assertTrue(eventProcessorMap.containsKey(readerIds.get(1)));
+        // endregion
     }
 
     private EventProcessorGroupConfig createEventProcessorGroupConfig(int count) {

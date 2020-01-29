@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -96,11 +96,19 @@ public final class MetricsNames {
     public static final String TABLE_SEGMENT_ITERATE_ENTRIES = PREFIX + "segmentstore.tablesegment.iterate_entries";       // Counter and Per-segment Counter
 
     // Storage stats
-    public static final String STORAGE_READ_LATENCY = PREFIX + "segmentstore.storage.read_latency_ms";   // Histogram
-    public static final String STORAGE_WRITE_LATENCY = PREFIX + "segmentstore.storage.write_latency_ms"; // Histogram
+    public static final String STORAGE_READ_LATENCY = PREFIX + "segmentstore.storage.read_latency_ms";     // Histogram
+    public static final String STORAGE_WRITE_LATENCY = PREFIX + "segmentstore.storage.write_latency_ms";   // Histogram
+    public static final String STORAGE_CREATE_LATENCY = PREFIX + "segmentstore.storage.create_latency_ms"; // Histogram
+    public static final String STORAGE_DELETE_LATENCY = PREFIX + "segmentstore.storage.delete_latency_ms"; // Histogram
+    public static final String STORAGE_CONCAT_LATENCY = PREFIX + "segmentstore.storage.concat_latency_ms"; // Histogram
+
     public static final String STORAGE_READ_BYTES = PREFIX + "segmentstore.storage.read_bytes";          // Counter
     public static final String STORAGE_WRITE_BYTES = PREFIX + "segmentstore.storage.write_bytes";        // Counter
+    public static final String STORAGE_CONCAT_BYTES = PREFIX + "segmentstore.storage.concat_bytes";      // Counter
     public static final String STORAGE_CREATE_COUNT = PREFIX + "segmentstore.storage.create_count";      // Counter
+    public static final String STORAGE_DELETE_COUNT = PREFIX + "segmentstore.storage.delete_count";      // Counter
+    public static final String STORAGE_CONCAT_COUNT = PREFIX + "segmentstore.storage.concat_count";      // Counter
+
 
     // Cache stats
     public static final String CACHE_WRITE_BYTES = PREFIX + "segmentstore.cache.write_bytes";               // Counter

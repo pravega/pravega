@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,6 +52,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 @RunWith(BlockJUnit4ClassRunner.class)
 public class ReaderGroupStateManagerTest {
@@ -339,8 +342,11 @@ public class ReaderGroupStateManagerTest {
         newSegments = readerState2.acquireNewSegmentsIfNeeded(0, new PositionImpl(Collections.emptyMap()));
         assertEquals(1, newSegments.size());
         assertEquals(Long.valueOf(789L), newSegments.get(segment0));
-        
-        ReaderGroupStateManager.readerShutdown("testReader2", null, stateSynchronizer);
+
+        StateSynchronizer<ReaderGroupState> spied = spy(stateSynchronizer);
+        ReaderGroupStateManager.readerShutdown("testReader2", null, spied);
+        // verify that fetch updates is called once on the spied state synchronizer.
+        verify(spied, times(1)).fetchUpdates();
         AssertExtensions.assertThrows(ReaderNotInReaderGroupException.class,
                 () -> readerState2.releaseSegment(new Segment(scope, stream, 0), 711L, 0L, new PositionImpl(Collections.emptyMap())));
 

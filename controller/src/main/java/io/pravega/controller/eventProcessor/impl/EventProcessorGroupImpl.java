@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -154,6 +154,20 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             // Add new event processors to the map
             eventProcessorMap.put(readerId, actorCell);
             readerIds.add(readerId);
+            try {
+                // Add reader to the checkpoint store again after creating the reader. 
+                // During failover, the reader is removed from the readergroup. 
+                // If the zk session expires after adding reader to checkpoint store but before it is added to readergroup
+                // then we can be in a situation where the reader was removed from readergroup before it was 
+                // added to the readergroup. This can lead to a situation where the reader is added but there is no corresponding
+                // failover information. To mitigate this we will attempt to idempotently add the reader to the checkpoint store again
+                // before calling readNextEvent on it (which leads to segment assignment). 
+                checkpointStore.addReader(actorSystem.getProcess(), eventProcessorConfig.getConfig().getReaderGroupName(), readerId);
+            } catch (CheckpointStoreException ex) {
+                if (!ex.getType().equals(CheckpointStoreException.Type.NodeExists)) {
+                    throw ex;
+                }
+            }
         }
         return readerIds;
     }
@@ -186,7 +200,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 // Some other controller process is responsible for cleaning up the reader group,
                 // its readers and their position objects from checkpoint store.
                 try {
-                    log.info("Attempting to seal the reader group entry from checkpoint store");
+                    log.info("Attempting to seal the reader group {} entry from checkpoint store", this.objectId);
                     checkpointStore.sealReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
                 } catch (CheckpointStoreException e) {
                     log.warn("Error sealing reader group " + this.objectId, e);
@@ -206,7 +220,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
                 // Finally, clean up reader group from checkpoint store.
                 try {
-                    log.info("Attempting to clean up reader group entry from checkpoint store");
+                    log.info("Attempting to clean up reader group {} entry from checkpoint store", this.objectId);
                     checkpointStore.removeReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
                 } catch (CheckpointStoreException e) {
                     log.warn("Error removing reader group " + this.objectId, e);
@@ -325,29 +339,33 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
     }
 
     private void replaceCell(String readerId) {
-        // add a replacement reader and then shutdown existing reader
-        log.info("Found overloaded reader: {}", readerId);
+        synchronized (lock) {
+            Preconditions.checkState(this.isRunning(), this.state().name());
 
-        String newReaderId;
-        try {
-            List<String> newReaders = createEventProcessors(1);
-            assert newReaders.size() == 1;
-            newReaderId = newReaders.get(0);
-            eventProcessorMap.get(newReaderId).startAsync();
-        } catch (CheckpointStoreException e) {
-            log.warn("Unable to create a new event processor cell", e.getMessage());
-            return;
-        }
+            // add a replacement reader and then shutdown existing reader
+            log.info("Found overloaded reader: {}", readerId);
 
-        EventProcessorCell<T> cell = eventProcessorMap.get(readerId);
-        log.info("Stopping event processor cell: {}", cell);
-        try {
-            cell.stopAsync();
-            log.info("Awaiting termination of event processor cell: {}", cell);
-            cell.awaitTerminated();
-            eventProcessorMap.remove(readerId);
-        } catch (Exception e) {
-            log.error("Failed terminating event processor cell {}.", cell, e);
+            String newReaderId;
+            try {
+                List<String> newReaders = createEventProcessors(1);
+                assert newReaders.size() == 1;
+                newReaderId = newReaders.get(0);
+                eventProcessorMap.get(newReaderId).startAsync();
+            } catch (CheckpointStoreException e) {
+                log.warn("Unable to create a new event processor cell", e.getMessage());
+                return;
+            }
+
+            EventProcessorCell<T> cell = eventProcessorMap.get(readerId);
+            log.info("Stopping event processor cell: {}", cell);
+            try {
+                cell.stopAsync();
+                log.info("Awaiting termination of event processor cell: {}", cell);
+                cell.awaitTerminated();
+                eventProcessorMap.remove(readerId);
+            } catch (Exception e) {
+                log.error("Failed terminating event processor cell {}.", cell, e);
+            }
         }
     }
     
