@@ -16,6 +16,7 @@ import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
@@ -29,9 +30,11 @@ import lombok.extern.slf4j.Slf4j;
 @ToString
 class EventSegmentReaderImpl implements EventSegmentReader {
 
-    /* Partial data timeout. This timeout is the maximum amount of time the reader will wait in the case of
-     * partial data being received by the client. After this timeout the client will resend the request. */
-    static final long READ_TIMEOUT_MS = 500;
+    /*
+     * This timeout is the maximum amount of time the reader will wait in the case of partial event data being received
+     *  by the client. After this timeout the client will resend the request.
+     */
+    static final long PARTIAL_DATA_TIMEOUT = TimeUnit.SECONDS.toMillis(30);
 
     @GuardedBy("$lock")
     private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
@@ -75,11 +78,9 @@ class EventSegmentReaderImpl implements EventSegmentReader {
         } finally {
             LoggerHelpers.traceLeave(log, "read", traceId, in.getSegmentId(), originalOffset, firstByteTimeoutMillis, success);
             if (!success) {
-                if (timeout) {
-                    in.setOffset(originalOffset, true);
-                } else {
-                    in.setOffset(originalOffset);
-                }
+                // Reading failed, reset the offset to the original offset.
+                // The read request is retransmitted only in the case of a timeout.
+                in.setOffset(originalOffset, timeout);
             }
         }
     }
@@ -92,7 +93,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
             return null;
         }
         while (headerReadingBuffer.hasRemaining()) {
-            if (in.read(headerReadingBuffer, READ_TIMEOUT_MS) == 0) {
+            if (in.read(headerReadingBuffer, PARTIAL_DATA_TIMEOUT) == 0) {
                 log.warn("Timeout out while trying to read WireCommand header during read of segment {} at offset {}",
                         in.getSegmentId(), in.getOffset());
                 throw new TimeoutException("Timeout while trying to read WireCommand headers");
@@ -109,18 +110,19 @@ class EventSegmentReaderImpl implements EventSegmentReader {
         }
         ByteBuffer result = ByteBuffer.allocate(length);
 
-        if (in.read(result, READ_TIMEOUT_MS) == 0) {
-            log.warn("Timeout while trying to read Event data of segment {} at offset {}", in.getSegmentId(), in.getOffset());
-            throw new TimeoutException("Timeout while trying to read event data");
-        }
+        readEventDataFromSegmentInputStream(result);
         while (result.hasRemaining()) {
-            if (in.read(result, READ_TIMEOUT_MS) == 0) {
-                log.warn("Timeout while trying to read Event data of segment {} at offset {}", in.getSegmentId(), in.getOffset());
-                throw new TimeoutException("Timeout while trying to read event data");
-            }
+            readEventDataFromSegmentInputStream(result);
         }
         result.flip();
         return result;
+    }
+
+    private void readEventDataFromSegmentInputStream(ByteBuffer result) throws EndOfSegmentException, SegmentTruncatedException, TimeoutException {
+        if (in.read(result, PARTIAL_DATA_TIMEOUT) == 0) {
+            log.warn("Timeout while trying to read Event data of segment {} at offset {}", in.getSegmentId(), in.getOffset());
+            throw new TimeoutException("Timeout while trying to read event data");
+        }
     }
 
     @Override

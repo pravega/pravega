@@ -41,7 +41,7 @@ public class EventSegmentReaderImplTest {
         //return a value less than WireCommands.TYPE_PLUS_LENGTH_SIZE = 8 bytes.
         when(segmentInputStream.read(any(ByteBuffer.class), eq(1000L))).thenReturn(5);
         // simulate a timeout while reading the remaining part of the headers.
-        when(segmentInputStream.read(any(ByteBuffer.class), eq(EventSegmentReaderImpl.READ_TIMEOUT_MS))).thenReturn(0);
+        when(segmentInputStream.read(any(ByteBuffer.class), eq(EventSegmentReaderImpl.PARTIAL_DATA_TIMEOUT))).thenReturn(0);
 
         // Invoke read.
         ByteBuffer readData = segmentReader.read(1000);
@@ -63,7 +63,7 @@ public class EventSegmentReaderImplTest {
             return 8;
         }).when(segmentInputStream).read(any(ByteBuffer.class), eq(1000L));
         // simulate a timeout while reading the remaining data.
-        when(segmentInputStream.read(any(ByteBuffer.class), eq(EventSegmentReaderImpl.READ_TIMEOUT_MS))).thenReturn(0);
+        when(segmentInputStream.read(any(ByteBuffer.class), eq(EventSegmentReaderImpl.PARTIAL_DATA_TIMEOUT))).thenReturn(0);
 
         // Invoke read.
         ByteBuffer readData = segmentReader.read(1000);
@@ -96,7 +96,7 @@ public class EventSegmentReaderImplTest {
             headerReadingBuffer.put((byte) 0x01);
             return 5;
         }).doReturn(0) // the second invocation should cause a timeout.
-          .when(segmentInputStream).read(any(ByteBuffer.class), eq(EventSegmentReaderImpl.READ_TIMEOUT_MS));
+          .when(segmentInputStream).read(any(ByteBuffer.class), eq(EventSegmentReaderImpl.PARTIAL_DATA_TIMEOUT));
 
         // Invoke read.
         ByteBuffer readData = segmentReader.read(1000);
