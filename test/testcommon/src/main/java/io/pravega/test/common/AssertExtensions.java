@@ -56,15 +56,13 @@ public class AssertExtensions {
      * @throws Exception            If the is an assertion error, and exception from `eval`, or the thread is interrupted.
      */
     private static <T> void assertEventuallyEquals(T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
-            TestUtils.await(
-                    () -> {
-                        try {
-                            return expected.equals(eval.call());
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                        return null;
-                    }, checkIntervalMillis, timeoutMillis);
+        TestUtils.await(() -> {
+                try {
+                    return expected.equals(eval.call());
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+        }, checkIntervalMillis, timeoutMillis);
         assertEquals(expected, eval.call());
     }
 
@@ -80,13 +78,7 @@ public class AssertExtensions {
      * @throws Exception If the is an assertion error, and exception from `eval`, or the thread is interrupted.
      */
     public static <T> void assertEventuallyEquals(String message, T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
-        long remainingMillis = timeoutMillis;
-        while (remainingMillis > 0) {
-            if ((expected == null && eval.call() == null) || (expected != null && expected.equals(eval.call()))) {
-                return;
-            }
-            Thread.sleep(checkIntervalMillis);
-        }
+        assertEventuallyEquals(expected, eval, checkIntervalMillis, timeoutMillis);
         assertEquals(message, expected, eval.call());
     }
 
