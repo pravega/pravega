@@ -73,7 +73,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
             return result;
         } catch (TimeoutException e) {
             timeout = true;
-            log.warn("Timeout observed while trying to read data from Segment store, the read request will be retransmitted. Details: {}", e.getMessage());
+            log.warn("Timeout observed while trying to read data from Segment store, the read request will be retransmitted");
             return null;
         } finally {
             LoggerHelpers.traceLeave(log, "read", traceId, in.getSegmentId(), originalOffset, firstByteTimeoutMillis, success);
@@ -93,11 +93,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
             return null;
         }
         while (headerReadingBuffer.hasRemaining()) {
-            if (in.read(headerReadingBuffer, PARTIAL_DATA_TIMEOUT) == 0) {
-                log.warn("Timeout out while trying to read WireCommand header during read of segment {} at offset {}",
-                        in.getSegmentId(), in.getOffset());
-                throw new TimeoutException("Timeout while trying to read WireCommand headers");
-            }
+            readEventDataFromSegmentInputStream(headerReadingBuffer);
         }
         headerReadingBuffer.flip();
         int type = headerReadingBuffer.getInt();
@@ -120,7 +116,8 @@ class EventSegmentReaderImpl implements EventSegmentReader {
 
     private void readEventDataFromSegmentInputStream(ByteBuffer result) throws EndOfSegmentException, SegmentTruncatedException, TimeoutException {
         if (in.read(result, PARTIAL_DATA_TIMEOUT) == 0) {
-            log.warn("Timeout while trying to read Event data of segment {} at offset {}", in.getSegmentId(), in.getOffset());
+            log.warn("Timeout while trying to read Event data from segment {} at offset {}. The buffer capacity is {} bytes and the data read so far is {} bytes",
+                    in.getSegmentId(), in.getOffset(), result.limit(), result.position());
             throw new TimeoutException("Timeout while trying to read event data");
         }
     }
