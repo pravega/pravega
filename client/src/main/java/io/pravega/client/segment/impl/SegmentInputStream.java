@@ -28,7 +28,16 @@ public interface SegmentInputStream extends AutoCloseable {
      *
      * @param offset The offset to set.
      */
-    public abstract void setOffset(long offset);
+    default void setOffset( long offset) {
+        setOffset(offset, false);
+    }
+
+    /**
+     * Sets the offset for reading from the segment.
+     * @param offset The offset to set.
+     * @param resendRequest Resend the read request in-case there is an already pending read request for the offset.
+     */
+    public abstract void setOffset(long offset, boolean resendRequest);
 
     /**
      * Gets the current offset. (Passing this to setOffset in the future will reset reads to the
