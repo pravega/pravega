@@ -232,7 +232,7 @@ public class K8sClient {
         String labelSelector = labels.entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).collect(Collectors.joining());
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
         api.listNamespacedPodAsync(namespace, INCLUDE_UNINITIALIZED, PRETTY_PRINT, null, null, labelSelector, null,
-                null, null, false, callback);
+                                   null, null, false, callback);
         return callback.getFuture();
     }
 
