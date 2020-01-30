@@ -77,7 +77,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final String EMPTY_STACK_TRACE = "";
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AppendProcessor.class));
     @NonNull
     private final StreamSegmentStore store;
     @NonNull
