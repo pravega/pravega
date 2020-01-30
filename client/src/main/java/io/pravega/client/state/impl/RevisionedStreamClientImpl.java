@@ -39,6 +39,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
+
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.segment.impl.SegmentAttribute.NULL_VALUE;
@@ -48,6 +50,9 @@ import static io.pravega.client.segment.impl.SegmentAttribute.RevisionStreamClie
 public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> {
 
     private static final long READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(30);
+    @Getter
+    @VisibleForTesting
+    private final long readTimeout;
     private final Segment segment;
     @GuardedBy("lock")
     private final EventSegmentReader in;
@@ -56,6 +61,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @GuardedBy("lock")
     private final ConditionalOutputStream conditional;
     @GuardedBy("lock")
+    @VisibleForTesting
+    @Getter
     private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
 
@@ -64,6 +71,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     public RevisionedStreamClientImpl(Segment segment, EventSegmentReader in, SegmentOutputStreamFactory outFactory,
                                       ConditionalOutputStream conditional, SegmentMetadataClient meta,
                                       Serializer<T> serializer, EventWriterConfig config, DelegationTokenProvider tokenProvider ) {
+        this.readTimeout = READ_TIMEOUT_MS;
         this.segment = segment;
         this.in = in;
         this.conditional = conditional;
@@ -166,9 +174,10 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 in.setOffset(offset.get());
                 try {
                     do {
-                        data = in.read(READ_TIMEOUT_MS);
+                        data = in.read(getReadTimeout());
                         if (data == null) {
                             log.warn("Timeout while attempting to read offset:{} on segment:{} where the endOffset is {}", offset, segment, endOffset);
+                            in.setOffset(offset.get(), true);
                         }
                     } while (data == null);
                 } catch (EndOfSegmentException e) {
