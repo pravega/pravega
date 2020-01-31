@@ -258,6 +258,55 @@ public class WatermarkingTest {
         assertNotNull(currentTimeWindow.getLowerTimeBound());
     }
 
+
+    @Test(timeout = 120000)
+    public void recreateStreamWatermarkTest() throws Exception {
+        // in each iteration create stream, note times and let watermark be generated. 
+        // then delete stream and move to next iteration and verify that watermarks are generated. 
+        for (int i = 0; i < 2; i++) {
+            String scope = "scope";
+            String stream = "recreate";
+            StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
+
+            URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
+            StreamManager streamManager = StreamManager.create(controllerUri);
+            streamManager.createScope(scope);
+            streamManager.createStream(scope, stream, config);
+            
+            // create writer
+            ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+            @Cleanup
+            EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+            JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
+            @Cleanup
+            EventStreamWriter<Long> writer = clientFactory.createEventWriter(stream, javaSerializer,
+                    EventWriterConfig.builder().build());
+
+            AtomicBoolean stopFlag = new AtomicBoolean(false);
+            // write events
+            CompletableFuture<Void> writerFuture = writeEvents(writer, stopFlag);
+
+            @Cleanup
+            SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
+
+            String markStream = NameUtils.getMarkStreamForStream(stream);
+            RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
+                    new WatermarkSerializer(),
+                    SynchronizerConfig.builder().build());
+
+            LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
+            fetchWatermarks(watermarkReader, watermarks, stopFlag);
+
+            AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
+
+            // stop run and seal and delete stream
+            stopFlag.set(true);
+            writerFuture.join();
+            streamManager.sealStream(scope, stream);
+            streamManager.deleteStream(scope, stream);
+        }
+    }
+
     @Test(timeout = 120000)
     public void watermarkTxnTest() throws Exception {
         Controller controller = controllerWrapper.getController();
