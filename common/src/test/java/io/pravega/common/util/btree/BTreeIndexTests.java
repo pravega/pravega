@@ -539,7 +539,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                                 "Offset not registered or already obsolete: " + offset);
                     }
 
-                    return new ByteArraySegment(this.data.getData().subSegment((int) offset, length).getCopy());
+                    return new ByteArraySegment(this.data.getData().slice((int) offset, length).getCopy());
 
                 }
             }, executorService());
