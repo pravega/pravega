@@ -104,7 +104,6 @@ allprojects {
         }
     }
     version = getProjectVersion()
-    println "version is:" + version
     group = "io.pravega"
 
     configurations.all {
