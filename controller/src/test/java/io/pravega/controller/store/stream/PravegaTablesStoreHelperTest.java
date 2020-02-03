@@ -35,6 +35,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertSame;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -154,6 +155,22 @@ public class PravegaTablesStoreHelperTest {
         // non existent key
         AssertExtensions.assertFutureThrows("non existent key", storeHelper.getEntry(table, "nonExistentKey", x -> x),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        keys = Lists.newArrayList("4", "5", "non existent", "7");
+        entriesToAdd = new HashMap<>();
+        entriesToAdd.put(keys.get(0), keys.get(0).getBytes());
+        entriesToAdd.put(keys.get(1), keys.get(1).getBytes());
+        entriesToAdd.put(keys.get(3), keys.get(3).getBytes());
+        storeHelper.addNewEntriesIfAbsent(table, entriesToAdd).join();
+
+        Version.LongVersion nonExistentKey = new Version.LongVersion(-1);
+        List<VersionedMetadata<String>> values = storeHelper.getEntries(table, keys,
+                String::new, new VersionedMetadata<>(null, nonExistentKey)).join();
+        assertEquals(keys.size(), values.size());
+        assertEquals(keys.get(0), values.get(0).getObject());
+        assertEquals(keys.get(1), values.get(1).getObject());
+        assertSame(values.get(2).getVersion().asLongVersion(), nonExistentKey);
+        assertEquals(keys.get(3), values.get(3).getObject());
     }
 
     @Test
