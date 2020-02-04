@@ -33,6 +33,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -55,7 +56,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.net.ssl.SSLEngine;
@@ -71,6 +74,11 @@ import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 @Slf4j
 public class ConnectionPoolImpl implements ConnectionPool {
 
+    static {
+        // The default caching policy for name lookup cache is -1 which is forever.
+        // Change this configuration to 60 seconds.
+        java.security.Security.setProperty("networkaddress.cache.ttl" , "60");
+    }
     private static final Comparator<Connection> COMPARATOR = new Comparator<Connection>() {
         @Override
         public int compare(Connection c1, Connection c2) {
@@ -83,6 +91,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private final EventLoopGroup group;
     private final MetricNotifier metricNotifier;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final AtomicReference<ScheduledFuture<?>> pruneConnectionFuture = new AtomicReference<>();
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
@@ -104,7 +113,8 @@ public class ConnectionPoolImpl implements ConnectionPool {
         Preconditions.checkNotNull(location, "Location");
         Preconditions.checkNotNull(rp, "ReplyProcessor");
         Exceptions.checkNotClosed(closed.get(), this);
-
+        // schedule the pruning of unused connections every 60 seconds.
+        pruneConnectionFuture.compareAndSet(null, this.group.scheduleWithFixedDelay(this::pruneUnusedConnections, 60, 60, TimeUnit.SECONDS));
         final List<Connection> connectionList = connectionMap.getOrDefault(location, new ArrayList<>());
 
         // remove connections for which the underlying network connection is disconnected.
@@ -159,15 +169,22 @@ public class ConnectionPoolImpl implements ConnectionPool {
     @VisibleForTesting
     @Synchronized
     public void pruneUnusedConnections() {
-        for (List<Connection> connections : connectionMap.values()) {
-            for (Iterator<Connection> iterator = connections.iterator(); iterator.hasNext();) {
-                Connection connection = iterator.next();
-                if (isUnused(connection)) {
-                    connection.getFlowHandler().close();
-                    iterator.remove();
+        connectionMap.entrySet().forEach(entry -> {
+            try {
+                PravegaNodeUri location = entry.getKey();
+                final boolean isModified = location.isModified();
+                List<Connection> connections = entry.getValue();
+                for (Iterator<Connection> iterator = connections.iterator(); iterator.hasNext(); ) {
+                    Connection connection = iterator.next();
+                    if (isModified || isUnused(connection)) {
+                        connection.getFlowHandler().close();
+                        iterator.remove();
+                    }
                 }
+            } catch (Exception e) {
+                log.error("Exception observed while pruning connections", e);
             }
-        }
+        });
     }
 
     @Override
@@ -304,9 +321,14 @@ public class ConnectionPoolImpl implements ConnectionPool {
     public void close() {
         log.info("Shutting down connection pool");
         if (closed.compareAndSet(false, true)) {
+            ScheduledFuture<?> future = pruneConnectionFuture.get();
+            if (future != null) {
+                future.cancel(true);
+            }
             // Shut down the event loop to terminate all threads.
             group.shutdownGracefully();
             metricNotifier.close();
+
         }
     }
 }

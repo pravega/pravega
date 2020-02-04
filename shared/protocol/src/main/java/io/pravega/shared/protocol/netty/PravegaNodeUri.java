@@ -11,12 +11,48 @@ package io.pravega.shared.protocol.netty;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NonNull;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 @Data
 @AllArgsConstructor
+@Slf4j
 public class PravegaNodeUri {
     @NonNull
     private final String endpoint;
     private final int port;
+    @EqualsAndHashCode.Exclude
+    private final InetAddress ipAddress;
+
+    public PravegaNodeUri(@NonNull String endpoint, int port) {
+        this.endpoint = endpoint;
+        this.port = port;
+        this.ipAddress = getInetAddress(endpoint);
+    }
+
+    @SneakyThrows(UnknownHostException.class)
+    private InetAddress getInetAddress(String endpoint) {
+        try {
+            return InetAddress.getByName(endpoint);
+        } catch (UnknownHostException e) {
+            log.error("Unable to to fetch IP address for endpoint {}", endpoint, e);
+            throw e;
+        }
+    }
+
+    public boolean isModified() {
+        InetAddress currentIPAddress = getInetAddress(this.endpoint);
+        if (currentIPAddress.equals(this.ipAddress)) {
+            return false;
+        } else {
+            log.warn("IP address of node : {} has changed to {}", this, currentIPAddress);
+            return true;
+        }
+    }
+
 }
