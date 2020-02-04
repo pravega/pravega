@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,6 +64,10 @@ public final class MetricsNames {
     // PREFIX can be loaded from config when config becomes dependency.
     public static final String PREFIX = "pravega" + ".";
 
+    // Metrics for all services
+    public static final String LOG_ERRORS = PREFIX + "logged_errors";     // Counter
+    public static final String LOG_WARNINGS = PREFIX + "logged_warnings"; // Counter
+
     // Metrics in Segment Store Service
     // Segment-related stats
     public static final String SEGMENT_CREATE_LATENCY = PREFIX + "segmentstore.segment.create_latency_ms";              // Histogram
@@ -92,11 +96,19 @@ public final class MetricsNames {
     public static final String TABLE_SEGMENT_ITERATE_ENTRIES = PREFIX + "segmentstore.tablesegment.iterate_entries";       // Counter and Per-segment Counter
 
     // Storage stats
-    public static final String STORAGE_READ_LATENCY = PREFIX + "segmentstore.storage.read_latency_ms";   // Histogram
-    public static final String STORAGE_WRITE_LATENCY = PREFIX + "segmentstore.storage.write_latency_ms"; // Histogram
+    public static final String STORAGE_READ_LATENCY = PREFIX + "segmentstore.storage.read_latency_ms";     // Histogram
+    public static final String STORAGE_WRITE_LATENCY = PREFIX + "segmentstore.storage.write_latency_ms";   // Histogram
+    public static final String STORAGE_CREATE_LATENCY = PREFIX + "segmentstore.storage.create_latency_ms"; // Histogram
+    public static final String STORAGE_DELETE_LATENCY = PREFIX + "segmentstore.storage.delete_latency_ms"; // Histogram
+    public static final String STORAGE_CONCAT_LATENCY = PREFIX + "segmentstore.storage.concat_latency_ms"; // Histogram
+
     public static final String STORAGE_READ_BYTES = PREFIX + "segmentstore.storage.read_bytes";          // Counter
     public static final String STORAGE_WRITE_BYTES = PREFIX + "segmentstore.storage.write_bytes";        // Counter
+    public static final String STORAGE_CONCAT_BYTES = PREFIX + "segmentstore.storage.concat_bytes";      // Counter
     public static final String STORAGE_CREATE_COUNT = PREFIX + "segmentstore.storage.create_count";      // Counter
+    public static final String STORAGE_DELETE_COUNT = PREFIX + "segmentstore.storage.delete_count";      // Counter
+    public static final String STORAGE_CONCAT_COUNT = PREFIX + "segmentstore.storage.concat_count";      // Counter
+
 
     // Cache stats
     public static final String CACHE_WRITE_BYTES = PREFIX + "segmentstore.cache.write_bytes";               // Counter
@@ -115,6 +127,14 @@ public final class MetricsNames {
     public static final String BK_WRITE_QUEUE_SIZE = PREFIX + "segmentstore.bookkeeper.write_queue_size";            // Per-container Histogram
     public static final String BK_WRITE_QUEUE_FILL_RATE = PREFIX + "segmentstore.bookkeeper.write_queue_fill";       // Per-container Histogram
     public static final String BK_LEDGER_COUNT = PREFIX + "segmentstore.bookkeeper.ledger_count";                    // Per-container Gauge
+
+    // StorageWriter stats
+    public static final String STORAGE_WRITER_FLUSH_ELAPSED = PREFIX + "segmentstore.storagewriter.flush_elapsed_ms";         // Time to flush all processors. Per-container Histogram.
+    public static final String STORAGE_WRITER_ITERATION_ELAPSED = PREFIX + "segmentstore.storagewriter.iteration_elapsed_ms"; // Total Iteration Duration. Per-container Histogram
+    public static final String STORAGE_WRITER_READ_COUNT = PREFIX + "segmentstore.storagewriter.read_count";                  // Items read from DurableLog. Counter.
+    public static final String STORAGE_WRITER_FLUSHED_BYTES = PREFIX + "segmentstore.storagewriter.flushed_bytes";            // Bytes written per iteration. Counter.
+    public static final String STORAGE_WRITER_MERGED_BYTES = PREFIX + "segmentstore.storagewriter.merged_bytes";              // Bytes merged per iteration. Counter.
+    public static final String STORAGE_WRITER_FLUSHED_ATTRIBUTES = PREFIX + "segmentstore.storagewriter.flushed_attributes";  // Attributes flushed per iteration. Counter.
 
     // Segment container metrics
     public static final String CONTAINER_APPEND_COUNT = PREFIX + "segmentstore.container.append_count";                          // Per-container Event Counter

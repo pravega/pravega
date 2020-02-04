@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -65,7 +65,7 @@ class TableMetadataStore extends MetadataStore {
     TableMetadataStore(Connector connector, @NonNull TableStore tableStore, Executor executor) {
         super(connector, executor);
         this.tableStore = tableStore;
-        this.metadataSegmentName = StreamSegmentNameUtils.getMetadataSegmentName(connector.getContainerMetadata().getContainerId());
+        this.metadataSegmentName = NameUtils.getMetadataSegmentName(connector.getContainerMetadata().getContainerId());
         this.initialized = new AtomicBoolean(false);
     }
 

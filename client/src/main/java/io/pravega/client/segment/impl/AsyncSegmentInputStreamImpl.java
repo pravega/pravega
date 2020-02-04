@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -122,13 +122,13 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         @Override
         public void processingFailure(Exception error) {
-            log.warn("Processing failure: ", error);
+            log.warn("Processing failure on segment {}", segmentId, error);
             closeConnection(error);
         }
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            log.warn("Auth failed {}", authTokenCheckFailed);
+            log.warn("Auth check failed for reads on segment {} with {}",  segmentId, authTokenCheckFailed);
             closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
         }
 
@@ -170,9 +170,9 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         return backoffSchedule.retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
             if (closed.get()) {
-                log.debug("Exception while reading from Segment : {}", segmentId, ex);
+                log.debug("Exception: {} while reading from Segment : {}", ex.toString(), segmentId);
             } else {
-                log.warn("Exception while reading from Segment : {}", segmentId, ex);
+                log.warn("Exception while reading from Segment {} at offset {} :", segmentId, offset, ex);
             }
             return ex instanceof Exception && !(ex instanceof ConnectionClosedException) && !(ex instanceof SegmentTruncatedException);
         }).runAsync(() -> this.tokenProvider.retrieveToken().thenComposeAsync(token -> {
@@ -181,7 +181,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             return getConnection()
                     .whenComplete((connection1, ex) -> {
                         if (ex != null) {
-                            log.warn("Exception while establishing connection with Pravega node", ex);
+                            log.warn("Exception while establishing connection with Pravega node {}: ", connection1,  ex);
                             closeConnection(new ConnectionFailedException(ex));
                         }
                     }).thenCompose(c -> sendRequestOverConnection(request, c)
@@ -207,7 +207,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         log.trace("Sending read request {}", request);
         c.sendAsync(request, cfe -> {
             if (cfe != null) {
-                log.error("Error while sending request {}", request, cfe);
+                log.error("Error while sending request {} to Pravega node {} :", request, c, cfe);
                 synchronized (lock) {
                     outstandingRequests.remove(request.getOffset());
                 }
@@ -256,7 +256,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     private void failAllInflight(Exception e) {
-        log.info("Connection failed due to a {}. Read requests will be retransmitted.", e.toString());
+        log.info("Connection failed due to a {}. Read requests for segment {} will be retransmitted.", e.toString(), segmentId);
         List<CompletableFuture<WireCommands.SegmentRead>> readsToFail;
         synchronized (lock) {
             readsToFail = new ArrayList<>(outstandingRequests.values());

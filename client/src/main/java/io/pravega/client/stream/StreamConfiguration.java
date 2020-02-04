@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ public class StreamConfiguration implements Serializable {
      * The duration after the last call to {@link EventStreamWriter#noteTime(long)} which the
      * timestamp should be considered valid before it is forgotten. Meaning that after this long of
      * not calling {@link EventStreamWriter#noteTime(long)} the writer will be forgotten.
-     * If there are no known writers, readers that call {@link EventStreamReader#getCurrentTimeWindow()}
+     * If there are no known writers, readers that call {@link EventStreamReader#getCurrentTimeWindow(Stream)}
      * will receive a `null` when they are at the corresponding position in the stream.
      */
     private final long timestampAggregationTimeout;

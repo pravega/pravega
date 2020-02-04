@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
@@ -24,11 +25,14 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import static io.pravega.shared.NameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.getEpoch;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -50,8 +54,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getEpoch;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
@@ -880,7 +882,7 @@ public abstract class StreamTestBase {
         EpochRecord activeEpoch = stream.getActiveEpoch(true).join();
         // now roll transaction so that we have 2 more epochs added for overall 8 epochs and 4 chunks 
         Map<Long, Long> map1 = stream.getEpochRecord(0).join().getSegmentIds().stream()
-                                     .collect(Collectors.toMap(x -> computeSegmentId(StreamSegmentNameUtils.getSegmentNumber(x),
+                                     .collect(Collectors.toMap(x -> computeSegmentId(NameUtils.getSegmentNumber(x),
                                              activeEpoch.getEpoch() + 1), x -> 100L));
         Map<Long, Long> map2 = activeEpoch.getSegmentIds().stream()
                                      .collect(Collectors.toMap(x -> x, x -> 100L));
@@ -1196,20 +1198,20 @@ public abstract class StreamTestBase {
 
         // 0, 5, 6, 1`, 6`, 7, 2`, 7`, 12, 8, 3`, 8`, 9`, 14
         Set<Long> expected = new HashSet<>();
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 0, 0));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 5, 1));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 6, 2));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 1, 6));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 6, 7));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 7, 3));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 2, 6));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 7, 7));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 12, 10));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 8, 4));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 3, 6));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 8, 7));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 9, 7));
-        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 14, 12));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 0, 0));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 5, 1));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 6, 2));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 1, 6));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 6, 7));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 7, 3));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 2, 6));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 7, 7));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 12, 10));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 8, 4));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 3, 6));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 8, 7));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 9, 7));
+        expected.add(NameUtils.computeSegmentId(startingSegmentNumber + 14, 12));
         assertEquals(expected, segmentIdsBetween);
 
         // Note: all sealed segments have sizes 100L. So expected size = 1400 - 10x5 - 90 x 5 = 900
@@ -1565,5 +1567,29 @@ public abstract class StreamTestBase {
         
         // verify that only one call to note time is made
         verify(streamObj, times(1)).noteWriterMark(anyString(), anyLong(), any());
+    }
+    
+    @Test(timeout = 30000L)
+    public void testgetTransactions() {
+        PersistentStreamBase streamObj = spy(createStream("txn", "txn", System.currentTimeMillis(), 1, 0));
+        
+        UUID txnId1 = new UUID(0L, 0L);
+        UUID txnId2 = new UUID(0L, 1L);
+        UUID txnId3 = new UUID(0L, 2L);
+        UUID txnId4 = new UUID(0L, 3L);
+        List<UUID> txns = Lists.newArrayList(txnId1, txnId2, txnId3, txnId4);
+        // create 1 2 and 4. dont create 3.
+        streamObj.createTransaction(txnId1, 1000L, 1000L).join();
+        streamObj.createTransaction(txnId2, 1000L, 1000L).join();
+        streamObj.sealTransaction(txnId2, true, Optional.empty(), "w", 1000L).join();
+        streamObj.createTransaction(txnId4, 1000L, 1000L).join();
+        streamObj.sealTransaction(txnId4, false, Optional.empty(), "w", 1000L).join();
+        List<ActiveTxnRecord> transactions = 
+                streamObj.getTransactionRecords(0, txns.stream().map(UUID::toString).collect(Collectors.toList())).join();
+        assertEquals(4, transactions.size());
+        assertEquals(transactions.get(0).getTxnStatus(), TxnStatus.OPEN);
+        assertEquals(transactions.get(1).getTxnStatus(), TxnStatus.COMMITTING);
+        assertEquals(transactions.get(2), ActiveTxnRecord.EMPTY);
+        assertEquals(transactions.get(3).getTxnStatus(), TxnStatus.ABORTING);
     }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,18 +74,23 @@ class SegmentInputStreamImpl implements SegmentInputStream {
 
     @Override
     @Synchronized
-    public void setOffset(long offset) {
+    public void setOffset(long offset, boolean resendRequest) {
         log.trace("SetOffset {}", offset);
         Preconditions.checkArgument(offset >= 0);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
         if (offset > this.offset) {
             receivedTruncated = false;
         }
-        if (offset != this.offset) {
+        if (offset != this.offset || resendRequest) {
+            if (outstandingRequest != null) {
+                log.debug("Cancelling the read request for segment {} at offset {}. The new read offset is {}", asyncInput.getSegmentId(), this.offset, offset);
+                outstandingRequest.cancel(true);
+                log.debug("Completed cancelling the read request for segment {}", asyncInput.getSegmentId());
+                outstandingRequest = null;
+            }
             this.offset = offset;
             buffer.clear();
             receivedEndOfSegment = false;
-            outstandingRequest = null;        
         }
     }
 

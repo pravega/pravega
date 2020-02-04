@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,8 +35,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.NameUtils.writerTags;
 import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_OUTSTANDING_APPEND_COUNT;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.writerTags;
 
 @Slf4j
 public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoCloseable {
@@ -317,7 +317,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
                     getChannel().writeAndFlush(new WireCommands.KeepAlive()).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
                 }
             } catch (Exception e) {
-                log.warn("Keep alive failed, killing connection {} due to {}", connectionName, e.getMessage());
+                log.warn("Failed to send KeepAlive to {}. Closing this connection.", connectionName, e);
                 close();
             }
         }

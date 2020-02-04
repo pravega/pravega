@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import com.google.common.collect.Streams;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
@@ -36,15 +37,14 @@ import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -61,6 +61,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -86,7 +88,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
     private static final int MAX_INSTANCE_COUNT = 4;
-    private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
+    private static final List<UUID> ATTRIBUTES = Streams.concat(Stream.of(Attributes.EVENT_COUNT), IntStream.range(0, 10).mapToObj(i -> UUID.randomUUID())).collect(Collectors.toList());
     private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
 
@@ -114,6 +116,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .include(WriterConfig
                     .builder()
                     .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
+                    .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, ATTRIBUTES.size() / 2)
                     .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
                     .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                     .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L));
@@ -571,7 +574,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             val txnList = new ArrayList<String>(TRANSACTIONS_PER_SEGMENT);
             transactions.put(segmentName, txnList);
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
-                String txnName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+                String txnName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
                 txnList.add(txnName);
                 futures.add(store.createStreamSegment(txnName, null, TIMEOUT));
             }
@@ -886,28 +889,43 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             return CompletableFuture.completedFuture(null);
         }
 
+        // We want to make sure that both the main segment and its attribute segment have been sync-ed to Storage. In case
+        // of the attribute segment, the only thing we can easily do is verify that it has been sealed when the main segment
+        // it is associated with has also been sealed.
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(sp.getName());
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         AtomicBoolean tryAgain = new AtomicBoolean(true);
         return Futures.loop(
                 tryAgain::get,
-                () -> Futures
-                        .exceptionallyExpecting(readOnlyStore.getStreamSegmentInfo(sp.getName(), TIMEOUT),
-                                ex -> ex instanceof StreamSegmentNotExistsException,
-                                StreamSegmentInformation.builder().name(sp.getName()).build())
-                        .thenCompose(storageProps -> {
-                            if (sp.isSealed()) {
-                                tryAgain.set(!storageProps.isSealed());
-                            } else {
-                                tryAgain.set(sp.getLength() != storageProps.getLength());
-                            }
+                () -> {
+                    val segInfo = getStorageSegmentInfo(sp.getName(), timer, readOnlyStore);
+                    val attrInfo = getStorageSegmentInfo(attributeSegmentName, timer, readOnlyStore);
+                    return CompletableFuture.allOf(segInfo, attrInfo)
+                            .thenCompose(v -> {
+                                SegmentProperties storageProps = segInfo.join();
+                                SegmentProperties attrProps = attrInfo.join();
+                                if (sp.isSealed()) {
+                                    tryAgain.set(!storageProps.isSealed() || !(attrProps.isSealed() || attrProps.isDeleted()));
+                                } else {
+                                    tryAgain.set(sp.getLength() != storageProps.getLength());
+                                }
 
-                            if (tryAgain.get() && !timer.hasRemaining()) {
-                                return Futures.<Void>failedFuture(new TimeoutException(
-                                        String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
-                            } else {
-                                return Futures.delayedFuture(Duration.ofMillis(100), executorService());
-                            }
-                        }), executorService());
+                                if (tryAgain.get() && !timer.hasRemaining()) {
+                                    return Futures.<Void>failedFuture(new TimeoutException(
+                                            String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
+                                } else {
+                                    return Futures.delayedFuture(Duration.ofMillis(100), executorService());
+                                }
+                            });
+                },
+                executorService());
+    }
+
+    private CompletableFuture<SegmentProperties> getStorageSegmentInfo(String segmentName, TimeoutTimer timer, StreamSegmentStore readOnlyStore) {
+        return Futures
+                .exceptionallyExpecting(readOnlyStore.getStreamSegmentInfo(segmentName, timer.getRemaining()),
+                        ex -> ex instanceof StreamSegmentNotExistsException,
+                        StreamSegmentInformation.builder().name(segmentName).deleted(true).build());
     }
 
     private int applyFencingMultiplier(int originalValue) {

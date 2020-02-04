@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -43,6 +44,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -68,6 +70,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @GuardedBy("lock")
     private final HashMap<Long, Map<UUID, Long>> attributeData;
     @GuardedBy("lock")
+    private final HashMap<Long, Long> attributeRootPointers;
+    @GuardedBy("lock")
     private CompletableFuture<Void> waitFullyAcked;
     @GuardedBy("lock")
     private CompletableFuture<Void> addProcessed;
@@ -88,10 +92,15 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private ErrorInjector<Exception> getAppendDataErrorInjector;
     @GuardedBy("lock")
     private ErrorInjector<Exception> persistAttributesErrorInjector;
+    /**
+     * Arg1: Root Pointer
+     * Arg2: LastSeqNo
+     * Return: True (validate root pointer), False (do not validate).
+     */
+    @GuardedBy("lock")
+    private BiFunction<Long, Long, CompletableFuture<Boolean>> notifyAttributesPersistedInterceptor;
     @GuardedBy("lock")
     private BiConsumer<Long, Long> completeMergeCallback;
-    @GuardedBy("lock")
-    private Runnable onGetAppendData;
     private final Object lock = new Object();
 
     //endregion
@@ -107,6 +116,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         this.executor = executor;
         this.config = config;
         this.appendData = new HashMap<>();
+        this.attributeRootPointers = new HashMap<>();
         this.attributeData = new HashMap<>();
         this.log = new SequencedItemList<>();
         this.lastAddedCheckpoint = new AtomicLong(0);
@@ -241,7 +251,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public CompletableFuture<Void> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout) {
+    public CompletableFuture<Long> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ErrorInjector<Exception> asyncErrorInjector;
         synchronized (this.lock) {
@@ -249,7 +259,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
 
         return ErrorInjector
-                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.runAsync(() -> {
+                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.supplyAsync(() -> {
                     synchronized (this.lock) {
                         // We use "null" as an indication that the attribute data is deleted, hence the extra work here.
                         Map<UUID, Long> segmentAttributes;
@@ -275,8 +285,42 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                             // This is turned into an UnmodifiableMap, which throws UnsupportedOperationException for modify calls.
                             throw new CompletionException(new StreamSegmentSealedException("attributes_" + streamSegmentId, ex));
                         }
+
+                        long rootPointer = this.attributeRootPointers.getOrDefault(streamSegmentId, 0L) + 1;
+                        this.attributeRootPointers.put(streamSegmentId, rootPointer);
+                        return rootPointer;
                     }
                 }, this.executor));
+    }
+
+    @Override
+    public CompletableFuture<Void> notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, Duration timeout) {
+        BiFunction<Long, Long, CompletableFuture<Boolean>> interceptor;
+        synchronized (this.lock) {
+            interceptor = this.notifyAttributesPersistedInterceptor;
+        }
+
+        if (interceptor == null) {
+            return CompletableFuture.runAsync(() -> notifyAttributesPersisted(segmentId, rootPointer, lastSequenceNumber, true), this.executor);
+        } else {
+            return interceptor.apply(rootPointer, lastSequenceNumber)
+                    .thenAcceptAsync(validate -> notifyAttributesPersisted(segmentId, rootPointer, lastSequenceNumber, validate), this.executor);
+        }
+    }
+
+    private void notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, boolean validateRootPointer) {
+        synchronized (this.lock) {
+            Long expectedRootPointer = this.attributeRootPointers.getOrDefault(segmentId, Long.MIN_VALUE);
+            if (!validateRootPointer || expectedRootPointer == rootPointer) {
+                this.metadata.getStreamSegmentMetadata(segmentId).updateAttributes(
+                        ImmutableMap.<UUID, Long>builder()
+                                .put(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, rootPointer)
+                                .put(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, lastSequenceNumber)
+                                .build());
+            } else {
+                throw new AssertionError(String.format("Root pointer mismatch. Expected %s, Given %s.", expectedRootPointer, rootPointer));
+            }
+        }
     }
 
     @Override
@@ -331,18 +375,10 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public InputStream getAppendData(long streamSegmentId, long startOffset, int length) {
-        Runnable callback;
         AppendData ad;
         synchronized (this.lock) {
             ErrorInjector.throwSyncExceptionIfNeeded(this.getAppendDataErrorInjector);
-            callback = this.onGetAppendData;
-        }
 
-        if (callback != null) {
-            callback.run();
-        }
-
-        synchronized (this.lock) {
             // Perform the same validation checks as the ReadIndex would do.
             SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
             Preconditions.checkArgument(length >= 0, "length must be a non-negative number");
@@ -391,9 +427,9 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     //region Other Properties
 
-    void setOnGetAppendData(Runnable callback) {
+    long getAttributeRootPointer(long segmentId) {
         synchronized (this.lock) {
-            this.onGetAppendData = callback;
+            return this.attributeRootPointers.getOrDefault(segmentId, Attributes.NULL_ATTRIBUTE_VALUE);
         }
     }
 
@@ -442,6 +478,12 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     void setCompleteMergeCallback(BiConsumer<Long, Long> callback) {
         synchronized (this.lock) {
             this.completeMergeCallback = callback;
+        }
+    }
+
+    void setNotifyAttributesPersistedInterceptor(BiFunction<Long, Long, CompletableFuture<Boolean>> interceptor) {
+        synchronized (this.lock) {
+            this.notifyAttributesPersistedInterceptor = interceptor;
         }
     }
 

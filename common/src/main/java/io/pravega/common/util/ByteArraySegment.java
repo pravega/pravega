@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,7 +127,7 @@ public class ByteArraySegment implements ArrayView {
 
     @Override
     public ByteArraySegment slice(int offset, int length) {
-        return subSegment(offset, length);
+        return subSegment(offset, length, this.readOnly);
     }
 
     @Override
@@ -237,20 +237,6 @@ public class ByteArraySegment implements ArrayView {
     public OutputStream getWriter() {
         Preconditions.checkState(!this.readOnly, "Cannot modify a read-only ByteArraySegment.");
         return new FixedByteArrayOutputStream(this.array, this.startOffset, this.length);
-    }
-
-    /**
-     * Returns a new ByteArraySegment that is a sub-segment of this ByteArraySegment. The new ByteArraySegment wraps
-     * the same underlying byte array that this ByteArraySegment does.
-     *
-     * @param offset The offset within this ByteArraySegment where the new ByteArraySegment starts.
-     * @param length The length of the new ByteArraySegment.
-     * @return The new ByteArraySegment.
-     * @throws ArrayIndexOutOfBoundsException If offset or length are invalid.
-     */
-    public ByteArraySegment subSegment(int offset, int length) {
-        // TODO: drop this in favor of slice(). https://github.com/pravega/pravega/issues/4318
-        return subSegment(offset, length, this.readOnly);
     }
 
     /**

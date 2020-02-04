@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@ import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
@@ -26,7 +25,6 @@ import io.pravega.common.util.btree.BTreeIndex;
 import io.pravega.common.util.btree.PageEntry;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -38,8 +36,8 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.shared.NameUtils;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
@@ -131,6 +129,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         this.config = config;
         this.executor = executor;
         this.handle = new AtomicReference<>();
+        this.traceObjectId = String.format("AttributeIndex[%d-%d]", this.segmentMetadata.getContainerId(), this.segmentMetadata.getId());
         this.index = BTreeIndex.builder()
                                .keyLength(KEY_LENGTH)
                                .valueLength(VALUE_LENGTH)
@@ -139,10 +138,10 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                                .getLength(this::getLength)
                                .readPage(this::readPage)
                                .writePages(this::writePages)
+                               .traceObjectId(this.traceObjectId)
                                .build();
 
         this.cacheEntries = new HashMap<>();
-        this.traceObjectId = String.format("AttributeIndex[%d-%d]", this.segmentMetadata.getContainerId(), this.segmentMetadata.getId());
         this.closed = new AtomicBoolean();
     }
 
@@ -155,7 +154,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     CompletableFuture<Void> initialize(Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         Preconditions.checkState(!this.index.isInitialized(), "SegmentAttributeIndex is already initialized.");
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
 
         // Attempt to open the Attribute Segment; if it does not exist do not create it now. It will be created when we
         // make the first write.
@@ -180,7 +179,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      */
     static CompletableFuture<Void> delete(String segmentName, Storage storage, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(segmentName);
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(segmentName);
         return Futures.exceptionallyExpecting(
                 storage.openWrite(attributeSegmentName)
                        .thenCompose(handle -> storage.delete(handle, timer.getRemaining())),
@@ -259,7 +258,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     //region AttributeIndex Implementation
 
     @Override
-    public CompletableFuture<Void> update(@NonNull Map<UUID, Long> values, @NonNull Duration timeout) {
+    public CompletableFuture<Long> update(@NonNull Map<UUID, Long> values, @NonNull Duration timeout) {
         ensureInitialized();
         if (values.isEmpty()) {
             // Nothing to do.
@@ -360,7 +359,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      */
     private <T> CompletableFuture<T> createAttributeSegmentIfNecessary(Supplier<CompletableFuture<T>> toRun, Duration timeout) {
         if (this.handle.get() == null) {
-            String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
+            String attributeSegmentName = NameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
             return Futures
                     .exceptionallyComposeExpecting(
                             this.storage.create(attributeSegmentName, this.config.getAttributeSegmentRollingPolicy(), timeout),
@@ -388,12 +387,11 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      * @param timeout        Timeout for the operation.
      * @return A CompletableFuture that will indicate when the operation completes.
      */
-    private CompletableFuture<Void> executeConditionally(Function<Duration, CompletableFuture<Long>> indexOperation, Duration timeout) {
+    private CompletableFuture<Long> executeConditionally(Function<Duration, CompletableFuture<Long>> indexOperation, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return UPDATE_RETRY
                 .runAsync(() -> executeConditionallyOnce(indexOperation, timer), this.executor)
-                .exceptionally(this::handleIndexOperationException)
-                .thenAccept(Callbacks::doNothing);
+                .exceptionally(this::handleIndexOperationException);
     }
 
     /**
@@ -460,14 +458,17 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         return BitConverter.readLong(value, 0);
     }
 
-    private CompletableFuture<Long> getLength(Duration timeout) {
+    private CompletableFuture<BTreeIndex.IndexInfo> getLength(Duration timeout) {
         SegmentHandle handle = this.handle.get();
         if (handle == null) {
-            return CompletableFuture.completedFuture(0L);
+            return CompletableFuture.completedFuture(BTreeIndex.IndexInfo.EMPTY);
         }
 
         return this.storage.getStreamSegmentInfo(handle.getSegmentName(), timeout)
-                           .thenApply(SegmentProperties::getLength);
+                .thenApply(segmentInfo -> {
+                    long rootPointer = this.segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, BTreeIndex.IndexInfo.EMPTY.getRootPointer());
+                    return new BTreeIndex.IndexInfo(segmentInfo.getLength(), rootPointer);
+                });
     }
 
     private CompletableFuture<ByteArraySegment> readPage(long offset, int length, Duration timeout) {

@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.SynchronizerClientFactory;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
@@ -26,22 +27,17 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.SegmentWithRange;
 import io.pravega.shared.watermarks.Watermark;
-import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.StreamMetadataStore;
-import lombok.Synchronized;
-import org.slf4j.LoggerFactory;
-
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -49,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.LongSummaryStatistics;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -59,8 +56,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static java.util.Map.Entry;
+import javax.annotation.ParametersAreNonnullByDefault;
+import lombok.Synchronized;
+import org.slf4j.LoggerFactory;
 
 public class PeriodicWatermarking {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PeriodicWatermarking.class));
@@ -124,7 +122,17 @@ public class PeriodicWatermarking {
         return allWriterMarks.thenCompose(writers -> {
             WatermarkClient watermarkClient = watermarkClientCache.getUnchecked(stream);
 
-            watermarkClient.reinitialize();
+            try {
+                watermarkClient.reinitialize();
+            } catch (Exception e) {
+                log.warn("Watermarking client for stream {} threw exception {} during reinitialize.",
+                        stream, Exceptions.unwrap(e).getClass());
+                if (Exceptions.unwrap(e) instanceof NoSuchSegmentException) {
+                    log.info("Invalidating the watermark client in cache for stream {}.", stream);
+                    watermarkClientCache.invalidate(stream);
+                }
+                throw e;
+            }
             return streamMetadataStore.getConfiguration(scope, streamName, context, executor)
                 .thenCompose(config -> filterWritersAndComputeWatermark(scope, streamName, context, watermarkClient, writers, config));
         }).exceptionally(e -> {
@@ -306,7 +314,7 @@ public class PeriodicWatermarking {
         }
 
         return Futures.doWhileLoop(() -> {
-            int highestEpoch = streamCut.keySet().stream().mapToInt(x -> StreamSegmentNameUtils.getEpoch(x.getSegmentId()))
+            int highestEpoch = streamCut.keySet().stream().mapToInt(x -> NameUtils.getEpoch(x.getSegmentId()))
                                         .max().orElse(-1);
             assert highestEpoch >= 0;
             
@@ -359,6 +367,11 @@ public class PeriodicWatermarking {
         return missingRanges;
     }
 
+    @VisibleForTesting
+    boolean checkExistsInCache(Stream stream) {
+        return watermarkClientCache.asMap().containsKey(stream);
+    }
+        
     static class WatermarkClient {
         private final RevisionedStreamClient<Watermark> client;
         

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.SequentialProcessor;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentOperation;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
@@ -62,6 +63,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private final AckCalculator ackCalculator;
     private final WriterFactory.CreateProcessors createProcessors;
     private final SequentialProcessor ackProcessor;
+    private final SegmentStoreMetrics.StorageWriter metrics;
 
     //endregion
 
@@ -91,6 +93,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         this.timer = new Timer();
         this.ackCalculator = new AckCalculator(this.state);
         this.ackProcessor = new SequentialProcessor(this.executor);
+        this.metrics = new SegmentStoreMetrics.StorageWriter(dataSource.getId());
     }
 
     //endregion
@@ -137,7 +140,9 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private void endIteration() {
         // Perform internal cleanup (get rid of those SegmentProcessors that are closed).
         cleanup();
-        logStageEvent("Finish", "Elapsed " + this.state.getElapsedSinceIterationStart(this.timer).toMillis() + "ms");
+        Duration elapsed = this.state.getElapsedSinceIterationStart(this.timer);
+        this.metrics.iterationComplete(elapsed);
+        logStageEvent("Finish", "Elapsed " + elapsed.toMillis() + "ms");
     }
 
     private Void iterationErrorHandler(Throwable ex) {
@@ -168,6 +173,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         this.processors.values().forEach(ProcessorCollection::close);
         this.processors.clear();
         this.ackProcessor.close();
+        this.metrics.close();
     }
 
     //endregion
@@ -223,6 +229,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         InputReadStageResult result = new InputReadStageResult(this.state);
         if (readResult == null) {
             // This happens when we get a TimeoutException from the read operation.
+            this.metrics.readComplete(0);
             logStageEvent("InputRead", result);
             LoggerHelpers.traceLeave(log, this.traceObjectId, "processReadResult", traceId);
             return CompletableFuture.completedFuture(null);
@@ -300,6 +307,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flush");
 
         // Flush everything we can flush.
+        val timer = new Timer();
         val flushFutures = this.processors.values().stream()
                                           .filter(ProcessorCollection::mustFlush)
                                           .map(a -> a.flush(this.config.getFlushTimeout()))
@@ -310,10 +318,11 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                 .thenAcceptAsync(flushResults -> {
                     FlushStageResult result = new FlushStageResult();
                     flushResults.forEach(result::withFlushResult);
-                    if (result.getFlushedBytes() + result.getMergedBytes() + result.count > 0) {
+                    if (result.getFlushedBytes() + result.getMergedBytes() + result.getFlushedAttributes() > 0) {
                         logStageEvent("Flush", result);
                     }
 
+                    this.metrics.flushComplete(result.getFlushedBytes(), result.getMergedBytes(), result.getFlushedAttributes(), timer.getElapsed());
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "flush", traceId);
                 }, this.executor);
     }
@@ -411,11 +420,12 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
         // Then create the aggregator, and only register it after a successful initialization. Otherwise we risk
         // having a registered aggregator that is not initialized.
-        SegmentAggregator newAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer, this.executor);
-        ProcessorCollection pc = new ProcessorCollection(newAggregator, this.createProcessors.apply(segmentMetadata));
+        SegmentAggregator segmentAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer, this.executor);
+        AttributeAggregator attributeAggregator = new AttributeAggregator(segmentMetadata, this.dataSource, this.config, this.timer, this.executor);
+        ProcessorCollection pc = new ProcessorCollection(segmentAggregator, attributeAggregator, this.createProcessors.apply(segmentMetadata));
         try {
-            CompletableFuture<Void> init = newAggregator.initialize(this.config.getFlushTimeout());
-            Futures.exceptionListener(init, ex -> newAggregator.close());
+            CompletableFuture<Void> init = segmentAggregator.initialize(this.config.getFlushTimeout());
+            Futures.exceptionListener(init, ex -> segmentAggregator.close());
             return init.thenApply(ignored -> {
                 this.processors.put(streamSegmentId, pc);
                 return pc;
@@ -564,12 +574,15 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         private final SegmentAggregator aggregator;
         private final List<WriterSegmentProcessor> processors;
 
-        ProcessorCollection(SegmentAggregator aggregator, Collection<WriterSegmentProcessor> processors) {
+        ProcessorCollection(SegmentAggregator aggregator, AttributeAggregator attributeAggregator, Collection<WriterSegmentProcessor> processors) {
             // We separate out the main SegmentAggregator since we depend on it for some operations, however when we
             // generate the list of processors we make sure to put it first; if there are any issues with the operations
             // to process we need to ensure that no other processor may see those operations before the Segment Aggregator.
             this.aggregator = aggregator;
-            this.processors = ImmutableList.<WriterSegmentProcessor>builder().add(aggregator).addAll(processors).build();
+            this.processors = ImmutableList.<WriterSegmentProcessor>builder()
+                    .add(aggregator)
+                    .add(attributeAggregator)
+                    .addAll(processors).build();
         }
 
         //region SegmentAggregator direct wrapper
@@ -611,9 +624,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
         @Override
         public long getLowestUncommittedSequenceNumber() {
-            return this.processors.size() == 1
-                    ? this.processors.get(0).getLowestUncommittedSequenceNumber()
-                    : StorageWriter.this.ackCalculator.getLowestUncommittedSequenceNumber(this.processors);
+            return StorageWriter.this.ackCalculator.getLowestUncommittedSequenceNumber(this.processors);
         }
 
         @Override

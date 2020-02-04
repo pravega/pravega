@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,12 @@ import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
-import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -319,23 +319,8 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
-    public double getCacheUtilization() {
-        return this.cacheManager.getCacheUtilization();
-    }
-
-    @Override
-    public double getCacheTargetUtilization() {
-        return this.cacheManager.getCacheTargetUtilization();
-    }
-
-    @Override
-    public double getCacheMaxUtilization() {
-        return this.cacheManager.getCacheMaxUtilization();
-    }
-
-    @Override
-    public void registerCleanupListener(ThrottleSourceListener listener) {
-        this.cacheManager.registerCleanupListener(listener);
+    public CacheUtilizationProvider getCacheUtilizationProvider() {
+        return this.cacheManager.getUtilizationProvider();
     }
 
     //endregion

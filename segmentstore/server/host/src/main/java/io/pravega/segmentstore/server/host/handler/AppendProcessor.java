@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -60,21 +61,22 @@ import java.util.concurrent.atomic.AtomicLong;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.LoggerFactory;
+
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
  */
-@Slf4j
 @Builder
 public class AppendProcessor extends DelegatingRequestProcessor {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final String EMPTY_STACK_TRACE = "";
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AppendProcessor.class));
     @NonNull
     private final StreamSegmentStore store;
     @NonNull
@@ -118,7 +120,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         log.info("Received hello from connection: {}", connection);
         connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
         if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
-            log.warn("Incompatible wire protocol versions {} from connection {}", hello, connection);
+            log.warn(hello.getRequestId(), "Incompatible wire protocol versions {} from connection {}", hello, connection);
             connection.close();
         }
     }
@@ -227,7 +229,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 if (append.getEventNumber() > state.getLowestFailedEventNumber()) {
                     // The Store should not be successfully completing an Append that followed a failed one. If somehow
                     // this happened, record it in the log.
-                    log.warn("Acknowledged a successful append after a failed one. Segment={}, WriterId={}, FailedEventNumber={}, AppendEventNumber={}",
+                    log.warn(append.getRequestId(), "Acknowledged a successful append after a failed one. Segment={}, WriterId={}, FailedEventNumber={}, AppendEventNumber={}",
                             append.getSegment(), append.getWriterId(), state.getLowestFailedEventNumber(), append.getEventNumber());
                 }
             } else {
@@ -299,7 +301,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private void handleException(UUID writerId, long requestId, String segment, long eventNumber, String doingWhat, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
-            log.error("Append processor: Error {} on segment = '{}'", doingWhat, segment, exception);
+            log.error(requestId, "Append processor: Error {} on segment = '{}'", doingWhat, segment, exception);
             throw exception;
         }
 
@@ -307,33 +309,33 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         String clientReplyStackTrace = replyWithStackTraceOnError ? Throwables.getStackTraceAsString(u) : EMPTY_STACK_TRACE;
 
         if (u instanceof StreamSegmentExistsException) {
-            log.warn("Segment '{}' already exists and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
+            log.warn(requestId, "Segment '{}' already exists and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
             connection.send(new SegmentAlreadyExists(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof StreamSegmentNotExistsException) {
-            log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
+            log.warn(requestId, "Segment '{}' does not exist and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
             connection.send(new NoSuchSegment(requestId, segment, clientReplyStackTrace, -1L));
         } else if (u instanceof StreamSegmentSealedException) {
             log.info("Segment '{}' is sealed and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
             connection.send(new SegmentIsSealed(requestId, segment, clientReplyStackTrace, eventNumber));
         } else if (u instanceof ContainerNotFoundException) {
             int containerId = ((ContainerNotFoundException) u).getContainerId();
-            log.warn("Wrong host. Segment '{}' (Container {}) is not owned and {} cannot perform operation '{}'.",
+            log.warn(requestId, "Wrong host. Segment '{}' (Container {}) is not owned and {} cannot perform operation '{}'.",
                     segment, containerId, writerId, doingWhat);
             connection.send(new WrongHost(requestId, segment, "", clientReplyStackTrace));
         } else if (u instanceof BadAttributeUpdateException) {
-            log.warn("Bad attribute update by {} on segment {}.", writerId, segment, u);
+            log.warn(requestId, "Bad attribute update by {} on segment {}.", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId, clientReplyStackTrace));
             connection.close();
         } else if (u instanceof TokenExpiredException) {
-            log.warn("Token expired for writer {} on segment {}.", writerId, segment, u);
+            log.warn(requestId, "Token expired for writer {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
                     WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
         } else if (u instanceof TokenException) {
-            log.warn("Token check failed or writer {} on segment {}.", writerId, segment, u);
+            log.warn(requestId, "Token check failed or writer {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
                     WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
         } else if (u instanceof UnsupportedOperationException) {
-            log.warn("Unsupported Operation '{}'.", doingWhat, u);
+            log.warn(requestId, "Unsupported Operation '{}'.", doingWhat, u);
             connection.send(new OperationUnsupported(requestId, doingWhat, clientReplyStackTrace));
         } else if (u instanceof CancellationException) {
             // Cancellation exception is thrown when the Operation processor is shutting down.

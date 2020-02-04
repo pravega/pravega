@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -369,7 +369,7 @@ public class StorageReadManager implements AutoCloseable {
                 // Get the source Request's result, slice it and return the sub-segment that this request maps to.
                 Result sourceResult = source.resultFuture.join();
                 int offset = (int) (this.getOffset() - source.getOffset());
-                this.resultFuture.complete(new Result(sourceResult.getData().subSegment(offset, getLength()), true));
+                this.resultFuture.complete(new Result(sourceResult.getData().slice(offset, getLength()), true));
             } catch (Throwable ex) {
                 if (Exceptions.mustRethrow(ex)) {
                     throw ex;

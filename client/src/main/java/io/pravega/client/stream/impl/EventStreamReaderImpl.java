@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -102,11 +102,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @Override
-    public EventRead<Type> readNextEvent(long timeout) throws ReinitializationRequiredException, TruncatedDataException {
+    public EventRead<Type> readNextEvent(long timeoutMillis) throws ReinitializationRequiredException, TruncatedDataException {
         synchronized (readers) {
             Preconditions.checkState(!closed, "Reader is closed");
             try {
-                return readNextEventInternal(timeout);
+                return readNextEventInternal(timeoutMillis);
             } catch (ReaderNotInReaderGroupException e) {
                 close();
                 throw new ReinitializationRequiredException(e);
@@ -114,8 +114,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         }
     }
     
-    private EventRead<Type> readNextEventInternal(long timeout) throws ReaderNotInReaderGroupException, TruncatedDataException {
-        long waitTime = Math.min(timeout, BASE_READER_WAITING_TIME_MS);
+    private EventRead<Type> readNextEventInternal(long timeoutMillis) throws ReaderNotInReaderGroupException, TruncatedDataException {
+        long firstByteTimeoutMillis = Math.min(timeoutMillis, BASE_READER_WAITING_TIME_MS);
         Timer timer = new Timer();
         Segment segment = null;
         long offset = -1;
@@ -127,13 +127,13 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             }
             EventSegmentReader segmentReader = orderer.nextSegment(readers);
             if (segmentReader == null) {
-                Exceptions.handleInterrupted(() -> Thread.sleep(waitTime));
+                Exceptions.handleInterrupted(() -> Thread.sleep(firstByteTimeoutMillis));
                 buffer = null;
             } else {
                 segment = segmentReader.getSegmentId();
                 offset = segmentReader.getOffset();
                 try {
-                    buffer = segmentReader.read(waitTime);
+                    buffer = segmentReader.read(firstByteTimeoutMillis);
                 } catch (EndOfSegmentException e) {
                     boolean isSegmentSealed = e.getErrorType().equals(END_OF_SEGMENT_REACHED);
                     handleEndOfSegment(segmentReader, isSegmentSealed);
@@ -143,9 +143,10 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     buffer = null;
                 }
             }
-        } while (buffer == null && timer.getElapsedMillis() < timeout);
+        } while (buffer == null && timer.getElapsedMillis() < timeoutMillis);
 
         if (buffer == null) {
+            log.debug("Empty event returned for reader {} ", groupState.getReaderId());
             return createEmptyEvent(null);
         } 
         lastRead = Sequence.create(segment.getSegmentId(), offset);

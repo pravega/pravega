@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -77,8 +77,8 @@ public class DataFrame {
         Exceptions.checkArgument(sourceLength > FrameHeader.SERIALIZATION_LENGTH, "data",
                 "Insufficient array length. Byte array must have a length of at least %d.", FrameHeader.SERIALIZATION_LENGTH + 1);
 
-        this.header = new WriteFrameHeader(CURRENT_VERSION, this.data.subSegment(0, FrameHeader.SERIALIZATION_LENGTH));
-        this.contents = this.data.subSegment(FrameHeader.SERIALIZATION_LENGTH, sourceLength - FrameHeader.SERIALIZATION_LENGTH);
+        this.header = new WriteFrameHeader(CURRENT_VERSION, this.data.slice(0, FrameHeader.SERIALIZATION_LENGTH));
+        this.contents = this.data.slice(FrameHeader.SERIALIZATION_LENGTH, sourceLength - FrameHeader.SERIALIZATION_LENGTH);
     }
 
     /**
@@ -117,7 +117,7 @@ public class DataFrame {
             return this.data;
         } else {
             // We have just created this frame. Only return the segment of the buffer that contains data.
-            return this.data.subSegment(0, getLength());
+            return this.data.slice(0, getLength());
         }
     }
 
@@ -159,7 +159,7 @@ public class DataFrame {
         }
 
         this.writeEntryStartIndex = this.writePosition;
-        this.writeEntryHeader = new WriteEntryHeader(this.contents.subSegment(this.writePosition, WriteEntryHeader.HEADER_SIZE));
+        this.writeEntryHeader = new WriteEntryHeader(this.contents.slice(this.writePosition, WriteEntryHeader.HEADER_SIZE));
         this.writeEntryHeader.setFirstRecordEntry(firstRecordEntry);
         this.writePosition += WriteEntryHeader.HEADER_SIZE;
         return true;

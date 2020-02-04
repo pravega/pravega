@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,9 +9,19 @@
  */
 package io.pravega.client.state.impl;
 
+import io.netty.buffer.Unpooled;
 import io.pravega.client.SynchronizerClientFactory;
+import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
+import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
+import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInfo;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
@@ -32,12 +42,19 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
+
+import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -49,8 +66,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -303,6 +325,121 @@ public class RevisionedStreamClientTest {
         verify(out, times(1)).getUnackedEventsOnSeal();
         assertTrue(writeFuture.isCompletedExceptionally());
         assertThrows(SegmentSealedException.class, writeFuture::get);
+    }
+
+    @Test
+    public void testTimeoutWithStreamIterator() throws Exception {
+        String scope = "scope";
+        String stream = "stream";
+        // Setup Environment
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+
+        // Setup mock
+        SegmentOutputStreamFactory outFactory = mock(SegmentOutputStreamFactory.class);
+        SegmentOutputStream out = mock(SegmentOutputStream.class);
+        Segment segment = new Segment(scope, stream, 0);
+        when(outFactory.createOutputStreamForSegment(eq(segment), any(), any(), any(DelegationTokenProvider.class)))
+                .thenReturn(out);
+
+        SegmentInputStreamFactory inFactory = mock(SegmentInputStreamFactory.class);
+        EventSegmentReader in = mock(EventSegmentReader.class);
+        when(inFactory.createEventReaderForSegment(eq(segment), anyInt())).thenReturn(in);
+        when(in.read(anyLong())).thenReturn(null).thenReturn(serializer.serialize("testData"));
+
+        SegmentMetadataClientFactory metaFactory = mock(SegmentMetadataClientFactory.class);
+        SegmentMetadataClient metaClient = mock(SegmentMetadataClient.class);
+        when(metaFactory.createSegmentMetadataClient(any(Segment.class), any(DelegationTokenProvider.class))).thenReturn(metaClient);
+        when(metaClient.getSegmentInfo()).thenReturn(new SegmentInfo(segment, 0, 30, false, System.currentTimeMillis()));
+
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory,
+                inFactory, streamFactory, streamFactory, metaFactory);
+
+        RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, serializer,
+                SynchronizerConfig.builder().build());
+        Iterator<Entry<Revision, String>> iterator = client.readFrom(new RevisionImpl(segment, 15, 1));
+
+        assertTrue("True is expected since offset is less than end offset", iterator.hasNext());
+        assertNotNull("Verify the entry is not null", iterator.next());
+        verify(in, times(2)).read(anyLong());
+    }
+
+    @Test
+    public void testRetryOnTimeout() {
+        String scope = "scope";
+        String stream = "stream";
+        Segment segment = new Segment(scope, stream, 0L);
+        // Setup Environment
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+
+        // Setup Mocks
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint
+                .getPort(), connectionFactory, false);
+
+        // Setup client connection.
+        ClientConnection c = mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, c);
+
+        // Create Scope and Stream.
+        createScopeAndStream(scope, stream, controller);
+
+        // Create mock ClientFactory.
+        SegmentInputStreamFactory segInputFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
+        SegmentOutputStreamFactory segOutputFactory = mock(SegmentOutputStreamFactory.class);
+        ConditionalOutputStreamFactory condOutputFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
+        SegmentMetadataClientFactory segMetaFactory = mock(SegmentMetadataClientFactory.class);
+        SegmentMetadataClient segMetaClient = mock(SegmentMetadataClient.class);
+        when(segMetaFactory.createSegmentMetadataClient(eq(segment), any(DelegationTokenProvider.class)))
+                .thenReturn(segMetaClient);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, segInputFactory,
+                segOutputFactory, condOutputFactory, segMetaFactory);
+
+        RevisionedStreamClientImpl<String> client = spy((RevisionedStreamClientImpl<String>) clientFactory
+                .createRevisionedStreamClient(stream, serializer,
+                        SynchronizerConfig.builder().build()));
+        // Override the readTimeout value for RevisionedClient to 1 second.
+        doReturn(1000L).when(client).getReadTimeout();
+
+        // Setup the SegmentMetadataClient mock.
+        doReturn(new SegmentInfo(segment, 0L, 30L, false, 1L))
+                .when(segMetaClient).getSegmentInfo();
+
+        // Get the iterator from Revisioned Stream Client.
+        Iterator<Entry<Revision, String>> iterator = client.readFrom(new RevisionImpl(segment, 15, 1));
+        // since we are trying to read @ offset 15 and the writeOffset is 30L a true is returned for hasNext().
+        assertTrue(iterator.hasNext());
+
+        // Setup mock to validate a retry.
+        doNothing().doAnswer(i -> {
+            WireCommands.ReadSegment request = i.getArgument(0);
+            ReplyProcessor rp = connectionFactory.getProcessor(endpoint);
+            WireCommands.Event event = new WireCommands.Event(Unpooled.wrappedBuffer(serializer.serialize("A")));
+            ByteArrayOutputStream bout = new ByteArrayOutputStream();
+            event.writeFields(new DataOutputStream(bout));
+            ByteBuffer eventData = ByteBuffer.wrap(bout.toByteArray());
+            // Invoke Reply processor to simulate a successful read.
+            rp.process(new WireCommands.SegmentRead(request.getSegment(), 15L, true, true, eventData, request
+                    .getRequestId()));
+            ClientConnection.CompletedCallback callback = i.getArgument(1);
+            callback.complete(null);
+            return null;
+        }).when(c)
+                   .sendAsync(any(WireCommands.ReadSegment.class), any(ClientConnection.CompletedCallback.class));
+        Entry<Revision, String> r = iterator.next();
+        assertEquals("A", r.getValue());
+        // Verify retries have been performed.
+        verify(c, times(3))
+                .sendAsync(any(WireCommands.ReadSegment.class), any(ClientConnection.CompletedCallback.class));
     }
 
     private void createScopeAndStream(String scope, String stream, MockController controller) {

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,11 +66,13 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.controller.event.AbortEvent;
+import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
@@ -103,7 +105,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -139,6 +141,8 @@ public abstract class StreamMetadataTasksTest {
     private ConnectionFactoryImpl connectionFactory;
 
     private RequestTracker requestTracker = new RequestTracker(true);
+    private EventStreamWriterMock<CommitEvent> commitWriter;
+    private EventStreamWriterMock<AbortEvent> abortWriter;
 
     @Before
     public void setup() throws Exception {
@@ -179,7 +183,9 @@ public abstract class StreamMetadataTasksTest {
                 executor);
         consumer = new ControllerService(streamStorePartialMock, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
-        streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
+        commitWriter = new EventStreamWriterMock<>();
+        abortWriter = new EventStreamWriterMock<>();
+        streamTransactionMetadataTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
@@ -347,8 +353,8 @@ public abstract class StreamMetadataTasksTest {
         // 2. change state to scaling
         streamStorePartialMock.setState(SCOPE, "test", State.SCALING, null, executor).get();
         // call update should fail without posting the event
-        long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
-        long three = StreamSegmentNameUtils.computeSegmentId(3, 1);
+        long two = NameUtils.computeSegmentId(2, 1);
+        long three = NameUtils.computeSegmentId(3, 1);
         Map<Long, Long> streamCut2 = new HashMap<>();
         streamCut2.put(0L, 1L);
         streamCut2.put(two, 1L);
@@ -973,16 +979,23 @@ public abstract class StreamMetadataTasksTest {
         VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, null)
                 .get().getKey();
 
+        VersionedTransactionData abortingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, null)
+                .get().getKey();
+        
         // set transaction to committing
         streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, committingTxn.getId(), true, Optional.empty(), 
                 "", Long.MIN_VALUE, null, executor).join();
 
+        // set transaction to aborting
+        streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, abortingTxn.getId(), false, Optional.empty(), 
+                "", Long.MIN_VALUE, null, executor).join();
+        
         // Mock getActiveTransactions call such that we return committing txn as OPEN txn.
         Map<UUID, ActiveTxnRecord> activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
 
         Map<UUID, ActiveTxnRecord> retVal = activeTxns.entrySet().stream()
                 .map(tx -> {
-                    if (!tx.getValue().getTxnStatus().equals(TxnStatus.OPEN)) {
+                    if (!tx.getValue().getTxnStatus().equals(TxnStatus.OPEN) && !tx.getValue().getTxnStatus().equals(TxnStatus.ABORTING)) {
                         ActiveTxnRecord txRecord = tx.getValue();
                         return new AbstractMap.SimpleEntry<>(tx.getKey(),
                                 new ActiveTxnRecord(txRecord.getTxCreationTimestamp(), txRecord.getLeaseExpiryTime(),
@@ -995,6 +1008,8 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(retVal)).when(streamStorePartialMock).getActiveTxns(
                 eq(SCOPE), eq(streamWithTxn), any(), any());
 
+        List<AbortEvent> abortListBefore = abortWriter.getEventList();
+        
         streamMetadataTasks.sealStream(SCOPE, streamWithTxn, null);
         AssertExtensions.assertFutureThrows("seal stream did not fail processing with correct exception",
                 processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
@@ -1007,6 +1022,12 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(txnData.getStatus(), TxnStatus.ABORTING);
         assertEquals(requestEventWriter.getEventQueue().size(), 1);
 
+        // verify that events are posted for the abort txn.
+        List<AbortEvent> abortListAfter = abortWriter.getEventList();
+        assertEquals(abortListAfter.size(), abortListBefore.size() + 2);
+        assertTrue(abortListAfter.stream().anyMatch(x -> x.getTxid().equals(openTxn.getId())));
+        assertTrue(abortListAfter.stream().anyMatch(x -> x.getTxid().equals(abortingTxn.getId())));
+        
         txnData = streamStorePartialMock.getTransactionData(SCOPE, streamWithTxn, committingTxn.getId(), null, executor).join();
         assertEquals(txnData.getStatus(), TxnStatus.COMMITTING);
 
@@ -1025,6 +1046,7 @@ public abstract class StreamMetadataTasksTest {
 
         // Now complete all existing transactions and verify that seal completes
         streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, openTxn.getId(), null, executor).join();
+        streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, abortingTxn.getId(), null, executor).join();
         ((AbstractStreamMetadataStore) streamStorePartialMock).commitTransaction(SCOPE, streamWithTxn, committingTxn.getId(), null, executor).join();
         activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
         assertTrue(activeTxns.isEmpty());
@@ -1256,7 +1278,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS, scaleStatusResult.getStatus());
 
         // start another scale
-        scaleOpResult = streamMetadataTasks.manualScale(SCOPE, test, Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(1, 1)),
+        scaleOpResult = streamMetadataTasks.manualScale(SCOPE, test, Collections.singletonList(NameUtils.computeSegmentId(1, 1)),
                 newRanges, 30, null).get();
         assertEquals(ScaleStreamStatus.STARTED, scaleOpResult.getStatus());
         streamStorePartialMock.setState(SCOPE, test, State.SCALING, null, executor).join();

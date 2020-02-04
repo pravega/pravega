@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Builder;
+import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -115,6 +116,7 @@ public class BTreeIndex {
     private final GetLength getLength;
     private final AtomicReference<IndexState> state;
     private final Executor executor;
+    private final String traceObjectId;
 
     //endregion
 
@@ -130,14 +132,16 @@ public class BTreeIndex {
      * @param writePages  A Function that writes contents of one or more contiguous pages to an external data source.
      * @param getLength   A Function that returns the length of the index, in bytes, as stored in an external data source.
      * @param executor    Executor for async operations.
+     * @param traceObjectId An identifier to add to all log entries.
      */
     @Builder
     public BTreeIndex(int maxPageSize, int keyLength, int valueLength, @NonNull ReadPage readPage, @NonNull WritePages writePages,
-                      @NonNull GetLength getLength, @NonNull Executor executor) {
+                      @NonNull GetLength getLength, @NonNull Executor executor, String traceObjectId) {
         this.read = readPage;
         this.write = writePages;
         this.getLength = getLength;
         this.executor = executor;
+        this.traceObjectId = traceObjectId;
 
         // BTreePage.Config validates the arguments so we don't need to.
         this.indexPageConfig = new BTreePage.Config(keyLength, INDEX_VALUE_LENGTH, maxPageSize, true);
@@ -177,23 +181,23 @@ public class BTreeIndex {
      */
     public CompletableFuture<Void> initialize(Duration timeout) {
         if (isInitialized()) {
-            log.warn("Reinitializing.");
+            log.warn("{}: Reinitializing.", this.traceObjectId);
         }
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.getLength
                 .apply(timer.getRemaining())
-                .thenCompose(length -> {
-                    if (length <= FOOTER_LENGTH) {
+                .thenCompose(indexInfo -> {
+                    if (indexInfo.getIndexLength() <= FOOTER_LENGTH) {
                         // Empty index.
-                        setState(length, PagePointer.NO_OFFSET, 0);
+                        setState(indexInfo.getIndexLength(), PagePointer.NO_OFFSET, 0);
                         return CompletableFuture.completedFuture(null);
                     }
 
-                    long footerOffset = getFooterOffset(length);
+                    long footerOffset = indexInfo.getRootPointer() >= 0 ? indexInfo.getRootPointer() : getFooterOffset(indexInfo.getIndexLength());
                     return this.read
                             .apply(footerOffset, FOOTER_LENGTH, timer.getRemaining())
-                            .thenAccept(footer -> initialize(footer, footerOffset, length));
+                            .thenAccept(footer -> initialize(footer, footerOffset, indexInfo.getIndexLength()));
                 });
     }
 
@@ -206,14 +210,15 @@ public class BTreeIndex {
      */
     private void initialize(ByteArraySegment footer, long footerOffset, long indexLength) {
         if (footer.getLength() != FOOTER_LENGTH) {
-            throw new IllegalDataFormatException(String.format("Wrong footer length. Expected %s, actual %s.", FOOTER_LENGTH, footer.getLength()));
+            throw new IllegalDataFormatException(String.format("[%s] Wrong footer length. Expected %s, actual %s.",
+                    this.traceObjectId, FOOTER_LENGTH, footer.getLength()));
         }
 
         long rootPageOffset = getRootPageOffset(footer);
         int rootPageLength = getRootPageLength(footer);
         if (rootPageOffset + rootPageLength > footerOffset) {
-            throw new IllegalDataFormatException(String.format("Wrong footer information. RootPage Offset (%s) + Length (%s) exceeds Footer Offset (%s).",
-                    rootPageOffset, rootPageLength, footerOffset));
+            throw new IllegalDataFormatException(String.format("[%s] Wrong footer information. RootPage Offset (%s) + Length (%s) exceeds Footer Offset (%s).",
+                    this.traceObjectId, rootPageOffset, rootPageLength, footerOffset));
         }
 
         setState(indexLength, rootPageOffset, rootPageLength);
@@ -267,7 +272,7 @@ public class BTreeIndex {
     }
 
     /**
-     * Inserts, updates or removes the given Page Entries into the index. If {@link PageEntry#value} is null, then
+     * Inserts, updates or removes the given Page Entries into the index. If {@link PageEntry#getValue()} is null, then
      * the page entry is removed, otherwise it is added.
      *
      * @param entries A Collection of Page Entries to insert. The collection need not be sorted.
@@ -773,7 +778,8 @@ public class BTreeIndex {
         // Write a footer with information about locating the root page.
         Preconditions.checkArgument(lastPage != null && lastPage.getParent() == null, "Last page to be written is not the root page");
         Preconditions.checkArgument(pageCollection.getIndexLength() == offset, "IndexLength mismatch.");
-        pages.add(new AbstractMap.SimpleImmutableEntry<>(offset, getFooter(lastPage.getOffset(), lastPage.getPage().getLength())));
+        final long footerOffset = offset;
+        pages.add(new AbstractMap.SimpleImmutableEntry<>(footerOffset, getFooter(lastPage.getOffset(), lastPage.getPage().getLength())));
 
         // Collect the old footer's offset, as it will be replaced by a more recent value.
         long oldFooterOffset = getFooterOffset(state.length);
@@ -790,14 +796,17 @@ public class BTreeIndex {
         long rootMinOffset = lastPage.getMinOffset();
         assert rootMinOffset >= 0 : "root.MinOffset not set";
         return this.write.apply(pages, oldOffsets, rootMinOffset, timeout)
-                         .thenApply(indexLength -> setState(indexLength, rootOffset, rootLength).length);
+                .thenApply(indexLength -> {
+                    setState(indexLength, rootOffset, rootLength);
+                    assert footerOffset == getFooterOffset(indexLength); // This should fail any unit tests.
+                    return footerOffset;
+                });
     }
 
-    private IndexState setState(long length, long rootPageOffset, int rootPageLength) {
+    private void setState(long length, long rootPageOffset, int rootPageLength) {
         IndexState s = new IndexState(length, rootPageOffset, rootPageLength);
         this.state.set(s);
-        log.debug("IndexLength = {}, RootPageOffset = {}, RootPageLength = {}.", length, rootPageOffset, rootPageLength);
-        return s;
+        log.debug("{}: IndexState: {}.", this.traceObjectId, s);
     }
 
     private long getFooterOffset(long indexLength) {
@@ -866,7 +875,31 @@ public class BTreeIndex {
      */
     @FunctionalInterface
     public interface GetLength {
-        CompletableFuture<Long> apply(Duration timeout);
+        CompletableFuture<IndexInfo> apply(Duration timeout);
+    }
+
+    /**
+     * Information about the index.
+     */
+    @Data
+    public static class IndexInfo {
+        /**
+         * An {@link IndexInfo} instance that indicates an empty index.
+         */
+        public static final IndexInfo EMPTY = new IndexInfo(0, PagePointer.NO_OFFSET);
+        /**
+         * The length of the Index, in bytes.
+         */
+        private final long indexLength;
+        /**
+         * The offset within the Index where the BTree root pointer (Footer) is located.
+         */
+        private final long rootPointer;
+
+        @Override
+        public String toString() {
+            return String.format("IndexLength = %d, RootPointer = %d", this.indexLength, this.rootPointer);
+        }
     }
 
     /**

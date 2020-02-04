@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@ import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.ToString;
@@ -28,6 +30,12 @@ import lombok.extern.slf4j.Slf4j;
 @ToString
 class EventSegmentReaderImpl implements EventSegmentReader {
 
+    /*
+     * This timeout is the maximum amount of time the reader will wait in the case of partial event data being received
+     *  by the client. After this timeout the client will resend the request.
+     */
+    static final long PARTIAL_DATA_TIMEOUT = TimeUnit.SECONDS.toMillis(30);
+
     @GuardedBy("$lock")
     private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
     private final SegmentInputStream in;
@@ -39,8 +47,8 @@ class EventSegmentReaderImpl implements EventSegmentReader {
 
     @Override
     @Synchronized
-    public void setOffset(long offset) {
-        in.setOffset(offset);
+    public void setOffset(long offset, boolean resendRequest) {
+        in.setOffset(offset, resendRequest);
     }
 
     @Override
@@ -54,30 +62,38 @@ class EventSegmentReaderImpl implements EventSegmentReader {
      */
     @Override
     @Synchronized
-    public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
+    public ByteBuffer read(long firstByteTimeoutMillis) throws EndOfSegmentException, SegmentTruncatedException {
         long originalOffset = in.getOffset();
-        long traceId = LoggerHelpers.traceEnter(log, "read", in.getSegmentId(), originalOffset, timeout);
+        long traceId = LoggerHelpers.traceEnter(log, "read", in.getSegmentId(), originalOffset, firstByteTimeoutMillis);
         boolean success = false;
+        boolean timeout = false;
         try {
-            ByteBuffer result = readEvent(timeout);
+            ByteBuffer result = readEvent(firstByteTimeoutMillis);
             success = true;
             return result;
+        } catch (TimeoutException e) {
+            timeout = true;
+            log.warn("Timeout observed while trying to read data from Segment store, the read request will be retransmitted");
+            return null;
         } finally {
-            LoggerHelpers.traceLeave(log, "read", traceId, in.getSegmentId(), originalOffset, timeout, success);
+            LoggerHelpers.traceLeave(log, "read", traceId, in.getSegmentId(), originalOffset, firstByteTimeoutMillis, success);
             if (!success) {
-                in.setOffset(originalOffset);
+                // Reading failed, reset the offset to the original offset.
+                // The read request is retransmitted only in the case of a timeout.
+                in.setOffset(originalOffset, timeout);
             }
         }
     }
         
-    public ByteBuffer readEvent(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
+    public ByteBuffer readEvent(long firstByteTimeoutMillis) throws EndOfSegmentException, SegmentTruncatedException, TimeoutException {
         headerReadingBuffer.clear();
-        int read = in.read(headerReadingBuffer, timeout);
+        int read = in.read(headerReadingBuffer, firstByteTimeoutMillis);
         if (read == 0) {
+            // a resend will not be triggered in-case of a firstByteTimeout.
             return null;
         }
         while (headerReadingBuffer.hasRemaining()) {
-            in.read(headerReadingBuffer, Long.MAX_VALUE);
+            readEventDataFromSegmentInputStream(headerReadingBuffer);
         }
         headerReadingBuffer.flip();
         int type = headerReadingBuffer.getInt();
@@ -89,12 +105,21 @@ class EventSegmentReaderImpl implements EventSegmentReader {
             throw new InvalidMessageException("Event of invalid length: " + length);
         }
         ByteBuffer result = ByteBuffer.allocate(length);
-        in.read(result, Long.MAX_VALUE);
+
+        readEventDataFromSegmentInputStream(result);
         while (result.hasRemaining()) {
-            in.read(result, Long.MAX_VALUE);
+            readEventDataFromSegmentInputStream(result);
         }
         result.flip();
         return result;
+    }
+
+    private void readEventDataFromSegmentInputStream(ByteBuffer result) throws EndOfSegmentException, SegmentTruncatedException, TimeoutException {
+        if (in.read(result, PARTIAL_DATA_TIMEOUT) == 0) {
+            log.warn("Timeout while trying to read Event data from segment {} at offset {}. The buffer capacity is {} bytes and the data read so far is {} bytes",
+                    in.getSegmentId(), in.getOffset(), result.limit(), result.position());
+            throw new TimeoutException("Timeout while trying to read event data");
+        }
     }
 
     @Override

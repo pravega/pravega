@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableFutureLatch;
 import io.pravega.common.util.ReusableLatch;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
@@ -38,7 +39,6 @@ import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -333,7 +333,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
             log.info("Received noSuchSegment for writer {}", writerId);
             final String segment = noSuchSegment.getSegment();
-            if (StreamSegmentNameUtils.isTransactionSegment(segment)) {
+            if (NameUtils.isTransactionSegment(segment)) {
                 log.info("Transaction Segment: {} no longer exists since the txn is aborted. {}", noSuchSegment.getSegment(),
                         noSuchSegment.getServerStackTrace());
                 //close the connection and update the exception to SegmentSealed.
@@ -379,7 +379,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 log.warn("Connection setup could not be completed because connection is already failed for writer {}", writerId);
                 return;
             }
-            if (toRetransmit == null || toRetransmit.isEmpty()) {
+            if (toRetransmit.isEmpty()) {
                 log.info("Connection setup complete for writer {}", writerId);
                 state.connectionSetupComplete(connection);
             } else {
@@ -455,7 +455,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Override
     public void write(PendingEvent event) {
         //State is set to sealed during a Transaction abort and the segment writer should not throw an {@link IllegalStateException} in such a case.
-        checkState(StreamSegmentNameUtils.isTransactionSegment(segmentName) || !state.isAlreadySealed(), "Segment: %s is already sealed", segmentName);
+        checkState(NameUtils.isTransactionSegment(segmentName) || !state.isAlreadySealed(), "Segment: %s is already sealed", segmentName);
         synchronized (writeOrderLock) {
             ClientConnection connection;
             try {
@@ -473,7 +473,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 log.trace("Sending append request: {}", append);
                 connection.send(append);
             } catch (ConnectionFailedException e) {
-                log.warn("Connection " + writerId + " failed due to: ", e);
+                log.warn("Failed writing event through writer " + writerId + "due to: ", e);
                 reconnect(); // As the message is inflight, this will perform the retransmission.
             }
         }
@@ -527,7 +527,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 ClientConnection connection = Futures.getThrowingException(getConnection());
                 connection.send(new KeepAlive());
             } catch (SegmentSealedException | NoSuchSegmentException e) {
-                if (StreamSegmentNameUtils.isTransactionSegment(segmentName)) {
+                if (NameUtils.isTransactionSegment(segmentName)) {
                     log.warn("Exception observed during a flush on a transaction segment, this indicates that the transaction is " +
                                      "committed/aborted. Details: {}", e.getMessage());
                     failConnection(e);
@@ -543,7 +543,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                  - resendToSuccessorsCallback has been invoked.
                  - the segment corresponds to an aborted Transaction.
              */
-            if (state.needSuccessors.get() || (StreamSegmentNameUtils.isTransactionSegment(segmentName) && state.isAlreadySealed())) {
+            if (state.needSuccessors.get() || (NameUtils.isTransactionSegment(segmentName) && state.isAlreadySealed())) {
                 throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
             }
         }

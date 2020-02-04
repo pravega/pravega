@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ public class ExceptionLoggingHandler extends ChannelDuplexHandler {
         try {
             super.channelRead(ctx, msg);
         } catch (Exception e) {
-            log.error("Uncaught exception on connection " + connectionName, e);
+            log.error("Uncaught exception observed during channel read on connection {}", connectionName, e);
             throw e;
         }
     }

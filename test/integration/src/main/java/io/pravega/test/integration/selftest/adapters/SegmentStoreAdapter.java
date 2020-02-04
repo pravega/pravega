@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,9 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -32,11 +35,11 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.integration.selftest.Event;
@@ -44,6 +47,7 @@ import io.pravega.test.integration.selftest.TestConfig;
 import java.io.File;
 import java.time.Duration;
 import java.util.AbstractMap;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +71,8 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 class SegmentStoreAdapter extends StoreAdapter {
     //region Members
 
+    private static final long EVENT_SEQ_NO_PREFIX = 1L;
+    private static final long EVENT_RK_PREFIX = 2L;
     private final ScheduledExecutorService testExecutor;
     private final TestConfig config;
     private final ServiceBuilderConfig builderConfig;
@@ -188,7 +194,11 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
         ensureRunning();
-        return Futures.toVoid(this.streamSegmentStore.append(streamName, new ByteBufWrapper(event.getWriteBuffer()), null, timeout)
+        val au = Arrays.asList(
+                new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.Replace, 1),
+                new AttributeUpdate(new UUID(EVENT_SEQ_NO_PREFIX, event.getOwnerId()), AttributeUpdateType.Replace, event.getSequence()),
+                new AttributeUpdate(new UUID(EVENT_RK_PREFIX, event.getOwnerId()), AttributeUpdateType.Replace, event.getRoutingKey()));
+        return Futures.toVoid(this.streamSegmentStore.append(streamName, new ByteBufWrapper(event.getWriteBuffer()), au, timeout)
                                                      .exceptionally(ex -> attemptReconcile(ex, streamName, timeout)));
     }
 
@@ -210,8 +220,8 @@ class SegmentStoreAdapter extends StoreAdapter {
 
         // Generate a transaction name. This need not be the same as what the Client would do, but we need a unique
         // name for the new segment. In mergeTransaction, we need a way to extract the original Segment's name out of this
-        // txnName, so best if we use the StreamSegmentNameUtils class.
-        String txnName = StreamSegmentNameUtils.getTransactionNameFromId(parentStream, UUID.randomUUID());
+        // txnName, so best if we use the NameUtils class.
+        String txnName = NameUtils.getTransactionNameFromId(parentStream, UUID.randomUUID());
         return this.streamSegmentStore.createStreamSegment(txnName, null, timeout)
                                       .thenApply(v -> txnName);
     }
@@ -220,7 +230,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         ensureRunning();
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        String parentSegment = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
+        String parentSegment = NameUtils.getParentStreamSegmentName(transactionName);
         return Futures.toVoid(this.streamSegmentStore.mergeStreamSegment(parentSegment, transactionName, timer.getRemaining()));
     }
 
