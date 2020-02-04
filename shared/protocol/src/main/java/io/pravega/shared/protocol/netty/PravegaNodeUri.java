@@ -13,7 +13,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetAddress;
@@ -35,19 +34,18 @@ public class PravegaNodeUri {
         this.ipAddress = getInetAddress(endpoint);
     }
 
-    @SneakyThrows(UnknownHostException.class)
     private InetAddress getInetAddress(String endpoint) {
         try {
             return InetAddress.getByName(endpoint);
         } catch (UnknownHostException e) {
             log.error("Unable to to fetch IP address for endpoint {}", endpoint, e);
-            throw e;
+            return null;
         }
     }
 
     public boolean isModified() {
         InetAddress currentIPAddress = getInetAddress(this.endpoint);
-        if (currentIPAddress.equals(this.ipAddress)) {
+        if (currentIPAddress != null && currentIPAddress.equals(this.ipAddress)) {
             return false;
         } else {
             log.warn("IP address of node : {} has changed to {}", this, currentIPAddress);

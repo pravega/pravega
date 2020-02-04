@@ -77,7 +77,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
     static {
         // The default caching policy for name lookup cache is -1 which is forever.
         // Change this configuration to 60 seconds.
-        java.security.Security.setProperty("networkaddress.cache.ttl" , "60");
+        java.security.Security.setProperty("networkaddress.cache.ttl", "60");
     }
     private static final Comparator<Connection> COMPARATOR = new Comparator<Connection>() {
         @Override
@@ -328,7 +328,6 @@ public class ConnectionPoolImpl implements ConnectionPool {
             // Shut down the event loop to terminate all threads.
             group.shutdownGracefully();
             metricNotifier.close();
-
         }
     }
 }
