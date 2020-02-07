@@ -43,6 +43,9 @@ public class BookKeeperConfigTest {
         Assert.assertEquals(false, cfg.isTLSEnabled());
         Assert.assertEquals("config/client.truststore.jks", cfg.getTlsTrustStore());
         Assert.assertEquals("", cfg.getTlsTrustStorePasswordPath());
+        Assert.assertEquals(false, cfg.isEnforceMinNumRacksPerWriteQuorum());
+        Assert.assertEquals(2, cfg.getMinNumRacksPerWriteQuorum());
+        Assert.assertEquals("/opt/pravega/scripts/sample-bookkeeper-topology.sh", cfg.getNetworkTopologyFileName());
     }
 
     @Test
