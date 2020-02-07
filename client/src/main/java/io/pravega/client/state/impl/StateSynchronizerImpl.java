@@ -91,7 +91,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                 }
             }
         } catch (TruncatedDataException e) {
-            log.warn("{} encountered truncation on segment {}", this, segment);
+            log.info("{} encountered truncation on segment {}", this, segment);
             RETRY_INDEFINITELY
                  .retryingOn(TruncatedDataException.class)
                  .throwingOn(RuntimeException.class)
