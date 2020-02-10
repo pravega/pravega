@@ -28,7 +28,7 @@ import java.util.function.ToIntFunction;
  */
 public interface RevisionDataOutput extends DataOutput {
     /**
-     * Maximum value that can be encoded using {@link #writeCompactLong).
+     * Maximum value that can be encoded using {@link #writeCompactLong}.
      */
     long COMPACT_LONG_MAX = 0x3FFF_FFFF_FFFF_FFFFL - 1;
 
@@ -63,7 +63,7 @@ public interface RevisionDataOutput extends DataOutput {
     int UUID_BYTES = 2 * Long.BYTES;
 
     /**
-     * Gets a value indicating whether this instance of a RevisionDataOutput requires {@link #length) to be called prior to writing
+     * Gets a value indicating whether this instance of a RevisionDataOutput requires {@link #length} to be called prior to writing
      * anything to it.
      *
      * @return True if Length must be declared beforehand (by invoking length()) or not.

@@ -52,8 +52,8 @@ import java.util.Map;
  * * Are incremental on top of the previous ones, can be added on the fly, and can be used to make format changes
  * without breaking backward or forward compatibility.
  * * Older code will read as many revisions as it knows about, so even if newer code encodes B revisions, older code that
- * only knows about A < B revisions will only read the first A revisions, ignoring the rest. Similarly, newer code that
- * knows about B revisions will be able to handle A < B revisions by reading as much as is available.
+ * only knows about {@literal A < B} revisions will only read the first A revisions, ignoring the rest. Similarly, newer code that
+ * knows about B revisions will be able to handle {@literal A < B} revisions by reading as much as is available.
  * ** It is the responsibility of the calling code to fill-in-the-blanks for newly added fields in revisions &gt; A.
  * * Once published, the format for a Version-Revision should never change, otherwise existing (older) code will not be
  * able to process that serialization.
@@ -420,7 +420,7 @@ public abstract class VersionedSerializer<T> {
      * <code>
      * class Segment { ... }
      *
-     * class SegmentSerializer extends VersionedSerializer.Direct<Segment> {
+     * class SegmentSerializer extends VersionedSerializer.Direct{@literal <Segment>} {
      *    // This is the version we'll be serializing now. We have already introduced read support for Version 1, but
      *    // we cannot write into Version 1 until we know that all deployed code knows how to read it. In order to guarantee
      *    // a successful upgrade when changing Versions, all existing code needs to know how to read the new version.
@@ -481,10 +481,10 @@ public abstract class VersionedSerializer<T> {
      *    private final Long lastUsed;
      *
      *    // Attribute class is immutable; it has a builder that helps create new instances (this can be generated with Lombok).
-     *    static class AttributeBuilder implements ObjectBuilder<Attribute> { ... }
+     *    static class AttributeBuilder implements ObjectBuilder{@literal <Attribute>} { ... }
      * }
      *
-     * class AttributeSerializer extends VersionedSerializer.WithBuilder<Attribute, Attribute.AttributeBuilder> {
+     * class AttributeSerializer extends VersionedSerializer.WithBuilder{@literal <Attribute, Attribute.AttributeBuilder>} {
      *    {@literal @}Override
      *    protected byte getWriteVersion() { return 0; } // Version we're serializing at.
      *
@@ -596,21 +596,21 @@ public abstract class VersionedSerializer<T> {
      * class BaseType { ... }
      *
      * class SubType1 extends BaseType {
-     *     static class SubType1Builder implements ObjectBuilder<SubType1> { ... }
-     *     static class SubType1Serializer extends VersionedSerializer.WithBuilder<SubType1, SubType1Builder> { ... }
+     *     static class SubType1Builder implements ObjectBuilder{@literal <SubType1>} { ... }
+     *     static class SubType1Serializer extends VersionedSerializer.WithBuilder{@literal <SubType1, SubType1Builder>} { ... }
      * }
      *
      * class SubType11 extends SubType1 {
-     *     static class SubType11Builder implements ObjectBuilder<SubType11> { ... }
-     *     static class SubType11Serializer extends VersionedSerializer.WithBuilder<SubType11, SubType11Builder> { ... }
+     *     static class SubType11Builder implements ObjectBuilder{@literal <SubType11>} { ... }
+     *     static class SubType11Serializer extends VersionedSerializer.WithBuilder{@literal <SubType11, SubType11Builder>} { ... }
      * }
      *
      * class SubType2 extends BaseType {
-     *     static class SubType2Builder implements ObjectBuilder<SubType2> { ... }
-     *     static class SubType2Serializer extends VersionedSerializer.WithBuilder<SubType2, SubType2Builder> { ... }
+     *     static class SubType2Builder implements ObjectBuilder{@literal <SubType2>} { ... }
+     *     static class SubType2Serializer extends VersionedSerializer.WithBuilder{@literal <SubType2, SubType2Builder>} { ... }
      * }
      *
-     * class BaseTypeSerializer extends VersionedSerializer.MultiType<BaseType> {
+     * class BaseTypeSerializer extends VersionedSerializer.MultiType{@literal <BaseType>} {
      *    {@literal @}Override
      *    protected void declareSerializers(Builder b) {
      *        // Declare sub-serializers here. IDs must be unique, non-changeable (during refactoring) and not necessarily

@@ -341,7 +341,7 @@ public final class NameUtils {
 
     /**
      * Method to generate Fully Qualified table name using scope, and other tokens to be used to compose the table name.
-     * The composed name has following format \<scope\>/_tables/\<tokens[0]\>/\<tokens[1]\>...
+     * The composed name has following format {@literal <scope>/_tables/<tokens[0]>/<tokens[1]>...}
      * 
      * @param scope scope in which table segment to create
      * @param tokens tokens used for composing table segment name

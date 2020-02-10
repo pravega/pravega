@@ -445,6 +445,13 @@ project('segmentstore:server:host') {
     applicationDistribution.into("bin") {
         from(createAppWithGCLogging)
     }
+
+    javadoc {
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = false
+        options.addBooleanOption("Xdoclint:all,-reference,-missing", true)
+    }
 }
 
 project('test:integration') {
