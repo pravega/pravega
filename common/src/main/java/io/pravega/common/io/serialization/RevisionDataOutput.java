@@ -63,8 +63,8 @@ public interface RevisionDataOutput extends DataOutput {
     int UUID_BYTES = 2 * Long.BYTES;
 
     /**
-     * Gets a value indicating whether this instance of a RevisionDataOutput requires {@link #length} to be called prior to writing
-     * anything to it.
+     * Gets a value indicating whether this instance of a RevisionDataOutput requires {@link #length} to be called
+     * prior to writing anything to it.
      *
      * @return True if Length must be declared beforehand (by invoking length()) or not.
      */
