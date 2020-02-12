@@ -49,7 +49,7 @@ public class BookKeeperConfig {
     public static final Property<Integer> BK_MIN_NUM_RACKS_PER_WRITE_QUORUM = Property.named("minNumRacksPerWriteQuorum", 2);
     public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopologyScriptFileName",
             "/opt/pravega/scripts/sample-bookkeeper-topology.sh");
-    public static final Property<String> BK_DIGEST_TYPE = Property.named("digestType", "CRC32C");
+    public static final Property<String> BK_DIGEST_TYPE = Property.named("digestType", BookKeeper.DigestType.CRC32C.name());
 
     public static final String COMPONENT_CODE = "bookkeeper";
     /**
