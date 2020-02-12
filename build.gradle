@@ -147,8 +147,7 @@ project('common') {
         title = "Pravega Common Libraries"
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -163,8 +162,7 @@ project('shared:authplugin') {
         title = "Pravega Auth API"
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -186,8 +184,7 @@ project('shared:security') {
         exclude 'io/pravega/shared/*'
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 project ('shared:cluster') {
@@ -203,8 +200,7 @@ project ('shared:cluster') {
         exclude 'io/pravega/shared/*'
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -224,8 +220,7 @@ project ('shared:metrics') {
         exclude 'io/pravega/shared/*'
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -260,9 +255,8 @@ project('client') {
         title = "Pravega Client API"
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
+        failOnError = true
         exclude "**/impl/**";
-        options.addBooleanOption("Xdoclint:all,-reference", true)
     }
 }
 
@@ -278,8 +272,7 @@ project('test:testcommon') {
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -291,8 +284,7 @@ project('segmentstore:contracts') {
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:all,-reference", true)
+        failOnError = true
     }
 }
 
@@ -307,8 +299,7 @@ project('segmentstore:storage') {
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -325,8 +316,7 @@ project('segmentstore:storage:impl') {
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -353,8 +343,7 @@ project ('bindings') {
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -369,8 +358,7 @@ project('segmentstore:server') {
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:all,-reference,-missing", true)
+        failOnError = true
     }
 }
 
@@ -449,8 +437,7 @@ project('segmentstore:server:host') {
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:all,-reference,-missing", true)
+        failOnError = true
     }
 }
 
@@ -571,8 +558,7 @@ project('shared:controller-api') {
         exclude 'io/pravega/controller/*'
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
