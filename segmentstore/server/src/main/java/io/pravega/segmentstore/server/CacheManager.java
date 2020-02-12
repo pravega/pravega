@@ -207,8 +207,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
      * Same as {@link #applyCachePolicyInternal()}, but this is safe for concurrent invocation and handles all exceptions by
      * logging them.
      *
-     * We must ensure that no two invocations of the {@link #applyCachePolicyInternal()) execute at the same time. It performs
-     * a good amount of state checking and updating, and concurrent calls would corrupt the internal state of the {@link CacheManager).
+     * We must ensure that no two invocations of the {@link #applyCachePolicyInternal()} execute at the same time. It performs
+     * a good amount of state checking and updating, and concurrent calls would corrupt the internal state of the {@link CacheManager}.
      *
      * Under normal operating conditions, the only method invoking this is {@link #runOneIteration()} which is guaranteed
      * to execute only once at a time. Concurrent invocations come from {@link #cacheFullCallback()} which are triggered
