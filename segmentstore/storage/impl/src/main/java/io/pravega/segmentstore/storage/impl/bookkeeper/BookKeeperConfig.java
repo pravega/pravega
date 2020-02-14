@@ -53,9 +53,10 @@ public class BookKeeperConfig {
 
     public static final String COMPONENT_CODE = "bookkeeper";
     /**
-     * Maximum append length, as specified by BookKeeper (this is hardcoded inside BookKeeper's code).
+     * Maximum append length for Bookkeeper writes. Note that this value cannot be more than [1024 * 1024 - 1024], as
+     * specified by BookKeeper (this is hardcoded inside BookKeeper's code).
      */
-    static final int MAX_APPEND_LENGTH = 1024 * 1024 - 1024;
+    static final int MAX_APPEND_LENGTH = 128 * 1024;
 
     //endregion
 
