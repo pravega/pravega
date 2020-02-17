@@ -80,7 +80,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
                 .with(ExtendedS3StorageConfig.BUCKET, setup.adapterConfig.getBucket())
                                                .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
                                                .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
-                                               .with(ExtendedS3StorageConfig.PREFIX, "testPrefix")
+                                               .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
                 .with(ExtendedS3StorageConfig.URI, setup.endpoint)
                                                .with(ExtendedS3StorageConfig.USENONEMATCH, true)
                                                .build();
@@ -99,17 +99,17 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     public void testConfigForTrailingCharInPrefix() {
         // Missing trailing '/'
         ConfigBuilder<ExtendedS3StorageConfig> builder1 = ExtendedS3StorageConfig.builder();
-        builder1.with(Property.named("prefix"), "testPrefix");
+        builder1.with(Property.named("prefix"), "samplePrefix");
         ExtendedS3StorageConfig config1 = builder1.build();
         assertTrue(config1.getPrefix().endsWith("/"));
-        assertEquals("testPrefix/", config1.getPrefix());
+        assertEquals("samplePrefix/", config1.getPrefix());
 
         // Not missing '/'
         ConfigBuilder<ExtendedS3StorageConfig> builder2 = ExtendedS3StorageConfig.builder();
-        builder2.with(Property.named("prefix"), "testPrefix/");
+        builder2.with(Property.named("prefix"), "samplePrefix/");
         ExtendedS3StorageConfig config2 = builder2.build();
         assertTrue(config2.getPrefix().endsWith("/"));
-        assertEquals("testPrefix/", config2.getPrefix());
+        assertEquals("samplePrefix/", config2.getPrefix());
     }
 
     @Test
@@ -241,7 +241,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
                     .with(ExtendedS3StorageConfig.BUCKET, bucketName)
                     .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
                     .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
-                    .with(ExtendedS3StorageConfig.PREFIX, "testPrefix")
+                    .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
                     .with(ExtendedS3StorageConfig.URI, endpoint)
                     .build();
             URI uri = URI.create(endpoint);
