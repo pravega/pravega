@@ -1,6 +1,5 @@
 /**
  * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -8,7 +7,6 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.system.framework.kubernetes;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
@@ -73,6 +71,7 @@ import static javax.ws.rs.core.Response.Status.NOT_FOUND;
 @Slf4j
 public class K8sClient {
 
+    // Indicates if an object can be returned without completing its initialization.
     private static final boolean INCLUDE_UNINITIALIZED = true;
     private static final int DEFAULT_TIMEOUT_MINUTES = 10; // timeout of http client.
     private static final int RETRY_MAX_DELAY_MS = 1_000; // max time between retries to check if pod has completed.
@@ -80,7 +79,8 @@ public class K8sClient {
     private static final int LOG_DOWNLOAD_RETRY_COUNT = 7;
     // Delay before starting to download the logs. The K8s api server responds with error code 400 if immediately requested for log download.
     private static final long LOG_DOWNLOAD_INIT_DELAY_MS = SECONDS.toMillis(20);
-    private static final String DRY_RUN = "false";
+    // When present, indicates that modifications should not be persisted. Only valid value is "All", or null.
+    private static final String DRY_RUN = null;
     private static final String PRETTY_PRINT = "false";
     private final ApiClient client;
     private final PodLogs logUtility;
