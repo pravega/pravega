@@ -31,14 +31,20 @@ import io.pravega.shared.NameUtils;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNameFromHeader;
 
 /**
  * A layer on top of a general SyncStorage implementation that allows rolling Segments on a size-based policy and truncating
@@ -505,6 +511,57 @@ public class RollingStorage implements SyncStorage {
     @Override
     public boolean supportsTruncation() {
         return true;
+    }
+
+    @Override
+    public Iterator<SegmentProperties> listSegments() {
+        return new RollingStorageSegmentIterator(this, this.baseStorage.listSegments(),
+                    props -> StreamSegmentNameUtils.isHeaderSegment(props.getName()));
+    }
+
+    public static class RollingStorageSegmentIterator implements Iterator<SegmentProperties> {
+
+        RollingStorage instance;
+        Iterator<SegmentProperties> results;
+        SegmentProperties current;
+        java.util.function.Predicate<SegmentProperties> patternMatchPredicate;
+
+        RollingStorageSegmentIterator(RollingStorage instance, Iterator<SegmentProperties> results, java.util.function.Predicate<SegmentProperties> patternMatchPredicate) {
+            this.instance = instance;
+            this.results = results;
+            this.patternMatchPredicate = patternMatchPredicate;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (results != null) {
+                while (results.hasNext()) {
+                    current = results.next();
+                    if (patternMatchPredicate.test(current)) {
+                        return true;
+                    }
+                }
+            }
+            current = null;
+            return false;
+        }
+
+        @Override
+        public SegmentProperties next() {
+            if (null != current) {
+                try {
+                    RollingSegmentHandle handle = instance.openHandle(getSegmentNameFromHeader(current.getName()), true);
+                    return StreamSegmentInformation.builder()
+                            .name(getSegmentNameFromHeader(current.getName()))
+                            .length(handle.length())
+                            .sealed(handle.isSealed()).build();
+                } catch (StreamSegmentException e) {
+                    log.error("Hit an exception while trying to read segment header file {}", current.getName(), e);
+                }
+
+            }
+            throw new NoSuchElementException();
+        }
     }
 
     //endregion

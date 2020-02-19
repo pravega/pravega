@@ -20,6 +20,7 @@ import com.emc.object.s3.bean.Grant;
 import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
+import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
 import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.PutObjectRequest;
@@ -40,12 +41,16 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
+
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpStatus;
@@ -180,6 +185,71 @@ public class ExtendedS3Storage implements SyncStorage {
         return false;
     }
 
+    @Override
+    public Iterator<SegmentProperties> listSegments() {
+        return new ExtendedS3SegmentIterator(s3object -> true);
+    }
+
+
+    public class ExtendedS3SegmentIterator implements Iterator<SegmentProperties> {
+
+        ListObjectsResult results;
+        S3Object current;
+        Iterator<S3Object> innerIterator;
+        java.util.function.Predicate<S3Object> patternMatchPredicate;
+
+        ExtendedS3SegmentIterator(java.util.function.Predicate<S3Object> patternMatchPredicate) {
+            this.results = client.listObjects(config.getBucket(), config.getPrefix());
+            this.innerIterator = results.getObjects().iterator();
+            this.patternMatchPredicate = patternMatchPredicate;
+        }
+
+        @Override
+        public boolean hasNext() {
+            boolean nextBatch = false;
+            while (innerIterator != null) {
+                while (innerIterator.hasNext()) {
+                    current = innerIterator.next();
+                    if (patternMatchPredicate.test(current)) {
+                        return true;
+                    }
+                }
+                // End of the batch
+                if (!innerIterator.hasNext()) {
+                    // Already fetched the next batch
+                    if (nextBatch) {
+                        break;
+                    }
+                    // This batch was last if less than max keys were returned.
+                    if (results.getObjects().size() < results.getMaxKeys()) {
+                        break;
+                    }
+                    results = client.listMoreObjects(results);
+                    innerIterator = results.getObjects().iterator();
+                    nextBatch = true;
+                }
+            }
+            results = null;
+            innerIterator = null;
+            current = null;
+            return false;
+        }
+
+        @Override
+        public SegmentProperties next() {
+            if (null != current) {
+                AccessControlList acls = client.getObjectAcl(config.getBucket(), current.getKey());
+                boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
+                return StreamSegmentInformation.builder()
+                        .name(current.getKey().replaceFirst(config.getPrefix(), ""))
+                        .length(current.getSize())
+                        .sealed(!canWrite)
+                        .lastModified(new ImmutableDate(current.getLastModified().toInstant().toEpochMilli()))
+                        .build();
+            }
+            throw new NoSuchElementException();
+        }
+    }
     //endregion
 
     //region private sync implementation

@@ -46,6 +46,8 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.AccessControlException;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -185,6 +187,37 @@ public class FileSystemStorage implements SyncStorage {
     @Override
     public boolean supportsTruncation() {
         return false;
+    }
+
+    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "OS_OPEN_STREAM", justification = "Rare operation. The leaked object is collected by GC. In case of a iteraror in a for loop this would be fast.")
+    @Override
+    public Iterator<SegmentProperties> listSegments() {
+        log.debug("config.getRoot() {}", config.getRoot());
+
+        try {
+            return Files.find(Paths.get(config.getRoot()),
+                    Integer.MAX_VALUE,
+                    (filePath, fileAttr) -> fileAttr.isRegularFile())
+                    .map(path -> (SegmentProperties) getStreamSegmentInformation(config.getRoot(), path))
+                    .iterator();
+        } catch (IOException e) {
+            //TODO
+        }
+        return Collections.emptyIterator();
+    }
+
+
+    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings
+    @SneakyThrows
+    private static StreamSegmentInformation getStreamSegmentInformation(String root, Path path) {
+        PosixFileAttributes attrs = Files.readAttributes(path.toAbsolutePath(),
+                PosixFileAttributes.class);
+        return StreamSegmentInformation.builder()
+                .name(Paths.get(root).relativize(path).toString())
+                .length(attrs.size())
+                .sealed(!(attrs.permissions().contains(OWNER_WRITE)))
+                .lastModified(new ImmutableDate(attrs.creationTime().toMillis()))
+                .build();
     }
 
     //endregion
