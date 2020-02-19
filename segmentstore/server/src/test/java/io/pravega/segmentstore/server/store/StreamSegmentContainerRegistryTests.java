@@ -46,7 +46,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-/**
+/**K8sClient.java
  * Unit tests for the StreamSegmentContainerRegistry class.
  */
 public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {

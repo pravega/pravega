@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage;
 
+import com.google.common.collect.Iterators;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -16,22 +17,19 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.val;
+import lombok.*;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -51,6 +49,8 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     protected static final int APPENDS_PER_SEGMENT = 10;
     protected static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final int SEGMENT_COUNT = 4;
+    private static final Random rand = new Random();
+
 
     @Getter(AccessLevel.PROTECTED)
     @Setter(AccessLevel.PROTECTED)
@@ -87,6 +87,87 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the exists API.
+     */
+    @Test
+    public void testListSegmentsWithOneSegment() {
+        String segmentName = "foo_open";
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+
+            Iterator<SegmentProperties> iterator = s.listSegments().join();
+            Assert.assertFalse(iterator.hasNext());
+
+            createSegment(segmentName, s);
+
+            iterator = s.listSegments().join();
+            Assert.assertTrue(iterator.hasNext());
+            SegmentProperties prop = iterator.next();
+            Assert.assertEquals(prop.getName(), segmentName);
+            Assert.assertFalse(iterator.hasNext());
+        }
+    }
+    /**
+     * Tests the ability to list Segments.
+     */
+    @Test
+    public void testListSegments() throws Exception {
+        @Cleanup
+        val baseStorage = new InMemoryStorage();
+        @Cleanup
+        val s = new RollingStorage(baseStorage, new SegmentRollingPolicy(1));
+        Set<String> sealedSegments = new HashSet<>();
+        s.initialize(1);
+        int expectedCount = 50;
+        byte[] data = "data".getBytes();
+        for (int i = 0; i < expectedCount; i++) {
+            String segmentName = "segment-" + i;
+            val wh1 = s.create(segmentName);
+            // Write data.
+            s.write(wh1, 0, new ByteArrayInputStream(data), data.length);
+            if (rand.nextInt(2) == 1) {
+                s.seal(wh1);
+                sealedSegments.add(segmentName);
+            }
+        }
+        Iterator<SegmentProperties> it = s.listSegments();
+        int actualCount = 0;
+        while (it.hasNext()) {
+            SegmentProperties curr = it.next();
+            //check the length matches
+            Assert.assertEquals(curr.getLength(), data.length);
+            if (sealedSegments.contains(curr.getName()))
+                Assert.assertTrue(curr.isSealed());
+            else
+                Assert.assertFalse(curr.isSealed());
+            ++actualCount;
+        }
+        Assert.assertEquals(actualCount, expectedCount);
+    }
+    @Test
+    public void testListSegmentsWithDeletes() throws Exception{
+        @Cleanup
+        val baseStorage = new InMemoryStorage();
+        @Cleanup
+        val s = new RollingStorage(baseStorage, new SegmentRollingPolicy(1));
+        s.initialize(DEFAULT_EPOCH);
+        Set<String> deletedSegments = new HashSet<>();
+        int expectedCount = 50;
+        for(int i=0; i < expectedCount; i++) {
+            String segmentName = "segment-"+i;
+            SegmentHandle handle = s.create(segmentName);
+            if(rand.nextInt(2) == 1) {
+                s.delete(handle);
+                deletedSegments.add(segmentName);
+            }
+        }
+
+        Iterator<SegmentProperties> it = s.listSegments();
+        expectedCount -= deletedSegments.size();
+        Assert.assertEquals(expectedCount, Iterators.size(it));
+    }
+
+    /**
      * Tests the delete() method.
      */
     @Test
@@ -102,6 +183,8 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             assertThrows("getStreamSegmentInfo() did not throw for deleted StreamSegment.",
                     () -> s.getStreamSegmentInfo(segmentName, null).join(),
                     ex -> ex instanceof StreamSegmentNotExistsException);
+            Iterator<SegmentProperties> iterator = s.listSegments().join();
+            Assert.assertFalse(iterator.hasNext());
         }
     }
 
