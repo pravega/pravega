@@ -16,8 +16,9 @@ import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.CompositeArrayView;
+import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.EOFException;
 import java.io.IOException;
@@ -38,9 +39,9 @@ public class DataFrame {
 
     static final int MIN_ENTRY_LENGTH_NEEDED = EntryHeader.HEADER_SIZE + 1;
     private static final byte CURRENT_VERSION = 0;
-    private final ByteArraySegment data;
+    private final CompositeArrayView data;
     private WriteFrameHeader header;
-    private ByteArraySegment contents;
+    private CompositeArrayView contents;
 
     /**
      * The Frame Address within its serialization chain.
@@ -65,11 +66,10 @@ public class DataFrame {
      *
      * @param source The ByteArraySegment to wrap.
      */
-    DataFrame(ByteArraySegment source) {
-        Preconditions.checkArgument(!source.isReadOnly(), "Cannot create a WriteFrame for a readonly source.");
+    private DataFrame(CompositeArrayView source) {
         this.data = source;
         this.writeEntryStartIndex = -1;
-        this.sealed = source.isReadOnly();
+        this.sealed = false;
         this.writePosition = this.sealed ? -1 : 0;
 
         //We want to use the DataFrame for at least 1 byte of data.
@@ -88,9 +88,9 @@ public class DataFrame {
      *                that the frame may use to organize records.
      * @throws IllegalArgumentException When the value for startMagic is invalid.
      */
-    @VisibleForTesting
     static DataFrame ofSize(int maxSize) {
-        return new DataFrame(new ByteArraySegment(new byte[maxSize]));
+        //return new DataFrame(new ByteArraySegment(new byte[maxSize]));
+        return new DataFrame(new CompositeByteArraySegment(maxSize));
     }
 
     //endregion
@@ -112,13 +112,9 @@ public class DataFrame {
     /**
      * Returns an ArrayView representing the serialized form of this frame.
      */
-    ArrayView getData() {
-        if (this.data.isReadOnly()) {
-            return this.data;
-        } else {
-            // We have just created this frame. Only return the segment of the buffer that contains data.
-            return this.data.slice(0, getLength());
-        }
+    CompositeArrayView getData() {
+        //  Only return the segment of the buffer that contains data.
+        return this.data.slice(0, getLength());
     }
 
     /**
@@ -132,7 +128,7 @@ public class DataFrame {
      * Gets a value indicating whether the DataFrame is sealed.
      */
     boolean isSealed() {
-        return this.sealed || this.contents.isReadOnly();
+        return this.sealed;
     }
 
     //endregion
@@ -232,7 +228,7 @@ public class DataFrame {
      * write anything anymore. The remaining bytes will need to be written to a new frame.
      * @throws IllegalStateException If the frame is sealed or no entry has been started.
      */
-    int append(ByteArraySegment data) {
+    int append(ArrayView data) {
         ensureAppendConditions();
 
         int actualLength = Math.min(data.getLength(), getAvailableLength());
@@ -251,7 +247,7 @@ public class DataFrame {
      * @throws IllegalStateException If an open entry exists (entries must be closed prior to sealing).
      */
     void seal() {
-        if (!this.sealed && !this.contents.isReadOnly()) {
+        if (!this.sealed) {
             Preconditions.checkState(writeEntryStartIndex < 0, "An open entry exists. Any open entries must be closed prior to sealing.");
 
             this.header.setContentLength(writePosition);
@@ -336,16 +332,16 @@ public class DataFrame {
     }
 
     private static class WriteEntryHeader extends EntryHeader {
-        private ByteArraySegment data;
+        private CompositeArrayView data;
 
-        WriteEntryHeader(ByteArraySegment headerContents) {
+        WriteEntryHeader(CompositeArrayView headerContents) {
             Exceptions.checkArgument(headerContents.getLength() == HEADER_SIZE, "headerContents",
                     "Invalid headerContents size. Expected %d, given %d.", HEADER_SIZE, headerContents.getLength());
             this.data = headerContents;
         }
 
         void serialize() {
-            Preconditions.checkState(this.data != null && !this.data.isReadOnly(), "Cannot serialize a read-only EntryHeader.");
+            Preconditions.checkState(this.data != null, "Cannot serialize a read-only EntryHeader.");
 
             // Write length.
             BitConverter.writeInt(this.data, 0, getEntryLength());
@@ -413,9 +409,9 @@ public class DataFrame {
          */
         @Getter
         private final int serializationLength;
-        private ByteArraySegment buffer;
+        private CompositeArrayView buffer;
 
-        WriteFrameHeader(byte version, ByteArraySegment target) {
+        WriteFrameHeader(byte version, CompositeArrayView target) {
             Exceptions.checkArgument(target.getLength() == SERIALIZATION_LENGTH, "target",
                     "Unexpected length for target buffer. Expected %d, given %d.", SERIALIZATION_LENGTH, target.getLength());
             setVersion(version);
@@ -424,7 +420,7 @@ public class DataFrame {
         }
 
         void commit() {
-            Preconditions.checkState(this.buffer != null && !this.buffer.isReadOnly(), "Cannot commit a read-only FrameHeader");
+            Preconditions.checkState(this.buffer != null, "Cannot commit a read-only FrameHeader");
             assert this.buffer.getLength() == SERIALIZATION_LENGTH;
 
             // We already checked the size of the target buffer (in the constructor); no need to do it here again.
