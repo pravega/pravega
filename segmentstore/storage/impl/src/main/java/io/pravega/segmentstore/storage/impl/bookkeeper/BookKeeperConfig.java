@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import lombok.Getter;
+import org.apache.bookkeeper.client.BookKeeper;
 
 /**
  * General configuration for BookKeeper Client.
@@ -44,6 +45,11 @@ public class BookKeeperConfig {
     public static final Property<Boolean> BK_TLS_ENABLED = Property.named("tlsEnabled", false);
     public static final Property<String> TLS_TRUST_STORE_PATH = Property.named("tlsTrustStorePath", "config/client.truststore.jks");
     public static final Property<String> TLS_TRUST_STORE_PASSWORD_PATH = Property.named("tlsTrustStorePasswordPath", "");
+    public static final Property<Boolean> BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE = Property.named("enforceMinNumRacksPerWriteQuorum", false);
+    public static final Property<Integer> BK_MIN_NUM_RACKS_PER_WRITE_QUORUM = Property.named("minNumRacksPerWriteQuorum", 2);
+    public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopologyScriptFileName",
+            "/opt/pravega/scripts/sample-bookkeeper-topology.sh");
+    public static final Property<String> BK_DIGEST_TYPE = Property.named("digestType", BookKeeper.DigestType.CRC32C.name());
 
     public static final String COMPONENT_CODE = "bookkeeper";
     /**
@@ -159,6 +165,18 @@ public class BookKeeperConfig {
     @Getter
     private final String tlsTrustStorePasswordPath;
 
+    @Getter
+    private final boolean enforceMinNumRacksPerWriteQuorum;
+
+    @Getter
+    private final int minNumRacksPerWriteQuorum;
+
+    @Getter
+    private final String networkTopologyFileName;
+
+    @Getter
+    private final BookKeeper.DigestType digestType;
+
     //endregion
 
     //region Constructor
@@ -203,6 +221,12 @@ public class BookKeeperConfig {
         this.isTLSEnabled = properties.getBoolean(BK_TLS_ENABLED);
         this.tlsTrustStore = properties.get(TLS_TRUST_STORE_PATH);
         this.tlsTrustStorePasswordPath = properties.get(TLS_TRUST_STORE_PASSWORD_PATH);
+
+        this.enforceMinNumRacksPerWriteQuorum = properties.getBoolean(BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE);
+        this.minNumRacksPerWriteQuorum = properties.getInt(BK_MIN_NUM_RACKS_PER_WRITE_QUORUM);
+        this.networkTopologyFileName = properties.get(BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME);
+
+        this.digestType = getDigestType(properties.get(BK_DIGEST_TYPE));
     }
 
     /**
@@ -219,6 +243,19 @@ public class BookKeeperConfig {
      */
     public static ConfigBuilder<BookKeeperConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, BookKeeperConfig::new);
+    }
+
+    private BookKeeper.DigestType getDigestType(String digestType) {
+        if (digestType.equals(BookKeeper.DigestType.MAC.name())) {
+            return BookKeeper.DigestType.MAC;
+        } else if (digestType.equals(BookKeeper.DigestType.CRC32.name())) {
+            return BookKeeper.DigestType.CRC32;
+        } else if (digestType.equals(BookKeeper.DigestType.DUMMY.name())) {
+            return BookKeeper.DigestType.DUMMY;
+        } else {
+            // Default digest for performance reasons.
+            return BookKeeper.DigestType.CRC32C;
+        }
     }
 
     //endregion

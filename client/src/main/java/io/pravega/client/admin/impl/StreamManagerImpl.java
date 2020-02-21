@@ -138,13 +138,11 @@ public class StreamManagerImpl implements StreamManager {
 
     /**
      * Fetch the {@link StreamInfo} for a given stream.
-     * Note: The access level of this method can be reduced once the deprecated method
-     * {@link io.pravega.client.batch.BatchClient#getStreamInfo(Stream)} is removed.
      *
      * @param stream The Stream.
      * @return A future representing {@link StreamInfo}.
      */
-    public CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
+    private CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
         //Fetch the stream cut representing the current TAIL and current HEAD of the stream.
         CompletableFuture<StreamCut> currentTailStreamCut = streamCutHelper.fetchTailStreamCut(stream);
         CompletableFuture<StreamCut> currentHeadStreamCut = streamCutHelper.fetchHeadStreamCut(stream);

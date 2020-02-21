@@ -53,14 +53,14 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
  * method is called no other methods should be called on this class.
  * 
  * This class updates makes transitions using the {@link ReaderGroupState} object. If there are available
- * segments a reader can acquire them by calling {@link #acquireNewSegmentsIfNeeded(long)}.
+ * segments a reader can acquire them by calling {@link #acquireNewSegmentsIfNeeded(long, Position)}.
  * 
  * To balance load across multiple readers a reader can release segments so that other readers can acquire
- * them by calling {@link #releaseSegment(Segment, long, long)}. A reader can tell if calling this method is
+ * them by calling {@link #releaseSegment(Segment, long, long, Position)}. A reader can tell if calling this method is
  * needed by calling {@link #findSegmentToReleaseIfRequired()}
  * 
  * Finally when a segment is sealed it may have one or more successors. So when a reader comes to the end of a
- * segment it should call {@link #handleEndOfSegment(Segment)} so that it can continue reading from the
+ * segment it should call {@link #handleEndOfSegment(SegmentWithRange)} so that it can continue reading from the
  * successor to that segment.
  */
 @Slf4j
@@ -134,6 +134,7 @@ public class ReaderGroupStateManager {
      * @param lastPosition The last position the reader successfully read from.
      */
     static void readerShutdown(String readerId, Position lastPosition, StateSynchronizer<ReaderGroupState> sync) {
+        sync.fetchUpdates();
         sync.updateState((state, updates) -> {
             Set<Segment> segments = state.getSegments(readerId);
             if (segments == null) {
@@ -278,8 +279,8 @@ public class ReaderGroupStateManager {
 
     /**
      * If there are unassigned segments and this host has not acquired one in a while, acquires them.
-     * @param lagTime the time between the reader's current location and the end of the stream
-     * @param Position the last position read by the reader.
+     * @param timeLag the time between the reader's current location and the end of the stream
+     * @param position the last position read by the reader.
      * @return A map from the new segment that was acquired to the offset to begin reading from within the segment.
      */
     Map<SegmentWithRange, Long> acquireNewSegmentsIfNeeded(long timeLag, Position position) throws ReaderNotInReaderGroupException {
