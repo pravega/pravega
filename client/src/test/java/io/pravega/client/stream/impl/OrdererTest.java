@@ -37,6 +37,10 @@ public class OrdererTest {
         }
 
         @Override
+        public void setOffset(long offset, boolean resendRequest) {
+        }
+
+        @Override
         public ByteBuffer read(long firstByteTimeout) throws EndOfSegmentException {
             return null;
         }
