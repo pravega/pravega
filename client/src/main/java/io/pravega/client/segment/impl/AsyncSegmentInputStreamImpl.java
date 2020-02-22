@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -58,6 +59,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @VisibleForTesting
     @Getter
     private final long requestId = Flow.create().asLong();
+    private final Semaphore dataAvailable;
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
@@ -111,6 +113,9 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             if (future != null) {
                 future.complete(segmentRead);
             }
+            if (dataAvailable != null) {
+                dataAvailable.release();
+            }
         }
 
         private CompletableFuture<SegmentRead> grabFuture(String segment, long offset) {
@@ -141,7 +146,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, Segment segment,
-                                       DelegationTokenProvider tokenProvider) {
+                                       DelegationTokenProvider tokenProvider, Semaphore dataAvailable) {
         super(segment);
         this.tokenProvider = tokenProvider;
         Preconditions.checkNotNull(controller);
@@ -149,6 +154,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         Preconditions.checkNotNull(segment);
         this.controller = controller;
         this.connectionFactory = connectionFactory;
+        this.dataAvailable = dataAvailable;
     }
 
     @Override

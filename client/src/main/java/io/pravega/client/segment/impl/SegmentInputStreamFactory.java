@@ -12,6 +12,7 @@ package io.pravega.client.segment.impl;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventStreamReader;
+import java.util.concurrent.Semaphore;
 
 /**
  * Creates {@link SegmentInputStream} for reading from existing segments.
@@ -48,10 +49,11 @@ public interface SegmentInputStreamFactory {
      * does not exist.
      *
      * @param segment The segment to create an input for.
+     * @param hasData A semephore that will have `release` called when data is available.
      * @param endOffset The offset up to which the segment can be read.
      * @return New instance of the EventSegmentReader for reading.
      */
-    EventSegmentReader createEventReaderForSegment(Segment segment, long endOffset);
+    EventSegmentReader createEventReaderForSegment(Segment segment, Semaphore hasData, long endOffset);
 
     /**
      * Opens an existing segment for reading. This operation will fail if the

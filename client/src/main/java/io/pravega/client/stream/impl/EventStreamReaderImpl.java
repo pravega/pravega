@@ -46,6 +46,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -57,10 +59,6 @@ import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END
 
 @Slf4j
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
-
-    // Base waiting time for a reader on an idle segment waiting for new data to be read.
-    private static final long BASE_READER_WAITING_TIME_MS = 10;
-
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
     private final SegmentMetadataClientFactory metadataClientFactory;
@@ -84,6 +82,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private final ReaderGroupStateManager groupState;
     private final Supplier<Long> clock;
     private final Controller controller;
+    private final Semaphore segmentsWithData;
 
     EventStreamReaderImpl(SegmentInputStreamFactory inputStreamFactory,
             SegmentMetadataClientFactory metadataClientFactory, Serializer<Type> deserializer,
@@ -99,6 +98,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         this.waterMarkReaders = waterMarkReaders;
         this.closed = false;
         this.controller = controller;
+        this.segmentsWithData = new Semaphore(0);
     }
 
     @Override
@@ -115,7 +115,6 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
     
     private EventRead<Type> readNextEventInternal(long timeoutMillis) throws ReaderNotInReaderGroupException, TruncatedDataException {
-        long firstByteTimeoutMillis = Math.min(timeoutMillis, BASE_READER_WAITING_TIME_MS);
         Timer timer = new Timer();
         Segment segment = null;
         long offset = -1;
@@ -127,13 +126,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             }
             EventSegmentReader segmentReader = orderer.nextSegment(readers);
             if (segmentReader == null) {
-                Exceptions.handleInterrupted(() -> Thread.sleep(firstByteTimeoutMillis));
+                Exceptions.handleInterrupted(() -> segmentsWithData.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS));
+                segmentsWithData.drainPermits();
                 buffer = null;
             } else {
                 segment = segmentReader.getSegmentId();
                 offset = segmentReader.getOffset();
                 try {
-                    buffer = segmentReader.read(firstByteTimeoutMillis);
+                    buffer = segmentReader.read(timeoutMillis);
                 } catch (EndOfSegmentException e) {
                     boolean isSegmentSealed = e.getErrorType().equals(END_OF_SEGMENT_REACHED);
                     handleEndOfSegment(segmentReader, isSegmentSealed);
@@ -263,7 +263,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 } else {
                     Segment segment = newSegment.getKey().getSegment();
 
-                    final EventSegmentReader in = inputStreamFactory.createEventReaderForSegment(segment, endOffset);
+                    final EventSegmentReader in = inputStreamFactory.createEventReaderForSegment(segment, segmentsWithData, endOffset);
                     in.setOffset(newSegment.getValue());
                     readers.add(in);
                     ranges.put(segment, newSegment.getKey().getRange());

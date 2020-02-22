@@ -16,6 +16,7 @@ import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.concurrent.Futures;
+import java.util.concurrent.Semaphore;
 import lombok.RequiredArgsConstructor;
 
 @VisibleForTesting
@@ -31,22 +32,22 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     }
 
     @Override
-    public EventSegmentReader createEventReaderForSegment(Segment segment, long endOffset) {
-        return getEventSegmentReader(segment, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    public EventSegmentReader createEventReaderForSegment(Segment segment, Semaphore hasData, long endOffset) {
+        return getEventSegmentReader(segment, hasData, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
     public EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize) {
-        return getEventSegmentReader(segment, Long.MAX_VALUE, bufferSize);
+        return getEventSegmentReader(segment, null, Long.MAX_VALUE, bufferSize);
     }
 
-    private EventSegmentReader getEventSegmentReader(Segment segment, long endOffset, int bufferSize) {
+    private EventSegmentReader getEventSegmentReader(Segment segment, Semaphore hasData, long endOffset, int bufferSize) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
                                                                                                           segment.getStream()
                                                                                                                  .getStreamName()),
                                                                 RuntimeException::new);
         AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment,
-                DelegationTokenProviderFactory.create(delegationToken, controller, segment));
+                DelegationTokenProviderFactory.create(delegationToken, controller, segment), hasData);
         async.getConnection();                      //Sanity enforcement
         bufferSize = MathHelpers.minMax(bufferSize, SegmentInputStreamImpl.MIN_BUFFER_SIZE, SegmentInputStreamImpl.MAX_BUFFER_SIZE);
         return getEventSegmentReader(async, 0, endOffset, bufferSize);
@@ -65,7 +66,7 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
 
     @Override
     public SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider) {
-        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, tokenProvider);
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, tokenProvider, null);
         async.getConnection();
         return new SegmentInputStreamImpl(async, 0);
     }
