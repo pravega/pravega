@@ -36,7 +36,7 @@ public interface DirectSegmentAccess {
      * Appends a range of bytes at the end of the Segment and atomically updates the given attributes. The byte range
      * will be appended as a contiguous block, however there is no guarantee of ordering between different calls to this
      * method.
-     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#append(String, byte[], Collection, Duration)
+     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#append(String, BufferView, Collection, Duration)
      *
      * @param data             The data to add.
      * @param attributeUpdates A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
@@ -54,7 +54,7 @@ public interface DirectSegmentAccess {
     /**
      * Performs an attribute update operation on the Segment.
      *
-     *  @see StreamSegmentStore#append(String, byte[], Collection, Duration).
+     *  @see io.pravega.segmentstore.contracts.StreamSegmentStore#append(String, BufferView, Collection, Duration)
      *
      * @param attributeUpdates A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                         See Notes about AttributeUpdates in the interface Javadoc.
@@ -69,7 +69,7 @@ public interface DirectSegmentAccess {
 
     /**
      * Gets the values of the given Attributes (Core or Extended).
-     * @see StreamSegmentStore#getAttributes(String, Collection, boolean, Duration).
+     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#getAttributes(String, Collection, boolean, Duration)
      *
      * @param attributeIds A Collection of Attribute Ids to fetch. These may be Core or Extended Attributes.
      * @param cache        If set, then any Extended Attribute values that are not already in the in-memory Segment
@@ -87,7 +87,7 @@ public interface DirectSegmentAccess {
 
     /**
      * Initiates a Read operation on the Segment and returns a ReadResult which can be used to consume the read data.
-     * @see StreamSegmentStore#read(String, long, int, Duration).
+     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#read(String, long, int, Duration)
      *
      * @param offset    The offset within the Segment to start reading at.
      * @param maxLength The maximum number of bytes to read.
@@ -100,7 +100,7 @@ public interface DirectSegmentAccess {
 
     /**
      * Gets information about the Segment.
-     * @see StreamSegmentStore#getStreamSegmentInfo(String, boolean, Duration).
+     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#getStreamSegmentInfo(String, Duration)
      *
      * @return The requested Segment Info. Note that this result will only contain those attributes that
      * are loaded in memory (if any) or Core Attributes. To ensure that Extended Attributes are also included, you must use
@@ -111,7 +111,7 @@ public interface DirectSegmentAccess {
 
     /**
      * Seals the Segment.
-     * @see StreamSegmentStore#sealStreamSegment(String, Duration).
+     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#sealStreamSegment(String, Duration)
      *
      * @param timeout Timeout for the operation
      * @return A CompletableFuture that, when completed normally, will contain the final length of the Segment.
@@ -122,7 +122,7 @@ public interface DirectSegmentAccess {
 
     /**
      * Truncates the Segment at a given offset.
-     * @see StreamSegmentStore#truncateStreamSegment(String, long, Duration).
+     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#truncateStreamSegment(String, long, Duration)
      *
      * @param offset  The offset at which to truncate. This must be at least equal to the existing truncation
      *                offset and no larger than the Segment's length. After the operation is complete,

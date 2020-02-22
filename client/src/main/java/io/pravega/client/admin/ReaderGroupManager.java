@@ -49,7 +49,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * Creates a new ReaderGroup.
      *
      * Readers will be able to join the group by calling
-     * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}
+     * {@link io.pravega.client.EventStreamClientFactory#createReader(String, String, Serializer, ReaderConfig)}
      * . Once this is done they will start receiving events from the point defined in the config
      * passed here.
      * <p>

@@ -22,8 +22,8 @@ import java.util.concurrent.ScheduledExecutorService;
  * to only one reader.
  *
  * The readers in the group may change over time. Readers are added to the group by calling
- * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} and are removed by
- * calling {@link #readerOffline(String, Position)}
+ * {@link io.pravega.client.EventStreamClientFactory#createReader(String, String, Serializer, ReaderConfig)}
+ * and are removed by calling {@link #readerOffline(String, Position)}
  */
 public interface ReaderGroup extends ReaderGroupNotificationListener, AutoCloseable {
 
@@ -83,7 +83,8 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * <p>- To reset a reader group to a given StreamCut use
      * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#startFromStreamCuts(Map)}.</p>
      *
-     * All existing readers will have to call {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}.
+     * All existing readers will have to call
+     * {@link io.pravega.client.EventStreamClientFactory#createReader(String, String, Serializer, ReaderConfig)}.
      * If they continue to read events they will eventually encounter an {@link ReinitializationRequiredException} .
      *
      * @param config The new configuration for the ReaderGroup.
@@ -106,8 +107,8 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
 
     /**
      * Returns a set of readerIds for the readers that are considered to be online by the group.
-     * i.e. {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} was called but
-     * {@link #readerOffline(String, Position)} was not called subsequently.
+     * i.e. {@link io.pravega.client.EventStreamClientFactory#createReader(String, String, Serializer, ReaderConfig)}
+     * was called but {@link #readerOffline(String, Position)} was not called subsequently.
      *
      * @return Set of active reader IDs of the group
      */

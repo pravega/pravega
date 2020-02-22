@@ -41,7 +41,7 @@ init_tier2() {
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
     ;;
     EXTENDEDS3)
-    EXTENDEDS3_ROOT=${EXTENDEDS3_ROOT:-"/"}
+    EXTENDEDS3_PREFIX=${EXTENDEDS3_PREFIX:-"/"}
 
     # Determine whether there is any variable missing
     if [ -z ${EXTENDEDS3_ACCESS_KEY_ID} ]
@@ -73,7 +73,7 @@ init_tier2() {
         echo "Looping till the container is restarted with all these variables set."
         sleep 60
     done
-    add_system_property "extendeds3.root" "${EXTENDEDS3_ROOT}"
+    add_system_property "extendeds3.prefix" "${EXTENDEDS3_PREFIX}"
     add_system_property "extendeds3.accessKey" "${EXTENDEDS3_ACCESS_KEY_ID}"
     add_system_property "extendeds3.secretKey" "${EXTENDEDS3_SECRET_KEY}"
     add_system_property "extendeds3.url" "${EXTENDEDS3_URI}"
