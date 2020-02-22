@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
@@ -20,35 +21,81 @@ import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import lombok.Getter;
+import lombok.NonNull;
 
+/**
+ * A composite, index-based array-like structure that is made up of one or more individual arrays of equal size. Each
+ * component array maps to a contiguous offset range and is only allocated when the first index within its range needs
+ * to be set (if unallocated, any index within its range will have a value of 0).
+ */
 public class CompositeByteArraySegment implements CompositeArrayView {
-    private static final int DEFAULT_ARRAY_SIZE = 128 * 1024;
+    //region Members
+    /**
+     * Default component array size. 4KB maps to the kernel's page size.
+     */
+    private static final int DEFAULT_ARRAY_SIZE = 4 * 1024;
+    /**
+     * The offset at which the {@link CompositeByteArraySegment} begins, counted from the first block. This is helpful
+     * for slicing a {@link CompositeByteArraySegment}. See {@link #slice}.
+     */
     private final int startOffset;
+    /**
+     * Size of each component array.
+     */
     private final int arraySize;
     private final Object[] arrays;
     @Getter
     private final int length;
+    //endregion
 
+    /**
+     * Creates a new instance of the {@link CompositeByteArraySegment} class with a default component array size.
+     *
+     * @param length The length of the {@link CompositeByteArraySegment}. This will determine the number of components
+     *               to use, but doesn't allocate any of them yet.
+     */
     public CompositeByteArraySegment(int length) {
         this(length, DEFAULT_ARRAY_SIZE);
     }
 
+    /**
+     * Creates a new instance of the {@link CompositeByteArraySegment} class with the given component array size.
+     *
+     * @param length    The length of the {@link CompositeByteArraySegment}. This will determine the number of components
+     *                  to use, but doesn't allocate any of them yet.
+     * @param arraySize The component array size.
+     */
     public CompositeByteArraySegment(int length, int arraySize) {
-        Preconditions.checkArgument(length >= 0);
-        Preconditions.checkArgument(arraySize > 0);
+        Preconditions.checkArgument(length >= 0, "length must be a non-negative number.");
+        Preconditions.checkArgument(arraySize > 0, "arraySize must be a positive number.");
 
         this.length = length;
-        this.arraySize = arraySize;
-        int count = length / arraySize + (length % arraySize == 0 ? 0 : 1);
+        this.arraySize = Math.min(length, arraySize); // No point in allocating more memory if total length is smaller than arraySize.
         this.startOffset = 0;
+        int count = length / arraySize + (length % arraySize == 0 ? 0 : 1);
         this.arrays = new Object[count];
     }
 
-    public CompositeByteArraySegment(byte[] source) {
-        this(source.length);
-        copyFrom(new ByteArraySegment(source), 0, getLength());
+    /**
+     * Creates a new instance of the {@link CompositeByteArraySegment} class that wraps the given array. This instance
+     * will have a single component array.
+     *
+     * @param source The byte array to wrap. Any changes made to this array will be reflected in this
+     *               {@link CompositeByteArraySegment} instance and vice-versa.
+     */
+    @VisibleForTesting
+    public CompositeByteArraySegment(@NonNull byte[] source) {
+        this(new Object[]{source}, source.length, 0, source.length);
     }
 
+    /**
+     * Creates a new instance of the {@link CompositeByteArraySegment} that uses the given arguments. Useful for slicing.
+     *
+     * @param arrays      The array components to use.
+     * @param arraySize   Size of each individual component.
+     * @param startOffset Start offset.
+     * @param length      Length of {@link CompositeByteArraySegment}.
+     */
     private CompositeByteArraySegment(Object[] arrays, int arraySize, int startOffset, int length) {
         this.arrays = arrays;
         this.arraySize = arraySize;
@@ -58,18 +105,19 @@ public class CompositeByteArraySegment implements CompositeArrayView {
 
     @Override
     public byte get(int offset) {
-        byte[] array = getArray(getArrayId(offset), false);
+        byte[] array = getArray(getArrayId(offset), false); // No need to allocate array if not allocated yet.
         return array == null ? 0 : array[getArrayOffset(offset)];
     }
 
     @Override
     public void set(int offset, byte value) {
-        byte[] array = getArray(getArrayId(offset), true);
+        byte[] array = getArray(getArrayId(offset), true); // Need to allocate array if not allocated yet.
         array[getArrayOffset(offset)] = value;
     }
 
     @Override
     public InputStream getReader() {
+        // Use the collector to create a list of ByteArrayInputStreams and then return them as combined.
         ArrayList<ByteArrayInputStream> streams = new ArrayList<>();
         collect((array, offset, length) -> streams.add(new ByteArrayInputStream(array, offset, length)));
         return new SequenceInputStream(Iterators.asEnumeration(streams.iterator()));
@@ -83,7 +131,8 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     @Override
     public CompositeArrayView slice(int offset, int length) {
         Exceptions.checkArrayRange(offset, length, this.length, "offset", "length");
-        if (offset == 0 && length == getLength()) {
+        if (offset == 0 && length == this.length) {
+            // Nothing to slice.
             return this;
         }
 
@@ -91,48 +140,57 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     }
 
     @Override
-    public void collect(Collector collectArray) {
-        if (this.length == 0) {
+    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectArray) throws ExceptionT {
+        collect(collectArray, this.length);
+    }
+
+    private <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectArray, int length) throws ExceptionT {
+        if (length == 0) {
+            // Nothing to collect.
             return;
         }
 
+        // We only need to process a subset of our arrays (since we may be sliced from the original array list).
         int startId = getArrayId(0);
-        int endId = getArrayId(this.length - 1);
+        int endId = getArrayId(length - 1);
 
-        int currentOffset = 0;
-        int remainingLength = this.length;
-        for (int i = startId; i <= endId; i++) {
-            byte[] array = getArray(i, false);
-            int arrayOffset = getArrayOffset(currentOffset);
-            int arrayLength = Math.min(remainingLength, this.arraySize - arrayOffset);
+        int arrayOffset = getArrayOffset(0); // The first array may need an offset, if this.startOffset > 0.
+        for (int arrayId = startId; arrayId <= endId; arrayId++) {
+            int arrayLength = Math.min(length, this.arraySize - arrayOffset);
+            byte[] array = getArray(arrayId, false); // Don't allocate array if not allocated yet.
             if (array == null) {
+                // Providing a dummy, empty array of the correct size is the easiest way to handle unallocated components
+                // for all the cases this method is used for.
                 collectArray.accept(new byte[arrayLength], 0, arrayLength);
             } else {
                 collectArray.accept(array, arrayOffset, arrayLength);
             }
 
-            remainingLength -= arrayLength;
-            currentOffset += arrayLength;
+            length -= arrayLength;
+            arrayOffset = 0; // After processing the first array (handling this.startOffset), all other array offsets are 0.
         }
+
+        assert length == 0 : "Collection finished but " + length + " bytes remaining";
     }
 
     @Override
     public byte[] getCopy() {
-        byte[] result = new byte[this.length];
-
+        // This method is a special instance of collect(), however we can optimize it since we can skip over unallocated
+        // components without having to create a dummy one.
         int startId = getArrayId(0);
         int endId = getArrayId(this.length - 1);
-
+        byte[] result = new byte[this.length];
         int resultOffset = 0;
+        int arrayOffset = getArrayOffset(resultOffset); // The first array may need an offset, if this.startOffset > 0.
         for (int i = startId; i <= endId; i++) {
-            byte[] array = getArray(i, false);
-            int arrayOffset = getArrayOffset(resultOffset);
+            byte[] array = getArray(i, false); // Don't allocate array if not allocated yet.
             int copyLength = Math.min(result.length - resultOffset, this.arraySize - arrayOffset);
             if (array != null) {
                 System.arraycopy(array, arrayOffset, result, resultOffset, copyLength);
             }
 
             resultOffset += copyLength;
+            arrayOffset = 0; // After processing the first array (handling this.startOffset), all other array offsets are 0.
         }
 
         return result;
@@ -140,37 +198,69 @@ public class CompositeByteArraySegment implements CompositeArrayView {
 
     @Override
     public void copyFrom(ArrayView source, int targetOffset, int length) {
+        Preconditions.checkArgument(length <= source.getLength(), "length exceeds source input's length.");
+        Exceptions.checkArrayRange(targetOffset, length, this.length, "offset", "length");
+
         int sourceOffset = 0;
+        int arrayOffset = getArrayOffset(targetOffset);
+        int arrayId = getArrayId(targetOffset);
         while (length > 0) {
-            byte[] array = getArray(getArrayId(targetOffset), true);
-            int arrayOffset = getArrayOffset(targetOffset);
+            byte[] array = getArray(arrayId, true); // Need to allocate if not already allocated.
             int copyLength = Math.min(array.length - arrayOffset, length);
             System.arraycopy(source.array(), source.arrayOffset() + sourceOffset, array, arrayOffset, copyLength);
             sourceOffset += copyLength;
-            targetOffset += copyLength;
             length -= copyLength;
+            arrayId++;
+            arrayOffset = 0;
         }
+
+        assert length == 0 : "Copy finished but " + length + " bytes remaining";
     }
 
     @Override
     public void copyTo(OutputStream target) throws IOException {
-        throw new UnsupportedOperationException();
+        collect(target::write);
     }
 
     @Override
-    public int copyTo(ByteBuffer byteBuffer) {
-        throw new UnsupportedOperationException();
+    public int copyTo(ByteBuffer target) {
+        int length = Math.min(this.length, target.remaining());
+        collect(target::put, length);
+        return length;
     }
 
+    /**
+     * Calculates the offset within an array that the given external offset maps to.
+     * Use {@link #getArrayId} to identify which array the offset maps to and to validate offset is a valid offset within
+     * this {@link #CompositeByteArraySegment}.
+     *
+     * @param offset The external offset to map.
+     * @return The offset within a component array.
+     */
     private int getArrayOffset(int offset) {
         return (this.startOffset + offset) % this.arraySize;
     }
 
+    /**
+     * Calculates the component array id (index within {@link #arrays} that the given external offset maps to.
+     * Use {@link #getArrayOffset} to identify the offset within this array.
+     *
+     * @param offset The external offset to map.
+     * @return The component array id.
+     */
     private int getArrayId(int offset) {
         Preconditions.checkElementIndex(offset, this.length, "offset");
         return (this.startOffset + offset) / this.arraySize;
     }
 
+    /**
+     * Gets the component array with given id.
+     *
+     * @param arrayId  The array id (index within {@link #arrays} to return.
+     * @param allocate If true, then the component array is allocated (if not already) before returning. If false, the
+     *                 component array is not allocated.
+     * @return The component array with given id. May return null if allocate == false.
+     */
     private byte[] getArray(int arrayId, boolean allocate) {
         Object a = this.arrays[arrayId];
         if (a == null && allocate) {

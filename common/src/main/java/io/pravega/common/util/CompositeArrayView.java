@@ -9,8 +9,11 @@
  */
 package io.pravega.common.util;
 
+/**
+ * Defines a generic view of a composite, index-based, array-like structure that is made up of one or more individual
+ * arrays.
+ */
 public interface CompositeArrayView extends BufferView {
-
     /**
      * Gets the value at the specified index.
      *
@@ -20,17 +23,64 @@ public interface CompositeArrayView extends BufferView {
      */
     byte get(int index);
 
-    void set(int offset, byte value);
+    /**
+     * Sets the value at the specified index.
+     *
+     * @param index The index to set the value at.
+     * @param value The Byte value to set.
+     * @throws ArrayIndexOutOfBoundsException If index is invalid.
+     */
+    void set(int index, byte value);
 
+    /**
+     * Copies a specified number of bytes from the given {@link ArrayView} into this {@link CompositeArrayView}.
+     *
+     * @param source       The {@link ArrayView} to copy bytes from.
+     * @param targetOffset The offset within this {@link CompositeArrayView} to start copying at.
+     * @param length       The number of bytes to copy.
+     * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
+     */
     void copyFrom(ArrayView source, int targetOffset, int length);
 
+    /**
+     * Creates a new {@link CompositeArrayView} that represents a sub-range of this {@link CompositeArrayView} instance.
+     * The new instance will share the same backing part(s) as this one, so a change to one will be reflected in the other.
+     *
+     * @param offset The starting offset to begin the slice at.
+     * @param length The sliced length.
+     * @return A new {@link CompositeArrayView}.
+     */
     @Override
     CompositeArrayView slice(int offset, int length);
 
-    void collect(Collector collectArray);
+    /**
+     * Iterates through each of the arrays that make up this {@link CompositeArrayView}, in order, and invokes the given
+     * {@link Collector} on each.
+     *
+     * @param collectArray A {@link Collector} function that will be invoked for each array component. The arguments to
+     *                     this function represent the component array, start offset within the component array and number
+     *                     of bytes within the array to process.
+     * @param <ExceptionT> Type of exception that the {@link Collector} function throws, if any.
+     * @throws ExceptionT If the {@link Collector} function throws an exception of this type, the iteration will end
+     *                    and the exception will be bubbled up.
+     */
+    <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectArray) throws ExceptionT;
 
+    /**
+     * Defines a collector function that can be applied to a range of an array.
+     *
+     * @param <ExceptionT> Type of exception that this function can throw.
+     */
     @FunctionalInterface
-    interface Collector {
-        void accept(byte[] array, int arrayOffset, int length);
+    interface Collector<ExceptionT extends Exception> {
+        /**
+         * Processes an array range.
+         *
+         * @param array       The array.
+         * @param arrayOffset The start offset within the array.
+         * @param length      The number of bytes, beginning at startOffset, that need to be processed.
+         * @throws ExceptionT (Optional) Any exception to throw.
+         */
+        void accept(byte[] array, int arrayOffset, int length) throws ExceptionT;
     }
 }

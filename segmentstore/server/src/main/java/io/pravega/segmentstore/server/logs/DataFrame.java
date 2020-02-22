@@ -38,6 +38,7 @@ public class DataFrame {
     //region Members
 
     static final int MIN_ENTRY_LENGTH_NEEDED = EntryHeader.HEADER_SIZE + 1;
+    private static final int BUFFER_BLOCK_SIZE = 128 * 1024; // 128KB
     private static final byte CURRENT_VERSION = 0;
     private final CompositeArrayView data;
     private WriteFrameHeader header;
@@ -86,11 +87,9 @@ public class DataFrame {
      *
      * @param maxSize The maximum size of the frame, including Frame Header and other control structures
      *                that the frame may use to organize records.
-     * @throws IllegalArgumentException When the value for startMagic is invalid.
      */
     static DataFrame ofSize(int maxSize) {
-        //return new DataFrame(new ByteArraySegment(new byte[maxSize]));
-        return new DataFrame(new CompositeByteArraySegment(maxSize));
+        return new DataFrame(new CompositeByteArraySegment(maxSize, BUFFER_BLOCK_SIZE));
     }
 
     //endregion
