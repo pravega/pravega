@@ -74,7 +74,7 @@ import static javax.ws.rs.core.Response.Status.NOT_FOUND;
 public class K8sClient {
 
     // Indicates if an object can be returned without completing its initialization.
-    private static final boolean INCLUDE_UNINITIALIZED = true;
+    private static final boolean INCLUDE_UNINITIALIZED = false;
     private static final int DEFAULT_TIMEOUT_MINUTES = 10; // timeout of http client.
     private static final int RETRY_MAX_DELAY_MS = 1_000; // max time between retries to check if pod has completed.
     private static final int RETRY_COUNT = 50; // Max duration incase of an exception is around 50 * RETRY_MAX_DELAY_MS = 50 seconds.
