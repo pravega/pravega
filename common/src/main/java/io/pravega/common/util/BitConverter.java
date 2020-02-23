@@ -45,6 +45,14 @@ public final class BitConverter {
         return Short.BYTES;
     }
 
+    /**
+     * Writes the given 32-bit Integer to the given {@link CompositeArrayView} at the given offset.
+     *
+     * @param target The {@link CompositeArrayView} to write to.
+     * @param offset The offset within the {@link CompositeArrayView} to write at.
+     * @param value  The value to write.
+     * @return The number of bytes written.
+     */
     public static int writeInt(CompositeArrayView target, int offset, int value) {
         target.set(offset, (byte) (value >>> 24));
         target.set(offset + 1, (byte) (value >>> 16));

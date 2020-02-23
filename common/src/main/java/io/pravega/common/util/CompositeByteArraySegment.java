@@ -20,6 +20,8 @@ import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Objects;
 import lombok.Getter;
 import lombok.NonNull;
 
@@ -102,6 +104,8 @@ public class CompositeByteArraySegment implements CompositeArrayView {
         this.startOffset = startOffset;
         this.length = length;
     }
+
+    //region CompositeArrayView Implementation
 
     @Override
     public byte get(int offset) {
@@ -229,6 +233,20 @@ public class CompositeByteArraySegment implements CompositeArrayView {
         return length;
     }
 
+    //endregion
+
+    //region Helpers
+
+    /**
+     * Gets the number of arrays allocated.
+     *
+     * @return The number of arrays allocated.
+     */
+    @VisibleForTesting
+    int getAllocatedArrayCount() {
+        return (int) Arrays.stream(this.arrays).filter(Objects::nonNull).count();
+    }
+
     /**
      * Calculates the offset within an array that the given external offset maps to.
      * Use {@link #getArrayId} to identify which array the offset maps to and to validate offset is a valid offset within
@@ -270,4 +288,6 @@ public class CompositeByteArraySegment implements CompositeArrayView {
 
         return (byte[]) a;
     }
+
+    //endregion
 }
