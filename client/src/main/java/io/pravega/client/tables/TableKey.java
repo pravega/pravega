@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.tables.impl;
+package io.pravega.client.tables;
 
 /**
  * A Table Key with a Version.

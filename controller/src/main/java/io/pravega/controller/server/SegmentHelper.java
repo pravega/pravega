@@ -12,22 +12,17 @@ package io.pravega.controller.server;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import io.netty.buffer.ByteBuf;
-import io.netty.util.ReferenceCountUtil;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.ModelHelper;
-import io.pravega.client.tables.impl.IteratorState;
-import io.pravega.client.tables.impl.KeyVersion;
-import io.pravega.client.tables.impl.KeyVersionImpl;
-import io.pravega.client.tables.impl.TableEntry;
-import io.pravega.client.tables.impl.TableEntryImpl;
-import io.pravega.client.tables.impl.TableKey;
-import io.pravega.client.tables.impl.TableKeyImpl;
+import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.impl.TableSegment;
+import io.pravega.client.tables.impl.TableSegmentEntry;
+import io.pravega.client.tables.impl.TableSegmentKey;
+import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.tracing.TagLogger;
@@ -41,24 +36,19 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
-
-import java.util.ArrayList;
 import java.util.AbstractMap;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
-import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.shared.NameUtils.getQualifiedStreamSegmentName;
 import static io.pravega.shared.NameUtils.getSegmentNumber;
 import static io.pravega.shared.NameUtils.getTransactionNameFromId;
@@ -376,27 +366,24 @@ public class SegmentHelper implements AutoCloseable {
     /**
      * This method sends a WireCommand to update table entries.
      *
-     * @param tableName           Qualified table name.
-     * @param entries             List of {@link TableEntry}s to be updated.
-     * @param delegationToken     The token to be presented to the segmentstore.
-     * @param clientRequestId     Request id.
-     * @return A CompletableFuture that, when completed normally, will contain the current versions of each {@link TableEntry}
+     * @param tableName       Qualified table name.
+     * @param entries         List of {@link TableSegmentEntry} instances to be updated.
+     * @param delegationToken The token to be presented to the Segment Store.
+     * @param clientRequestId Request id.
+     * @return A CompletableFuture that, when completed normally, will contain the current versions of each
+     * {@link TableSegmentEntry}.
      * If the operation failed, the future will be failed with the causing exception. If the exception can be retried
      * then the future will be failed with {@link WireCommandFailedException}.
      */
-    public CompletableFuture<List<KeyVersion>> updateTableEntries(final String tableName,
-                                                                  final List<TableEntry<byte[], byte[]>> entries,
-                                                                  String delegationToken,
-                                                                  final long clientRequestId) {
+    public CompletableFuture<List<TableSegmentKeyVersion>> updateTableEntries(final String tableName,
+                                                                              final List<TableSegmentEntry> entries,
+                                                                              String delegationToken,
+                                                                              final long clientRequestId) {
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
-        List<ByteBuf> buffersToRelease = new ArrayList<>();
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries = entries.stream().map(te -> {
             final WireCommands.TableKey key = convertToWireCommand(te.getKey());
-            ByteBuf valueBuffer = wrappedBuffer(te.getValue());
-            buffersToRelease.add(key.getData());
-            buffersToRelease.add(valueBuffer);
-            final WireCommands.TableValue value = new WireCommands.TableValue(valueBuffer);
+            final WireCommands.TableValue value = new WireCommands.TableValue(te.getValue());
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }).collect(Collectors.toList());
 
@@ -408,36 +395,33 @@ public class SegmentHelper implements AutoCloseable {
         return sendRequest(connection, requestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.UpdateTableEntries.class, type);
-                    List<KeyVersion> result = ((WireCommands.TableEntriesUpdated) rpl).getUpdatedVersions().stream()
-                                                                                      .map(KeyVersionImpl::new).collect(Collectors.toList());
-                    return result;
-                })
-                .whenComplete((r, e) -> release(buffersToRelease));
+                    return ((WireCommands.TableEntriesUpdated) rpl)
+                            .getUpdatedVersions().stream()
+                            .map(TableSegmentKeyVersion::new).collect(Collectors.toList());
+                });
     }
 
     /**
      * This method sends a WireCommand to remove table keys.
      *
-     * @param tableName           Qualified table name.
-     * @param keys                List of {@link TableKey}s to be removed. Only if all the elements in the list has version as
-     *                            {@link KeyVersion#NO_VERSION} then an unconditional update/removal is performed. Else an atomic conditional
-     *                            update (removal) is performed.
-     * @param delegationToken     The token to be presented to the segmentstore.
-     * @param clientRequestId     Request id.
+     * @param tableName       Qualified table name.
+     * @param keys            List of {@link TableSegmentKey}s to be removed. Only if all the elements in the list has version
+     *                        as {@link TableSegmentKeyVersion#NO_VERSION} then an unconditional update/removal is performed.
+     *                        Else an atomic conditional update (removal) is performed.
+     * @param delegationToken The token to be presented to the Segment Store.
+     * @param clientRequestId Request id.
      * @return A CompletableFuture that will complete normally when the provided keys are deleted.
      * If the operation failed, the future will be failed with the causing exception. If the exception can be
      * retried then the future will be failed with {@link WireCommandFailedException}.
      */
     public CompletableFuture<Void> removeTableKeys(final String tableName,
-                                                   final List<TableKey<byte[]>> keys,
+                                                   final List<TableSegmentKey> keys,
                                                    String delegationToken,
                                                    final long clientRequestId) {
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
-        List<ByteBuf> buffersToRelease = new ArrayList<>(keys.size());
         List<WireCommands.TableKey> keyList = keys.stream().map(x -> {
             WireCommands.TableKey key = convertToWireCommand(x);
-            buffersToRelease.add(key.getData());
             return key;
         }).collect(Collectors.toList());
 
@@ -447,34 +431,30 @@ public class SegmentHelper implements AutoCloseable {
         WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, tableName, delegationToken, keyList);
 
         return sendRequest(connection, requestId, request)
-                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.RemoveTableKeys.class, type))
-                .whenComplete((r, e) -> release(buffersToRelease));
+                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.RemoveTableKeys.class, type));
     }
 
     /**
      * This method sends a WireCommand to read table entries.
      *
-     * @param tableName           Qualified table name.
-     * @param keys                List of {@link TableKey}s to be read. {@link TableKey#getVersion()} is not used
-     *                            during this operation and the latest version is read.
-     * @param delegationToken     The token to be presented to the segmentstore.
-     * @param clientRequestId     Request id.
-     * @return A CompletableFuture that, when completed normally, will contain a list of {@link TableEntry} with
-     * a value corresponding to the latest version. The version will be set to {@link KeyVersion#NOT_EXISTS} if the
-     * key does not exist. If the operation failed, the future will be failed with the causing exception.
+     * @param tableName       Qualified table name.
+     * @param keys            List of {@link TableSegmentKey}s to be read. {@link TableSegmentKey#getVersion()} is
+     *                        not used during this operation and the latest version is read.
+     * @param delegationToken The token to be presented to the Segment Store.
+     * @param clientRequestId Request id.
+     * @return A CompletableFuture that, when completed normally, will contain a list of {@link TableSegmentEntry} with
+     * a value corresponding to the latest version. The version will be set to {@link TableSegmentKeyVersion#NOT_EXISTS}
+     * if the key does not exist. If the operation failed, the future will be failed with the causing exception.
      */
-    public CompletableFuture<List<TableEntry<byte[], byte[]>>> readTable(final String tableName,
-                                                                         final List<TableKey<byte[]>> keys,
-                                                                         String delegationToken,
-                                                                         final long clientRequestId) {
+    public CompletableFuture<List<TableSegmentEntry>> readTable(final String tableName,
+                                                                final List<TableSegmentKey> keys,
+                                                                String delegationToken,
+                                                                final long clientRequestId) {
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE;
-        List<ByteBuf> buffersToRelease = new ArrayList<>();
         // the version is always NO_VERSION as read returns the latest version of value.
         List<WireCommands.TableKey> keyList = keys.stream().map(k -> {
-            ByteBuf buffer = wrappedBuffer(k.getKey());
-            buffersToRelease.add(buffer);
-            return new WireCommands.TableKey(buffer, WireCommands.TableKey.NO_VERSION);
+            return new WireCommands.TableKey(k.getKey(), k.getVersion().getSegmentVersion());
         }).collect(Collectors.toList());
 
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
@@ -484,29 +464,28 @@ public class SegmentHelper implements AutoCloseable {
         return sendRequest(connection, requestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTable.class, type);
-                    List<TableEntry<byte[], byte[]>> tableEntries = ((WireCommands.TableRead) rpl)
+                    return ((WireCommands.TableRead) rpl)
                             .getEntries().getEntries().stream()
-                            .map(e -> new TableEntryImpl<>(convertFromWireCommand(e.getKey()), getArray(e.getValue().getData())))
+                            .map(this::convertFromWireCommand)
                             .collect(Collectors.toList());
-                    return tableEntries;
-                })
-                .whenComplete((r, e) -> release(buffersToRelease));
+                });
     }
 
     /**
      * The method sends a WireCommand to iterate over table keys.
-     * @param tableName Qualified table name.
-     * @param suggestedKeyCount Suggested number of {@link TableKey}s to be returned by the SegmentStore.
-     * @param state Last known state of the iterator.
-     * @param delegationToken The token to be presented to the segmentstore.
-     * @param clientRequestId Request id.
-     * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
+     *
+     * @param tableName         Qualified table name.
+     * @param suggestedKeyCount Suggested number of {@link TableSegmentKey}s to be returned by the SegmentStore.
+     * @param state             Last known state of the iterator.
+     * @param delegationToken   The token to be presented to the Segment Store.
+     * @param clientRequestId   Request id.
+     * @return A CompletableFuture that will return the next set of {@link TableSegmentKey}s returned from the SegmentStore.
      */
-    public CompletableFuture<TableSegment.IteratorItem<TableKey<byte[]>>> readTableKeys(final String tableName,
-                                                                                    final int suggestedKeyCount,
-                                                                                    final IteratorState state,
-                                                                                    final String delegationToken,
-                                                                                    final long clientRequestId) {
+    public CompletableFuture<TableSegment.IteratorItem<TableSegmentKey>> readTableKeys(final String tableName,
+                                                                                       final int suggestedKeyCount,
+                                                                                       final IteratorState state,
+                                                                                       final String delegationToken,
+                                                                                       final long clientRequestId) {
 
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
@@ -514,35 +493,37 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().asLong();
 
         final IteratorState token = (state == null) ? IteratorState.EMPTY : state;
-        
+
         WireCommands.ReadTableKeys request = new WireCommands.ReadTableKeys(requestId, tableName, delegationToken, suggestedKeyCount,
-                                                                        token.toBytes());
+                token.toBytes());
         return sendRequest(connection, requestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableKeys.class, type);
                     WireCommands.TableKeysRead tableKeysRead = (WireCommands.TableKeysRead) rpl;
                     final IteratorState newState = IteratorState.fromBytes(tableKeysRead.getContinuationToken());
-                    final List<TableKey<byte[]>> keys =
-                            tableKeysRead.getKeys().stream().map(k -> new TableKeyImpl<>(getArray(k.getData()),
-                                    new KeyVersionImpl(k.getKeyVersion()))).collect(Collectors.toList());
+                    final List<TableSegmentKey> keys =
+                            tableKeysRead.getKeys().stream().map(k -> TableSegmentKey.versioned(k.getData(),
+                                    k.getKeyVersion())).collect(Collectors.toList());
                     return new TableSegment.IteratorItem<>(newState, keys);
                 });
     }
 
     /**
      * The method sends a WireCommand to iterate over table entries.
-     * @param tableName Qualified table name.
-     * @param suggestedEntryCount Suggested number of {@link TableKey}s to be returned by the SegmentStore.
-     * @param state Last known state of the iterator.
-     * @param delegationToken The token to be presented to the segmentstore.
-     * @param clientRequestId Request id.
-     * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
+     *
+     * @param tableName           Qualified table name.
+     * @param suggestedEntryCount Suggested number of {@link TableSegmentEntry} instances to be returned by the Segment Store.
+     * @param state               Last known state of the iterator.
+     * @param delegationToken     The token to be presented to the Segment Store.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that will return the next set of {@link TableSegmentEntry} instances returned from the
+     * SegmentStore.
      */
-    public CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> readTableEntries(final String tableName,
-                                                                               final int suggestedEntryCount,
-                                                                               final IteratorState state,
-                                                                               final String delegationToken,
-                                                                               final long clientRequestId) {
+    public CompletableFuture<TableSegment.IteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
+                                                                                            final int suggestedEntryCount,
+                                                                                            final IteratorState state,
+                                                                                            final String delegationToken,
+                                                                                            final long clientRequestId) {
 
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
@@ -550,58 +531,43 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().asLong();
 
         final IteratorState token = (state == null) ? IteratorState.EMPTY : state;
-        
+
         WireCommands.ReadTableEntries request = new WireCommands.ReadTableEntries(requestId, tableName, delegationToken,
-                                                                        suggestedEntryCount, token.toBytes());
+                suggestedEntryCount, token.toBytes());
         return sendRequest(connection, requestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableEntries.class, type);
                     WireCommands.TableEntriesRead tableEntriesRead = (WireCommands.TableEntriesRead) rpl;
                     final IteratorState newState = IteratorState.fromBytes(tableEntriesRead.getContinuationToken());
-                    final List<TableEntry<byte[], byte[]>> entries =
+                    final List<TableSegmentEntry> entries =
                             tableEntriesRead.getEntries().getEntries().stream()
                                             .map(e -> {
                                                 WireCommands.TableKey k = e.getKey();
-                                                TableKey<byte[]> tableKey = new TableKeyImpl<>(getArray(k.getData()),
-                                                        new KeyVersionImpl(k.getKeyVersion()));
-                                                return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
+                                                return TableSegmentEntry.versioned(k.getData(),
+                                                        e.getValue().getData(),
+                                                        k.getKeyVersion());
                                             }).collect(Collectors.toList());
                     return new TableSegment.IteratorItem<>(newState, entries);
                 });
     }
 
-    private byte[] getArray(ByteBuf buf) {
-        final byte[] bytes = new byte[buf.readableBytes()];
-        final int readerIndex = buf.readerIndex();
-        buf.getBytes(readerIndex, bytes);
-        release(Collections.singleton(buf));
-        return bytes;
-    }
-    
-    private void release(Collection<ByteBuf> buffers) {
-        buffers.forEach(ReferenceCountUtil::safeRelease);
-    }
-
-
-    private WireCommands.TableKey convertToWireCommand(final TableKey<byte[]> k) {
+    private WireCommands.TableKey convertToWireCommand(final TableSegmentKey k) {
         WireCommands.TableKey key;
-        if (k.getVersion() == null || k.getVersion() == KeyVersion.NO_VERSION) {
+        if (k.getVersion() == null) {
             // unconditional update.
-            key = new WireCommands.TableKey(wrappedBuffer(k.getKey()), WireCommands.TableKey.NO_VERSION);
+            key = new WireCommands.TableKey(k.getKey(), WireCommands.TableKey.NO_VERSION);
         } else {
-            key = new WireCommands.TableKey(wrappedBuffer(k.getKey()), k.getVersion().getSegmentVersion());
+            key = new WireCommands.TableKey(k.getKey(), k.getVersion().getSegmentVersion());
         }
         return key;
     }
 
-    private TableKey<byte[]> convertFromWireCommand(WireCommands.TableKey k) {
-        final TableKey<byte[]> key;
-        if (k.getKeyVersion() == WireCommands.TableKey.NOT_EXISTS) {
-            key = new TableKeyImpl<>(getArray(k.getData()), KeyVersion.NOT_EXISTS);
+    private TableSegmentEntry convertFromWireCommand(Map.Entry<WireCommands.TableKey, WireCommands.TableValue> e) {
+        if (e.getKey().getKeyVersion() == WireCommands.TableKey.NOT_EXISTS) {
+            return TableSegmentEntry.notExists(e.getKey().getData(), e.getValue().getData());
         } else {
-            key = new TableKeyImpl<>(getArray(k.getData()), new KeyVersionImpl(k.getKeyVersion()));
+            return TableSegmentEntry.versioned(e.getKey().getData(), e.getValue().getData(), e.getKey().getKeyVersion());
         }
-        return key;
     }
 
     private Pair<Byte, Integer> extractFromPolicy(ScalingPolicy policy) {

@@ -10,10 +10,11 @@
 package io.pravega.client.tables.impl;
 
 import io.netty.buffer.ByteBuf;
+import io.pravega.client.tables.IteratorState;
 import lombok.Data;
 
 /**
- * Implementation of {@link KeyVersion}.
+ * Implementation of {@link IteratorState}.
  */
 @Data
 public class IteratorStateImpl implements IteratorState {
