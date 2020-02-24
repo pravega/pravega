@@ -7,10 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.tables.impl;
+package io.pravega.client.tables;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.pravega.client.tables.impl.IteratorStateImpl;
 
 /**
  * Defines the state of a resumable iterator.
