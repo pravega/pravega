@@ -98,4 +98,13 @@ public class TableSegmentKey {
     }
 
     //endregion
+
+    /**
+     * Gets a value indicating whether this key exists/should exist.
+     *
+     * @return True if the key exists/should exist, false otherwise.
+     */
+    boolean exists() {
+        return getVersion().getSegmentVersion() != TableSegmentKeyVersion.NOT_EXISTS.getSegmentVersion();
+    }
 }
