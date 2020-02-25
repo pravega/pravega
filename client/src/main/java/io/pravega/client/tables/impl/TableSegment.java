@@ -11,6 +11,7 @@ package io.pravega.client.tables.impl;
 
 import io.netty.buffer.ByteBuf;
 import io.pravega.client.tables.ConditionalTableUpdateException;
+import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
@@ -19,7 +20,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import lombok.Data;
 
 /**
  * Defines all operations that are supported on a Table Segment.
@@ -37,12 +37,13 @@ import lombok.Data;
  * {@link TableSegmentKeyVersion#NOT_EXISTS}.
  */
 public interface TableSegment extends AutoCloseable {
-
     /**
-     * Inserts or updates an existing Table Entry into this Table Segment.
-     * @param entry The Entry to insert or update. If {@link TableEntry#getKey()}{@link TableKey#getVersion()} is null,
-     *              this will perform an Unconditional Update, otherwise it will perform a Conditional Update
-     *              based on the information provided. See {@link TableSegment} doc for more details on Types of Updates.
+     * Inserts a new or updates an existing Table Entry into this Table Segment.
+     *
+     * @param entry The Entry to insert or update. If {@link TableEntry#getKey()}{@link TableKey#getVersion()} indicates
+     *              a conditional update this will perform a Conditional Update conditioned on the server-side version
+     *              matching the provided one.
+     *              See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will contain the {@link TableSegmentKeyVersion} associated with
      * the newly inserted or updated entry. Notable exceptions:
      * <ul>
@@ -55,11 +56,12 @@ public interface TableSegment extends AutoCloseable {
 
     /**
      * Inserts new or updates existing Table Entries into this Table Segment.
+     * All changes are performed atomically (either all or none will be accepted).
      *
      * @param entries A List of entries to insert or update. If for at least one such entry,
-     *                {@link TableEntry#getKey()}{@link TableKey#getVersion()} returns a non-null value,
-     *                this will perform an atomic Conditional Update where all the entries either get applied or
-     *                none will; otherwise a Unconditional Update will be performed.
+     *                {@link TableEntry#getKey()}{@link TableKey#getVersion()} indicates a conditional update, this will
+     *                perform an atomic Conditional Update conditioned on the server-side version for each such entry
+     *                matching the provided one.
      *                See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will contain a List of {@link TableSegmentKeyVersion} instances
      * which represent the versions for the inserted/updated keys. The size of this list will be the same as entries.size()
@@ -74,8 +76,8 @@ public interface TableSegment extends AutoCloseable {
     /**
      * Removes the given key from this Table Segment.
      *
-     * @param key The Key to remove. If {@link TableKey#getVersion()} is null, this will perform an Unconditional Remove,
-     *            otherwise it will perform a Conditional Remove based on the information provided.
+     * @param key The Key to remove. If {@link TableKey#getVersion()} indicates a conditional update, this will
+     *            perform an atomic removal conditioned on the server-side version matching the provided one.
      *            See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will indicate the Key has been removed. Notable exceptions:
      * <ul>
@@ -88,11 +90,12 @@ public interface TableSegment extends AutoCloseable {
 
     /**
      * Removes one or more keys from this Table Segment.
+     * All removals are performed atomically (either all keys or no key will be removed).
      *
-     * @param keys A Collection of keys to remove. If for at least one such key, {@link TableKey#getVersion()} returns
-     *             a non-null value, this will perform an atomic Conditional Remove where all the keys either get removed
-     *             or none will; otherwise an Unconditional Remove will be performed. See {@link TableSegment} doc for more
-     *             details on Types of Updates.
+     * @param keys A Collection of keys to remove. If for at least one such key, {@link TableKey#getVersion()} indicates
+     *             a conditional update, this will perform an atomic removal conditioned on the server-side version
+     *             matching the provided one.
+     *             See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will indicate that the keys have been removed. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
@@ -146,25 +149,4 @@ public interface TableSegment extends AutoCloseable {
 
     @Override
     void close();
-
-    /**
-     * An iteration result item returned by {@link AsyncIterator} when invoking {@link #entryIterator(int, IteratorState)} or
-     * {@link #keyIterator(int, IteratorState)}.
-     *
-     * @param <T> Iterator Item type.
-     */
-    @Data
-    class IteratorItem<T> {
-        /**
-         * Gets an {@link IteratorState} that can be used to reinvoke {@link TableSegment#entryIterator(int, IteratorState)} or
-         * {@link TableSegment#keyIterator(int, IteratorState)}if a previous iteration has been interrupted (by losing the
-         * pointer to the {@link AsyncIterator}), system restart, etc.
-         */
-        private final IteratorState state;
-        /**
-         * A List of items that are contained in this instance. The items in this list are not necessarily related to each
-         * other, nor are they guaranteed to be in any particular order.
-         */
-        private final List<T> items;
-    }
 }

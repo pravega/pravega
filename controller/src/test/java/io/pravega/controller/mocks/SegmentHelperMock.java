@@ -11,9 +11,9 @@ package io.pravega.controller.mocks;
 
 import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.impl.IteratorStateImpl;
-import io.pravega.client.tables.impl.TableSegment;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -310,7 +310,7 @@ public class SegmentHelperMock {
                         byte[] continuationToken = new byte[Long.BYTES];
                         BitConverter.writeLong(continuationToken, 0, token.get());
                         IteratorStateImpl newState = new IteratorStateImpl(Unpooled.wrappedBuffer(continuationToken));
-                        return new TableSegment.IteratorItem<>(newState, list);
+                        return new IteratorItem<>(newState, list);
                     }
                 }
             }, executor);
@@ -349,7 +349,7 @@ public class SegmentHelperMock {
                         byte[] continuationToken = new byte[Long.BYTES];
                         BitConverter.writeLong(continuationToken, 0, token.get());
                         IteratorStateImpl newState = new IteratorStateImpl(Unpooled.wrappedBuffer(continuationToken));
-                        return new TableSegment.IteratorItem<>(newState, list);
+                        return new IteratorItem<>(newState, list);
                     }
                 }
             }, executor);

@@ -9,21 +9,24 @@
  */
 package io.pravega.client.tables;
 
+import lombok.Data;
+import lombok.NonNull;
+
 /**
  * A Table Key with a Version.
  *
  * @param <KeyT> Type of the Key.
  */
-public interface TableKey<KeyT> {
+@Data
+public class TableKey<KeyT> {
     /**
      * The Key.
-     * @return key.
      */
-    KeyT getKey();
+    @NonNull
+    private final KeyT key;
 
     /**
      * The Version. If null, any updates for this Key will be unconditional.
-     * @return {@link KeyVersion}.
      */
-    KeyVersion getVersion();
+    private final KeyVersion version;
 }

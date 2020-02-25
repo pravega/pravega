@@ -9,22 +9,25 @@
  */
 package io.pravega.client.tables;
 
+import lombok.Data;
+import lombok.NonNull;
+
 /**
  * A Table Entry with a Version.
  *
  * @param <KeyT>   Key Type.
  * @param <ValueT> Value Type
  */
-public interface TableEntry<KeyT, ValueT> {
+@Data
+public class TableEntry<KeyT, ValueT> {
     /**
      * The Key.
-     * @return {@link TableKey}
      */
-    TableKey<KeyT> getKey();
+    @NonNull
+    private final TableKey<KeyT> key;
 
     /**
      * The Value.
-     * @return Value.
      */
-    ValueT getValue();
+    private final ValueT value;
 }
