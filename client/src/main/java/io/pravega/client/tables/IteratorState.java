@@ -14,14 +14,21 @@ import io.netty.buffer.Unpooled;
 import io.pravega.client.tables.impl.IteratorStateImpl;
 
 /**
- * Defines the state of a resumable iterator.
+ * Defines the state of a resumable iterator. Such an iterator can be executed asynchronously and continued after an
+ * interruption. Each iteration will result in a new request to the server (which is stateless). The entire state of
+ * the iterator is encoded in this object and is non-transferable between different types of iterations. The server will
+ * use the information within it to decide what to return for the next iteration call.
  */
 public interface IteratorState {
-
+    /**
+     * No state. Providing this value will result in an iterator that starts from the beginning (i.e., not resuming an
+     * existing iteration).
+     */
     IteratorState EMPTY = new IteratorStateImpl(Unpooled.EMPTY_BUFFER);
 
     /**
-     * Serializes the IteratorState instance to a compact byte array.
+     * Serializes the IteratorState instance to a compact buffer.
+     *
      * @return byte representation..
      */
     ByteBuf toBytes();

@@ -397,7 +397,7 @@ public class SegmentHelper implements AutoCloseable {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.UpdateTableEntries.class, type);
                     return ((WireCommands.TableEntriesUpdated) rpl)
                             .getUpdatedVersions().stream()
-                            .map(TableSegmentKeyVersion::new).collect(Collectors.toList());
+                            .map(TableSegmentKeyVersion::from).collect(Collectors.toList());
                 });
     }
 

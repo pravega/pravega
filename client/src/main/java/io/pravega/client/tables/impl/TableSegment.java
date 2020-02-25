@@ -23,16 +23,16 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Defines all operations that are supported on a Table Segment.
- * <p>
+ *
  * Types of updates:
  * * Unconditional Updates will insert and/or overwrite any existing values for the given Key, regardless of whether that Key
  * previously existed or not, and regardless of what that Key's version is.
  * * Conditional Updates will only overwrite an existing value if the specified version matches that Key's version. If
- * the key does not exist, the {@link TableKey} or {@link TableEntry} must have been created with
+ * the key does not exist, the {@link TableSegmentKey} or {@link TableSegmentEntry} must have been created with
  * {@link TableSegmentKeyVersion#NOT_EXISTS} in order for the update to succeed.
  * * Unconditional Removals will remove a Key regardless of what that Key's version is. The operation will also succeed (albeit
  * with no effect) if the Key does not exist.
- * * Conditional Removals will remove a Key only if the specified {@link TableKey#getVersion()} matches that Key's version.
+ * * Conditional Removals will remove a Key only if the specified {@link TableSegmentKey#getVersion()} matches that Key's version.
  * It will also fail (with no effect) if the Key does not exist and Version is not set to
  * {@link TableSegmentKeyVersion#NOT_EXISTS}.
  */
@@ -68,7 +68,6 @@ public interface TableSegment extends AutoCloseable {
      * and the versions will be in the same order as the entries. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Update and the condition was not satisfied.
-     * This exception will contain the Keys that failed the validation.
      * </ul>
      */
     CompletableFuture<List<TableSegmentKeyVersion>> put(List<TableSegmentEntry> entries);
@@ -99,7 +98,6 @@ public interface TableSegment extends AutoCloseable {
      * @return A CompletableFuture that, when completed, will indicate that the keys have been removed. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
-     * This exception will contain the Keys that failed the validation.
      * </ul>
      */
     CompletableFuture<Void> remove(Collection<TableSegmentKey> keys);

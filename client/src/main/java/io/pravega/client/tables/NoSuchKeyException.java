@@ -10,13 +10,14 @@
 package io.pravega.client.tables;
 
 /**
- * Exception that is thrown whenever a conditional table update failed due to the key not existing.
+ * Exception that is thrown whenever a conditional {@link KeyValueTable} update failed due to the key not existing.
+ * This is different from {@link BadKeyVersionException}.
  */
 public class NoSuchKeyException extends ConditionalTableUpdateException {
     /**
      * Creates a new instance of the {@link NoSuchKeyException} class.
      *
-     * @param tableName The name of the Table affected.
+     * @param tableName The name of the {@link KeyValueTable} affected.
      */
     public NoSuchKeyException(String tableName) {
         super(tableName);

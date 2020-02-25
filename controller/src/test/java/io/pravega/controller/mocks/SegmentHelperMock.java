@@ -190,7 +190,7 @@ public class SegmentHelperMock {
                                             WireCommandFailedException.Reason.TableKeyDoesNotExist);
                                 }
                             } else if (existingEntry.getKey().getVersion().equals(entry.getKey().getVersion())) {
-                                TableSegmentKeyVersion newVersion = new TableSegmentKeyVersion(
+                                TableSegmentKeyVersion newVersion = TableSegmentKeyVersion.from(
                                         existingEntry.getKey().getVersion().getSegmentVersion() + 1);
                                 TableSegmentEntry newEntry = TableSegmentEntry.versioned(key.array(), value, newVersion.getSegmentVersion());
                                 table.put(key, newEntry);

@@ -13,7 +13,7 @@ import lombok.Data;
 import lombok.NonNull;
 
 /**
- * A Table Entry with a Version.
+ * A {@link KeyValueTable} Entry.
  *
  * @param <KeyT>   Key Type.
  * @param <ValueT> Value Type
@@ -21,7 +21,7 @@ import lombok.NonNull;
 @Data
 public class TableEntry<KeyT, ValueT> {
     /**
-     * The Key.
+     * The {@link TableKey}.
      */
     @NonNull
     private final TableKey<KeyT> key;

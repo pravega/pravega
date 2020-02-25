@@ -63,7 +63,7 @@ public class TableSegmentKey {
      * @return An versioned {@link TableSegmentKey}.
      */
     public static TableSegmentKey versioned(ByteBuf key, long version) {
-        return new TableSegmentKey(key, new TableSegmentKeyVersion(version));
+        return new TableSegmentKey(key, TableSegmentKeyVersion.from(version));
     }
 
     /**

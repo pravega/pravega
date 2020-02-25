@@ -23,7 +23,7 @@ public class TableSegmentKeyVersionTest {
 
     @Test
     public void testKeyVersionSerialization() throws Exception {
-        TableSegmentKeyVersion kv = new TableSegmentKeyVersion(5L);
+        TableSegmentKeyVersion kv = TableSegmentKeyVersion.from(5L);
         assertEquals(kv, TableSegmentKeyVersion.fromBytes(kv.toBytes()));
         byte[] buf = serialize(kv);
         assertEquals(kv, deSerializeKeyVersion(buf));

@@ -433,9 +433,9 @@ public class SegmentHelperTest {
                 TableSegmentEntry.unversioned("k1".getBytes(), "v".getBytes()),
                 TableSegmentEntry.versioned("k2".getBytes(), "v".getBytes(), 10L));
 
-        List<TableSegmentKeyVersion> expectedVersions = Arrays.asList(new TableSegmentKeyVersion(0L),
-                new TableSegmentKeyVersion(1L),
-                new TableSegmentKeyVersion(11L));
+        List<TableSegmentKeyVersion> expectedVersions = Arrays.asList(TableSegmentKeyVersion.from(0L),
+                TableSegmentKeyVersion.from(1L),
+                TableSegmentKeyVersion.from(11L));
 
         // On receiving TableEntriesUpdated.
         CompletableFuture<List<TableSegmentKeyVersion>> result = helper.updateTableEntries("", entries, "", System.nanoTime());

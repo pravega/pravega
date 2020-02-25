@@ -71,7 +71,7 @@ public class TableSegmentEntry {
      * @return An versioned {@link TableSegmentEntry}.
      */
     public static TableSegmentEntry versioned(ByteBuf key, ByteBuf value, long version) {
-        return new TableSegmentEntry(new TableSegmentKey(key, new TableSegmentKeyVersion(version)), value);
+        return new TableSegmentEntry(new TableSegmentKey(key, TableSegmentKeyVersion.from(version)), value);
     }
 
     /**

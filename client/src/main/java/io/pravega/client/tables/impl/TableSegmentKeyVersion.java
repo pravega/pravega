@@ -32,7 +32,6 @@ import lombok.SneakyThrows;
 @Getter
 @EqualsAndHashCode
 public class TableSegmentKeyVersion implements Serializable {
-
     /**
      * A special KeyVersion which indicates the Key must not exist when performing Conditional Updates.
      */
@@ -46,8 +45,25 @@ public class TableSegmentKeyVersion implements Serializable {
     private final long segmentVersion;
 
     @Builder
-    public TableSegmentKeyVersion(long segmentVersion) {
+    private TableSegmentKeyVersion(long segmentVersion) {
         this.segmentVersion = segmentVersion;
+    }
+
+    /**
+     * Creates a new {@link TableSegmentKeyVersion} from the given value, or returns {@link #NO_VERSION} or
+     * {@link #NOT_EXISTS} if the given value is a special version.
+     *
+     * @param segmentVersion The segment version to wrap.
+     * @return A {@link TableSegmentKeyVersion} instance.
+     */
+    public static TableSegmentKeyVersion from(long segmentVersion) {
+        if (segmentVersion == NOT_EXISTS.getSegmentVersion()) {
+            return NOT_EXISTS;
+        } else if (segmentVersion == NO_VERSION.getSegmentVersion()) {
+            return NO_VERSION;
+        }
+
+        return new TableSegmentKeyVersion(segmentVersion);
     }
 
     //region Serialization
