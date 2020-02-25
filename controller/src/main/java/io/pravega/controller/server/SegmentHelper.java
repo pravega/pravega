@@ -495,7 +495,7 @@ public class SegmentHelper implements AutoCloseable {
         final IteratorState token = (state == null) ? IteratorState.EMPTY : state;
 
         WireCommands.ReadTableKeys request = new WireCommands.ReadTableKeys(requestId, tableName, delegationToken, suggestedKeyCount,
-                token.toBytes());
+                token.getToken());
         return sendRequest(connection, requestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableKeys.class, type);
@@ -533,7 +533,7 @@ public class SegmentHelper implements AutoCloseable {
         final IteratorState token = (state == null) ? IteratorState.EMPTY : state;
 
         WireCommands.ReadTableEntries request = new WireCommands.ReadTableEntries(requestId, tableName, delegationToken,
-                suggestedEntryCount, token.toBytes());
+                suggestedEntryCount, token.getToken());
         return sendRequest(connection, requestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableEntries.class, type);
