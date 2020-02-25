@@ -12,7 +12,6 @@ package io.pravega.client.tables.impl;
 import io.netty.buffer.ByteBuf;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.common.util.AsyncIterator;
@@ -138,24 +137,18 @@ public interface TableSegment extends AutoCloseable {
     /**
      * Creates a new Iterator over all the Keys in the Table Segment.
      *
-     * @param maxKeysAtOnce The maximum number of entries to return with each call to {@link AsyncIterator#getNext()}.
-     * @param state         An {@link IteratorState} that represents a continuation token that can be used to resume a
-     *                      previously interrupted iteration. This can be obtained by invoking {@link IteratorItem#getState()}.
-     *                      A null value will create an iterator that lists all keys.
+     * @param args A {@link IteratorArgs} that can be used to configure the iterator.
      * @return An {@link AsyncIterator} that can be used to iterate over all the Keys in this Table Segment.
      */
-    AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(int maxKeysAtOnce, IteratorState state);
+    AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(IteratorArgs args);
 
     /**
      * Creates a new Iterator over all the Entries in the Table Segment.
      *
-     * @param maxEntriesAtOnce The maximum number of entries to return with each call to {@link AsyncIterator#getNext()}.
-     * @param state            An {@link IteratorState} that represents a continuation token that can be used to resume
-     *                         a previously interrupted iteration. This can be obtained by invoking
-     *                         {@link IteratorItem#getState()}. A null value will create an iterator that lists all Entries.
+     * @param args A {@link IteratorArgs} that can be used to configure the iterator.
      * @return An {@link AsyncIterator} that can be used to iterate over all the Entries in this Table Segment.
      */
-    AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(int maxEntriesAtOnce, IteratorState state);
+    AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(IteratorArgs args);
 
     @Override
     void close();
