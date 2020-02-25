@@ -12,7 +12,6 @@ package io.pravega.client.tables.impl;
 import io.netty.buffer.ByteBuf;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.common.util.AsyncIterator;
@@ -35,6 +34,18 @@ import java.util.concurrent.CompletableFuture;
  * * Conditional Removals will remove a Key only if the specified {@link TableSegmentKey#getVersion()} matches that Key's version.
  * It will also fail (with no effect) if the Key does not exist and Version is not set to
  * {@link TableSegmentKeyVersion#NOT_EXISTS}.
+ *
+ * A note about {@link ByteBuf}s. All the methods defined in this interface make use of {@link ByteBuf} either directly
+ * or via {@link TableSegmentKey}/{@link TableSegmentEntry}. It is expected that no implementation of the {@link TableSegment}
+ * interface will either retain ({@link ByteBuf#retain()) or release ({@link ByteBuf#release()}) these buffers during
+ * execution. The lifecycle of these buffers should be maintained externally by the calling code, using the following
+ * guidelines:
+ * * For methods that accept externally-provided {@link ByteBuf}s, the calling code should call {@link ByteBuf#retain()}
+ * prior to invoking the method on {@link TableSegment) and should invoke {@link ByteBuf#release()} afterwards.
+ * * For methods that return internally-generated {@link} ByteBuf}s (such as {@link} #get), the calling code should
+ * invoke {@link ByteBuf#release()} as soon as it is done with processing the result. If the result needs to be held onto
+ * for a longer duration, the caller should make a copy of it and release the {@link ByteBuf} that was provided from the
+ * call.
  */
 public interface TableSegment extends AutoCloseable {
     /**
@@ -126,24 +137,18 @@ public interface TableSegment extends AutoCloseable {
     /**
      * Creates a new Iterator over all the Keys in the Table Segment.
      *
-     * @param maxKeysAtOnce The maximum number of entries to return with each call to {@link AsyncIterator#getNext()}.
-     * @param state         An {@link IteratorState} that represents a continuation token that can be used to resume a
-     *                      previously interrupted iteration. This can be obtained by invoking {@link IteratorItem#getState()}.
-     *                      A null value will create an iterator that lists all keys.
+     * @param args A {@link IteratorArgs} that can be used to configure the iterator.
      * @return An {@link AsyncIterator} that can be used to iterate over all the Keys in this Table Segment.
      */
-    AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(int maxKeysAtOnce, IteratorState state);
+    AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(IteratorArgs args);
 
     /**
      * Creates a new Iterator over all the Entries in the Table Segment.
      *
-     * @param maxEntriesAtOnce The maximum number of entries to return with each call to {@link AsyncIterator#getNext()}.
-     * @param state            An {@link IteratorState} that represents a continuation token that can be used to resume
-     *                         a previously interrupted iteration. This can be obtained by invoking
-     *                         {@link IteratorItem#getState()}. A null value will create an iterator that lists all Entries.
+     * @param args A {@link IteratorArgs} that can be used to configure the iterator.
      * @return An {@link AsyncIterator} that can be used to iterate over all the Entries in this Table Segment.
      */
-    AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(int maxEntriesAtOnce, IteratorState state);
+    AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(IteratorArgs args);
 
     @Override
     void close();
