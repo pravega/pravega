@@ -10,13 +10,14 @@
 package io.pravega.client.tables;
 
 /**
- * Exception that is thrown whenever a conditional table update failed due to the provided key version mismatching.
+ * Exception that is thrown whenever a conditional {@link KeyValueTable} update failed due to the provided key version
+ * mismatching. This is different from {@link NoSuchKeyException}.
  */
 public class BadKeyVersionException extends ConditionalTableUpdateException {
     /**
      * Creates a new instance of the {@link BadKeyVersionException} class.
      *
-     * @param tableName The name of the Table affected.
+     * @param tableName The name of the {@link KeyValueTable} affected.
      */
     public BadKeyVersionException(String tableName) {
         super(tableName);

@@ -12,7 +12,7 @@ package io.pravega.client.tables;
 import lombok.Getter;
 
 /**
- * Exception that is thrown whenever a Conditional Update to a Table failed.
+ * Exception that is thrown whenever a Conditional Update to a {@link KeyValueTable} failed.
  */
 public abstract class ConditionalTableUpdateException extends Exception {
     private static final long serialVersionUID = 1L;
@@ -22,7 +22,7 @@ public abstract class ConditionalTableUpdateException extends Exception {
     /**
      * Creates a new instance of the {@link ConditionalTableUpdateException} class.
      *
-     * @param tableName The name of the Table for which the update failed.
+     * @param tableName The name of the {@link KeyValueTable} for which the update failed.
      */
     public ConditionalTableUpdateException(String tableName) {
         this(tableName, String.format("Conditional update failed for %s.", tableName));
@@ -31,7 +31,7 @@ public abstract class ConditionalTableUpdateException extends Exception {
     /**
      * Creates a new instance of the {@link ConditionalTableUpdateException} class.
      *
-     * @param tableName The name of the Table for which the update failed.
+     * @param tableName The name of the {@link KeyValueTable} for which the update failed.
      * @param message   Error message.
      */
     public ConditionalTableUpdateException(String tableName, String message) {
