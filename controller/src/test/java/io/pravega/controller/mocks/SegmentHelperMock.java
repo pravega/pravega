@@ -13,7 +13,6 @@ import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
-import io.pravega.client.tables.impl.IteratorStateImpl;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -296,7 +295,7 @@ public class SegmentHelperMock {
                         if (state.equals(IteratorState.EMPTY)) {
                             floor = 0L;
                         } else {
-                            floor = BitConverter.readLong(state.toBytes().array(), 0);
+                            floor = BitConverter.readLong(state.getToken().array(), 0);
                         }
                         AtomicLong token = new AtomicLong(floor);
                         List<TableSegmentKey> list = tablePos.entrySet().stream()
@@ -309,7 +308,7 @@ public class SegmentHelperMock {
                                                              .limit(limit).collect(Collectors.toList());
                         byte[] continuationToken = new byte[Long.BYTES];
                         BitConverter.writeLong(continuationToken, 0, token.get());
-                        IteratorStateImpl newState = new IteratorStateImpl(Unpooled.wrappedBuffer(continuationToken));
+                        IteratorState newState = new IteratorState(Unpooled.wrappedBuffer(continuationToken));
                         return new IteratorItem<>(newState, list);
                     }
                 }
@@ -335,7 +334,7 @@ public class SegmentHelperMock {
                         if (state.equals(IteratorState.EMPTY)) {
                             floor = 0L;
                         } else {
-                            floor = BitConverter.readLong(state.toBytes().array(), 0);
+                            floor = BitConverter.readLong(state.getToken().array(), 0);
                         }
                         AtomicLong token = new AtomicLong(floor);
                         List<TableSegmentEntry> list = tablePos.entrySet().stream()
@@ -348,7 +347,7 @@ public class SegmentHelperMock {
                                                                .limit(limit).collect(Collectors.toList());
                         byte[] continuationToken = new byte[Long.BYTES];
                         BitConverter.writeLong(continuationToken, 0, token.get());
-                        IteratorStateImpl newState = new IteratorStateImpl(Unpooled.wrappedBuffer(continuationToken));
+                        IteratorState newState = new IteratorState(Unpooled.wrappedBuffer(continuationToken));
                         return new IteratorItem<>(newState, list);
                     }
                 }

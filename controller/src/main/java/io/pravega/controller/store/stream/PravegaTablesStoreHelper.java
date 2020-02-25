@@ -422,7 +422,7 @@ public class PravegaTablesStoreHelper {
                                      List<String> items = result.getItems().stream().map(x -> new String(getArray(x.getKey()), Charsets.UTF_8))
                                                                 .collect(Collectors.toList());
                                      log.trace("get keys paginated on table {} returned items {}", tableName, items);
-                                     return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
+                                     return new AbstractMap.SimpleEntry<>(result.getState().getToken(), items);
                                  } finally {
                                      releaseKeys(result.getItems());
                                  }
@@ -455,7 +455,7 @@ public class PravegaTablesStoreHelper {
                             return new AbstractMap.SimpleEntry<>(key, value);
                         }).collect(Collectors.toList());
                         log.trace("get keys paginated on table {} returned number of items {}", tableName, items.size());
-                        return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
+                        return new AbstractMap.SimpleEntry<>(result.getState().getToken(), items);
                     } finally {
                         releaseEntries(result.getItems());
                     }
@@ -473,7 +473,7 @@ public class PravegaTablesStoreHelper {
                     token.release();
                     return new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue());
                 }, executor),
-                IteratorState.EMPTY.toBytes());
+                IteratorState.EMPTY.getToken());
     }
 
     /**
@@ -489,7 +489,7 @@ public class PravegaTablesStoreHelper {
                     token.release();
                     return new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue());
                 }, executor),
-                IteratorState.EMPTY.toBytes());
+                IteratorState.EMPTY.getToken());
     }
 
     <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
