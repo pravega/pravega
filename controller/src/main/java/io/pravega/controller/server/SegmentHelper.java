@@ -18,8 +18,8 @@ import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
-import io.pravega.client.tables.impl.TableSegment;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -481,11 +481,11 @@ public class SegmentHelper implements AutoCloseable {
      * @param clientRequestId   Request id.
      * @return A CompletableFuture that will return the next set of {@link TableSegmentKey}s returned from the SegmentStore.
      */
-    public CompletableFuture<TableSegment.IteratorItem<TableSegmentKey>> readTableKeys(final String tableName,
-                                                                                       final int suggestedKeyCount,
-                                                                                       final IteratorState state,
-                                                                                       final String delegationToken,
-                                                                                       final long clientRequestId) {
+    public CompletableFuture<IteratorItem<TableSegmentKey>> readTableKeys(final String tableName,
+                                                                          final int suggestedKeyCount,
+                                                                          final IteratorState state,
+                                                                          final String delegationToken,
+                                                                          final long clientRequestId) {
 
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
@@ -504,7 +504,7 @@ public class SegmentHelper implements AutoCloseable {
                     final List<TableSegmentKey> keys =
                             tableKeysRead.getKeys().stream().map(k -> TableSegmentKey.versioned(k.getData(),
                                     k.getKeyVersion())).collect(Collectors.toList());
-                    return new TableSegment.IteratorItem<>(newState, keys);
+                    return new IteratorItem<>(newState, keys);
                 });
     }
 
@@ -519,11 +519,11 @@ public class SegmentHelper implements AutoCloseable {
      * @return A CompletableFuture that will return the next set of {@link TableSegmentEntry} instances returned from the
      * SegmentStore.
      */
-    public CompletableFuture<TableSegment.IteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
-                                                                                            final int suggestedEntryCount,
-                                                                                            final IteratorState state,
-                                                                                            final String delegationToken,
-                                                                                            final long clientRequestId) {
+    public CompletableFuture<IteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
+                                                                               final int suggestedEntryCount,
+                                                                               final IteratorState state,
+                                                                               final String delegationToken,
+                                                                               final long clientRequestId) {
 
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
@@ -547,7 +547,7 @@ public class SegmentHelper implements AutoCloseable {
                                                         e.getValue().getData(),
                                                         k.getKeyVersion());
                                             }).collect(Collectors.toList());
-                    return new TableSegment.IteratorItem<>(newState, entries);
+                    return new IteratorItem<>(newState, entries);
                 });
     }
 

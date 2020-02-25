@@ -15,9 +15,9 @@ import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.impl.IteratorStateImpl;
-import io.pravega.client.tables.impl.TableSegment;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -557,7 +557,7 @@ public class SegmentHelperTest {
                 TableSegmentKey.versioned(key2, 2L),
                 TableSegmentKey.versioned(key3, 10L));
 
-        CompletableFuture<TableSegment.IteratorItem<TableSegmentKey>> result = helper.readTableKeys("", 3,
+        CompletableFuture<IteratorItem<TableSegmentKey>> result = helper.readTableKeys("", 3,
                 IteratorState.EMPTY,
                 "", System.nanoTime());
 
@@ -615,7 +615,7 @@ public class SegmentHelperTest {
                 TableSegmentEntry.versioned(key2, value, 10L),
                 TableSegmentEntry.versioned(key3, value, 10L));
 
-        CompletableFuture<TableSegment.IteratorItem<TableSegmentEntry>> result = helper.readTableEntries("", 3,
+        CompletableFuture<IteratorItem<TableSegmentEntry>> result = helper.readTableEntries("", 3,
                 null,
                 "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
