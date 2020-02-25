@@ -45,7 +45,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -198,7 +197,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
                 this::entryEquals);
     }
 
-    private <T> void testIterator(BiFunction<Integer, IteratorState, AsyncIterator<IteratorItem<T>>> newIterator,
+    private <T> void testIterator(Function<IteratorArgs, AsyncIterator<IteratorItem<T>>> newIterator,
                                   Supplier<ByteBuf> getLastRequestContinuationToken,
                                   Function<TableSegmentEntry, T> getItemFromEntry,
                                   BiConsumer<List<T>, ByteBuf> sendReply,
@@ -218,7 +217,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         Function<ByteBuf, Integer> parseContinuationToken = token -> Integer.parseInt(new String(token.array()));
 
         // Check regular iteration.
-        val iterator = newIterator.apply(suggestedKeyCount, null);
+        val iterator = newIterator.apply(IteratorArgs.builder().maxItemsAtOnce(suggestedKeyCount).build());
         for (int i = 0; i < inputEntries.size(); i++) {
             val iteratorFuture = iterator.getNext();
 
@@ -249,7 +248,10 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
 
         // Check new iterator with pre-existing state.
         final ByteBuf resumeToken = generateContinuationToken.apply(2);
-        val resumeIterator = newIterator.apply(suggestedKeyCount, IteratorState.fromBytes(resumeToken));
+        val resumeIterator = newIterator.apply(IteratorArgs.builder()
+                .maxItemsAtOnce(suggestedKeyCount)
+                .state(IteratorState.fromBytes(resumeToken))
+                .build());
         val resumeFuture = resumeIterator.getNext();
         val resumeRequestToken = getLastRequestContinuationToken.get();
         Assert.assertEquals("Unexpected token sent (resume iterator).", 0, resumeToken.compareTo(resumeRequestToken));
@@ -302,7 +304,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
                     });
 
             // Iterators. It is sufficient to test one of them,
-            testConnectionFailure(ts -> ts.entryIterator(1, null).getNext(), fr,
+            testConnectionFailure(ts -> ts.entryIterator(IteratorArgs.builder().maxItemsAtOnce(1).build()).getNext(), fr,
                     requestId -> new WireCommands.TableEntriesRead(requestId, SEGMENT_NAME, toWireEntries(entries, null), Unpooled.wrappedBuffer(new byte[1])),
                     result -> AssertExtensions.assertListEquals("", entries, result.getItems(), this::entryEquals));
         }

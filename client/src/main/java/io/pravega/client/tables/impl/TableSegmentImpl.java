@@ -126,19 +126,19 @@ public class TableSegmentImpl implements TableSegment {
     }
 
     @Override
-    public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(int maxKeysAtOnce, IteratorState state) {
+    public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(@NonNull IteratorArgs args) {
         return new TableSegmentIterator<>(
-                s -> fetchIteratorItems(maxKeysAtOnce, s, WireCommands.ReadTableKeys::new, WireCommands.TableKeysRead.class,
+                s -> fetchIteratorItems(args.getMaxItemsAtOnce(), s, WireCommands.ReadTableKeys::new, WireCommands.TableKeysRead.class,
                         WireCommands.TableKeysRead::getContinuationToken, this::fromWireCommand),
-                state);
+                args.getState());
     }
 
     @Override
-    public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(int maxEntriesAtOnce, IteratorState state) {
+    public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(@NonNull IteratorArgs args) {
         return new TableSegmentIterator<>(
-                s -> fetchIteratorItems(maxEntriesAtOnce, s, WireCommands.ReadTableEntries::new, WireCommands.TableEntriesRead.class,
+                s -> fetchIteratorItems(args.getMaxItemsAtOnce(), s, WireCommands.ReadTableEntries::new, WireCommands.TableEntriesRead.class,
                         WireCommands.TableEntriesRead::getContinuationToken, reply -> fromWireCommand(reply.getEntries())),
-                state);
+                args.getState());
     }
 
     /**
