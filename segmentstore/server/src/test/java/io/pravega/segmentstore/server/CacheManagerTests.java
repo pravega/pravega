@@ -13,10 +13,10 @@ import com.google.common.collect.Iterators;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.cache.NoOpCache;
-import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -82,10 +82,20 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                 new CacheManager.CacheStatus(1, 10),
                 new CacheManager.CacheStatus(2, 11),
                 new CacheManager.CacheStatus(3, 9),
-                new CacheManager.CacheStatus(5, 5)));
+                new CacheManager.CacheStatus(5, 5),
+                new CacheManager.CacheStatus(CacheManager.CacheStatus.EMPTY_VALUE, CacheManager.CacheStatus.EMPTY_VALUE)));
         Assert.assertFalse("Unexpected isEmpty() when provided non-empty iterator.", nonEmpty.isEmpty());
         Assert.assertEquals("Unexpected OG when provided non-empty iterator.", 1, nonEmpty.getOldestGeneration());
         Assert.assertEquals("Unexpected NG when provided non-empty iterator.", 11, nonEmpty.getNewestGeneration());
+
+        val nonEmptyOfEmpties = CacheManager.CacheStatus.combine(Iterators.forArray(
+                new CacheManager.CacheStatus(CacheManager.CacheStatus.EMPTY_VALUE, CacheManager.CacheStatus.EMPTY_VALUE),
+                new CacheManager.CacheStatus(CacheManager.CacheStatus.EMPTY_VALUE, CacheManager.CacheStatus.EMPTY_VALUE)));
+        Assert.assertTrue("Unexpected isEmpty() when provided non-empty iterator of empty values.", nonEmptyOfEmpties.isEmpty());
+        Assert.assertEquals("Unexpected OG when provided non-empty iterator of empty values.",
+                CacheManager.CacheStatus.EMPTY_VALUE, nonEmptyOfEmpties.getOldestGeneration());
+        Assert.assertEquals("Unexpected NG when provided non-empty iterator of empty values.",
+                CacheManager.CacheStatus.EMPTY_VALUE, nonEmptyOfEmpties.getNewestGeneration());
     }
 
     /**

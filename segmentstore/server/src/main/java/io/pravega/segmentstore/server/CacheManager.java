@@ -512,19 +512,21 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
          * {@link #isEmpty()} set to true.
          */
         public static CacheStatus combine(Iterator<CacheStatus> cacheStates) {
-            if (!cacheStates.hasNext()) {
-                return new CacheStatus(EMPTY_VALUE, EMPTY_VALUE);
-            }
-
             int minGen = EMPTY_VALUE;
             int maxGen = 0;
+            int nonEmptyCount = 0;
             while (cacheStates.hasNext()) {
                 CacheStatus cs = cacheStates.next();
-                minGen = Math.min(minGen, cs.getOldestGeneration());
-                maxGen = Math.max(maxGen, cs.getNewestGeneration());
+                if (!cs.isEmpty()) {
+                    minGen = Math.min(minGen, cs.getOldestGeneration());
+                    maxGen = Math.max(maxGen, cs.getNewestGeneration());
+                    nonEmptyCount++;
+                }
             }
 
-            return new CacheManager.CacheStatus(minGen, maxGen);
+            return nonEmptyCount == 0
+                    ? new CacheStatus(EMPTY_VALUE, EMPTY_VALUE)
+                    : new CacheStatus(minGen, maxGen);
         }
 
         /**
