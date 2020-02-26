@@ -26,6 +26,7 @@ import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
@@ -59,10 +60,18 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @VisibleForTesting
     @Getter
     private final long requestId = Flow.create().asLong();
-    private final Semaphore dataAvailable;
+    private final Semaphore replyAvailable;
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
+        @Override
+        public void process(Reply reply) {
+            super.process(reply);
+            if (replyAvailable != null) {
+                replyAvailable.release();
+            }
+        }
+        
         @Override
         public void connectionDropped() {
             closeConnection(new ConnectionFailedException());
@@ -113,9 +122,6 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             if (future != null) {
                 future.complete(segmentRead);
             }
-            if (dataAvailable != null) {
-                dataAvailable.release();
-            }
         }
 
         private CompletableFuture<SegmentRead> grabFuture(String segment, long offset) {
@@ -154,7 +160,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         Preconditions.checkNotNull(segment);
         this.controller = controller;
         this.connectionFactory = connectionFactory;
-        this.dataAvailable = dataAvailable;
+        this.replyAvailable = dataAvailable;
     }
 
     @Override

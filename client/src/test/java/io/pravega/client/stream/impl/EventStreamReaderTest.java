@@ -420,6 +420,45 @@ public class EventStreamReaderTest {
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.doReturn(true).when(groupState).isCheckpointSilent(Mockito.eq(ReaderGroupImpl.SILENT + "Foo"));
         Mockito.when(groupState.getCheckpoint())
+               .thenReturn("Bar")
+               .thenReturn(ReaderGroupImpl.SILENT + "Foo")
+               .thenReturn(null);
+        EventRead<byte[]> eventRead = reader.readNextEvent(10000);
+        assertTrue(eventRead.isCheckpoint());
+        assertNull(eventRead.getEvent());
+        assertEquals("Bar", eventRead.getCheckpointName());
+        assertEquals(buffer, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
+        InOrder order = Mockito.inOrder(groupState);
+        order.verify(groupState).getCheckpoint();
+        order.verify(groupState).checkpoint(Mockito.eq("Bar"), Mockito.any());
+        order.verify(groupState).getCheckpoint();
+        order.verify(groupState).checkpoint(Mockito.eq(ReaderGroupImpl.SILENT + "Foo"), Mockito.any());
+        order.verify(groupState).getCheckpoint();
+        reader.close();
+    }
+    
+    @Test//(timeout = 10000)
+    public void testCheckpointFollowingSilentCheckpoint() throws SegmentSealedException, ReaderNotInReaderGroupException {
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        Orderer orderer = new Orderer();
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
+                                                                           new ByteArraySerializer(), groupState,
+                                                                           orderer, clock::get,
+                                                                           ReaderConfig.builder().build(),
+                                                                           createWatermarkReaders(),
+                                                                           Mockito.mock(Controller.class));
+        Segment segment = Segment.fromScopedName("Foo/Bar/0");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(eq(0L), any()))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment, 0, 1), 0L))
+               .thenReturn(Collections.emptyMap());
+        Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
+                writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
+        ByteBuffer buffer = writeInt(stream, 1);
+        Mockito.doReturn(true).when(groupState).isCheckpointSilent(Mockito.eq(ReaderGroupImpl.SILENT + "Foo"));
+        Mockito.when(groupState.getCheckpoint())
                .thenReturn(ReaderGroupImpl.SILENT + "Foo")
                .thenReturn("Bar")
                .thenReturn(null);
@@ -438,7 +477,7 @@ public class EventStreamReaderTest {
     }
     
     @Test(timeout = 10000)
-    public void testCheckpointFollowingSilentCheckpointFollowingCheckpoint() throws SegmentSealedException, ReaderNotInReaderGroupException {
+    public void testSilentCheckpointFollowingCheckpointFollowingSilentCheckpoint() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -467,9 +506,6 @@ public class EventStreamReaderTest {
         assertTrue(eventRead.isCheckpoint());
         assertNull(eventRead.getEvent());
         assertEquals("Bar", eventRead.getCheckpointName());
-        EventRead<byte[]> nullEvent = reader.readNextEvent(0);
-        assertNull(nullEvent.getEvent());
-        assertFalse(nullEvent.isCheckpoint());
         InOrder order = Mockito.inOrder(groupState);
         order.verify(groupState).getCheckpoint();
         order.verify(groupState).checkpoint(Mockito.eq(ReaderGroupImpl.SILENT + "Foo"), Mockito.any());
@@ -478,6 +514,53 @@ public class EventStreamReaderTest {
         order.verify(groupState).checkpoint(Mockito.eq("Bar"), Mockito.any());
         order.verify(groupState).getCheckpoint();
         order.verify(groupState).checkpoint(Mockito.eq(ReaderGroupImpl.SILENT + "Baz"), Mockito.any());
+        order.verify(groupState).findSegmentToReleaseIfRequired();
+        order.verify(groupState).getCheckpoint();
+        reader.close();
+    }
+    
+    @Test(timeout = 10000)
+    public void testCheckpointFollowingSilentCheckpointFollowingCheckpoint() throws SegmentSealedException, ReaderNotInReaderGroupException {
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        Orderer orderer = new Orderer();
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
+                                                                           new ByteArraySerializer(), groupState,
+                                                                           orderer, clock::get,
+                                                                           ReaderConfig.builder().build(),
+                                                                           createWatermarkReaders(),
+                                                                           Mockito.mock(Controller.class));
+        Segment segment = Segment.fromScopedName("Foo/Bar/0");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(eq(0L), any()))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment, 0, 1), 0L))
+               .thenReturn(Collections.emptyMap());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
+                                                                                       writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
+        ByteBuffer buffer = writeInt(stream, 1);
+        Mockito.doReturn(true).when(groupState).isCheckpointSilent(Mockito.startsWith(ReaderGroupImpl.SILENT));
+        Mockito.when(groupState.getCheckpoint())
+               .thenReturn("Foo")
+               .thenReturn(ReaderGroupImpl.SILENT + "Bar")
+               .thenReturn("Baz")
+               .thenReturn(null);
+        Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
+        EventRead<byte[]> eventRead = reader.readNextEvent(10000);
+        assertTrue(eventRead.isCheckpoint());
+        assertNull(eventRead.getEvent());
+        assertEquals("Foo", eventRead.getCheckpointName());
+        eventRead = reader.readNextEvent(0);
+        assertTrue(eventRead.isCheckpoint());
+        assertNull(eventRead.getEvent());
+        assertEquals("Baz", eventRead.getCheckpointName());
+        InOrder order = Mockito.inOrder(groupState);
+        order.verify(groupState).getCheckpoint();
+        order.verify(groupState).checkpoint(Mockito.eq("Foo"), Mockito.any());
+        assertEquals(buffer, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
+        order.verify(groupState).getCheckpoint();
+        order.verify(groupState).checkpoint(Mockito.eq(ReaderGroupImpl.SILENT + "Bar"), Mockito.any());
+        order.verify(groupState).getCheckpoint();
+        order.verify(groupState).checkpoint(Mockito.eq("Baz"), Mockito.any());
         order.verify(groupState).findSegmentToReleaseIfRequired();
         order.verify(groupState).getCheckpoint();
         reader.close();
@@ -563,6 +646,7 @@ public class EventStreamReaderTest {
         Mockito.when(segmentInputStream.getSegmentId()).thenReturn(segment);
         Mockito.when(segInputStreamFactory.createEventReaderForSegment(any(Segment.class), any(Semaphore.class), anyLong())).thenReturn(segmentInputStream);
         // Ensure segmentInputStream.read() returns SegmentTruncatedException.
+        Mockito.when(segmentInputStream.isSegmentReady()).thenReturn(true);
         Mockito.when(segmentInputStream.read(anyLong())).thenThrow(SegmentTruncatedException.class);
         // Ensure SegmentInfo returns NoSuchSegmentException.
         Mockito.when(metadataClient.getSegmentInfo()).thenThrow(NoSuchSegmentException.class);
@@ -599,7 +683,7 @@ public class EventStreamReaderTest {
         inOrder.verify(groupState).handleEndOfSegment(rangedSegment);
     }
     
-    @Test(timeout = 10000)
+    @Test//(timeout = 10000)
     public void testSegmentSplit() throws EndOfSegmentException, SegmentTruncatedException, SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
@@ -611,6 +695,7 @@ public class EventStreamReaderTest {
         Segment segment1 = Segment.fromScopedName("Foo/Bar/1");
         SegmentWithRange s1range = new SegmentWithRange(segment1, 0, 1);
         EventSegmentReader segmentInputStream1 = Mockito.mock(EventSegmentReader.class);
+        Mockito.when(segmentInputStream1.isSegmentReady()).thenReturn(true);
         Mockito.when(segmentInputStream1.read(anyLong())).thenThrow(new EndOfSegmentException(EndOfSegmentException.ErrorType.END_OF_SEGMENT_REACHED));
         Mockito.when(segmentInputStream1.getSegmentId()).thenReturn(segment1);
 

@@ -126,7 +126,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             }
             EventSegmentReader segmentReader = orderer.nextSegment(readers);
             if (segmentReader == null) {
-                Exceptions.handleInterrupted(() -> segmentsWithData.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS));
+                Exceptions.handleInterrupted(() -> segmentsWithData.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS)); //TODO: need to time out sooner so that group state can be checked.
                 segmentsWithData.drainPermits();
                 buffer = null;
             } else {
@@ -191,7 +191,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             releaseSegmentsIfNeeded(position);
         }
         String checkpoint = groupState.getCheckpoint();
-        if (checkpoint != null) {
+        while (checkpoint != null) {
             log.info("{} at checkpoint {}", this, checkpoint);
             if (groupState.isCheckpointSilent(checkpoint)) {
                 // Checkpoint the reader immediately with the current position. Checkpoint Event is not generated.
@@ -201,20 +201,19 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     releaseSegmentsIfNeeded(position);
                     atCheckpoint = null;
                 }
-                return null;
+                checkpoint = groupState.getCheckpoint();
             } else {
                 atCheckpoint = checkpoint;
                 return atCheckpoint;
             }
-        } else {
-            atCheckpoint = null;
-            if (acquireSegmentsIfNeeded(position) || groupState.updateLagIfNeeded(getLag(), position)) {
-                waterMarkReaders.forEach((stream, reader) -> {
-                    reader.advanceTo(groupState.getLastReadpositions(stream));
-                });
-            }
-            return null;
         }
+        atCheckpoint = null;
+        if (acquireSegmentsIfNeeded(position) || groupState.updateLagIfNeeded(getLag(), position)) {
+            waterMarkReaders.forEach((stream, reader) -> {
+                reader.advanceTo(groupState.getLastReadpositions(stream));
+            });
+        }
+        return null;
     }
 
     /**
@@ -269,6 +268,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     ranges.put(segment, newSegment.getKey().getRange());
                 }
             }
+            segmentsWithData.release();
             return true;
         }
         return false;
