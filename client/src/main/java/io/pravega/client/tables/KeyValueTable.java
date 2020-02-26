@@ -25,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
  * enables the Key-Value Table to be distributed across the Pravega cluster but also introduces some constraints for
  * certain operations (such as multi-key/entry atomic updates). See below for details.
  * <p>
- * >Key Families are used to group related Keys together in the same Table Partition, which allows multiple
+ * Key Families are used to group related Keys together in the same Table Partition, which allows multiple
  * keys/entries belonging to the same Key Family to be updated/removed atomically.
  * <ul>
  * <li> Multiple Keys/Entries in the same Key Family can be updated or removed atomically (either all at once or none).
@@ -85,6 +85,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * inserted or updated entry. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Update and the condition was not satisfied.
+     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
     CompletableFuture<KeyVersion> put(TableEntry<KeyT, ValueT> entry);
@@ -102,6 +103,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * inserted or updated entry. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Update and the condition was not satisfied.
+     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
     default CompletableFuture<KeyVersion> put(String keyFamily, TableEntry<KeyT, ValueT> entry) {
@@ -124,6 +126,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * and the versions will be in the same order as the entries. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Update and the condition was not satisfied.
+     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
     CompletableFuture<List<KeyVersion>> put(String keyFamily, List<TableEntry<KeyT, ValueT>> entries);
@@ -137,6 +140,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * @return A CompletableFuture that, when completed, will indicate the Key has been removed. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
+     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
     CompletableFuture<Void> remove(TableKey<KeyT> key);
@@ -151,6 +155,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * @return A CompletableFuture that, when completed, will indicate the Key has been removed. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
+     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
     default CompletableFuture<Void> remove(String keyFamily, TableKey<KeyT> key) {
@@ -170,6 +175,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * @return A CompletableFuture that, when completed, will indicate that the keys have been removed. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
+     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
     CompletableFuture<Void> remove(String keyFamily, Collection<TableKey<KeyT>> keys);
