@@ -45,7 +45,7 @@ import org.junit.rules.Timeout;
 public class CacheManagerTests extends ThreadPooledTestSuite {
     private static final int CLEANUP_TIMEOUT_MILLIS = 2000;
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(100000);
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     @Override
     protected int getThreadPoolSize() {
