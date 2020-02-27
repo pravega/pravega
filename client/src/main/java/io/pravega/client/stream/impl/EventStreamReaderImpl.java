@@ -59,6 +59,10 @@ import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END
 
 @Slf4j
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
+
+    // Base waiting time for a reader on an idle segment waiting for new data to be read.
+    private static final long BASE_READER_WAITING_TIME_MS = ReaderGroupStateManager.TIME_UNIT.toMillis();
+
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
     private final SegmentMetadataClientFactory metadataClientFactory;
@@ -115,6 +119,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
     
     private EventRead<Type> readNextEventInternal(long timeoutMillis) throws ReaderNotInReaderGroupException, TruncatedDataException {
+        long firstByteTimeoutMillis = Math.min(timeoutMillis, BASE_READER_WAITING_TIME_MS);
         Timer timer = new Timer();
         Segment segment = null;
         long offset = -1;
@@ -126,14 +131,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             }
             EventSegmentReader segmentReader = orderer.nextSegment(readers);
             if (segmentReader == null) {
-                Exceptions.handleInterrupted(() -> segmentsWithData.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS)); //TODO: need to time out sooner so that group state can be checked.
+                Exceptions.handleInterrupted(() -> segmentsWithData.tryAcquire(firstByteTimeoutMillis, TimeUnit.MILLISECONDS));
                 segmentsWithData.drainPermits();
                 buffer = null;
             } else {
                 segment = segmentReader.getSegmentId();
                 offset = segmentReader.getOffset();
                 try {
-                    buffer = segmentReader.read(timeoutMillis);
+                    buffer = segmentReader.read(firstByteTimeoutMillis);
                 } catch (EndOfSegmentException e) {
                     boolean isSegmentSealed = e.getErrorType().equals(END_OF_SEGMENT_REACHED);
                     handleEndOfSegment(segmentReader, isSegmentSealed);
