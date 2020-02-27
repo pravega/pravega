@@ -48,6 +48,7 @@ import lombok.extern.slf4j.Slf4j;
 public class CacheManager extends AbstractScheduledService implements AutoCloseable {
     //region Members
 
+    private static final String TRACE_OBJECT_ID = "CacheManager";
     @GuardedBy("lock")
     private final Collection<Client> clients;
     private final ScheduledExecutorService executorService;
@@ -120,11 +121,12 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             this.cacheStorage.close();
             long pendingBytes = this.utilizationProvider.getPendingBytes();
             if (pendingBytes > 0) {
-                log.error("Closing with {} outstanding bytes. This indicates a leak somewhere.", pendingBytes);
+                log.error("{}: Closing with {} outstanding bytes. This indicates a leak somewhere.",
+                        TRACE_OBJECT_ID, pendingBytes);
 
                 assert false : "CacheManager closed with " + pendingBytes + " outstanding bytes."; // This will fail any unit tests.
             }
-            log.info("Closed.");
+            log.info("{} Closed.", TRACE_OBJECT_ID);
         }
     }
 
@@ -170,7 +172,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             }
         }
 
-        log.info("Registered {}.", client);
+        log.info("{} Registered {}.", TRACE_OBJECT_ID, client);
     }
 
     /**
@@ -189,7 +191,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             this.clients.remove(client);
         }
 
-        log.info("Unregistered {}.", client);
+        log.info("{} Unregistered {}.", TRACE_OBJECT_ID, client);
     }
 
     //endregion
@@ -197,7 +199,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     //region Helpers
 
     private boolean cacheFullCallback() {
-        log.info("Cache full. Forcing cache policy.");
+        log.info("{}: Cache full. Forcing cache policy.", TRACE_OBJECT_ID);
         return applyCachePolicy();
     }
 
@@ -231,7 +233,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 throw ex;
             }
 
-            log.error("Error while applying cache policy.", ex);
+            log.error("{}: Error while applying cache policy.", TRACE_OBJECT_ID, ex);
             return false;
         }
     }
@@ -307,14 +309,14 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 }
             } catch (ObjectClosedException ex) {
                 // This object was closed but it was not unregistered. Do it now.
-                log.warn("Detected closed client {}.", c);
+                log.warn("{} Detected closed client {}.", TRACE_OBJECT_ID, c);
                 toUnregister.add(c);
                 continue;
             }
 
             if (clientStatus.oldestGeneration > cg || clientStatus.newestGeneration > cg) {
-                log.warn("Client {} returned status that is out of bounds {}. CurrentGeneration = {}, OldestGeneration = {}.",
-                        c, clientStatus, this.currentGeneration, this.oldestGeneration);
+                log.warn("{} Client {} returned status that is out of bounds {}. CurrentGeneration = {}, OldestGeneration = {}.",
+                        TRACE_OBJECT_ID, c, clientStatus, this.currentGeneration, this.oldestGeneration);
             }
 
             minGeneration = Math.min(minGeneration, clientStatus.oldestGeneration);
@@ -346,14 +348,14 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 reduced = c.updateGenerations(cg, og) | reduced;
             } catch (ObjectClosedException ex) {
                 // This object was closed but it was not unregistered. Do it now.
-                log.warn("Detected closed client {}.", c);
+                log.warn("{} Detected closed client {}.", TRACE_OBJECT_ID, c);
                 toUnregister.add(c);
             } catch (Throwable ex) {
                 if (Exceptions.mustRethrow(ex)) {
                     throw ex;
                 }
 
-                log.warn("Unable to update client {}.", c, ex);
+                log.warn("{} Unable to update client {}.", TRACE_OBJECT_ID, c, ex);
             }
         }
 
@@ -420,10 +422,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     @GuardedBy("lock")
     private void logCurrentStatus(CacheStatus status) {
-        log.info("Gen: {}-{}; Clients: {} ({}-{}); Cache: {}.",
-                this.currentGeneration, this.oldestGeneration,
-                this.clients.size(), status.getNewestGeneration(), status.getOldestGeneration(),
-                this.lastCacheState);
+        log.info("{}: Gen: {}-{}; Clients: {} ({}-{}); Cache: {}.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration,
+                this.clients.size(), status.getNewestGeneration(), status.getOldestGeneration(), this.lastCacheState);
     }
 
     private long getStoredBytes() {
