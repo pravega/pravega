@@ -49,7 +49,7 @@ public interface SegmentInputStreamFactory {
      * does not exist.
      *
      * @param segment The segment to create an input for.
-     * @param hasData A semephore that will have `release` called when data is available.
+     * @param hasData A Semaphore that will have `release` called when data is available.
      * @param endOffset The offset up to which the segment can be read.
      * @return New instance of the EventSegmentReader for reading.
      */
