@@ -13,10 +13,10 @@ import com.google.common.collect.Iterators;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.cache.NoOpCache;
-import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -82,10 +82,20 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                 new CacheManager.CacheStatus(1, 10),
                 new CacheManager.CacheStatus(2, 11),
                 new CacheManager.CacheStatus(3, 9),
-                new CacheManager.CacheStatus(5, 5)));
+                new CacheManager.CacheStatus(5, 5),
+                new CacheManager.CacheStatus(CacheManager.CacheStatus.EMPTY_VALUE, CacheManager.CacheStatus.EMPTY_VALUE)));
         Assert.assertFalse("Unexpected isEmpty() when provided non-empty iterator.", nonEmpty.isEmpty());
         Assert.assertEquals("Unexpected OG when provided non-empty iterator.", 1, nonEmpty.getOldestGeneration());
         Assert.assertEquals("Unexpected NG when provided non-empty iterator.", 11, nonEmpty.getNewestGeneration());
+
+        val nonEmptyOfEmpties = CacheManager.CacheStatus.combine(Iterators.forArray(
+                new CacheManager.CacheStatus(CacheManager.CacheStatus.EMPTY_VALUE, CacheManager.CacheStatus.EMPTY_VALUE),
+                new CacheManager.CacheStatus(CacheManager.CacheStatus.EMPTY_VALUE, CacheManager.CacheStatus.EMPTY_VALUE)));
+        Assert.assertTrue("Unexpected isEmpty() when provided non-empty iterator of empty values.", nonEmptyOfEmpties.isEmpty());
+        Assert.assertEquals("Unexpected OG when provided non-empty iterator of empty values.",
+                CacheManager.CacheStatus.EMPTY_VALUE, nonEmptyOfEmpties.getOldestGeneration());
+        Assert.assertEquals("Unexpected NG when provided non-empty iterator of empty values.",
+                CacheManager.CacheStatus.EMPTY_VALUE, nonEmptyOfEmpties.getNewestGeneration());
     }
 
     /**
@@ -245,6 +255,51 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                     expectedCallCount,
                     callCount.get());
         }
+    }
+
+    /**
+     * Tests the ability to auto-refresh the Cache Manager's Client status upon a successful eviction. The Cache Manager
+     * progressively increases the Old Generation until it is able to get the Cache Size below the Policy's Eviction Threshold
+     * or while any Cache Client still reports an Old Gen smaller than the oldest permissible one. We must verify that
+     * the Client Cache Status is indeed refreshed to prevent over-increasing this threshold which would result in excessive
+     * cache evictions.
+     */
+    @Test
+    public void testClientStatusRefresh() {
+        final int maxSize = 2048;
+        final int maxGenerationCount = 10;
+        final double targetUtilization = 0.5;
+        final double maxUtilization = 0.95;
+        final CachePolicy policy = new CachePolicy(maxSize, targetUtilization, maxUtilization, Duration.ofHours(maxGenerationCount), Duration.ofHours(1));
+        @Cleanup
+        val cache = new TestCache(policy.getMaxSize());
+        cache.setStoredBytes(1); // The Cache Manager won't do anything if there's no stored data.
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
+
+        // Use a single client (we tested multiple clients with Newest Generation).
+        TestClient client = new TestClient();
+        cm.register(client);
+
+        // First do a dry-run - we need this to make sure the current generation advances enough.
+        for (int cycleId = 0; cycleId < maxGenerationCount; cycleId++) {
+            client.setCacheStatus(0, cycleId);
+            client.setUpdateGenerationsImpl((current, oldest) -> false);
+            cm.applyCachePolicy();
+        }
+
+        cache.setUsedBytes(policy.getEvictionThreshold() + 1);
+        client.setCacheStatus(0, maxGenerationCount);
+        AtomicInteger callCount = new AtomicInteger();
+        client.setUpdateGenerationsImpl((current, oldest) -> {
+            client.setCacheStatus(oldest, current); // Update the client's cache status to reflect a full eviction.
+            cache.setUsedBytes(policy.getEvictionThreshold() - 1); // Reduce the cache size to something below the threshold.
+            callCount.incrementAndGet();
+            return true;
+        });
+
+        cm.applyCachePolicy();
+        Assert.assertEquals("Not expecting multiple attempts at eviction.", 1, callCount.get());
     }
 
     /**
