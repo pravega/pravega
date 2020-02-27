@@ -85,7 +85,7 @@ public class AsyncSegmentInputStreamTest {
         }).doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                connectionFactory.getProcessor(endpoint).segmentRead(segmentRead);
+                connectionFactory.getProcessor(endpoint).process(segmentRead);
                 return null;
             }
         }).when(c).sendAsync(any(ReadSegment.class), any(ClientConnection.CompletedCallback.class));
@@ -133,7 +133,7 @@ public class AsyncSegmentInputStreamTest {
         }).doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                connectionFactory.getProcessor(endpoint).segmentRead(segmentRead);
+                connectionFactory.getProcessor(endpoint).process(segmentRead);
                 return null;
             }
         }).when(c).sendAsync(any(ReadSegment.class), any(ClientConnection.CompletedCallback.class));
@@ -196,7 +196,7 @@ public class AsyncSegmentInputStreamTest {
         }).doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) {
-                mockedCF.getProcessor(endpoint).segmentRead(segmentRead);
+                mockedCF.getProcessor(endpoint).process(segmentRead);
                 return null;
             }
         }).when(c).sendAsync(any(ReadSegment.class), callBackCaptor.capture());
@@ -262,7 +262,7 @@ public class AsyncSegmentInputStreamTest {
         assertEquals(0, dataAvailable.availablePermits());
         AssertExtensions.assertBlocks(() -> readFuture.get(), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-            processor.segmentRead(segmentRead);            
+            processor.process(segmentRead);            
         });
         assertEquals(1, dataAvailable.availablePermits());
         verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId())),
@@ -295,7 +295,7 @@ public class AsyncSegmentInputStreamTest {
         //verify that a response from Segment store completes the readFuture and the future completes with SegmentTruncatedException.
         AssertExtensions.assertBlocks(() -> assertThrows(SegmentTruncatedException.class, () -> readFuture.get()), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-            processor.segmentIsTruncated(segmentIsTruncated);
+            processor.process(segmentIsTruncated);
         });
         verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId())),
                             Mockito.any(ClientConnection.CompletedCallback.class));
@@ -336,8 +336,8 @@ public class AsyncSegmentInputStreamTest {
         assertEquals(0, dataAvailable.availablePermits());
         AssertExtensions.assertBlocks(() -> readFuture.get(), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-            processor.segmentRead(new WireCommands.SegmentRead(segment.getScopedName(), 1235, false, false, ByteBuffer.wrap(bad), in.getRequestId()));
-            processor.segmentRead(new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBuffer.wrap(good), in.getRequestId()));
+            processor.process(new WireCommands.SegmentRead(segment.getScopedName(), 1235, false, false, ByteBuffer.wrap(bad), in.getRequestId()));
+            processor.process(new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBuffer.wrap(good), in.getRequestId()));
         });
         assertEquals(2, dataAvailable.availablePermits());
         verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId() )),
