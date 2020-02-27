@@ -179,24 +179,8 @@ public class CompositeByteArraySegment implements CompositeArrayView {
 
     @Override
     public byte[] getCopy() {
-        // This method is a special instance of collect(), however we can optimize it since we can skip over unallocated
-        // components without having to create a dummy one.
-        int startId = getArrayId(0);
-        int endId = getArrayId(this.length - 1);
         byte[] result = new byte[this.length];
-        int resultOffset = 0;
-        int arrayOffset = getArrayOffset(resultOffset); // The first array may need an offset, if this.startOffset > 0.
-        for (int i = startId; i <= endId; i++) {
-            byte[] array = getArray(i, false); // Don't allocate array if not allocated yet.
-            int copyLength = Math.min(result.length - resultOffset, this.arraySize - arrayOffset);
-            if (array != null) {
-                System.arraycopy(array, arrayOffset, result, resultOffset, copyLength);
-            }
-
-            resultOffset += copyLength;
-            arrayOffset = 0; // After processing the first array (handling this.startOffset), all other array offsets are 0.
-        }
-
+        copyTo(ByteBuffer.wrap(result));
         return result;
     }
 
