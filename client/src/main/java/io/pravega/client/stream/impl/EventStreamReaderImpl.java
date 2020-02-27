@@ -131,7 +131,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             }
             EventSegmentReader segmentReader = orderer.nextSegment(readers);
             if (segmentReader == null) {
-                Exceptions.handleInterrupted(() -> segmentsWithData.tryAcquire(firstByteTimeoutMillis, TimeUnit.MILLISECONDS));
+                blockFor(firstByteTimeoutMillis);
                 segmentsWithData.drainPermits();
                 buffer = null;
             } else {
@@ -160,6 +160,13 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                                    new EventPointerImpl(segment, offset, length), null);
     }
 
+    private void blockFor(long timeoutMs) {
+        Exceptions.handleInterrupted(() -> {
+            @SuppressWarnings("unused")
+            boolean _aquired = segmentsWithData.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS);
+        });
+    }
+    
     private EventRead<Type> createEmptyEvent(String checkpoint) {
         return new EventReadImpl<>(null, getPosition(), null, checkpoint);
     }
