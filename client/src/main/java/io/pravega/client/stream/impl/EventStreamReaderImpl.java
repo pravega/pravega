@@ -163,7 +163,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private void blockFor(long timeoutMs) {
         Exceptions.handleInterrupted(() -> {
             @SuppressWarnings("unused")
-            boolean _aquired = segmentsWithData.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS);
+            boolean aquired = segmentsWithData.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS);
         });
     }
     
