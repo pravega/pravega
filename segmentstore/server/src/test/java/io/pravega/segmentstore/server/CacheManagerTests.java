@@ -45,7 +45,7 @@ import org.junit.rules.Timeout;
 public class CacheManagerTests extends ThreadPooledTestSuite {
     private static final int CLEANUP_TIMEOUT_MILLIS = 2000;
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(10);
+    public Timeout globalTimeout = Timeout.seconds(100000);
 
     @Override
     protected int getThreadPoolSize() {
@@ -255,6 +255,51 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                     expectedCallCount,
                     callCount.get());
         }
+    }
+
+    /**
+     * Tests the ability to auto-refresh the Cache Manager's Client status upon a successful eviction. The Cache Manager
+     * progressively increases the Old Generation until it is able to get the Cache Size below the Policy's Eviction Threshold
+     * or while any Cache Client still reports an Old Gen smaller than the oldest permissible one. We must verify that
+     * the Client Cache Status is indeed refreshed to prevent over-increasing this threshold which would result in excessive
+     * cache evictions.
+     */
+    @Test
+    public void testClientStatusRefresh() {
+        final int maxSize = 2048;
+        final int maxGenerationCount = 10;
+        final double targetUtilization = 0.5;
+        final double maxUtilization = 0.95;
+        final CachePolicy policy = new CachePolicy(maxSize, targetUtilization, maxUtilization, Duration.ofHours(maxGenerationCount), Duration.ofHours(1));
+        @Cleanup
+        val cache = new TestCache(policy.getMaxSize());
+        cache.setStoredBytes(1); // The Cache Manager won't do anything if there's no stored data.
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
+
+        // Use a single client (we tested multiple clients with Newest Generation).
+        TestClient client = new TestClient();
+        cm.register(client);
+
+        // First do a dry-run - we need this to make sure the current generation advances enough.
+        for (int cycleId = 0; cycleId < maxGenerationCount; cycleId++) {
+            client.setCacheStatus(0, cycleId);
+            client.setUpdateGenerationsImpl((current, oldest) -> false);
+            cm.applyCachePolicy();
+        }
+
+        cache.setUsedBytes(policy.getEvictionThreshold() + 1);
+        client.setCacheStatus(0, maxGenerationCount);
+        AtomicInteger callCount = new AtomicInteger();
+        client.setUpdateGenerationsImpl((current, oldest) -> {
+            client.setCacheStatus(oldest, current); // Update the client's cache status to reflect a full eviction.
+            cache.setUsedBytes(policy.getEvictionThreshold() - 1); // Reduce the cache size to something below the threshold.
+            callCount.incrementAndGet();
+            return true;
+        });
+
+        cm.applyCachePolicy();
+        Assert.assertEquals("Not expecting multiple attempts at eviction.", 1, callCount.get());
     }
 
     /**
