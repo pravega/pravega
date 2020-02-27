@@ -398,7 +398,7 @@ public class EventStreamReaderTest {
         reader.close();
     }
     
-    @Test//(timeout = 10000)
+    @Test(timeout = 10000)
     public void testSilentCheckpointFollowingCheckpoint() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
@@ -437,7 +437,7 @@ public class EventStreamReaderTest {
         reader.close();
     }
     
-    @Test//(timeout = 10000)
+    @Test(timeout = 10000)
     public void testCheckpointFollowingSilentCheckpoint() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
@@ -683,7 +683,7 @@ public class EventStreamReaderTest {
         inOrder.verify(groupState).handleEndOfSegment(rangedSegment);
     }
     
-    @Test//(timeout = 10000)
+    @Test(timeout = 10000)
     public void testSegmentSplit() throws EndOfSegmentException, SegmentTruncatedException, SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
