@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -113,7 +112,7 @@ class SegmentKeyCache {
      */
     synchronized List<CacheEntry> evictAll() {
         // Remove those entries that have a generation below the oldest permissible one.
-        val entries = this.cacheEntries.values().stream().collect(Collectors.toList());
+        val entries = new ArrayList<>(this.cacheEntries.values());
         this.cacheEntries.clear();
         return entries;
     }
@@ -371,13 +370,6 @@ class SegmentKeyCache {
          */
         synchronized long getHighestOffset() {
             return this.highestOffset;
-        }
-
-        /**
-         * Gets a value representing the {@link CacheStorage} address for this Cache Entry's data.
-         */
-        synchronized int getCacheAddress() {
-            return this.cacheAddress;
         }
 
         /**
