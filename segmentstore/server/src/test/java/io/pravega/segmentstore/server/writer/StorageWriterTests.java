@@ -615,6 +615,40 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests a case when a Storage Writer iteration stalls and effectively becomes idle, which should cause the Storage
+     * Writer to automatically shut down.
+     */
+    @Test
+    public void testIdleIteration() throws Exception {
+        final WriterConfig config = WriterConfig.builder()
+                .with(WriterConfig.FLUSH_THRESHOLD_BYTES, DEFAULT_CONFIG.getFlushThresholdBytes())
+                .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, DEFAULT_CONFIG.getFlushThresholdTime().toMillis())
+                .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, DEFAULT_CONFIG.getFlushAttributesThreshold())
+                .with(WriterConfig.FLUSH_TIMEOUT_MILLIS, 10L)
+                .with(WriterConfig.IDLE_TIMEOUT_MILLIS, 300L)
+                .with(WriterConfig.SHUTDOWN_TIMEOUT_MILLIS, 10L)
+                .build();
+
+        @Cleanup
+        TestContext context = new TestContext(config);
+
+        // Create a bunch of segments and Transactions.
+        ArrayList<Long> segmentIds = createSegments(context);
+
+        // Append data.
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendDataBreadthFirst(segmentIds, segmentContents, context);
+
+        // We only try to corrupt data once.
+        val blocker = new CompletableFuture<Void>();
+        context.storage.setWriteInterceptor((segment, offset, data, length, wrappedStorage) -> blocker);
+        context.writer.startAsync().awaitRunning();
+        ServiceListeners.awaitShutdown(context.writer, TIMEOUT, false);
+        Assert.assertTrue("Unexpected failure cause for StorageWriter.",
+                Exceptions.unwrap(context.writer.failureCause()) instanceof IterationIdleTimeoutException);
+    }
+
+    /**
      * Tests the writer as it is setup in the given context.
      * General test flow:
      * 1. Add Appends (Cached/non-cached) to both Parent and Transaction segments

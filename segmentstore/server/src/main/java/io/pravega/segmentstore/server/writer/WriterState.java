@@ -78,6 +78,16 @@ class WriterState {
     }
 
     /**
+     * Gets a {@link Duration} representing the highest amount of time for any pending task. If no tasks are pending or
+     * there is no iteration active, this will return {@link Duration#ZERO}.
+     * @return A {@link Duration}.
+     */
+    Duration getIterationIdleDuration() {
+        TaskTracker t = getIterationTracker();
+        return t == null ? Duration.ZERO : t.getLongestPendingDuration();
+    }
+
+    /**
      * Gets a value indicating the id of the current iteration.
      */
     long getIterationId() {

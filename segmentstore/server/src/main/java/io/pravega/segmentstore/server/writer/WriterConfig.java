@@ -32,6 +32,7 @@ public class WriterConfig {
     public static final Property<Long> MAX_READ_TIMEOUT_MILLIS = Property.named("maxReadTimeoutMillis", 30 * 60 * 1000L);
     public static final Property<Long> ERROR_SLEEP_MILLIS = Property.named("errorSleepMillis", 1000L);
     public static final Property<Long> FLUSH_TIMEOUT_MILLIS = Property.named("flushTimeoutMillis", 60 * 1000L);
+    public static final Property<Long> IDLE_TIMEOUT_MILLIS = Property.named("IdleTimeoutMillis", FLUSH_TIMEOUT_MILLIS.getDefaultValue() * 5);
     public static final Property<Long> ACK_TIMEOUT_MILLIS = Property.named("ackTimeoutMillis", 15 * 1000L);
     public static final Property<Long> SHUTDOWN_TIMEOUT_MILLIS = Property.named("shutdownTimeoutMillis", 10 * 1000L);
     public static final Property<Long> MAX_ROLLOVER_SIZE = Property.named("maxRolloverSizeBytes", SegmentRollingPolicy.NO_ROLLING.getMaxLength());
@@ -96,6 +97,12 @@ public class WriterConfig {
     private final Duration flushTimeout;
 
     /**
+     * The maximum amount of time a Storage Writer iteration may be idle for.
+     */
+    @Getter
+    private final Duration idleTimeout;
+
+    /**
      * Gets a value indicating the timeout for the Ack Stage.
      */
     @Getter
@@ -155,6 +162,12 @@ public class WriterConfig {
         this.maxReadTimeout = Duration.ofMillis(maxReadTimeoutMillis);
         this.errorSleepDuration = Duration.ofMillis(properties.getLong(ERROR_SLEEP_MILLIS));
         this.flushTimeout = Duration.ofMillis(properties.getLong(FLUSH_TIMEOUT_MILLIS));
+        this.idleTimeout = Duration.ofMillis(properties.getLong(IDLE_TIMEOUT_MILLIS));
+        if (this.idleTimeout.compareTo(this.flushTimeout) <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be larger than '%s'.",
+                    IDLE_TIMEOUT_MILLIS, FLUSH_TIMEOUT_MILLIS));
+        }
+
         this.ackTimeout = Duration.ofMillis(properties.getLong(ACK_TIMEOUT_MILLIS));
         this.shutdownTimeout = Duration.ofMillis(properties.getLong(SHUTDOWN_TIMEOUT_MILLIS));
         this.maxRolloverSize = Math.max(0, properties.getLong(MAX_ROLLOVER_SIZE));

@@ -64,6 +64,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private final WriterFactory.CreateProcessors createProcessors;
     private final SequentialProcessor ackProcessor;
     private final SegmentStoreMetrics.StorageWriter metrics;
+    private final IterationMonitor monitor;
 
     //endregion
 
@@ -94,6 +95,8 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         this.ackCalculator = new AckCalculator(this.state);
         this.ackProcessor = new SequentialProcessor(this.executor);
         this.metrics = new SegmentStoreMetrics.StorageWriter(dataSource.getId());
+        this.monitor = new IterationMonitor(this.state::getIterationIdleDuration, config.getFlushTimeout(),
+                config.getIdleTimeout(), this::iterationIdleTimeout, executor);
     }
 
     //endregion
@@ -145,6 +148,29 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         logStageEvent("Finish", "Elapsed " + elapsed.toMillis() + "ms");
     }
 
+    private void iterationIdleTimeout() {
+        TaskTracker tracker = this.state.getIterationTracker();
+        if (tracker == null) {
+            // Iteration has finished. Nothing to do.
+            return;
+        }
+
+        val pending = tracker.getAllPending();
+        if (pending == null || pending.isEmpty() || tracker.getLongestPendingDuration().compareTo(this.config.getIdleTimeout()) < 0) {
+            // There are no pending tasks or the oldest idle task has not been idle enough. No need to do anything.
+            // If this recurs, the monitor will invoke this again so it is OK to let this go for now.
+            log.info("{}: Iteration Idle Timeout invoked but conditions not met. Pending = {}.", this.traceObjectId, pending);
+            return;
+        }
+
+        // Shut down. Even if something truly is stuck, we have a shutdown timeout which guarantees that we won't be stuck
+        // too long waiting for this to complete.
+        log.warn("{}: Iteration Idle Timeout. Shutting down. Idle Time = {}s, Pending = {}.", this.traceObjectId,
+                tracker.getLongestPendingDuration(), pending);
+        super.errorHandler(new IterationIdleTimeoutException(this.dataSource.getId()));
+        stopAsync();
+    }
+
     private Void iterationErrorHandler(Throwable ex) {
         if (isShutdownException(ex) && !canRun()) {
             // Writer is not running and we caught a CancellationException.
@@ -170,6 +196,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      * Closes all processors. This is usually done when the StorageWriter has stopped or is about to stop.
      */
     private void closeProcessors() {
+        this.monitor.close();
         this.processors.values().forEach(ProcessorCollection::close);
         this.processors.clear();
         this.ackProcessor.close();
@@ -441,7 +468,8 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         ex = Exceptions.unwrap(ex);
         return Exceptions.mustRethrow(ex)
                 || ex instanceof DataCorruptionException     // Data corruption - stop processing to prevent more damage.
-                || ex instanceof StorageNotPrimaryException; // Fenced out - another instance took over.
+                || ex instanceof StorageNotPrimaryException  // Fenced out - another instance took over.
+                || ex instanceof IterationIdleTimeoutException; // Stall detected - shutdown so that we may restart.
     }
 
     private boolean isShutdownException(Throwable ex) {
