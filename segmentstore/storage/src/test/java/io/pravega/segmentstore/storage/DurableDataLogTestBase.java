@@ -13,8 +13,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -58,7 +58,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Check Append pre-initialization.
             AssertExtensions.assertThrows(
                     "append() worked before initialize()",
-                    () -> log.append(new ByteArraySegment("h".getBytes()), TIMEOUT),
+                    () -> log.append(new CompositeByteArraySegment("h".getBytes()), TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
@@ -66,14 +66,14 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Check that we cannot append data exceeding the max limit.
             AssertExtensions.assertSuppliedFutureThrows(
                     "append() worked with buffer exceeding max size",
-                    () -> log.append(new ByteArraySegment(new byte[log.getWriteSettings().getMaxWriteLength() + 1]), TIMEOUT),
+                    () -> log.append(new CompositeByteArraySegment(log.getWriteSettings().getMaxWriteLength() + 1), TIMEOUT),
                     ex -> ex instanceof WriteTooLongException);
 
             // Only verify sequence number monotonicity. We'll verify reads in its own test.
             LogAddress prevAddress = null;
             int writeCount = getWriteCount();
             for (int i = 0; i < writeCount; i++) {
-                LogAddress address = log.append(new ByteArraySegment(getWriteData()), TIMEOUT).join();
+                LogAddress address = log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).join();
                 Assert.assertNotNull("No address returned from append().", address);
                 if (prevAddress != null) {
                     AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.", prevAddress.getSequence(), address.getSequence());
@@ -98,7 +98,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             List<CompletableFuture<LogAddress>> appendFutures = new ArrayList<>();
             int writeCount = getWriteCount();
             for (int i = 0; i < writeCount; i++) {
-                appendFutures.add(log.append(new ByteArraySegment(getWriteData()), TIMEOUT));
+                appendFutures.add(log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT));
             }
 
             val results = Futures.allOfWithResults(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -216,7 +216,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             Assert.assertNotNull("Nothing read before modification.", firstItem);
 
             // Make a modification.
-            log.append(new ByteArraySegment("foo".getBytes()), TIMEOUT).join();
+            log.append(new CompositeByteArraySegment("foo".getBytes()), TIMEOUT).join();
 
             // Try to get a new item.
             DurableDataLog.ReadItem secondItem = reader.getNext();
@@ -244,7 +244,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             try (DurableDataLog log = createDurableDataLog(context)) {
                 log.initialize(TIMEOUT);
                 byte[] writeData = String.format("Write_%s", i).getBytes();
-                currentAddress = log.append(new ByteArraySegment(writeData), TIMEOUT).join();
+                currentAddress = log.append(new CompositeByteArraySegment(writeData), TIMEOUT).join();
                 writtenData.put(currentAddress, writeData);
             }
 
@@ -293,7 +293,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                 // Verify we cannot write to the first log.
                 AssertExtensions.assertSuppliedFutureThrows(
                         "The first log was not fenced out.",
-                        () -> log1.append(new ByteArraySegment(new byte[1]), TIMEOUT),
+                        () -> log1.append(new CompositeByteArraySegment(new byte[1]), TIMEOUT),
                         ex -> ex instanceof DataLogWriterNotPrimaryException);
 
                 // Verify we can write to the second log.
@@ -337,7 +337,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
             AssertExtensions.assertThrows(
                     "disable() did not close the Log.",
-                    () -> log.append(new ByteArraySegment(new byte[1]), TIMEOUT),
+                    () -> log.append(new CompositeByteArraySegment(1), TIMEOUT),
                     ex -> ex instanceof ObjectClosedException);
         }
 
@@ -352,7 +352,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Verify that Log operations cannot execute while disabled.
             AssertExtensions.assertThrows(
                     "append() worked with a disabled/non-initialized log.",
-                    () -> log1.append(new ByteArraySegment(new byte[1]), TIMEOUT),
+                    () -> log1.append(new CompositeByteArraySegment(1), TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
             AssertExtensions.assertThrows(
                     "truncate() worked with a disabled/non-initialized log.",
@@ -401,7 +401,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Only verify sequence number monotonicity. We'll verify reads in its own test.
             int writeCount = getWriteCount();
             for (int i = 0; i < writeCount; i++) {
-                log.append(new ByteArraySegment(getWriteData()), TIMEOUT).join();
+                log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).join();
             }
 
             // Verify the correct number of invocations.
@@ -412,7 +412,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
             // Verify that the listener is unregistered when closed.
             listener.close();
-            log.append(new ByteArraySegment(getWriteData()), TIMEOUT).join();
+            log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).join();
             try {
                 TestUtils.await(
                         () -> listener.getCount() > writeCount,
@@ -477,7 +477,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
         val futures = new ArrayList<CompletableFuture<LogAddress>>();
         for (int i = 0; i < writeCount; i++) {
             byte[] writeData = getWriteData();
-            futures.add(log.append(new ByteArraySegment(writeData), TIMEOUT));
+            futures.add(log.append(new CompositeByteArraySegment(writeData), TIMEOUT));
             data.add(writeData);
         }
 
