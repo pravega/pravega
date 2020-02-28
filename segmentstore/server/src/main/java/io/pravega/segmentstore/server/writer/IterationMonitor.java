@@ -10,92 +10,94 @@
 package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.Exceptions;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
- * Helps monitor {@link StorageWriter} iterations.
+ * Helps monitor {@link StorageWriter} iterations. Schedules a Fixed-Rate Task on an Executor that, when executed, requests
+ * the Idle Duration for the currently running Storage Writer Iteration and. If the Idle Duration exceeds a preset limit,
+ * invokes a callback to notify listeners that such an event occurred.
  */
 @Slf4j
+@RequiredArgsConstructor
 class IterationMonitor implements AutoCloseable {
-    private final TaskTracker tracker;
-    private final Duration maxIterationDuration;
-    private final Runnable onTimeout;
-    private final ScheduledExecutorService executor;
-    private final AtomicBoolean closed;
-    private final AtomicReference<ScheduledFuture<?>> monitor;
+    //region Members
 
-    IterationMonitor(@NonNull TaskTracker tracker, @NonNull Duration maxAllowedElapsed, @NonNull Runnable onTimeout,
-                     @NonNull ScheduledExecutorService executor) {
-        Preconditions.checkArgument(!maxAllowedElapsed.isNegative() && !maxAllowedElapsed.isZero());
-        this.tracker = tracker;
-        this.maxIterationDuration = maxAllowedElapsed;
-        this.onTimeout = onTimeout;
-        this.executor = executor;
-        this.closed = new AtomicBoolean();
-        this.monitor = new AtomicReference<>();
+    private final Supplier<Duration> getIdleDuration;
+    private final Duration maxIdleDuration;
+    private final Runnable onIdleTimeout;
+    private final ScheduledFuture<?> monitor;
+
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the {@link IterationMonitor} class.
+     *
+     * @param getIdleDuration A {@link Supplier} that, when invoked, returns a {@link Duration} representing the current
+     *                        Idle Time for the Storage Writer Iteration.
+     * @param checkInterval   The interval between checks.
+     * @param maxIdleDuration The maximum allowed Idle Time.
+     * @param onIdleTimeout   A callback that will be invoked if getIdleDuration returns a value equal to or larger than
+     *                        maxIdleDuration.
+     * @param executor        An Executor for running the monitor on.
+     */
+    IterationMonitor(@NonNull Supplier<Duration> getIdleDuration, @NonNull Duration checkInterval, @NonNull Duration maxIdleDuration,
+                     @NonNull Runnable onIdleTimeout, @NonNull ScheduledExecutorService executor) {
+        Preconditions.checkArgument(!checkInterval.isNegative() && !checkInterval.isZero());
+        Preconditions.checkArgument(!maxIdleDuration.isNegative() && !maxIdleDuration.isZero());
+        this.getIdleDuration = getIdleDuration;
+        this.maxIdleDuration = maxIdleDuration;
+        this.onIdleTimeout = onIdleTimeout;
+        this.monitor = executor.scheduleAtFixedRate(this::runOnce, checkInterval.toMillis(), checkInterval.toMillis(), TimeUnit.MILLISECONDS);
     }
+
+    //endregion
+
+    //region Operations
 
     @Override
     public void close() {
-        this.closed.set(true);
-        val m = this.monitor.getAndSet(null);
-        m.cancel(true);
+        this.monitor.cancel(true);
     }
 
-    public void start() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        Preconditions.checkState(this.monitor.get() == null, "Already started.");
-        runOnce();
-    }
-
-    private long getDelayMillis() {
-        return this.maxIterationDuration.minus(this.tracker.getLongestPendingDuration()).toMillis();
+    private boolean isClosed() {
+        return this.monitor.isCancelled();
     }
 
     private void runOnce() {
-        if (this.closed.get()) {
+        if (isClosed()) {
             // Nothing to do.
             return;
         }
 
-        long newDelay = getDelayMillis();
-        if (newDelay <= 0) {
-            // We are done. Invoke the callback and close.
-            log.info("Timeout expired. Invoking callback and closing.");
-            invokeCallback();
-            close();
+        val idleDuration = this.getIdleDuration.get();
+        if (idleDuration.compareTo(this.maxIdleDuration) < 0) {
+            // Nothing to do.
             return;
         }
 
-        val f = this.executor.schedule(() -> {
-            try {
-                runOnce();
-            } catch (Throwable ex) {
-                log.error("Caught exception during execution.", ex);
-                close();
-            }
-        }, newDelay, TimeUnit.MILLISECONDS);
-
-        val previous = this.monitor.getAndSet(f);
-        if (previous != null) {
-            previous.cancel(true);
-        }
+        // We are done. Invoke the callback and close.
+        log.info("Maximum Iteration Idle Time expired. Invoking callback and closing.");
+        invokeCallback();
     }
 
     private void invokeCallback() {
         try {
-            this.onTimeout.run();
+            this.onIdleTimeout.run();
         } catch (Throwable ex) {
+            // This is run in an Executor. Since nobody is listening for exceptions, the best thing we can do is log them.
             log.error("Unable to invoke on-timeout callback.", ex);
         }
     }
+
+    //endregion
 }
