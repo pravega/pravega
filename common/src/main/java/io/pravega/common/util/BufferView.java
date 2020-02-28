@@ -88,7 +88,7 @@ public interface BufferView {
 
     /**
      * When implemented in a derived class, notifies any wrapped buffer that this {@link BufferView} has a need for it.
-     * Use {@link #release()} to do the opposite. See the main documentation on this interface for recommentations on how
+     * Use {@link #release()} to do the opposite. See the main documentation on this interface for recommendations on how
      * to use these to methods. Also refer to the implementing class' documentation for any additional details.
      */
     default void retain() {
