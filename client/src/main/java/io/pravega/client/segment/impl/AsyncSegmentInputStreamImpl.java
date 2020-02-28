@@ -26,6 +26,7 @@ import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -58,9 +60,18 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @VisibleForTesting
     @Getter
     private final long requestId = Flow.create().asLong();
+    private final Semaphore replyAvailable;
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
+        @Override
+        public void process(Reply reply) {
+            super.process(reply);
+            if (replyAvailable != null) {
+                replyAvailable.release();
+            }
+        }
+        
         @Override
         public void connectionDropped() {
             closeConnection(new ConnectionFailedException());
@@ -141,7 +152,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, Segment segment,
-                                       DelegationTokenProvider tokenProvider) {
+                                       DelegationTokenProvider tokenProvider, Semaphore dataAvailable) {
         super(segment);
         this.tokenProvider = tokenProvider;
         Preconditions.checkNotNull(controller);
@@ -149,6 +160,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         Preconditions.checkNotNull(segment);
         this.controller = controller;
         this.connectionFactory = connectionFactory;
+        this.replyAvailable = dataAvailable;
     }
 
     @Override
