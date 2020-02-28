@@ -60,6 +60,6 @@ public class Orderer {
                 inputStream.fillBuffer();
             }
         }
-        return segments.get(MathHelpers.abs(counter.incrementAndGet()) % segments.size());
+        return null;
     }
 }
