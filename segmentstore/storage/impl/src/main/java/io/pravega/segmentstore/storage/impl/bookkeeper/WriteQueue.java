@@ -101,7 +101,7 @@ class WriteQueue {
     synchronized void add(Write write) {
         Exceptions.checkNotClosed(this.closed, this);
         this.writes.addLast(write);
-        this.totalLength += write.data.getLength();
+        this.totalLength += write.getLength();
         write.setQueueAddedTimestamp(this.timeSupplier.get());
     }
 
@@ -149,7 +149,7 @@ class WriteQueue {
             }
 
             // Account for this write's size, even if it's complete or in progress.
-            accumulatedSize += write.data.getLength();
+            accumulatedSize += write.getLength();
             if (write.isInProgress()) {
                 if (!canSkip) {
                     // We stumbled across an in-progress write after a not-in-progress write. We can't retry now.
@@ -185,7 +185,7 @@ class WriteQueue {
         boolean failedWrite = false;
         while (!this.writes.isEmpty() && this.writes.peekFirst().isDone()) {
             Write w = this.writes.removeFirst();
-            this.totalLength = Math.max(0, this.totalLength - w.data.getLength());
+            this.totalLength = Math.max(0, this.totalLength - w.getLength());
             removedCount++;
             totalElapsed += currentTime - w.getQueueAddedTimestamp();
             failedWrite |= w.getFailureCause() != null;
