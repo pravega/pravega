@@ -133,14 +133,14 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     }
 
     private void beginIteration() {
-        this.state.recordIterationStarted(this.timer);
+        this.state.beginIteration(this.timer);
         logStageEvent("Start", null);
     }
 
     private void endIteration() {
         // Perform internal cleanup (get rid of those SegmentProcessors that are closed).
         cleanup();
-        Duration elapsed = this.state.getElapsedSinceIterationStart(this.timer);
+        Duration elapsed = this.state.endIteration();
         this.metrics.iterationComplete(elapsed);
         logStageEvent("Finish", "Elapsed " + elapsed.toMillis() + "ms");
     }
@@ -189,12 +189,12 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "readData");
         try {
             Duration readTimeout = getReadTimeout();
-            return this.dataSource
+            return this.state.getIterationTracker().track(() -> this.dataSource
                     .read(this.state.getLastReadSequenceNumber(), this.config.getMaxItemsToReadAtOnce(), readTimeout)
                     .thenApply(result -> {
                         LoggerHelpers.traceLeave(log, this.traceObjectId, "readData", traceId);
                         return result;
-                    })
+                    }), "ReadData")
                     .exceptionally(ex -> {
                         ex = Exceptions.unwrap(ex);
                         if (ex instanceof TimeoutException) {
@@ -424,7 +424,8 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         AttributeAggregator attributeAggregator = new AttributeAggregator(segmentMetadata, this.dataSource, this.config, this.timer, this.executor);
         ProcessorCollection pc = new ProcessorCollection(segmentAggregator, attributeAggregator, this.createProcessors.apply(segmentMetadata));
         try {
-            CompletableFuture<Void> init = segmentAggregator.initialize(this.config.getFlushTimeout());
+            CompletableFuture<Void> init = this.state.getIterationTracker().track(
+                    () -> segmentAggregator.initialize(this.config.getFlushTimeout()), "Init", streamSegmentId);
             Futures.exceptionListener(init, ex -> segmentAggregator.close());
             return init.thenApply(ignored -> {
                 this.processors.put(streamSegmentId, pc);
@@ -641,14 +642,17 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
         @Override
         public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
-            return Futures.allOfWithResults(this.processors.stream().map(wsp -> wsp.flush(timeout)).collect(Collectors.toList()))
-                          .thenApply(results -> {
-                              WriterFlushResult r = results.get(0);
-                              for (int i = 1; i < results.size(); i++) {
-                                  r.withFlushResult(results.get(i));
-                              }
-                              return r;
-                          });
+            TaskTracker tracker = StorageWriter.this.state.getIterationTracker();
+            return Futures.allOfWithResults(this.processors.stream()
+                    .map(wsp -> tracker.track(() -> wsp.flush(timeout), "Flush", getId(), wsp.toString()))
+                    .collect(Collectors.toList()))
+                    .thenApply(results -> {
+                        WriterFlushResult r = results.get(0);
+                        for (int i = 1; i < results.size(); i++) {
+                            r.withFlushResult(results.get(i));
+                        }
+                        return r;
+                    });
         }
 
         //endregion

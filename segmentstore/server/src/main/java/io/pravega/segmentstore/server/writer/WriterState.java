@@ -9,10 +9,9 @@
  */
 package io.pravega.segmentstore.server.writer;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import com.google.common.base.Preconditions;
-
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -27,7 +26,7 @@ class WriterState {
     private final AtomicLong lastReadSequenceNumber;
     private final AtomicLong lastTruncatedSequenceNumber;
     private final AtomicBoolean lastIterationError;
-    private final AtomicReference<Duration> currentIterationStartTime;
+    private final AtomicReference<TaskTracker> currentIterationTracker;
     private final AtomicLong iterationId;
 
     //endregion
@@ -41,7 +40,7 @@ class WriterState {
         this.lastReadSequenceNumber = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
         this.lastTruncatedSequenceNumber = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
         this.lastIterationError = new AtomicBoolean(false);
-        this.currentIterationStartTime = new AtomicReference<>();
+        this.currentIterationTracker = new AtomicReference<>();
         this.iterationId = new AtomicLong();
     }
 
@@ -54,19 +53,28 @@ class WriterState {
      *
      * @param timer The reference timer.
      */
-    void recordIterationStarted(AbstractTimer timer) {
+    void beginIteration(AbstractTimer timer) {
         this.iterationId.incrementAndGet();
-        this.currentIterationStartTime.set(timer.getElapsed());
+        this.currentIterationTracker.set(new TaskTracker(timer));
         this.lastIterationError.set(false);
     }
 
     /**
      * Calculates the amount of time elapsed since the current iteration started.
-     *
-     * @param timer The reference timer.
      */
-    Duration getElapsedSinceIterationStart(AbstractTimer timer) {
-        return timer.getElapsed().minus(this.currentIterationStartTime.get());
+    Duration endIteration() {
+        TaskTracker tracker = this.currentIterationTracker.getAndSet(null);
+        return tracker == null ? Duration.ZERO : tracker.getElapsedSinceCreation();
+    }
+
+    /**
+     * Gets a {@link TaskTracker} that is created every time {@link #beginIteration} is invoked and destroyed when
+     * {@link #endIteration()}.
+     *
+     * @return A {@link TaskTracker}, or null if no iteration is active.
+     */
+    TaskTracker getIterationTracker() {
+        return this.currentIterationTracker.get();
     }
 
     /**
