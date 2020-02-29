@@ -32,7 +32,7 @@ public class WriterConfig {
     public static final Property<Long> MAX_READ_TIMEOUT_MILLIS = Property.named("maxReadTimeoutMillis", 30 * 60 * 1000L);
     public static final Property<Long> ERROR_SLEEP_MILLIS = Property.named("errorSleepMillis", 1000L);
     public static final Property<Long> FLUSH_TIMEOUT_MILLIS = Property.named("flushTimeoutMillis", 60 * 1000L);
-    public static final Property<Long> IDLE_TIMEOUT_MILLIS = Property.named("IdleTimeoutMillis", FLUSH_TIMEOUT_MILLIS.getDefaultValue() * 5);
+    public static final Property<Long> IDLE_TIMEOUT_MILLIS = Property.named("idleTimeoutMillis", FLUSH_TIMEOUT_MILLIS.getDefaultValue() * 5);
     public static final Property<Long> ACK_TIMEOUT_MILLIS = Property.named("ackTimeoutMillis", 15 * 1000L);
     public static final Property<Long> SHUTDOWN_TIMEOUT_MILLIS = Property.named("shutdownTimeoutMillis", 10 * 1000L);
     public static final Property<Long> MAX_ROLLOVER_SIZE = Property.named("maxRolloverSizeBytes", SegmentRollingPolicy.NO_ROLLING.getMaxLength());
