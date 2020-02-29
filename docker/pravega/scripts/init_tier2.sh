@@ -61,13 +61,12 @@ init_tier2() {
 
     # Loop until all variables are set
     while [ -z ${EXTENDEDS3_CONFIGURI} ] ||
-          [ -z ${EXTENDEDS3_BUCKET} ] ||
-          [ -z ${EXTENDEDS3_PREFIX} ]
+          [ -z ${EXTENDEDS3_BUCKET} ]
     do
         echo "Looping till the container is restarted with all these variables set."
         sleep 60
     done
-    add_system_property "extendeds3.configUri" "${EXTENDEDS3_CONFIGURI}"
+    add_system_property_ecs_config_uri "extendeds3.configUri" "${EXTENDEDS3_CONFIGURI}" "${EXTENDEDS3_ACCESS_KEY_ID}" "${EXTENDEDS3_SECRET_KEY}"
     add_system_property "extendeds3.bucket" "${EXTENDEDS3_BUCKET}"
     add_system_property "extendeds3.prefix" "${EXTENDEDS3_PREFIX}"
     ;;
