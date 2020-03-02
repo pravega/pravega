@@ -11,7 +11,6 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.CompositeArrayView;
 import io.pravega.segmentstore.storage.DataLogInitializationException;

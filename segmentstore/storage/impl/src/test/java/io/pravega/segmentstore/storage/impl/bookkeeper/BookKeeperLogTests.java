@@ -416,7 +416,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 log.initialize(TIMEOUT);
 
                 val currentMetadata = log.loadMetadata();
-                log.append(new ByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
 
             if (i == midPoint) {
