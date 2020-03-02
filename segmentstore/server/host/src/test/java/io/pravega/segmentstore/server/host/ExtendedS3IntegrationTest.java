@@ -37,7 +37,7 @@ import org.junit.Before;
 public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
     //region Test Configuration and Setup
 
-    private String endpoint;
+    private String s3ConfigUri;
     private S3FileSystemImpl filesystemS3;
 
     /**
@@ -47,14 +47,11 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        endpoint = "http://127.0.0.1:" + TestUtils.getAvailableListenPort();
-        URI uri = URI.create(endpoint);
+        s3ConfigUri = "http://127.0.0.1:" + TestUtils.getAvailableListenPort() + "?identity=x&secretKey=x";
         filesystemS3 = new S3FileSystemImpl(getBaseDir().toString());
         this.configBuilder.include(ExtendedS3StorageConfig.builder()
-                                                          .with(ExtendedS3StorageConfig.BUCKET, "kanpravegatest")
-                                                          .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
-                                                          .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
-                .with(ExtendedS3StorageConfig.URI, endpoint));
+                .with(ExtendedS3StorageConfig.CONFIGURI, s3ConfigUri)
+                .with(ExtendedS3StorageConfig.BUCKET, "kanpravegatest"));
     }
 
     @Override
@@ -108,10 +105,10 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
 
         @Override
         public Storage createStorageAdapter() {
-            URI uri = URI.create(endpoint);
+            URI uri = URI.create(s3ConfigUri);
             S3Config s3Config = new S3Config(uri);
 
-            s3Config = s3Config.withIdentity(config.getAccessKey()).withSecretKey(config.getSecretKey())
+            s3Config = s3Config
                     .withRetryEnabled(false)
                     .withInitialRetryDelay(1)
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
