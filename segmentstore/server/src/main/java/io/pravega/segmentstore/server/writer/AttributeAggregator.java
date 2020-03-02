@@ -253,7 +253,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
                         return this.dataSource.notifyAttributesPersisted(this.metadata.getId(), rpi.getRootPointer(), rpi.getLastSequenceNumber(), this.config.getFlushTimeout())
                                 .whenCompleteAsync((r, ex) -> {
                                     if (ex != null) {
-                                        log.error("{}: Unable to persist root pointer {}.", this.traceObjectId, rpi, ex);
+                                        logAttributesPersistedError(ex, rpi);
                                     } else {
                                         this.state.setLastPersistedSequenceNumber(rpi.getLastSequenceNumber());
                                     }
@@ -264,9 +264,17 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
                                         canContinue.set(false);
                                     }
                                 }, this.executor);
-
                     },
                     this.executor);
+        }
+    }
+
+    private void logAttributesPersistedError(Throwable ex, RootPointerInfo rpi) {
+        ex = Exceptions.unwrap(ex);
+        if (ex instanceof StreamSegmentMergedException || ex instanceof StreamSegmentNotExistsException) {
+            log.info("{}: Unable to persist root pointer {} due to segment being merged or deleted.", this.traceObjectId, rpi);
+        } else {
+            log.error("{}: Unable to persist root pointer {}.", this.traceObjectId, rpi, ex);
         }
     }
 

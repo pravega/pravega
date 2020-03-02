@@ -216,7 +216,7 @@ public class ExtendedS3Storage implements SyncStorage {
         }
 
         try (InputStream reader = client.readObjectStream(config.getBucket(),
-                config.getRoot() + handle.getSegmentName(), Range.fromOffsetLength(offset, length))) {
+                config.getPrefix() + handle.getSegmentName(), Range.fromOffsetLength(offset, length))) {
             /*
              * TODO: This implementation assumes that if S3Client.readObjectStream returns null, then
              * the object does not exist and we throw StreamNotExistsException. The javadoc, however,
@@ -246,9 +246,9 @@ public class ExtendedS3Storage implements SyncStorage {
     private StreamSegmentInformation doGetStreamSegmentInfo(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(),
-                config.getRoot() + streamSegmentName);
+                config.getPrefix() + streamSegmentName);
 
-        AccessControlList acls = client.getObjectAcl(config.getBucket(), config.getRoot() + streamSegmentName);
+        AccessControlList acls = client.getObjectAcl(config.getBucket(), config.getPrefix() + streamSegmentName);
         boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
         StreamSegmentInformation information = StreamSegmentInformation.builder()
                 .name(streamSegmentName)
@@ -263,7 +263,7 @@ public class ExtendedS3Storage implements SyncStorage {
 
     private boolean doExists(String streamSegmentName) {
         try {
-            ListObjectsResult result = client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName);
+            ListObjectsResult result = client.listObjects(config.getBucket(), config.getPrefix() + streamSegmentName);
             return !result.getObjects().isEmpty();
         } catch (S3Exception e) {
             /*
@@ -288,14 +288,14 @@ public class ExtendedS3Storage implements SyncStorage {
 
         Timer timer = new Timer();
 
-        if (!client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName).getObjects().isEmpty()) {
+        if (!client.listObjects(config.getBucket(), config.getPrefix() + streamSegmentName).getObjects().isEmpty()) {
             throw new StreamSegmentExistsException(streamSegmentName);
         }
 
         S3ObjectMetadata metadata = new S3ObjectMetadata();
         metadata.setContentLength((long) 0);
 
-        PutObjectRequest request = new PutObjectRequest(config.getBucket(), config.getRoot() + streamSegmentName, null);
+        PutObjectRequest request = new PutObjectRequest(config.getBucket(), config.getPrefix() + streamSegmentName, null);
 
         AccessControlList acl = new AccessControlList();
         acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), READ_WRITE_PERMISSION));
@@ -348,7 +348,7 @@ public class ExtendedS3Storage implements SyncStorage {
             throw new BadOffsetException(handle.getSegmentName(), si.getLength(), offset);
         }
 
-        client.putObject(this.config.getBucket(), this.config.getRoot() + handle.getSegmentName(),
+        client.putObject(this.config.getBucket(), this.config.getPrefix() + handle.getSegmentName(),
                 Range.fromOffsetLength(offset, length), data);
 
         Duration elapsed = timer.getElapsed();
@@ -378,12 +378,12 @@ public class ExtendedS3Storage implements SyncStorage {
     }
 
     private void setPermission(SegmentHandle handle, Permission permission) {
-        AccessControlList acl = client.getObjectAcl(config.getBucket(), config.getRoot() + handle.getSegmentName());
+        AccessControlList acl = client.getObjectAcl(config.getBucket(), config.getPrefix() + handle.getSegmentName());
         acl.getGrants().clear();
         acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), permission));
 
         client.setObjectAcl(
-                new SetObjectAclRequest(config.getBucket(), config.getRoot() + handle.getSegmentName()).withAcl(acl));
+                new SetObjectAclRequest(config.getBucket(), config.getPrefix() + handle.getSegmentName()).withAcl(acl));
     }
 
     /**
@@ -400,7 +400,7 @@ public class ExtendedS3Storage implements SyncStorage {
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(), offset, sourceSegment);
         Timer timer = new Timer();
         SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
-        String targetPath = config.getRoot() + targetHandle.getSegmentName();
+        String targetPath = config.getPrefix() + targetHandle.getSegmentName();
         String uploadId = client.initiateMultipartUpload(config.getBucket(), targetPath);
 
         // check whether the target exists
@@ -425,11 +425,11 @@ public class ExtendedS3Storage implements SyncStorage {
 
         //Copy the second part
         S3ObjectMetadata metadataResult = client.getObjectMetadata(config.getBucket(),
-                config.getRoot() + sourceSegment);
+                config.getPrefix() + sourceSegment);
         long objectSize = metadataResult.getContentLength(); // in bytes
 
         copyRequest = new CopyPartRequest(config.getBucket(),
-                config.getRoot() + sourceSegment,
+                config.getPrefix() + sourceSegment,
                 config.getBucket(),
                 targetPath,
                 uploadId,
@@ -442,7 +442,7 @@ public class ExtendedS3Storage implements SyncStorage {
         client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getBucket(),
                 targetPath, uploadId).withParts(partEtags));
 
-        client.deleteObject(config.getBucket(), config.getRoot() + sourceSegment);
+        client.deleteObject(config.getBucket(), config.getPrefix() + sourceSegment);
         Duration elapsed = timer.getElapsed();
 
         log.debug("Concat target={} source={} offset={} bytesWritten={} latency={}.", targetHandle.getSegmentName(), sourceSegment, offset, si.getLength(), elapsed.toMillis());
@@ -459,7 +459,7 @@ public class ExtendedS3Storage implements SyncStorage {
     private Void doDelete(SegmentHandle handle) {
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle.getSegmentName());
         Timer timer = new Timer();
-        client.deleteObject(config.getBucket(), config.getRoot() + handle.getSegmentName());
+        client.deleteObject(config.getBucket(), config.getPrefix() + handle.getSegmentName());
         Duration elapsed = timer.getElapsed();
 
         ExtendedS3Metrics.DELETE_LATENCY.reportSuccessEvent(elapsed);

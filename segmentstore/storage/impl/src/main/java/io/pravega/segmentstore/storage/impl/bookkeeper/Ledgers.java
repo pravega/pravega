@@ -36,7 +36,6 @@ final class Ledgers {
      * How many ledgers to fence out (from the end of the list) when acquiring lock.
      */
     static final int MIN_FENCE_LEDGER_COUNT = 2;
-    private static final BookKeeper.DigestType LEDGER_DIGEST_TYPE = BookKeeper.DigestType.MAC;
 
     /**
      * Creates a new Ledger in BookKeeper.
@@ -54,12 +53,13 @@ final class Ledgers {
      */
     static LedgerHandle create(BookKeeper bookKeeper, BookKeeperConfig config, int logId) throws DurableDataLogException {
         try {
+
             return Exceptions.handleInterruptedCall(() ->
                     bookKeeper.createLedger(
                             config.getBkEnsembleSize(),
                             config.getBkWriteQuorumSize(),
                             config.getBkAckQuorumSize(),
-                            LEDGER_DIGEST_TYPE,
+                            config.getDigestType(),
                             config.getBKPassword(),
                             createLedgerCustomMetadata(logId)));
         } catch (BKException.BKNotEnoughBookiesException bkEx) {
@@ -81,7 +81,7 @@ final class Ledgers {
     static LedgerHandle openFence(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
             return Exceptions.handleInterruptedCall(
-                    () -> bookKeeper.openLedger(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword()));
+                    () -> bookKeeper.openLedger(ledgerId, config.getDigestType(), config.getBKPassword()));
         } catch (BKException bkEx) {
             throw new DurableDataLogException(String.format("Unable to open-fence ledger %d.", ledgerId), bkEx);
         }
@@ -99,7 +99,7 @@ final class Ledgers {
     static LedgerHandle openRead(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
             return Exceptions.handleInterruptedCall(
-                    () -> bookKeeper.openLedgerNoRecovery(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword()));
+                    () -> bookKeeper.openLedgerNoRecovery(ledgerId, config.getDigestType(), config.getBKPassword()));
         } catch (BKException bkEx) {
             throw new DurableDataLogException(String.format("Unable to open-read ledger %d.", ledgerId), bkEx);
         }

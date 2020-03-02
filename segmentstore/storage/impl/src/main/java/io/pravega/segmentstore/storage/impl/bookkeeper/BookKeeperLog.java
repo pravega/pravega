@@ -16,8 +16,8 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.CompositeArrayView;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
@@ -297,7 +297,7 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
+    public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
         ensurePreconditions();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "append", data.getLength());
         if (data.getLength() > BookKeeperConfig.MAX_APPEND_LENGTH) {
@@ -481,7 +481,7 @@ class BookKeeperLog implements DurableDataLog {
                 }
 
                 // Invoke the BookKeeper write.
-                w.getWriteLedger().ledger.asyncAddEntry(w.data.array(), w.data.arrayOffset(), w.data.getLength(), this::addCallback, w);
+                w.getWriteLedger().ledger.asyncAddEntry(w.getData().retain(), this::addCallback, w);
             } catch (Throwable ex) {
                 // Synchronous failure (or RetriesExhausted). Fail current write.
                 boolean isFinal = !isRetryable(ex);
@@ -622,7 +622,7 @@ class BookKeeperLog implements DurableDataLog {
     private void completeWrite(Write write) {
         Timer t = write.complete();
         if (t != null) {
-            this.metrics.bookKeeperWriteCompleted(write.data.getLength(), t.getElapsed());
+            this.metrics.bookKeeperWriteCompleted(write.getLength(), t.getElapsed());
         }
     }
 

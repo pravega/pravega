@@ -147,7 +147,7 @@ class BookKeeperAdapter extends StoreAdapter {
             boolean success = false;
             try {
                 ledger = getBookKeeper().createLedger(this.bkConfig.getBkEnsembleSize(), this.bkConfig.getBkWriteQuorumSize(), this.bkConfig.getBkAckQuorumSize(),
-                        BookKeeper.DigestType.MAC, new byte[0]);
+                        BookKeeper.DigestType.CRC32C, new byte[0]);
                 this.ledgers.put(logName, ledger);
                 success = true;
             } catch (Exception ex) {
