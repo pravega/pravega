@@ -625,6 +625,8 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                 .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, DEFAULT_CONFIG.getFlushThresholdTime().toMillis())
                 .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, DEFAULT_CONFIG.getFlushAttributesThreshold())
                 .with(WriterConfig.FLUSH_TIMEOUT_MILLIS, 10L)
+                .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 9L)
+                .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 10L)
                 .with(WriterConfig.IDLE_TIMEOUT_MILLIS, 300L)
                 .with(WriterConfig.SHUTDOWN_TIMEOUT_MILLIS, 10L)
                 .build();

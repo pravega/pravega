@@ -29,7 +29,7 @@ public class WriterConfig {
     public static final Property<Integer> MAX_FLUSH_SIZE_BYTES = Property.named("maxFlushSizeBytes", FLUSH_THRESHOLD_BYTES.getDefaultValue());
     public static final Property<Integer> MAX_ITEMS_TO_READ_AT_ONCE = Property.named("maxItemsToReadAtOnce", 1000);
     public static final Property<Long> MIN_READ_TIMEOUT_MILLIS = Property.named("minReadTimeoutMillis", 2 * 1000L);
-    public static final Property<Long> MAX_READ_TIMEOUT_MILLIS = Property.named("maxReadTimeoutMillis", 30 * 60 * 1000L);
+    public static final Property<Long> MAX_READ_TIMEOUT_MILLIS = Property.named("maxReadTimeoutMillis", 3 * 60 * 1000L);
     public static final Property<Long> ERROR_SLEEP_MILLIS = Property.named("errorSleepMillis", 1000L);
     public static final Property<Long> FLUSH_TIMEOUT_MILLIS = Property.named("flushTimeoutMillis", 60 * 1000L);
     public static final Property<Long> IDLE_TIMEOUT_MILLIS = Property.named("idleTimeoutMillis", FLUSH_TIMEOUT_MILLIS.getDefaultValue() * 5);
@@ -163,9 +163,12 @@ public class WriterConfig {
         this.errorSleepDuration = Duration.ofMillis(properties.getLong(ERROR_SLEEP_MILLIS));
         this.flushTimeout = Duration.ofMillis(properties.getLong(FLUSH_TIMEOUT_MILLIS));
         this.idleTimeout = Duration.ofMillis(properties.getLong(IDLE_TIMEOUT_MILLIS));
-        if (this.idleTimeout.compareTo(this.flushTimeout) <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be larger than '%s'.",
-                    IDLE_TIMEOUT_MILLIS, FLUSH_TIMEOUT_MILLIS));
+        if (this.idleTimeout.compareTo(this.flushTimeout) <= 0
+                || this.idleTimeout.compareTo(this.maxReadTimeout) <= 0) {
+            // We want to make sure that we don't prematurely stop the StorageWriter if we are within the allowed time
+            // bounds for either Flush or DurableLog Read. The Idle Timeout must be higher than both of these timeouts.
+            throw new ConfigurationException(String.format("Property '%s' must be larger than both '%s' and '%s'.",
+                    IDLE_TIMEOUT_MILLIS, FLUSH_TIMEOUT_MILLIS, MAX_READ_TIMEOUT_MILLIS));
         }
 
         this.ackTimeout = Duration.ofMillis(properties.getLong(ACK_TIMEOUT_MILLIS));
