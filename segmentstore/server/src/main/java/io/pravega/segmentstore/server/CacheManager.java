@@ -273,13 +273,24 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         do {
             reducedInIteration = updateClients();
             if (reducedInIteration) {
-                fetchCacheState();
-                logCurrentStatus(currentStatus);
-                oldestChanged = adjustOldestGeneration(currentStatus);
                 reducedOverall = true;
+
+                // Get the latest cache state in order to determine utilization.
+                fetchCacheState();
+
+                // Collect and aggregate all client states.
+                currentStatus = collectStatus();
+                if (currentStatus == null) {
+                    // No more clients registered.
+                    oldestChanged = false;
+                } else {
+                    // Adjust oldest generation if needed.
+                    logCurrentStatus(currentStatus);
+                    oldestChanged = adjustOldestGeneration(currentStatus);
+                }
             }
         } while (reducedInIteration && oldestChanged);
-        this.metrics.report(this.lastCacheState, currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
+        this.metrics.report(this.lastCacheState, currentStatus == null ? 0 : currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
         return reducedOverall;
     }
 
@@ -411,7 +422,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     @GuardedBy("lock")
     private void logCurrentStatus(CacheStatus status) {
-        log.info("{} Gen: {}-{}, Clients: {}, Cache: {}.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration, this.clients.size(), this.lastCacheState);
+        log.info("{}: Gen: {}-{}; Clients: {} ({}-{}); Cache: {}.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration,
+                this.clients.size(), status.getNewestGeneration(), status.getOldestGeneration(), this.lastCacheState);
     }
 
     private long getStoredBytes() {
@@ -512,19 +524,21 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
          * {@link #isEmpty()} set to true.
          */
         public static CacheStatus combine(Iterator<CacheStatus> cacheStates) {
-            if (!cacheStates.hasNext()) {
-                return new CacheStatus(EMPTY_VALUE, EMPTY_VALUE);
-            }
-
             int minGen = EMPTY_VALUE;
             int maxGen = 0;
+            int nonEmptyCount = 0;
             while (cacheStates.hasNext()) {
                 CacheStatus cs = cacheStates.next();
-                minGen = Math.min(minGen, cs.getOldestGeneration());
-                maxGen = Math.max(maxGen, cs.getNewestGeneration());
+                if (!cs.isEmpty()) {
+                    minGen = Math.min(minGen, cs.getOldestGeneration());
+                    maxGen = Math.max(maxGen, cs.getNewestGeneration());
+                    nonEmptyCount++;
+                }
             }
 
-            return new CacheManager.CacheStatus(minGen, maxGen);
+            return nonEmptyCount == 0
+                    ? new CacheStatus(EMPTY_VALUE, EMPTY_VALUE)
+                    : new CacheStatus(minGen, maxGen);
         }
 
         /**

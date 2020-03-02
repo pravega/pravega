@@ -12,8 +12,8 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.CompositeArrayView;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -808,7 +808,7 @@ public class DurableLogTests extends OperationLogTestBase {
                             // previous sequence number.
                             DataFrame df = DataFrame.ofSize(readItem.getLength());
                             df.seal();
-                            ArrayView serialization = df.getData();
+                            CompositeArrayView serialization = df.getData();
                             return new InjectedReadItem(serialization.getReader(), serialization.getLength(), readItem.getAddress());
                         }
 
