@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ExtendedS3StorageConfig {
     //region Config Names
 
-    public static final Property<String> ROOT = Property.named("root", "/");
+    public static final Property<String> PREFIX = Property.named("prefix", "/");
     public static final Property<String> ACCESS_KEY_ID = Property.named("accessKey", "");
     public static final Property<String> SECRET_KEY = Property.named("secretKey", "");
     public static final Property<String> URI = Property.named("url", "");
@@ -40,11 +40,11 @@ public class ExtendedS3StorageConfig {
     //region Members
 
     /**
-     * Root of the Pravega owned EXTENDEDS3 path under the assigned buckets. All the objects under this path will be
+     * Prefix of the Pravega owned EXTENDEDS3 path under the assigned buckets. All the objects under this path will be
      * exclusively owned by Pravega.
      */
     @Getter
-    private final String root;
+    private final String prefix;
 
     /**
      *  The EXTENDEDS3 access key id - this is equivalent to the user
@@ -92,8 +92,8 @@ public class ExtendedS3StorageConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private ExtendedS3StorageConfig(TypedProperties properties) throws ConfigurationException {
-        String givenRoot = properties.get(ROOT);
-        this.root = givenRoot.endsWith(PATH_SEPARATOR) ? givenRoot : givenRoot + PATH_SEPARATOR;
+        String givenPrefix = properties.get(PREFIX);
+        this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
         this.accessKey = properties.get(ACCESS_KEY_ID);
         this.secretKey = properties.get(SECRET_KEY);
         this.url = java.net.URI.create(properties.get(URI));

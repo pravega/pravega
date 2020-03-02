@@ -27,6 +27,8 @@ import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
+
 import static io.pravega.shared.MetricsTags.DEFAULT_HOSTNAME_KEY;
 import static io.pravega.shared.MetricsTags.createHostTag;
 
@@ -75,9 +77,11 @@ class StatsProviderImpl implements StatsProvider {
     @Synchronized
     @Override
     public void startWithoutExporting() {
-        for (MeterRegistry registry : metrics.getRegistries()) {
+
+        for (MeterRegistry registry : new ArrayList<MeterRegistry>(metrics.getRegistries())) {
             metrics.remove(registry);
         }
+
         Metrics.addRegistry(new SimpleMeterRegistry());
         metrics.config().commonTags(createHostTag(DEFAULT_HOSTNAME_KEY));
     }

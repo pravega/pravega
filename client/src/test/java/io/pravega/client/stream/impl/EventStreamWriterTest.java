@@ -77,7 +77,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
-        MockSegmentIoStreams outputStream = new MockSegmentIoStreams(segment);
+        MockSegmentIoStreams outputStream = new MockSegmentIoStreams(segment, null);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outputStream);
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory,
                 new JavaSerializer<>(), config, executorService(), executorService());
@@ -463,7 +463,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         Mockito.verify(controller).getCurrentSegments(any(), any());
         assertTrue(outputStream.unacked.size() > 0);
 
-        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
+        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2, null);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
         outputStream.invokeSealedCallBack();
 
@@ -502,7 +502,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         Mockito.verify(controller).getCurrentSegments(any(), any());
         assertTrue(outputStream.getUnackedEventsOnSeal().size() > 0);
 
-        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
+        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2, null);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
 
         AssertExtensions.assertBlocks(() -> {
@@ -547,7 +547,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
 
-        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
+        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2, null);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
 
         AssertExtensions.assertBlocks(() -> {
@@ -594,7 +594,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         Mockito.verify(controller).getCurrentSegments(any(), any());
         assertTrue(outputStream.getUnackedEventsOnSeal().size() > 0);
 
-        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
+        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2, null);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
 
         AssertExtensions.assertBlocks(() -> {
@@ -639,7 +639,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         Mockito.verify(controller).getCurrentSegments(any(), any());
         assertTrue(outputStream1.unacked.size() > 0);
 
-        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
+        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2, null);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
         outputStream1.invokeSealedCallBack();
 
