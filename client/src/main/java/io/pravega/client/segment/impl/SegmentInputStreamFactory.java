@@ -49,11 +49,12 @@ public interface SegmentInputStreamFactory {
      * does not exist.
      *
      * @param segment The segment to create an input for.
+     * @param bufferSize the size of the buffer to hold for data incomming on this segment.
      * @param hasData A Semaphore that will have `release` called when data is available.
      * @param endOffset The offset up to which the segment can be read.
      * @return New instance of the EventSegmentReader for reading.
      */
-    EventSegmentReader createEventReaderForSegment(Segment segment, Semaphore hasData, long endOffset);
+    EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize, Semaphore hasData, long endOffset);
 
     /**
      * Opens an existing segment for reading. This operation will fail if the
