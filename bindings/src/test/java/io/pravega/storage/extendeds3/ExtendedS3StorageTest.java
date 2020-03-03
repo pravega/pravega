@@ -42,6 +42,7 @@ import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -185,6 +186,42 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
 
         }
 
+    }
+
+    /**
+     * Tests fix for https://github.com/pravega/pravega/issues/4591.
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testExistsWithPrefix() throws Exception {
+        val adapterConfig = ExtendedS3StorageConfig.builder()
+                .with(ExtendedS3StorageConfig.CONFIGURI, setup.configUri)
+                .with(ExtendedS3StorageConfig.BUCKET, setup.adapterConfig.getBucket())
+                .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
+                .with(ExtendedS3StorageConfig.USENONEMATCH, true)
+                .build();
+
+        String segmentName1 = "issue4591";
+        String segmentName2 = "normal";
+        try (Storage s = createStorage(setup.client, adapterConfig, executorService())) {
+            s.initialize(DEFAULT_EPOCH);
+
+            // No segment should exist
+            assertFalse(s.exists(segmentName1, null).get());
+            assertFalse(s.exists(segmentName1 + "$index", null).get());
+            assertFalse(s.exists(segmentName2, null).get());
+
+            // Create and verify
+            s.create(segmentName2, null).join();
+            assertTrue(s.exists(segmentName2, null).get());
+
+            s.create(segmentName1 + "$index", null).join();
+            assertTrue(s.exists(segmentName1 + "$index", null).get());
+
+            // Verify with prefix
+            assertFalse(s.exists(segmentName1, null).get());
+            assertFalse(s.exists(segmentName1 + "$header", null).get());
+        }
     }
 
     private static Storage createStorage(S3Client client, ExtendedS3StorageConfig adapterConfig, Executor executor) {
