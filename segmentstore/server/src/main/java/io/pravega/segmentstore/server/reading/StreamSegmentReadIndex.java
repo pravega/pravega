@@ -563,11 +563,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private CacheIndexEntry addSingleEntryToCacheAndIndex(BufferView data, long offset, String operationName) {
         int dataAddress = this.cacheStorage.insert(data);
         CacheIndexEntry newEntry;
-        ReadIndexEntry oldEntry;
+        ReadIndexEntry rejectedEntry;
         try {
             newEntry = new CacheIndexEntry(offset, data.getLength(), dataAddress);
             synchronized (this.lock) {
-                oldEntry = addToIndex(newEntry);
+                rejectedEntry = addToIndex(newEntry);
             }
         } catch (Throwable ex) {
             if (!Exceptions.mustRethrow(ex)) {
@@ -577,21 +577,41 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             throw ex;
         }
 
-        if (oldEntry != null) {
-            deleteData(oldEntry);
-            log.warn("{}: {} overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).",
-                    this.traceObjectId, operationName, newEntry.getStreamSegmentOffset(), newEntry.getLength(), oldEntry.getLength());
+        if (rejectedEntry != null) {
+            deleteData(rejectedEntry);
+            if (rejectedEntry != newEntry) {
+                log.warn("{}: {} overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).",
+                        this.traceObjectId, operationName, newEntry.getStreamSegmentOffset(), rejectedEntry.getLength(), newEntry.getLength());
+            }
         }
         return newEntry;
     }
 
+    /**
+     * Attempts to add the given {@link ReadIndexEntry} to the index. No cache operations are performed.
+     *
+     * @param entry The {@link ReadIndexEntry} to add.
+     * @return A rejected {@link ReadIndexEntry}. If the given entry has overridden another that already existed in the
+     * index, the overridden one will be returned. If the given entry could not be added to the index due to another,
+     * more up-to-date one existing already, the given entry will be returned as rejected (and no modifications will
+     * be made to the index). A null value will be returned if there was no conflict.
+     */
     @GuardedBy("lock")
-    private ReadIndexEntry addToIndex(ReadIndexEntry entry) {
+    private ReadIndexEntry addToIndex(final ReadIndexEntry entry) {
         Exceptions.checkNotClosed(this.closed, this);
-        // Insert the new entry and figure out if an old entry was overwritten.
-        ReadIndexEntry oldEntry = this.indexEntries.put(entry);
+
+        // Insert the new entry and figure out if an old entry was overwritten. The vast majority of times there will
+        // be nothing to override, so we use an optimistic concurrency strategy to execute this. If we end up replacing
+        // an entry, we'll verify it and undo the insertion if appropriate.
+        ReadIndexEntry rejectedEntry = this.indexEntries.put(entry);
         if (entry.isDataEntry()) {
-            if (entry instanceof MergedIndexEntry) {
+            if (rejectedEntry != null && rejectedEntry.getLength() > entry.getLength()) {
+                // We have replaced an entry which had more up-to-date information. If we allow the existing entry to be
+                // overridden, we have potential (in-memory) data loss, so this cannot happen. Undo this.
+                this.indexEntries.put(rejectedEntry);
+                rejectedEntry.setGeneration(entry.getGeneration());
+                rejectedEntry = entry;
+            } else if (entry instanceof MergedIndexEntry) {
                 // This entry has already existed in the cache for a while; do not change its generation.
                 this.summary.addOne(entry.getGeneration());
             } else {
@@ -601,12 +621,12 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             }
         }
 
-        if (oldEntry != null && oldEntry.isDataEntry()) {
+        if (rejectedEntry != null && rejectedEntry != entry && rejectedEntry.isDataEntry()) {
             // Need to eject the old entry's data from the Cache Stats.
-            this.summary.removeOne(oldEntry.getGeneration());
+            this.summary.removeOne(rejectedEntry.getGeneration());
         }
 
-        return oldEntry;
+        return rejectedEntry;
     }
 
     //endregion
