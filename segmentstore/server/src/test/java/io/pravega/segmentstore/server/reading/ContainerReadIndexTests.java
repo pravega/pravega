@@ -784,8 +784,13 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                             .join();
 
                     Assert.assertArrayEquals("Unexpected appended data read back.", storageData, segmentData);
-                    Assert.assertEquals("Unexpected number of bytes in Cache.",
-                            storageData.length, context.cacheStorage.getState().getStoredBytes());
+
+                    // The cleanup is async, so we must keep trying to check until it is done.
+                    AssertExtensions.assertEventuallyEquals("Unexpected number of bytes in the cache.",
+                            (long) storageData.length,
+                            () -> context.cacheStorage.getState().getStoredBytes(),
+                            10, TIMEOUT.toMillis());
+
                 });
     }
 
@@ -811,8 +816,12 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                     val actualAppendedData = StreamHelpers.readAll(appendedDataStream, appendedData.get().getLength());
                     AssertExtensions.assertArrayEquals("Unexpected appended data read back.",
                             appendedData.get().array(), 0, actualAppendedData, 0, appendedData.get().getLength());
-                    Assert.assertEquals("Unexpected number of bytes in Cache.",
-                            metadata.getLength(), context.cacheStorage.getState().getStoredBytes());
+
+                    // The cleanup is async, so we must keep trying to check until it is done.
+                    AssertExtensions.assertEventuallyEquals("Unexpected number of bytes in the cache.",
+                            metadata.getLength(),
+                            () -> context.cacheStorage.getState().getStoredBytes(),
+                            10, TIMEOUT.toMillis());
                 });
     }
 
