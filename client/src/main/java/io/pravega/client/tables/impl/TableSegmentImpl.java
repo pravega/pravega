@@ -10,6 +10,7 @@
 package io.pravega.client.tables.impl;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
@@ -128,7 +129,7 @@ public class TableSegmentImpl implements TableSegment {
     @Override
     public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(@NonNull IteratorArgs args) {
         return new TableSegmentIterator<>(
-                s -> fetchIteratorItems(args.getMaxItemsAtOnce(), s, WireCommands.ReadTableKeys::new, WireCommands.TableKeysRead.class,
+                s -> fetchIteratorItems(args, s, WireCommands.ReadTableKeys::new, WireCommands.TableKeysRead.class,
                         WireCommands.TableKeysRead::getContinuationToken, this::fromWireCommand),
                 args.getState());
     }
@@ -136,7 +137,7 @@ public class TableSegmentImpl implements TableSegment {
     @Override
     public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(@NonNull IteratorArgs args) {
         return new TableSegmentIterator<>(
-                s -> fetchIteratorItems(args.getMaxItemsAtOnce(), s, WireCommands.ReadTableEntries::new, WireCommands.TableEntriesRead.class,
+                s -> fetchIteratorItems(args, s, WireCommands.ReadTableEntries::new, WireCommands.TableEntriesRead.class,
                         WireCommands.TableEntriesRead::getContinuationToken, reply -> fromWireCommand(reply.getEntries())),
                 args.getState());
     }
@@ -144,7 +145,7 @@ public class TableSegmentImpl implements TableSegment {
     /**
      * Fetches a collection of items as part of an async iterator.
      *
-     * @param maxItemsAtOnce     Suggested number of items to fetch at once.
+     * @param args               A {@link IteratorArgs} that contains initial arguments to the iterator.
      * @param iteratorState      Iterator State. See {@link TableSegment#keyIterator} or {@link TableSegment#entryIterator}
      *                           for more details.
      * @param newIteratorRequest Creates a {@link WireCommand} for the iterator items.
@@ -158,11 +159,13 @@ public class TableSegmentImpl implements TableSegment {
      * Future will be failed with the appropriate exception.
      */
     private <ItemT, RequestT extends Request & WireCommand, ReplyT extends Reply & WireCommand> CompletableFuture<IteratorItem<ItemT>> fetchIteratorItems(
-            int maxItemsAtOnce, IteratorState iteratorState, CreateIteratorRequest<RequestT> newIteratorRequest, Class<ReplyT> replyClass,
-            Function<ReplyT, ByteBuf> getStateToken, Function<ReplyT, List<ItemT>> getResult) {
+            IteratorArgs args, IteratorState iteratorState, CreateIteratorRequest<RequestT> newIteratorRequest,
+            Class<ReplyT> replyClass, Function<ReplyT, ByteBuf> getStateToken, Function<ReplyT, List<ItemT>> getResult) {
         val token = (iteratorState == null) ? IteratorState.EMPTY : iteratorState;
+        val prefixFilter = args.getKeyPrefixFilter() == null ? Unpooled.EMPTY_BUFFER : args.getKeyPrefixFilter();
         return execute((state, requestId) -> {
-            val request = newIteratorRequest.apply(requestId, this.segmentName, state.getToken(), maxItemsAtOnce, token.getToken());
+            val request = newIteratorRequest.apply(requestId, this.segmentName, state.getToken(), args.getMaxItemsAtOnce(),
+                    token.getToken(), prefixFilter);
             return sendRequest(request, state, replyClass)
                     .thenApply(reply -> {
                         val newState = IteratorState.fromBytes(getStateToken.apply(reply));
@@ -180,7 +183,7 @@ public class TableSegmentImpl implements TableSegment {
 
     @FunctionalInterface
     private interface CreateIteratorRequest<V extends Request & WireCommand> {
-        V apply(long requestId, String segmentName, String delegationToken, int maxEntriesAtOnce, ByteBuf stateToken);
+        V apply(long requestId, String segmentName, String delegationToken, int maxEntriesAtOnce, ByteBuf stateToken, ByteBuf prefixFilter);
     }
 
     //endregion

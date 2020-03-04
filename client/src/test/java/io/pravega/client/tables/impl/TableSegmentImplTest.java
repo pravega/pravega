@@ -39,6 +39,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -169,6 +170,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         val context = new TestContext();
         testIterator(context.segment::keyIterator,
                 () -> ((WireCommands.ReadTableKeys) context.getConnection().getLastSentWireCommand()).getContinuationToken(),
+                () -> ((WireCommands.ReadTableKeys) context.getConnection().getLastSentWireCommand()).getPrefixFilter(),
                 TableSegmentEntry::getKey,
                 (expectedResult, replyToken) -> {
                     val replyKeys = toWireKeys(expectedResult);
@@ -188,6 +190,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         val context = new TestContext();
         testIterator(context.segment::entryIterator,
                 () -> ((WireCommands.ReadTableEntries) context.getConnection().getLastSentWireCommand()).getContinuationToken(),
+                () -> ((WireCommands.ReadTableEntries) context.getConnection().getLastSentWireCommand()).getPrefixFilter(),
                 e -> e,
                 (expectedResult, replyToken) -> {
                     val replyEntries = toWireEntries(expectedResult, null);
@@ -199,15 +202,19 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
 
     private <T> void testIterator(Function<IteratorArgs, AsyncIterator<IteratorItem<T>>> newIterator,
                                   Supplier<ByteBuf> getLastRequestContinuationToken,
+                                  Supplier<ByteBuf> getLastRequestPrefix,
                                   Function<TableSegmentEntry, T> getItemFromEntry,
                                   BiConsumer<List<T>, ByteBuf> sendReply,
                                   BiPredicate<T, T> checkItemEquality) throws Exception {
         val suggestedKeyCount = 123;
+        val prefixFilter = new byte[31];
+        val rnd = new Random(0);
+        rnd.nextBytes(prefixFilter);
 
         // Generate 100 Entries and split them into batches.
         val allEntries = IntStream.range(0, 100)
-                .mapToObj(i -> versionedEntry(i * 10L, Integer.toString(i * 10), 1L))
-                .collect(Collectors.toList());
+                                  .mapToObj(i -> versionedEntry(i * 10L, Integer.toString(i * 10), 1L))
+                                  .collect(Collectors.toList());
         val inputEntries = splitIteratorInputs(allEntries);
 
         // Convert a numeric Continuation Token (IteratorState) into a Wire-friendly format and back.
@@ -217,7 +224,10 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         Function<ByteBuf, Integer> parseContinuationToken = token -> Integer.parseInt(new String(token.array()));
 
         // Check regular iteration.
-        val iterator = newIterator.apply(IteratorArgs.builder().maxItemsAtOnce(suggestedKeyCount).build());
+        val iterator = newIterator.apply(IteratorArgs.builder()
+                                                     .maxItemsAtOnce(suggestedKeyCount)
+                                                     .keyPrefixFilter(Unpooled.wrappedBuffer(prefixFilter))
+                                                     .build());
         for (int i = 0; i < inputEntries.size(); i++) {
             val iteratorFuture = iterator.getNext();
 
@@ -225,6 +235,8 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
             val expectedRequestToken = generateContinuationToken.apply(i);
             val requestToken = getLastRequestContinuationToken.get();
             Assert.assertEquals("Unexpected token sent.", 0, expectedRequestToken.compareTo(requestToken));
+            val actualPrefixFilter = getLastRequestPrefix.get();
+            Assert.assertEquals("Unexpected prefix filter sent.", Unpooled.wrappedBuffer(prefixFilter), actualPrefixFilter);
 
             // Send a reply.
             val expectedResult = inputEntries.get(i).stream().map(getItemFromEntry).collect(Collectors.toList());
