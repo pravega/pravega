@@ -14,6 +14,7 @@ import com.emc.object.s3.S3Config;
 import com.emc.object.s3.bean.ObjectKey;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.DeleteObjectsRequest;
+import com.emc.object.util.ConfigUri;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.Property;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -29,7 +30,6 @@ import io.pravega.storage.IdempotentStorageTestBase;
 import io.pravega.test.common.TestUtils;
 
 import java.io.ByteArrayInputStream;
-import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executor;
@@ -77,13 +77,12 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     @Test
     public void testCreateIfNoneMatch() {
         val adapterConfig = ExtendedS3StorageConfig.builder()
+                .with(ExtendedS3StorageConfig.CONFIGURI, setup.configUri)
                 .with(ExtendedS3StorageConfig.BUCKET, setup.adapterConfig.getBucket())
-                                               .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
-                                               .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
-                                               .with(ExtendedS3StorageConfig.ROOT, "test")
-                .with(ExtendedS3StorageConfig.URI, setup.endpoint)
-                                               .with(ExtendedS3StorageConfig.USENONEMATCH, true)
-                                               .build();
+                .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
+                .with(ExtendedS3StorageConfig.USENONEMATCH, true)
+                .build();
+
         String segmentName = "foo_open";
         try (Storage s = createStorage(setup.client, adapterConfig, executorService())) {
             s.initialize(DEFAULT_EPOCH);
@@ -96,20 +95,22 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     //endregion
 
     @Test
-    public void testConfigForTrailingCharInRoot() {
+    public void testConfigForTrailingCharInPrefix() {
         // Missing trailing '/'
         ConfigBuilder<ExtendedS3StorageConfig> builder1 = ExtendedS3StorageConfig.builder();
-        builder1.with(Property.named("root"), "test");
+        builder1.with(Property.named("configUri"), "http://127.0.0.1:9020?identity=x&secretKey=x")
+                .with(Property.named("prefix"), "samplePrefix");
         ExtendedS3StorageConfig config1 = builder1.build();
-        assertTrue(config1.getRoot().endsWith("/"));
-        assertEquals("test/", config1.getRoot());
+        assertTrue(config1.getPrefix().endsWith("/"));
+        assertEquals("samplePrefix/", config1.getPrefix());
 
         // Not missing '/'
         ConfigBuilder<ExtendedS3StorageConfig> builder2 = ExtendedS3StorageConfig.builder();
-        builder2.with(Property.named("root"), "test/");
+        builder2.with(Property.named("configUri"), "http://127.0.0.1:9020?identity=x&secretKey=x")
+                .with(Property.named("prefix"), "samplePrefix/");
         ExtendedS3StorageConfig config2 = builder2.build();
-        assertTrue(config2.getRoot().endsWith("/"));
-        assertEquals("test/", config2.getRoot());
+        assertTrue(config2.getPrefix().endsWith("/"));
+        assertEquals("samplePrefix/", config2.getPrefix());
     }
 
     @Test
@@ -232,22 +233,18 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         private final S3JerseyClient client;
         private final S3ImplBase s3Proxy;
         private final int port = TestUtils.getAvailableListenPort();
-        private final String endpoint = "http://127.0.0.1:" + port;
+        private final String configUri = "http://127.0.0.1:" + port + "?identity=x&secretKey=x";
         private final S3Config s3Config;
 
         TestContext() throws Exception {
             String bucketName = BUCKET_NAME_PREFIX + UUID.randomUUID().toString();
             this.adapterConfig = ExtendedS3StorageConfig.builder()
+                    .with(ExtendedS3StorageConfig.CONFIGURI, configUri)
                     .with(ExtendedS3StorageConfig.BUCKET, bucketName)
-                    .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
-                    .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
-                    .with(ExtendedS3StorageConfig.ROOT, "test")
-                    .with(ExtendedS3StorageConfig.URI, endpoint)
+                    .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
                     .build();
-            URI uri = URI.create(endpoint);
-            s3Config = new S3Config(uri)
-                    .withIdentity(adapterConfig.getAccessKey()).withSecretKey(adapterConfig.getSecretKey());
-            s3Proxy = new S3ProxyImpl(endpoint, s3Config);
+            s3Config = new ConfigUri<>(S3Config.class).parseUri(configUri);
+            s3Proxy = new S3ProxyImpl(configUri, s3Config);
             s3Proxy.start();
             client = new S3JerseyClientWrapper(s3Config, s3Proxy);
             client.createBucket(bucketName);

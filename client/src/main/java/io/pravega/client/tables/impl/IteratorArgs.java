@@ -32,7 +32,7 @@ class IteratorArgs {
      */
     private final int maxItemsAtOnce;
     /**
-     * Optional.A continuation token that can be used to resume a previously interrupted iteration. This can be obtained
+     * Optional. A continuation token that can be used to resume a previously interrupted iteration. This can be obtained
      * by invoking {@link IteratorItem#getState()}. A null value will create an iterator that lists all keys.
      */
     private final IteratorState state;

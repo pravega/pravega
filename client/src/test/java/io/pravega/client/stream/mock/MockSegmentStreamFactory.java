@@ -24,6 +24,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 
 public class MockSegmentStreamFactory implements SegmentInputStreamFactory, SegmentOutputStreamFactory, ConditionalOutputStreamFactory, SegmentMetadataClientFactory {
@@ -38,7 +39,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     private MockSegmentIoStreams getMockStream(Segment segment) {
-        MockSegmentIoStreams streams = new MockSegmentIoStreams(segment);
+        MockSegmentIoStreams streams = new MockSegmentIoStreams(segment, null);
         segments.putIfAbsent(segment, streams);
         return segments.get(segment);
     }
@@ -70,8 +71,10 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public EventSegmentReader createEventReaderForSegment(Segment segment, long endOffset) {
-        return getMockStream(segment);
+    public EventSegmentReader createEventReaderForSegment(Segment segment, Semaphore hasData, long endOffset) {
+        MockSegmentIoStreams streams = new MockSegmentIoStreams(segment, hasData);
+        segments.putIfAbsent(segment, streams);
+        return segments.get(segment);
     }
 
     @Override

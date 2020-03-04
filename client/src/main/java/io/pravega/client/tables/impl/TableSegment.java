@@ -16,7 +16,6 @@ import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.common.util.AsyncIterator;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -61,9 +60,7 @@ public interface TableSegment extends AutoCloseable {
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Update and the condition was not satisfied.
      * </ul>
      */
-    default CompletableFuture<TableSegmentKeyVersion> put(TableSegmentEntry entry) {
-        return put(Collections.singletonList(entry)).thenApply(result -> result.get(0));
-    }
+    CompletableFuture<TableSegmentKeyVersion> put(TableSegmentEntry entry);
 
     /**
      * Inserts new or updates existing Table Entries into this Table Segment.
@@ -94,9 +91,7 @@ public interface TableSegment extends AutoCloseable {
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
      * </ul>
      */
-    default CompletableFuture<Void> remove(TableSegmentKey key) {
-        return remove(Collections.singleton(key));
-    }
+    CompletableFuture<Void> remove(TableSegmentKey key);
 
     /**
      * Removes one or more keys from this Table Segment.
@@ -120,9 +115,7 @@ public interface TableSegment extends AutoCloseable {
      * @return A CompletableFuture that, when completed, will contain the requested result. If no such Key exists, this
      * will be completed with a null value.
      */
-    default CompletableFuture<TableSegmentEntry> get(ByteBuf key) {
-        return get(Collections.singletonList(key)).thenApply(result -> result.get(0));
-    }
+    CompletableFuture<TableSegmentEntry> get(ByteBuf key);
 
     /**
      * Gets the latest values for the given Keys.

@@ -9,12 +9,14 @@
  */
 package io.pravega.client.tables.impl;
 
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import lombok.Cleanup;
+import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -43,6 +45,14 @@ public class TableSegmentKeyVersionTest {
         assertEquals(kv, TableSegmentKeyVersion.fromBytes(kv.toBytes()));
         byte[] buf = serialize(kv);
         assertEquals(kv, deSerializeKeyVersion(buf));
+    }
+
+    @Test
+    public void testSpecialVersions() {
+        Assert.assertEquals(WireCommands.TableKey.NO_VERSION, TableSegmentKeyVersion.NO_VERSION.getSegmentVersion());
+        Assert.assertEquals(WireCommands.TableKey.NOT_EXISTS, TableSegmentKeyVersion.NOT_EXISTS.getSegmentVersion());
+        Assert.assertSame(TableSegmentKeyVersion.NO_VERSION, TableSegmentKeyVersion.from(WireCommands.TableKey.NO_VERSION));
+        Assert.assertSame(TableSegmentKeyVersion.NOT_EXISTS, TableSegmentKeyVersion.from(WireCommands.TableKey.NOT_EXISTS));
     }
 
     private byte[] serialize(TableSegmentKeyVersion sc) throws IOException {
