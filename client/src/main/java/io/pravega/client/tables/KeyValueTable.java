@@ -11,7 +11,6 @@ package io.pravega.client.tables;
 
 import io.pravega.common.util.AsyncIterator;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -106,9 +105,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
-    default CompletableFuture<KeyVersion> put(String keyFamily, TableEntry<KeyT, ValueT> entry) {
-        return put(keyFamily, Collections.singletonList(entry)).thenApply(result -> result.get(0));
-    }
+    CompletableFuture<KeyVersion> put(String keyFamily, TableEntry<KeyT, ValueT> entry);
 
     /**
      * Inserts new or updates existing {@link TableEntry} instances that belong to the same Key Family into this
@@ -158,9 +155,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
-    default CompletableFuture<Void> remove(String keyFamily, TableKey<KeyT> key) {
-        return remove(keyFamily, Collections.singleton(key));
-    }
+    CompletableFuture<Void> remove(String keyFamily, TableKey<KeyT> key);
 
     /**
      * Removes one or more {@link TableKey} instances that belong to the same Key Family from this Table Segment.
@@ -187,9 +182,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * @return A CompletableFuture that, when completed, will contain the requested result. If no such Key exists, this
      * will be completed with a null value.
      */
-    default CompletableFuture<TableEntry<KeyT, ValueT>> get(KeyT key) {
-        return get(Collections.singletonList(key)).thenApply(result -> result.get(0));
-    }
+    CompletableFuture<TableEntry<KeyT, ValueT>> get(KeyT key);
 
     /**
      * Gets the latest values for a set of Keys that do not belong to any Key Family.
@@ -209,9 +202,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * @return A CompletableFuture that, when completed, will contain the requested result. If no such Key exists, this
      * will be completed with a null value.
      */
-    default CompletableFuture<TableEntry<KeyT, ValueT>> get(String keyFamily, KeyT key) {
-        return get(keyFamily, Collections.singletonList(key)).thenApply(result -> result.get(0));
-    }
+    CompletableFuture<TableEntry<KeyT, ValueT>> get(String keyFamily, KeyT key);
 
     /**
      * Gets the latest values for a set of Keys that do belong to the same Key Family.
