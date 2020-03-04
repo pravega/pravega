@@ -90,7 +90,7 @@ public class CachePolicy {
     public CachePolicy(long maxSize, double targetUtilization, double maxUtilization, Duration maxTime, Duration generationDuration) {
         Preconditions.checkArgument(maxSize > 0, "maxSize must be a positive integer");
         Preconditions.checkArgument(targetUtilization > 0 && targetUtilization <= 1.0,
-                "maxUtilization must be a number in the range (0.0, 1.0].");
+                "targetUtilization must be a number in the range (0.0, 1.0].");
         Preconditions.checkArgument(maxUtilization >= targetUtilization && maxUtilization <= 1.0,
                 "maxUtilization must be a number in the range (0.0, 1.0], at least equal to targetUtilization(%s).", targetUtilization);
         this.maxSize = maxSize;
