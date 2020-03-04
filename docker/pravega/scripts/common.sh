@@ -26,9 +26,10 @@ add_system_property_ecs_config_uri() {
     local identity=$3
     local secret=$4
 
-    if [ ${configUri} != *"identity="* ]; then
+    if ! echo ${configUri} | grep -q "identity"; then
         configUri=${configUri}"%26identity="${identity}"%26secretKey="${secret}
     fi
 
+    echo "${name}" "${configUri}"
     add_system_property "${name}" "${configUri}"
 }
