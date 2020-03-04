@@ -18,3 +18,17 @@ add_system_property() {
         export JAVA_OPTS="${JAVA_OPTS} -D${name}=${value}"
     fi
 }
+
+# Add system property for ECS configUri with ECS credentials
+add_system_property_ecs_config_uri() {
+    local name=$1
+    local configUri=$2
+    local identity=$3
+    local secret=$4
+
+    if [ ${configUri} != *"identity="* ]; then
+        configUri=${configUri}"%26identity="${identity}"%26secretKey="${secret}
+    fi
+
+    add_system_property "${name}" "${configUri}"
+}
