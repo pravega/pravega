@@ -17,7 +17,6 @@ import com.emc.object.s3.bean.AccessControlList;
 import com.emc.object.s3.bean.CanonicalUser;
 import com.emc.object.s3.bean.CopyPartResult;
 import com.emc.object.s3.bean.Grant;
-import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
@@ -263,18 +262,10 @@ public class ExtendedS3Storage implements SyncStorage {
 
     private boolean doExists(String streamSegmentName) {
         try {
-            ListObjectsResult result = client.listObjects(config.getBucket(), config.getPrefix() + streamSegmentName);
-            return !result.getObjects().isEmpty();
+            S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(),
+                    config.getPrefix() + streamSegmentName);
+            return true;
         } catch (S3Exception e) {
-            /*
-             * TODO: This implementation is supporting both an empty list and a no such key
-             * exception to indicate that the segment doesn't exist. It is trying to be safe,
-             * but this is an indication that the behavior is not well understood. We need to
-             * investigate the exact behavior we should expect out of this call and react
-             * accordingly rather than guess.
-             *
-             * See https://github.com/pravega/pravega/issues/1559
-             */
             if ( e.getErrorCode().equals("NoSuchKey")) {
                 return false;
             } else {
