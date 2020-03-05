@@ -234,7 +234,7 @@ public class K8sClient {
 
         String labelSelector = labels.entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).collect(Collectors.joining());
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
-        api.listNamespacedPodAsync(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS,null, null, labelSelector, null,
+        api.listNamespacedPodAsync(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, labelSelector, null,
                 null, null, false, callback);
         return callback.getFuture();
     }
@@ -266,7 +266,7 @@ public class K8sClient {
     public CompletableFuture<V1Deployment> createDeployment(final String namespace, final V1Deployment deploy) {
         AppsV1Api api = new AppsV1Api();
         K8AsyncCallback<V1Deployment> callback = new K8AsyncCallback<>("deployment");
-        api.createNamespacedDeploymentAsync(namespace, deploy, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER,callback);
+        api.createNamespacedDeploymentAsync(namespace, deploy, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -417,7 +417,7 @@ public class K8sClient {
     public CompletableFuture<V1beta1CustomResourceDefinition> createCRD(final V1beta1CustomResourceDefinition crd) {
         ApiextensionsV1beta1Api api = new ApiextensionsV1beta1Api();
         K8AsyncCallback<V1beta1CustomResourceDefinition> callback = new K8AsyncCallback<>("create CRD");
-        api.createCustomResourceDefinitionAsync(crd, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER,callback);
+        api.createCustomResourceDefinitionAsync(crd, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -471,7 +471,7 @@ public class K8sClient {
     public CompletableFuture<V1beta1RoleBinding> createRoleBinding(String namespace, V1beta1RoleBinding binding) {
         RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
         K8AsyncCallback<V1beta1RoleBinding> callback = new K8AsyncCallback<>("createRoleBinding");
-        api.createNamespacedRoleBindingAsync(namespace, binding, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER,callback);
+        api.createNamespacedRoleBindingAsync(namespace, binding, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
