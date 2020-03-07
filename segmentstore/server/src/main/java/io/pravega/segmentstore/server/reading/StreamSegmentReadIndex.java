@@ -650,7 +650,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private ReadIndexEntry addToIndex(ReadIndexEntry entry) {
         Exceptions.checkNotClosed(this.closed, this);
         // Insert the new entry and figure out if an old entry was overwritten.
-        ReadIndexEntry oldEntry = this.indexEntries.put(entry);
+        ReadIndexEntry rejectedEntry = this.indexEntries.put(entry);
         if (entry.isDataEntry()) {
             if (entry instanceof MergedIndexEntry) {
                 // This entry has already existed in the cache for a while; do not change its generation.
@@ -662,12 +662,12 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             }
         }
 
-        if (oldEntry != null && oldEntry.isDataEntry()) {
+        if (rejectedEntry != null && rejectedEntry.isDataEntry()) {
             // Need to eject the old entry's data from the Cache Stats.
-            this.summary.removeOne(oldEntry.getGeneration());
+            this.summary.removeOne(rejectedEntry.getGeneration());
         }
 
-        return oldEntry;
+        return rejectedEntry;
     }
 
     //endregion
