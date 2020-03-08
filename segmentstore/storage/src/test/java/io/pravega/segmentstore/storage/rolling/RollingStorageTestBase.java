@@ -16,6 +16,7 @@ import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.SequenceInputStream;
 import java.util.Random;
 import lombok.Cleanup;
 import lombok.val;
@@ -122,6 +123,37 @@ public abstract class RollingStorageTestBase extends StorageTestBase {
         val readHandle = (RollingSegmentHandle) s.openRead(segmentName).join();
         Assert.assertEquals("Unexpected number of chunks created.", 1, readHandle.chunks().size());
     }
+
+    @Test
+    public void testWriteOnRollOverBoundary() throws Exception {
+        final String segmentName = "Segment";
+        final int maxLength = 3; // Really small rolling length.
+
+        val seq1 = "01234";
+        val seq2 = "56789";
+        val totalWriteLength = seq1.length() + seq2.length();
+
+        @Cleanup
+        val s = createStorage();
+        s.initialize(1);
+
+        val writeHandle = s.create(segmentName, new SegmentRollingPolicy(maxLength), TIMEOUT)
+                .thenCompose(v -> s.openWrite(segmentName)).join();
+
+        val byteInputStream1 = new ByteArrayInputStream(seq1.getBytes());
+        val byteInputStream2 = new ByteArrayInputStream(seq2.getBytes());
+
+        val sequenceInputStream = new SequenceInputStream(byteInputStream1, byteInputStream2);
+
+        // This write should cause 3 rollovers.
+        s.write(writeHandle, 0, sequenceInputStream, totalWriteLength, TIMEOUT).join();
+
+        val readHandle = s.openRead(segmentName).join();
+        byte[] output = new byte[totalWriteLength];
+        s.read(readHandle, 0, output, 0, totalWriteLength, TIMEOUT).join();
+        Assert.assertEquals(seq1 + seq2, new String(output));
+    }
+
 
     @Override
     protected void createSegment(String segmentName, Storage storage) {
