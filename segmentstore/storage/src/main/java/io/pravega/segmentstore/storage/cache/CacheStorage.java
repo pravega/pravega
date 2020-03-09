@@ -19,6 +19,11 @@ import lombok.NonNull;
  */
 public interface CacheStorage extends AutoCloseable {
     /**
+     * Gets a value representing a "null" address.
+     */
+    int NO_ADDRESS = CacheLayout.NO_ADDRESS;
+
+    /**
      * Gets a value representing the size of one block. For efficiency purposes, it is highly recommended that all inserted
      * data align to this value (i.e., have a length that is a multiple of this value).
      *
