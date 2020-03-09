@@ -364,16 +364,19 @@ public class FlowHandlerTest {
     static class TestMetricNotifier implements MetricNotifier {
         @Override
         public void updateSuccessMetric(ClientMetricKeys metricKey, String[] metricTags, long value) {
+            NO_OP_METRIC_NOTIFIER.updateSuccessMetric(metricKey, metricTags, value);
             assertNotNull(metricKey);
         }
 
         @Override
         public void updateFailureMetric(ClientMetricKeys metricKey, String[] metricTags, long value) {
+            NO_OP_METRIC_NOTIFIER.updateFailureMetric(metricKey, metricTags, value);
             assertNotNull(metricKey);
         }
 
         @Override
         public void close() {
+            NO_OP_METRIC_NOTIFIER.close();
         }
     }
 }
