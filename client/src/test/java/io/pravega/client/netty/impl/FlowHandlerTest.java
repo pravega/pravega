@@ -375,5 +375,5 @@ public class FlowHandlerTest {
         @Override
         public void close() {
         }
-    };
+    }
 }
