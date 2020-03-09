@@ -621,15 +621,14 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                     try {
                         newEntry = new CacheIndexEntry(segmentOffset, dataToInsert.getLength(), dataAddress);
                         ReadIndexEntry overriddenEntry = addToIndex(newEntry);
-                        Preconditions.checkState(overriddenEntry == null,
-                                "Insert overrode existing entry. Offset = %s, Length = %s.", segmentOffset, dataToInsert.getLength());
-
+                        assert overriddenEntry == null : "Insert overrode existing entry; " + segmentOffset + ":" + dataToInsert.getLength();
                         lastInsertedEntry = newEntry;
                     } catch (Throwable ex) {
                         // Clean up the data we inserted if we were unable to add it to the index.
                         this.cacheStorage.delete(dataAddress);
                         throw ex;
                     }
+
                 }
 
                 // Slice the remainder of the buffer, or set it to null if we processed everything.
