@@ -148,12 +148,26 @@ public abstract class RollingStorageTestBase extends StorageTestBase {
         // This write should cause 3 rollovers.
         s.write(writeHandle, 0, sequenceInputStream, totalWriteLength, TIMEOUT).join();
 
+        // Check rollover actually happened as expected.
+        RollingSegmentHandle checkHandle = (RollingSegmentHandle) s.openWrite(segmentName).join();
+        val chunks = checkHandle.chunks();
+        int numberOfRollovers = totalWriteLength / maxLength;
+        Assert.assertEquals(numberOfRollovers + 1, chunks.size());
+
+        for (int i = 0; i < numberOfRollovers; i++) {
+            Assert.assertEquals(maxLength * i, chunks.get(i).getStartOffset());
+            Assert.assertEquals(maxLength, chunks.get(i).getLength());
+        }
+        // Last chunk has index == numberOfRollovers, as list is 0 based.
+        Assert.assertEquals(numberOfRollovers * maxLength, chunks.get(numberOfRollovers).getStartOffset());
+        Assert.assertEquals(1, chunks.get(numberOfRollovers).getLength());
+
+        // Now validate the contents written.
         val readHandle = s.openRead(segmentName).join();
         byte[] output = new byte[totalWriteLength];
         s.read(readHandle, 0, output, 0, totalWriteLength, TIMEOUT).join();
         Assert.assertEquals(seq1 + seq2, new String(output));
     }
-
 
     @Override
     protected void createSegment(String segmentName, Storage storage) {
