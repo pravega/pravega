@@ -161,14 +161,14 @@ public class TableSegmentImpl implements TableSegment {
     private <ItemT, RequestT extends Request & WireCommand, ReplyT extends Reply & WireCommand> CompletableFuture<IteratorItem<ItemT>> fetchIteratorItems(
             IteratorArgs args, IteratorState iteratorState, CreateIteratorRequest<RequestT> newIteratorRequest,
             Class<ReplyT> replyClass, Function<ReplyT, ByteBuf> getStateToken, Function<ReplyT, List<ItemT>> getResult) {
-        val token = (iteratorState == null) ? IteratorState.EMPTY : iteratorState;
+        val token = (iteratorState == null) ? IteratorStateImpl.EMPTY : iteratorState;
         val prefixFilter = args.getKeyPrefixFilter() == null ? Unpooled.EMPTY_BUFFER : args.getKeyPrefixFilter();
         return execute((state, requestId) -> {
             val request = newIteratorRequest.apply(requestId, this.segmentName, state.getToken(), args.getMaxItemsAtOnce(),
-                    token.getToken(), prefixFilter);
+                    IteratorStateImpl.copyOf(token).getToken(), prefixFilter);
             return sendRequest(request, state, replyClass)
                     .thenApply(reply -> {
-                        val newState = IteratorState.fromBytes(getStateToken.apply(reply));
+                        val newState = IteratorStateImpl.fromBytes(getStateToken.apply(reply));
                         if (newState.isEmpty()) {
                             // We have reached the end. The server will encode this as an empty continuation token.
                             log.debug(requestId, "{}: Reached the end of the {} iterator.", this.segmentName, replyClass.getSimpleName());

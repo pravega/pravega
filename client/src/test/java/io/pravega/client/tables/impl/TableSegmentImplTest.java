@@ -33,6 +33,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -219,9 +220,9 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
 
         // Convert a numeric Continuation Token (IteratorState) into a Wire-friendly format and back.
         Function<Integer, ByteBuf> generateContinuationToken = index -> index == 0
-                ? IteratorState.EMPTY.getToken()
-                : new IteratorState(Unpooled.wrappedBuffer(Integer.toString(index).getBytes())).getToken();
-        Function<ByteBuf, Integer> parseContinuationToken = token -> Integer.parseInt(new String(token.array()));
+                ? IteratorStateImpl.EMPTY.getToken()
+                : IteratorStateImpl.fromBytes(Unpooled.wrappedBuffer(Integer.toString(index).getBytes())).getToken();
+        Function<ByteBuffer, Integer> parseContinuationToken = token -> Integer.parseInt(new String(token.array()));
 
         // Check regular iteration.
         val iterator = newIterator.apply(IteratorArgs.builder()
@@ -245,7 +246,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
 
             // Check the result. First the continuation token.
             val iteratorResult = iteratorFuture.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
-            final int iteratorToken = parseContinuationToken.apply(iteratorResult.getState().getToken());
+            final int iteratorToken = parseContinuationToken.apply(iteratorResult.getState().toBytes());
             Assert.assertEquals("Unexpected reply token.", replyToken, iteratorToken);
 
             // Then the result.
@@ -254,7 +255,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
 
         // Verify the end-of-iteration. The server-side should send a null (converted to IteratorState.EMPTY).
         val lastIteratorFuture = iterator.getNext();
-        sendReply.accept(Collections.emptyList(), IteratorState.EMPTY.getToken());
+        sendReply.accept(Collections.emptyList(), IteratorStateImpl.EMPTY.getToken());
         val lastIteratorResult = lastIteratorFuture.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
         Assert.assertNull("Unexpected result for last iteration.", lastIteratorResult);
 
@@ -262,12 +263,12 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         final ByteBuf resumeToken = generateContinuationToken.apply(2);
         val resumeIterator = newIterator.apply(IteratorArgs.builder()
                 .maxItemsAtOnce(suggestedKeyCount)
-                .state(IteratorState.fromBytes(resumeToken))
+                .state(IteratorStateImpl.fromBytes(resumeToken))
                 .build());
         val resumeFuture = resumeIterator.getNext();
         val resumeRequestToken = getLastRequestContinuationToken.get();
         Assert.assertEquals("Unexpected token sent (resume iterator).", 0, resumeToken.compareTo(resumeRequestToken));
-        sendReply.accept(Collections.emptyList(), IteratorState.EMPTY.getToken());
+        sendReply.accept(Collections.emptyList(), IteratorStateImpl.EMPTY.getToken());
         Assert.assertNull("Unexpected result for last  (resume iterator).", resumeFuture.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS));
     }
 
