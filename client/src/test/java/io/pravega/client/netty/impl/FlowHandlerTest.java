@@ -18,6 +18,8 @@ import io.netty.channel.EventLoop;
 import io.netty.channel.ChannelPromise;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.metrics.ClientMetricKeys;
+import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
@@ -50,6 +52,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
@@ -107,7 +110,7 @@ public class FlowHandlerTest {
         when(ch.write(any(Object.class))).thenReturn(completedFuture);
         when(ch.newPromise()).thenReturn(promise);
 
-        flowHandler = new FlowHandler("testConnection");
+        flowHandler = new FlowHandler("testConnection", new TestMetricNotifier());
     }
 
     @Test
@@ -351,7 +354,26 @@ public class FlowHandlerTest {
         verify(replyProcessor).processingFailure(any(ConnectionFailedException.class));
 
         // verify any attempt to send msg over the connection will throw a ConnectionFailedException.
-        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection1.send(mock(WireCommand.class))  );
-        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection2.send(mock(WireCommand.class))  );
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection1.send(mock(WireCommand.class)));
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection2.send(mock(WireCommand.class)));
     }
+
+    /**
+     * Added a mock MetricNotifier different from the default one to exercise reporting metrics from client side.
+     */
+    class TestMetricNotifier implements MetricNotifier {
+        @Override
+        public void updateSuccessMetric(ClientMetricKeys metricKey, String[] metricTags, long value) {
+            assertNotNull(metricKey);
+        }
+
+        @Override
+        public void updateFailureMetric(ClientMetricKeys metricKey, String[] metricTags, long value) {
+            assertNotNull(metricKey);
+        }
+
+        @Override
+        public void close() {
+        }
+    };
 }
