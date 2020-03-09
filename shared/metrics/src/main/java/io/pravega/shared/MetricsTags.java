@@ -102,7 +102,7 @@ public final class MetricsTags {
         }
 
         String segmentBaseName = getSegmentBaseName(qualifiedSegmentName);
-        String[] tokens = segmentBaseName.split("[/]");
+        String[] tokens = segmentBaseName.split("/");
         int segmentIdIndex = tokens.length == 2 ? 1 : 2;
         if (tokens[segmentIdIndex].contains(EPOCH_DELIMITER)) {
             String[] segmentIdTokens = tokens[segmentIdIndex].split(EPOCH_DELIMITER);
