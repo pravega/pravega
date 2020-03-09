@@ -617,18 +617,18 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                     // Slice the data that we need to insert. We may be able to insert the whole buffer at once.
                     BufferView dataToInsert = overlapLength >= data.getLength() ? data : data.slice(0, (int) overlapLength);
                     CacheIndexEntry newEntry;
-                    int dataAddress = this.cacheStorage.insert(dataToInsert);
+                    int dataAddress = CacheStorage.NO_ADDRESS; // Null address pointer.
                     try {
+                        dataAddress = this.cacheStorage.insert(dataToInsert);
                         newEntry = new CacheIndexEntry(segmentOffset, dataToInsert.getLength(), dataAddress);
                         ReadIndexEntry overriddenEntry = addToIndex(newEntry);
                         assert overriddenEntry == null : "Insert overrode existing entry; " + segmentOffset + ":" + dataToInsert.getLength();
                         lastInsertedEntry = newEntry;
                     } catch (Throwable ex) {
-                        // Clean up the data we inserted if we were unable to add it to the index.
+                        // Clean up the data we might have inserted if we were unable to add it to the index.
                         this.cacheStorage.delete(dataAddress);
                         throw ex;
                     }
-
                 }
 
                 // Slice the remainder of the buffer, or set it to null if we processed everything.
@@ -1123,14 +1123,18 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private void queueStorageRead(long offset, int length, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
         // Create a callback that inserts into the ReadIndex (and cache) and invokes the success callback.
         Consumer<StorageReadManager.Result> doneCallback = result -> {
-            ByteArraySegment data = result.getData();
+            try {
+                ByteArraySegment data = result.getData();
 
-            // Make sure we invoke our callback first, before any chance of exceptions from insert() may block it.
-            successCallback.accept(new ReadResultEntryContents(data.getReader(), data.getLength()));
-            if (!result.isDerived()) {
-                // Only insert primary results into the cache. Derived results are always sub-portions of primaries
-                // and there is no need to insert them too, as they are already contained within.
-                insert(offset, data);
+                // Make sure we invoke our callback first, before any chance of exceptions from insert() may block it.
+                successCallback.accept(new ReadResultEntryContents(data.getReader(), data.getLength()));
+                if (!result.isDerived()) {
+                    // Only insert primary results into the cache. Derived results are always sub-portions of primaries
+                    // and there is no need to insert them too, as they are already contained within.
+                    insert(offset, data);
+                }
+            } catch (Exception ex) {
+                log.error("{}: Unable to process Storage Read callback. Offset={}, Result=[{}].", this.traceObjectId, offset, result);
             }
         };
 

@@ -32,10 +32,12 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.storage.cache.CacheState;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
@@ -982,6 +984,51 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                     entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 },
                 ex -> ex instanceof StreamSegmentNotExistsException);
+    }
+
+    /**
+     * Tests the ability to handle Cache/Index Update failures post a successful Storage Read.
+     */
+    @Test
+    public void testStorageFailedCacheInsert() throws Exception {
+        final int segmentLength = 1024;
+        // Create a segment and write some data in Storage for it.
+        @Cleanup
+        TestContext context = new TestContext();
+        ArrayList<Long> segmentIds = createSegments(context);
+        createSegmentsInStorage(context);
+        val testSegmentId = segmentIds.get(0);
+        UpdateableSegmentMetadata sm = context.metadata.getStreamSegmentMetadata(testSegmentId);
+        sm.setStorageLength(segmentLength);
+        sm.setLength(segmentLength);
+        context.storage.openWrite(sm.getName())
+                .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[segmentLength]), segmentLength, TIMEOUT))
+                .join();
+
+        // Keep track of inserted/deleted calls to the Cache, and "fail" the insert call.
+        val inserted = new ReusableLatch();
+        val insertedAddress = new AtomicInteger(CacheStorage.NO_ADDRESS);
+        val deletedAddress = new AtomicInteger(Integer.MAX_VALUE);
+        context.cacheStorage.insertCallback = address -> {
+            context.cacheStorage.delete(address); // Immediately delete this data (prevent leaks).
+            Assert.assertTrue(insertedAddress.compareAndSet(CacheStorage.NO_ADDRESS, address));
+            inserted.release();
+            throw new IntentionalException();
+        };
+        context.cacheStorage.deleteCallback = deletedAddress::set;
+
+        // Trigger a read. The first read call will be served with data directly from Storage, so we expect it to be successful.
+        @Cleanup
+        ReadResult readResult = context.readIndex.read(testSegmentId, 0, segmentLength, TIMEOUT);
+        ReadResultEntry entry = readResult.next();
+        Assert.assertEquals("Unexpected ReadResultEntryType.", ReadResultEntryType.Storage, entry.getType());
+        entry.requestContent(TIMEOUT);
+        entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS); // This should complete without issues.
+
+        // Verify that the cache insert attempt has been made
+        inserted.await();
+        Assert.assertNotEquals("Expected an insert attempt to have been made.", CacheStorage.NO_ADDRESS, insertedAddress.get());
+        AssertExtensions.assertEventuallyEquals(CacheStorage.NO_ADDRESS, deletedAddress::get, TIMEOUT.toMillis());
     }
 
     /**
