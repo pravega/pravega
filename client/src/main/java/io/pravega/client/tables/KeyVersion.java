@@ -12,7 +12,6 @@ package io.pravega.client.tables;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import java.io.Serializable;
 import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -36,7 +35,6 @@ public class KeyVersion implements Serializable {
      * The Segment where this Key resides. May be null if this is a {@link #NOT_EXISTS} or {@link #NO_VERSION}
      * {@link KeyVersion}.
      */
-    @Getter
     private final String segmentName;
     /**
      * The internal version inside the Table Segment for this Key.
@@ -59,7 +57,7 @@ public class KeyVersion implements Serializable {
      *
      * @return The Segment Version
      */
-    public long getSegmentVersion() {
+    long getSegmentVersion() {
         return this.segmentVersion.getSegmentVersion();
     }
 }

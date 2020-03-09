@@ -16,7 +16,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
+import io.pravega.client.tables.impl.IteratorStateImpl;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -557,7 +557,7 @@ public class SegmentHelperTest {
                 TableSegmentKey.versioned(key3, 10L));
 
         CompletableFuture<IteratorItem<TableSegmentKey>> result = helper.readTableKeys("", 3,
-                IteratorState.EMPTY,
+                IteratorStateImpl.EMPTY,
                 "", System.nanoTime());
 
         assertFalse(result.isDone());
@@ -571,10 +571,10 @@ public class SegmentHelperTest {
         assertEquals(2L, iterationResult.get(0).getVersion().getSegmentVersion());
         assertArrayByteBufEquals(key1, iterationResult.get(1).getKey());
         assertEquals(10L, iterationResult.get(1).getVersion().getSegmentVersion());
-        assertArrayEquals(token1.array(), result.join().getState().getToken().array());
+        assertArrayEquals(token1.array(), IteratorStateImpl.copyOf(result.join().getState()).getToken().array());
 
         // fetch the next value
-        result = helper.readTableKeys("", 3, IteratorState.fromBytes(token1), "",
+        result = helper.readTableKeys("", 3, IteratorStateImpl.fromBytes(token1), "",
                 System.nanoTime());
         assertFalse(result.isDone());
         requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -587,11 +587,11 @@ public class SegmentHelperTest {
         assertEquals(2L, iterationResult.get(0).getVersion().getSegmentVersion());
         assertArrayByteBufEquals(key3, iterationResult.get(1).getKey());
         assertEquals(10L, iterationResult.get(1).getVersion().getSegmentVersion());
-        assertArrayEquals(token2.array(), result.join().getState().getToken().array());
+        assertArrayEquals(token2.array(), IteratorStateImpl.copyOf(result.join().getState()).getToken().array());
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTableKeys("", 1,
-                                                                                   new IteratorState(wrappedBuffer(new byte[0])),
-                                                                                   "", 0L);
+                IteratorStateImpl.fromBytes(wrappedBuffer(new byte[0])),
+                "", 0L);
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -627,9 +627,9 @@ public class SegmentHelperTest {
         assertArrayByteBufEquals(value, iterationResult.get(0).getValue());
         assertArrayByteBufEquals(key1, iterationResult.get(1).getKey().getKey());
         assertEquals(10L, iterationResult.get(1).getKey().getVersion().getSegmentVersion());
-        assertArrayEquals(token1.array(), result.join().getState().getToken().array());
+        assertArrayEquals(token1.array(), IteratorStateImpl.copyOf(result.join().getState()).getToken().array());
 
-        result = helper.readTableEntries("", 3, IteratorState.fromBytes(token1), "",
+        result = helper.readTableEntries("", 3, IteratorStateImpl.fromBytes(token1), "",
                 System.nanoTime());
         assertFalse(result.isDone());
         requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -642,10 +642,10 @@ public class SegmentHelperTest {
         assertArrayByteBufEquals(value, iterationResult.get(0).getValue());
         assertArrayByteBufEquals(key3, iterationResult.get(1).getKey().getKey());
         assertEquals(10L, iterationResult.get(1).getKey().getVersion().getSegmentVersion());
-        assertArrayEquals(token2.array(), result.join().getState().getToken().array());
+        assertArrayEquals(token2.array(), IteratorStateImpl.copyOf(result.join().getState()).getToken().array());
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTableEntries("", 1,
-                new IteratorState(wrappedBuffer(new byte[0])),
+                IteratorStateImpl.fromBytes(wrappedBuffer(new byte[0])),
                 "", System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);

@@ -11,6 +11,7 @@ package io.pravega.client.tables;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.pravega.client.tables.impl.IteratorStateImpl;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -20,14 +21,16 @@ import org.junit.Test;
 public class IteratorStateTests {
     @Test
     public void testEmpty() {
-        Assert.assertTrue(IteratorState.EMPTY.isEmpty());
-        Assert.assertEquals(0, IteratorState.EMPTY.getToken().readableBytes());
-        Assert.assertSame(IteratorState.EMPTY, IteratorState.fromBytes(null));
+        Assert.assertTrue(IteratorStateImpl.EMPTY.isEmpty());
+        Assert.assertEquals(0, IteratorStateImpl.EMPTY.toBytes().remaining());
+        Assert.assertSame(IteratorStateImpl.EMPTY, IteratorState.fromBytes(null));
     }
 
     @Test
     public void testFromBytes() {
         ByteBuf buf = Unpooled.wrappedBuffer(new byte[123]);
-        Assert.assertSame(buf, IteratorState.fromBytes(buf).getToken());
+        IteratorState s = IteratorStateImpl.fromBytes(buf);
+        Assert.assertEquals(buf, Unpooled.wrappedBuffer(s.toBytes()));
+        Assert.assertEquals(s.toBytes(), IteratorState.fromBytes(s.toBytes()).toBytes());
     }
 }

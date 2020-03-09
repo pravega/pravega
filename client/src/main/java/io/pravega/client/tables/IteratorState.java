@@ -9,9 +9,9 @@
  */
 package io.pravega.client.tables;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import lombok.Data;
+import io.pravega.client.tables.impl.IteratorStateImpl;
+import java.nio.ByteBuffer;
 
 /**
  * Represents the state of a resumable iterator. Such an iterator can be executed asynchronously and continued after an
@@ -19,36 +19,29 @@ import lombok.Data;
  * the iterator is encoded in this object and is non-transferable between different types of iterations. The server will
  * use the information within it to decide what to return for the next iteration call.
  */
-@Data
-public class IteratorState {
+public interface IteratorState {
     /**
-     * No state. Providing this value will result in an iterator that starts from the beginning (i.e., not resuming an
-     * existing iteration).
+     * Serializes this {@link IteratorState} to a {@link ByteBuffer}. This can later be used to create a new
+     * {@link IteratorState} using {@link #fromBytes(ByteBuffer)}.
+     *
+     * @return A {@link ByteBuffer}.
      */
-    public static final IteratorState EMPTY = new IteratorState(Unpooled.EMPTY_BUFFER);
-
-    private final ByteBuf token;
+    ByteBuffer toBytes();
 
     /**
      * Gets a value indicating whether this {@link IteratorState} instance is empty.
      *
      * @return True if empty, false otherwise.
      */
-    public boolean isEmpty() {
-        return this.token.readableBytes() == 0;
-    }
+    boolean isEmpty();
 
     /**
-     * Deserializes the IteratorState from its serialized form obtained from calling {@link #getToken()} .
+     * Creates a new {@link IteratorState} from the given {@link ByteBuffer}.
      *
-     * @param serializedState A serialized {@link IteratorState}.
-     * @return The IteratorState object.
+     * @param buffer A {@link ByteBuffer} created via {@link #toBytes()}.
+     * @return A {@link IteratorState}.
      */
-    public static IteratorState fromBytes(ByteBuf serializedState) {
-        if (serializedState == null) {
-            return EMPTY;
-        } else {
-            return new IteratorState(serializedState);
-        }
+    static IteratorState fromBytes(ByteBuffer buffer) {
+        return buffer == null ? IteratorStateImpl.EMPTY : IteratorStateImpl.fromBytes(Unpooled.wrappedBuffer(buffer));
     }
 }

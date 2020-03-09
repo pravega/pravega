@@ -20,6 +20,7 @@ import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
+import io.pravega.client.tables.impl.IteratorStateImpl;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -483,7 +484,7 @@ public class SegmentHelper implements AutoCloseable {
      */
     public CompletableFuture<IteratorItem<TableSegmentKey>> readTableKeys(final String tableName,
                                                                           final int suggestedKeyCount,
-                                                                          final IteratorState state,
+                                                                          final IteratorStateImpl state,
                                                                           final String delegationToken,
                                                                           final long clientRequestId) {
 
@@ -492,7 +493,7 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
 
-        final IteratorState token = (state == null) ? IteratorState.EMPTY : state;
+        final IteratorStateImpl token = (state == null) ? IteratorStateImpl.EMPTY : state;
 
         WireCommands.ReadTableKeys request = new WireCommands.ReadTableKeys(requestId, tableName, delegationToken, suggestedKeyCount,
                 token.getToken());
@@ -500,7 +501,7 @@ public class SegmentHelper implements AutoCloseable {
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableKeys.class, type);
                     WireCommands.TableKeysRead tableKeysRead = (WireCommands.TableKeysRead) rpl;
-                    final IteratorState newState = IteratorState.fromBytes(tableKeysRead.getContinuationToken());
+                    final IteratorState newState = IteratorStateImpl.fromBytes(tableKeysRead.getContinuationToken());
                     final List<TableSegmentKey> keys =
                             tableKeysRead.getKeys().stream().map(k -> TableSegmentKey.versioned(k.getData(),
                                     k.getKeyVersion())).collect(Collectors.toList());
@@ -521,7 +522,7 @@ public class SegmentHelper implements AutoCloseable {
      */
     public CompletableFuture<IteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
                                                                                final int suggestedEntryCount,
-                                                                               final IteratorState state,
+                                                                               final IteratorStateImpl state,
                                                                                final String delegationToken,
                                                                                final long clientRequestId) {
 
@@ -530,7 +531,7 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
 
-        final IteratorState token = (state == null) ? IteratorState.EMPTY : state;
+        final IteratorStateImpl token = (state == null) ? IteratorStateImpl.EMPTY : state;
 
         WireCommands.ReadTableEntries request = new WireCommands.ReadTableEntries(requestId, tableName, delegationToken,
                 suggestedEntryCount, token.getToken());
@@ -538,7 +539,7 @@ public class SegmentHelper implements AutoCloseable {
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableEntries.class, type);
                     WireCommands.TableEntriesRead tableEntriesRead = (WireCommands.TableEntriesRead) rpl;
-                    final IteratorState newState = IteratorState.fromBytes(tableEntriesRead.getContinuationToken());
+                    final IteratorState newState = IteratorStateImpl.fromBytes(tableEntriesRead.getContinuationToken());
                     final List<TableSegmentEntry> entries =
                             tableEntriesRead.getEntries().getEntries().stream()
                                             .map(e -> {
