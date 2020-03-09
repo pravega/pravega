@@ -28,7 +28,6 @@ public class KeyVersionTests {
         long version = 123L;
         String segmentName = "Segment";
         KeyVersion v = new KeyVersion(segmentName, version);
-        Assert.assertEquals(segmentName, v.getSegmentName());
         Assert.assertEquals(version, v.getSegmentVersion());
     }
 }

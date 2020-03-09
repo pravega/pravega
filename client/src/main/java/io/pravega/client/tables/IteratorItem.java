@@ -28,8 +28,7 @@ public class IteratorItem<T> {
      */
     private final IteratorState state;
     /**
-     * A List of items that are contained in this instance. The items in this list are not necessarily related to each
-     * other, nor are they guaranteed to be in any particular order.
+     * A List of items that are contained in this instance.
      */
     private final List<T> items;
 }

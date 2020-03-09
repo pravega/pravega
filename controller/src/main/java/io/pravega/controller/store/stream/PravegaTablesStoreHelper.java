@@ -11,8 +11,9 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
-import io.pravega.client.tables.IteratorState;
+import io.pravega.client.tables.impl.IteratorStateImpl;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -415,14 +416,14 @@ public class PravegaTablesStoreHelper {
         log.trace("get keys paginated called for : {}", tableName);
 
         return withRetries(() ->
-                segmentHelper.readTableKeys(tableName, limit, IteratorState.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
+                segmentHelper.readTableKeys(tableName, limit, IteratorStateImpl.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
                         () -> String.format("get keys paginated for table: %s", tableName))
                              .thenApplyAsync(result -> {
                                  try {
                                      List<String> items = result.getItems().stream().map(x -> new String(getArray(x.getKey()), Charsets.UTF_8))
                                                                 .collect(Collectors.toList());
                                      log.trace("get keys paginated on table {} returned items {}", tableName, items);
-                                     return new AbstractMap.SimpleEntry<>(result.getState().getToken(), items);
+                                     return new AbstractMap.SimpleEntry<>(Unpooled.wrappedBuffer(result.getState().toBytes()), items);
                                  } finally {
                                      releaseKeys(result.getItems());
                                  }
@@ -444,7 +445,7 @@ public class PravegaTablesStoreHelper {
             Function<byte[], T> fromBytes) {
         log.trace("get entries paginated called for : {}", tableName);
         return withRetries(() -> segmentHelper.readTableEntries(tableName, limit,
-                IteratorState.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
+                IteratorStateImpl.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("get entries paginated for table: %s", tableName))
                 .thenApplyAsync(result -> {
                     try {
@@ -455,7 +456,7 @@ public class PravegaTablesStoreHelper {
                             return new AbstractMap.SimpleEntry<>(key, value);
                         }).collect(Collectors.toList());
                         log.trace("get keys paginated on table {} returned number of items {}", tableName, items.size());
-                        return new AbstractMap.SimpleEntry<>(result.getState().getToken(), items);
+                        return new AbstractMap.SimpleEntry<>(Unpooled.wrappedBuffer(result.getState().toBytes()), items);
                     } finally {
                         releaseEntries(result.getItems());
                     }
@@ -473,7 +474,7 @@ public class PravegaTablesStoreHelper {
                     token.release();
                     return new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue());
                 }, executor),
-                IteratorState.EMPTY.getToken());
+                IteratorStateImpl.EMPTY.getToken());
     }
 
     /**
@@ -489,7 +490,7 @@ public class PravegaTablesStoreHelper {
                     token.release();
                     return new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue());
                 }, executor),
-                IteratorState.EMPTY.getToken());
+                IteratorStateImpl.EMPTY.getToken());
     }
 
     <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
