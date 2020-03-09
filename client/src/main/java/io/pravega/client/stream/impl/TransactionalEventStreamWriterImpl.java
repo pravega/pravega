@@ -111,6 +111,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
 
         @Override
         public void commit() throws TxnFailedException {
+            log.info("Commit transaction {}", txId);
             throwIfClosed();
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.close();
@@ -122,6 +123,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         
         @Override
         public void commit(long timestamp) throws TxnFailedException {
+            log.info("Commit transaction {}", txId);
             throwIfClosed();
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.close();
@@ -133,6 +135,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
 
         @Override
         public void abort() {
+            log.info("Abort transaction {}", txId);
             if (!closed.get()) {
                 pinger.stopPing(txId);
                 for (SegmentTransaction<Type> tx : inner.values()) {
@@ -149,6 +152,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
 
         @Override
         public Status checkStatus() {
+            log.info("Check transaction status {}", txId);
             return getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
         }
 
