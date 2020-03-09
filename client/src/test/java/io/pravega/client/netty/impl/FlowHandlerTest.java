@@ -361,7 +361,7 @@ public class FlowHandlerTest {
     /**
      * Added a mock MetricNotifier different from the default one to exercise reporting metrics from client side.
      */
-    class TestMetricNotifier implements MetricNotifier {
+    static class TestMetricNotifier implements MetricNotifier {
         @Override
         public void updateSuccessMetric(ClientMetricKeys metricKey, String[] metricTags, long value) {
             assertNotNull(metricKey);
