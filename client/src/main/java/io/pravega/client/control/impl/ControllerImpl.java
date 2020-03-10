@@ -40,6 +40,7 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -1156,6 +1157,40 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "getOrRefreshDelegationTokenFor", traceId);
         });
     }
+
+    //region KeyValueTables
+
+    @Override
+    public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        throw new UnsupportedOperationException("createKeyValueTable not implemented.");
+    }
+
+    @Override
+    public AsyncIterator<Stream> listKeyValueTables(String scopeName) {
+        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> sealKeyValueTable(String scope, String kvtName) {
+        throw new UnsupportedOperationException("sealKeyValueTable not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
+        throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<StreamSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
+        throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");
+    }
+
+    //endregion
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.
     private static final class RPCAsyncCallback<T> implements StreamObserver<T> {
