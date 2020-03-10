@@ -40,7 +40,7 @@ public abstract class PositionInternal implements Position {
      *
      * @return the read offset for each segment in the ownedSegments set
      */
-    abstract Map<Segment, Long> getOwnedSegmentsWithOffsets();
+    public abstract Map<Segment, Long> getOwnedSegmentsWithOffsets();
     
     /**
      * Completely read segments have offset of -1.
@@ -52,7 +52,7 @@ public abstract class PositionInternal implements Position {
     /**
      * Gets the set of completely read segments.
      */
-    abstract Set<Segment> getCompletedSegments();
+    public abstract Set<Segment> getCompletedSegments();
 
     /**
      * Gets the offset for a specified the segment.

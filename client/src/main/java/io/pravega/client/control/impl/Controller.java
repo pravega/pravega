@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.impl;
+package io.pravega.client.control.impl;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
@@ -17,6 +17,11 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
+import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.List;
@@ -142,8 +147,8 @@ public interface Controller extends AutoCloseable {
      * @return A Cancellable request object which can be used to get the future for scale operation or cancel the scale operation.
      */
     CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Long> sealedSegments,
-                                           final Map<Double, Double> newKeyRanges,
-                                           final ScheduledExecutorService executorService);
+                                            final Map<Double, Double> newKeyRanges,
+                                            final ScheduledExecutorService executorService);
 
     /**
      * API to check the status of scale for a given epoch.
