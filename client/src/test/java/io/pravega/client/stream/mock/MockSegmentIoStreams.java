@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
@@ -52,10 +53,11 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @GuardedBy("$lock")
     private final AtomicBoolean close = new AtomicBoolean();
     private final ConcurrentHashMap<SegmentAttribute, Long> attributes = new ConcurrentHashMap<>();
+    private final Semaphore fillCalled;
     
     @Override
     @Synchronized
-    public void setOffset(long offset) {
+    public void setOffset(long offset, boolean resend) {
         if (offset < 0) {
             throw new IllegalArgumentException("Invalid offset " + offset);
         }
@@ -63,6 +65,11 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
             throw new IllegalArgumentException("Beyond the end of the stream: " + offset);
         }
         readOffset = offset;
+    }
+
+    @Override
+    public void setOffset(long offset) {
+        setOffset(offset, false);
     }
 
     @Override
@@ -180,7 +187,10 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     public CompletableFuture<?> fillBuffer() {
-        return CompletableFuture.completedFuture(null);
+        if (fillCalled != null) {
+            fillCalled.release();
+        }
+        return null;
     }
 
     @Override

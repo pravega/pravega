@@ -308,7 +308,7 @@ public final class NameUtils {
         String originalSegmentName = isTransactionSegment(qualifiedName) ? getParentStreamSegmentName(qualifiedName) : qualifiedName;
 
         List<String> retVal = new LinkedList<>();
-        String[] tokens = originalSegmentName.split("[/]");
+        String[] tokens = originalSegmentName.split("/");
         int segmentIdIndex = tokens.length == 2 ? 1 : 2;
         long segmentId;
         if (tokens[segmentIdIndex].contains(EPOCH_DELIMITER)) {
@@ -341,7 +341,7 @@ public final class NameUtils {
 
     /**
      * Method to generate Fully Qualified table name using scope, and other tokens to be used to compose the table name.
-     * The composed name has following format \<scope\>/_tables/\<tokens[0]\>/\<tokens[1]\>...
+     * The composed name has following format: {@literal <scope>/_tables/<tokens[0]>/<tokens[1]>...}
      * 
      * @param scope scope in which table segment to create
      * @param tokens tokens used for composing table segment name
@@ -369,7 +369,7 @@ public final class NameUtils {
     public static List<String> extractTableSegmentTokens(String qualifiedName) {
         Preconditions.checkNotNull(qualifiedName);
         List<String> retVal = new LinkedList<>();
-        String[] tokens = qualifiedName.split("[/]");
+        String[] tokens = qualifiedName.split("/");
         Preconditions.checkArgument(tokens.length > 2);
         Preconditions.checkArgument(tokens[1].equals(TABLES));
         // add scope
@@ -388,7 +388,7 @@ public final class NameUtils {
      */
     public static boolean isTableSegment(String qualifiedName) {
         Preconditions.checkNotNull(qualifiedName);
-        String[] tokens = qualifiedName.split("[/]");
+        String[] tokens = qualifiedName.split("/");
         Preconditions.checkArgument(tokens.length > 2);
 
         return tokens[1].equals(TABLES);
@@ -427,7 +427,7 @@ public final class NameUtils {
 
     private static String[] updateSegmentTags(String qualifiedSegmentName, String[] tags) {
         String segmentBaseName = getSegmentBaseName(qualifiedSegmentName);
-        String[] tokens = segmentBaseName.split("[/]");
+        String[] tokens = segmentBaseName.split("/");
 
         int segmentIdIndex = (tokens.length == 1) ? 0 : (tokens.length) == 2 ? 1 : 2;
         if (tokens[segmentIdIndex].contains(EPOCH_DELIMITER)) {

@@ -100,7 +100,7 @@ public interface SegmentMetadata extends SegmentProperties {
      *
      * Notes on concurrency:
      * - All retrieval methods are thread-safe and can be invoked from any context.
-     * - Iterating over this Map's elements ({@link Map#keySet(), {@link Map#values()}, {@link Map#entrySet()}) is not
+     * - Iterating over this Map's elements ({@link Map#keySet()}, {@link Map#values()}, {@link Map#entrySet()}) is not
      * thread safe and should only be done in an (external) synchronized context (while holding the same lock that is
      * used to update this {@link SegmentMetadata} instance).
      * - Consider using {@link #getSnapshot()} if you need a thread-safe way of iterating over the current set of Attributes.

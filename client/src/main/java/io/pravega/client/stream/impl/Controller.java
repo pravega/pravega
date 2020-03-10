@@ -300,7 +300,7 @@ public interface Controller extends AutoCloseable {
      * This is called by writers via {@link EventStreamWriter#noteTime(long)} or
      * {@link Transaction#commit(long)}. The controller should aggrigate this information and write
      * it to the stream's marks segment so that it read by readers who will in turn ultimately
-     * surface this information through the {@link EventStreamReader#getCurrentTimeWindow()} API.
+     * surface this information through the {@link EventStreamReader#getCurrentTimeWindow(Stream)} API.
      * 
      * @param writer The name of the writer. (User defined)
      * @param stream The stream the timestamp is associated with.

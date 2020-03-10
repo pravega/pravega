@@ -114,7 +114,8 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                         // abort transactions
                         return Futures.allOf(activeTxns.entrySet().stream().map(txIdPair -> {
                             CompletableFuture<Void> voidCompletableFuture;
-                            if (txIdPair.getValue().getTxnStatus().equals(TxnStatus.OPEN)) {
+                            TxnStatus txnStatus = txIdPair.getValue().getTxnStatus();
+                            if (txnStatus.equals(TxnStatus.OPEN) || txnStatus.equals(TxnStatus.ABORTING)) {
                                 voidCompletableFuture = Futures.toVoid(streamTransactionMetadataTasks
                                         .abortTxn(scope, stream, txIdPair.getKey(), null, context)
                                         .exceptionally(e -> {

@@ -43,7 +43,7 @@ public class BufferedIterator<T> implements Iterator<T> {
      * @param getItemRange A {@link BiFunction} that returns a range of items that will be buffered next. The first
      *                     argument is the first index to fetch (inclusive) and the second argument is the last index to
      *                     fetch (inclusive). This method will always be invoked in sequence with non-overlapping ranges.
-     *                     This method will never be passed invalid args (Arg1 > Arg 2) and it should never return an empty
+     *                     This method will never be passed invalid args {@literal (Arg1 > Arg2)} and it should never return an empty
      *                     iterator.
      * @param firstIndex   The index of the first item to return (inclusive).
      * @param lastIndex    The index of the last item to return (inclusive).
