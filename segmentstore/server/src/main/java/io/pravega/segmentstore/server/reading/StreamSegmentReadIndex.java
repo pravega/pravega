@@ -482,7 +482,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         StreamSegmentReadIndex sourceIndex = redirectEntry.getRedirectReadIndex();
 
         // Get all the entries from the source index and append them here.
-        List<MergedIndexEntry> sourceEntries = sourceIndex.fetchAllEntries(redirectEntry.getStreamSegmentOffset());
+        List<MergedIndexEntry> sourceEntries = sourceIndex.removeAllEntries(redirectEntry.getStreamSegmentOffset());
 
         synchronized (this.lock) {
             // Remove redirect entry (again, no need to update the Cache Stats, as this is a RedirectIndexEntry).
@@ -1192,15 +1192,15 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     }
 
     /**
-     * Gets a copy of all the ReadIndexEntries in this Index that are not RedirectReadIndices and removes them from this
-     * index. All returned entries have their offsets adjusted by the given amount.
+     * Extracts all the ReadIndexEntries from this Index that are not RedirectReadIndices and clears the Index.
+     * All returned entries have their offsets adjusted by the given amount.
      *
      * @param offsetAdjustment The amount to adjust the offset by.
      * @return A List of {@link MergedIndexEntry} that represents the contents of this index. All these entries point to
      * live data in the {@link CacheManager}; as such it is the responsibility of the caller to manage their lifecycle
      * from now on.
      */
-    private List<MergedIndexEntry> fetchAllEntries(long offsetAdjustment) {
+    private List<MergedIndexEntry> removeAllEntries(long offsetAdjustment) {
         Preconditions.checkState(this.metadata.isDeleted(), "Cannot fetch entries for a Segment that has not been deleted yet.");
         Exceptions.checkArgument(offsetAdjustment >= 0, "offsetAdjustment", "offsetAdjustment must be a non-negative number.");
 
