@@ -39,6 +39,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
+
+import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.SortedSet;
@@ -403,39 +405,53 @@ public class ExtendedS3Storage implements SyncStorage {
         Preconditions.checkState(si.isSealed(), "Cannot concat segment '%s' into '%s' because it is not sealed.",
                 sourceSegment, targetHandle.getSegmentName());
 
-        //Copy the first part
-        CopyPartRequest copyRequest = new CopyPartRequest(config.getBucket(),
-                targetPath,
-                config.getBucket(),
-                targetPath,
-                uploadId,
-                1).withSourceRange(Range.fromOffsetLength(0, offset));
-        CopyPartResult copyResult = client.copyPart(copyRequest);
+        if (config.getSmallObjectThreshold() < si.getLength()) {
 
-        partEtags.add(new MultipartPartETag(copyResult.getPartNumber(), copyResult.getETag()));
+            //Copy the first part
+            CopyPartRequest copyRequest = new CopyPartRequest(config.getBucket(),
+                    targetPath,
+                    config.getBucket(),
+                    targetPath,
+                    uploadId,
+                    1).withSourceRange(Range.fromOffsetLength(0, offset));
+            CopyPartResult copyResult = client.copyPart(copyRequest);
 
-        //Copy the second part
-        S3ObjectMetadata metadataResult = client.getObjectMetadata(config.getBucket(),
-                config.getPrefix() + sourceSegment);
-        long objectSize = metadataResult.getContentLength(); // in bytes
+            partEtags.add(new MultipartPartETag(copyResult.getPartNumber(), copyResult.getETag()));
 
-        copyRequest = new CopyPartRequest(config.getBucket(),
-                config.getPrefix() + sourceSegment,
-                config.getBucket(),
-                targetPath,
-                uploadId,
-                2).withSourceRange(Range.fromOffsetLength(0, objectSize));
+            //Copy the second part
+            S3ObjectMetadata metadataResult = client.getObjectMetadata(config.getBucket(),
+                    config.getPrefix() + sourceSegment);
+            long objectSize = metadataResult.getContentLength(); // in bytes
 
-        copyResult = client.copyPart(copyRequest);
-        partEtags.add(new MultipartPartETag(copyResult.getPartNumber(), copyResult.getETag()));
+            copyRequest = new CopyPartRequest(config.getBucket(),
+                    config.getPrefix() + sourceSegment,
+                    config.getBucket(),
+                    targetPath,
+                    uploadId,
+                    2).withSourceRange(Range.fromOffsetLength(0, objectSize));
 
-        //Close the upload
-        client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getBucket(),
-                targetPath, uploadId).withParts(partEtags));
+            copyResult = client.copyPart(copyRequest);
+            partEtags.add(new MultipartPartETag(copyResult.getPartNumber(), copyResult.getETag()));
 
-        client.deleteObject(config.getBucket(), config.getPrefix() + sourceSegment);
+            //Close the upload
+            client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getBucket(),
+                    targetPath, uploadId).withParts(partEtags));
+
+            client.deleteObject(config.getBucket(), config.getPrefix() + sourceSegment);
+
+        } else {
+            try (InputStream reader = client.readObjectStream(config.getBucket(),
+                    config.getPrefix() + sourceSegment, Range.fromOffsetLength(0, si.getLength()))) {
+                client.putObject(this.config.getBucket(),
+                        targetPath,
+                        Range.fromOffsetLength(offset, si.getLength()),
+                        new BufferedInputStream(reader, Math.toIntExact(si.getLength())));
+            } catch (Exception e) {
+                throw Exceptions.sneakyThrow(e);
+            }
+            client.deleteObject(config.getBucket(), config.getPrefix() + sourceSegment);
+        }
         Duration elapsed = timer.getElapsed();
-
         log.debug("Concat target={} source={} offset={} bytesWritten={} latency={}.", targetHandle.getSegmentName(), sourceSegment, offset, si.getLength(), elapsed.toMillis());
 
         ExtendedS3Metrics.CONCAT_LATENCY.reportSuccessEvent(elapsed);
