@@ -25,6 +25,7 @@ import io.pravega.client.stream.TxnFailedException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.NonNull;
@@ -111,24 +112,22 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
 
         @Override
         public void commit() throws TxnFailedException {
-            log.info("Commit transaction {}", txId);
-            throwIfClosed();
-            for (SegmentTransaction<Type> tx : inner.values()) {
-                tx.close();
-            }
-            getAndHandleExceptions(controller.commitTransaction(stream, writerId, null, txId), TxnFailedException::new);
-            pinger.stopPing(txId);
-            closed.set(true);
+            commitTransaction(null);
         }
-        
+
         @Override
         public void commit(long timestamp) throws TxnFailedException {
+            commitTransaction(timestamp);
+        }
+
+        private void commitTransaction(Long timestamp) throws TxnFailedException {
             log.info("Commit transaction {}", txId);
             throwIfClosed();
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.close();
             }
-            getAndHandleExceptions(controller.commitTransaction(stream, writerId, timestamp, txId), TxnFailedException::new);
+            final CompletableFuture<Void> future = controller.commitTransaction(stream, writerId, timestamp, txId);
+            getAndHandleExceptions(future, TxnFailedException::new);
             pinger.stopPing(txId);
             closed.set(true);
         }
