@@ -15,6 +15,7 @@ import com.emc.object.s3.bean.ObjectKey;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.DeleteObjectsRequest;
 import com.emc.object.util.ConfigUri;
+import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.Property;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -140,7 +141,9 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             String str = "0123456789";
             int totalBytesWritten = 0;
             for (int i = 1; i < 5; i++) {
-                storage.write(handleA, totalBytesWritten, new ByteArrayInputStream(str.getBytes()), i, null).join();
+                try (BoundedInputStream bis = new BoundedInputStream(new ByteArrayInputStream(str.getBytes()), i)) {
+                    storage.write(handleA, totalBytesWritten, bis, i, null).join();
+                }
                 totalBytesWritten += i;
                 assertEquals(totalBytesWritten, ExtendedS3Metrics.WRITE_BYTES.get());
                 assertEquals(i, ExtendedS3Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
