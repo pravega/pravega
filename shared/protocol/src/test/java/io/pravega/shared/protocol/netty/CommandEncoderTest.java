@@ -12,6 +12,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.concurrent.EventExecutor;
+import io.pravega.shared.metrics.ClientMetricKeys;
+import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
@@ -23,6 +25,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.AtMost;
 
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -56,7 +59,7 @@ public class CommandEncoderTest {
     @Test
     public void testFlushing() throws Exception {
         UnpooledByteBufAllocator allocator = new UnpooledByteBufAllocator(false, false);
-        CommandEncoder commandEncoder = new CommandEncoder(s -> new TestBatchSizeTracker(0));
+        CommandEncoder commandEncoder = new CommandEncoder(s -> new TestBatchSizeTracker(0), new TestMetricNotifier());
         verifyNoFlush(commandEncoder, allocator, new Hello(1, 2));
         verifyFlush(commandEncoder, allocator, new KeepAlive());
         UUID uuid = new UUID(1, 2);
@@ -110,6 +113,28 @@ public class CommandEncoderTest {
         verify(context, new AtMost(10)).executor(); // Irrelevant
         verify(context, new AtMost(10)).channel(); // Irrelevant
         verifyNoMoreInteractions(context);
+    }
+
+    /**
+     * Added a mock MetricNotifier different from the default one to exercise reporting metrics from client side.
+     */
+    static class TestMetricNotifier implements MetricNotifier {
+        @Override
+        public void updateSuccessMetric(ClientMetricKeys metricKey, String[] metricTags, long value) {
+            NO_OP_METRIC_NOTIFIER.updateSuccessMetric(metricKey, metricTags, value);
+            assertNotNull(metricKey);
+        }
+
+        @Override
+        public void updateFailureMetric(ClientMetricKeys metricKey, String[] metricTags, long value) {
+            NO_OP_METRIC_NOTIFIER.updateFailureMetric(metricKey, metricTags, value);
+            assertNotNull(metricKey);
+        }
+
+        @Override
+        public void close() {
+            NO_OP_METRIC_NOTIFIER.close();
+        }
     }
 
 }
