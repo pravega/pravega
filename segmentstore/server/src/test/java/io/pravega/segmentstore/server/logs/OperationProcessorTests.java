@@ -12,9 +12,9 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.CompositeArrayView;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -624,7 +624,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         private final Supplier<CompletableFuture<LogAddress>> addImplementation;
 
         @Override
-        public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
+        public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
             return this.addImplementation.get();
         }
 

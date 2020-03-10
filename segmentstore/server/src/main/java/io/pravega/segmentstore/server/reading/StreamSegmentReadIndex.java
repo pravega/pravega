@@ -40,6 +40,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -377,7 +378,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             // Add the remainder of the buffer as a new entry (with the offset updated).
             data = data.slice(appendLength, data.getLength() - appendLength);
             offset += appendLength;
-            ReadIndexEntry lastEntry = addToCacheAndIndex(data, offset, "Append");
+            ReadIndexEntry lastEntry = addToCacheAndIndex(data, offset, this::appendSingleEntryToCacheAndIndex);
             this.lastAppendedOffset.set(lastEntry.getLastStreamSegmentOffset());
         } else {
             // The entire buffer was added as a single append.
@@ -509,7 +510,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 "The given range of bytes (Offset=%s, Length=%s) does not correspond to the StreamSegment range that is in Storage (%s).",
                 offset, data.getLength(), this.metadata.getStorageLength());
 
-        addToCacheAndIndex(data, offset, "Insert");
+        addToCacheAndIndex(data, offset, this::insertEntriesToCacheAndIndex);
     }
 
     /**
@@ -542,17 +543,17 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         return appendLength;
     }
 
-    private CacheIndexEntry addToCacheAndIndex(BufferView data, long offset, String operationName) {
+    private CacheIndexEntry addToCacheAndIndex(BufferView data, long offset, BiFunction<BufferView, Long, CacheIndexEntry> add) {
         if (data.getLength() <= this.cacheStorage.getMaxEntryLength()) {
             // The entire buffer can fit into one entry.
-            return addSingleEntryToCacheAndIndex(data, offset, operationName);
+            return add.apply(data, offset);
         } else {
             // Need to split the buffer into smaller entries and insert them individually.
             int bufferOffset = 0;
             CacheIndexEntry lastEntry = null;
             while (bufferOffset < data.getLength()) {
                 int partLength = Math.min(data.getLength() - bufferOffset, this.cacheStorage.getMaxEntryLength());
-                lastEntry = addSingleEntryToCacheAndIndex(data.slice(bufferOffset, partLength), offset + bufferOffset, operationName);
+                lastEntry = add.apply(data.slice(bufferOffset, partLength), offset + bufferOffset);
                 bufferOffset += partLength;
             }
 
@@ -560,15 +561,23 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
     }
 
-    private CacheIndexEntry addSingleEntryToCacheAndIndex(BufferView data, long offset, String operationName) {
+    /**
+     * Appends data at the end of the index.
+     *
+     * @param data          A {@link BufferView} representing the data to append.
+     * @param segmentOffset The segment offset that maps to the first byte in the given {@link BufferView}.
+     * @return A {@link CacheIndexEntry} representing the index entry added.
+     */
+    private CacheIndexEntry appendSingleEntryToCacheAndIndex(BufferView data, long segmentOffset) {
         int dataAddress = this.cacheStorage.insert(data);
         CacheIndexEntry newEntry;
-        ReadIndexEntry oldEntry;
         try {
-            newEntry = new CacheIndexEntry(offset, data.getLength(), dataAddress);
+            newEntry = new CacheIndexEntry(segmentOffset, data.getLength(), dataAddress);
             synchronized (this.lock) {
-                oldEntry = addToIndex(newEntry);
+                ReadIndexEntry previous = this.indexEntries.put(newEntry);
+                assert previous == null;
             }
+            newEntry.setGeneration(this.summary.addOne());
         } catch (Throwable ex) {
             if (!Exceptions.mustRethrow(ex)) {
                 // Clean up the data we inserted if we were unable to add it to the index.
@@ -577,19 +586,65 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             throw ex;
         }
 
-        if (oldEntry != null) {
-            deleteData(oldEntry);
-            log.warn("{}: {} overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).",
-                    this.traceObjectId, operationName, newEntry.getStreamSegmentOffset(), newEntry.getLength(), oldEntry.getLength());
-        }
         return newEntry;
+    }
+
+    /**
+     * Inserts data in the index.
+     *
+     * @param data          A {@link BufferView} representing the data to insert.
+     * @param segmentOffset The segment offset that maps to the first byte in the given {@link BufferView}.
+     * @return A {@link CacheIndexEntry} representing the index entry added. If the given {@link BufferView} spanned
+     * multiple entries (due to index fragmentation), only the last {@link CacheIndexEntry} is added.
+     */
+    private CacheIndexEntry insertEntriesToCacheAndIndex(BufferView data, long segmentOffset) {
+        CacheIndexEntry lastInsertedEntry = null;
+        synchronized (this.lock) {
+            while (data != null && data.getLength() > 0) {
+                // Figure out if the first byte in the buffer is already cached.
+                ReadIndexEntry existingEntry = this.indexEntries.getFloor(segmentOffset);
+                long overlapLength;
+                if (existingEntry != null && existingEntry.getLastStreamSegmentOffset() >= segmentOffset) {
+                    // First offset exists already. We need to skip over to the end of this entry.
+                    overlapLength = existingEntry.getStreamSegmentOffset() + existingEntry.getLength() - segmentOffset;
+                    segmentOffset += overlapLength;
+                } else {
+                    // First offset does not exist. Let's find out how much we can insert.
+                    existingEntry = this.indexEntries.getCeiling(segmentOffset);
+                    overlapLength = existingEntry == null ? data.getLength() : existingEntry.getStreamSegmentOffset() - segmentOffset;
+                    assert overlapLength > 0 : "indexEntries.getFloor(offset) == null != indexEntries.getCeiling(offset)";
+
+                    // Slice the data that we need to insert. We may be able to insert the whole buffer at once.
+                    BufferView dataToInsert = overlapLength >= data.getLength() ? data : data.slice(0, (int) overlapLength);
+                    CacheIndexEntry newEntry;
+                    int dataAddress = CacheStorage.NO_ADDRESS; // Null address pointer.
+                    try {
+                        dataAddress = this.cacheStorage.insert(dataToInsert);
+                        newEntry = new CacheIndexEntry(segmentOffset, dataToInsert.getLength(), dataAddress);
+                        ReadIndexEntry overriddenEntry = addToIndex(newEntry);
+                        assert overriddenEntry == null : "Insert overrode existing entry; " + segmentOffset + ":" + dataToInsert.getLength();
+                        lastInsertedEntry = newEntry;
+                    } catch (Throwable ex) {
+                        // Clean up the data we might have inserted if we were unable to add it to the index.
+                        this.cacheStorage.delete(dataAddress);
+                        throw ex;
+                    }
+                }
+
+                // Slice the remainder of the buffer, or set it to null if we processed everything.
+                assert overlapLength != 0 : "unable to make any progress";
+                data = overlapLength >= data.getLength() ? null : data.slice((int) overlapLength, data.getLength() - (int) overlapLength);
+            }
+        }
+
+        return lastInsertedEntry;
     }
 
     @GuardedBy("lock")
     private ReadIndexEntry addToIndex(ReadIndexEntry entry) {
         Exceptions.checkNotClosed(this.closed, this);
         // Insert the new entry and figure out if an old entry was overwritten.
-        ReadIndexEntry oldEntry = this.indexEntries.put(entry);
+        ReadIndexEntry rejectedEntry = this.indexEntries.put(entry);
         if (entry.isDataEntry()) {
             if (entry instanceof MergedIndexEntry) {
                 // This entry has already existed in the cache for a while; do not change its generation.
@@ -601,12 +656,12 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             }
         }
 
-        if (oldEntry != null && oldEntry.isDataEntry()) {
+        if (rejectedEntry != null && rejectedEntry.isDataEntry()) {
             // Need to eject the old entry's data from the Cache Stats.
-            this.summary.removeOne(oldEntry.getGeneration());
+            this.summary.removeOne(rejectedEntry.getGeneration());
         }
 
-        return oldEntry;
+        return rejectedEntry;
     }
 
     //endregion
@@ -1068,14 +1123,18 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private void queueStorageRead(long offset, int length, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
         // Create a callback that inserts into the ReadIndex (and cache) and invokes the success callback.
         Consumer<StorageReadManager.Result> doneCallback = result -> {
-            ByteArraySegment data = result.getData();
+            try {
+                ByteArraySegment data = result.getData();
 
-            // Make sure we invoke our callback first, before any chance of exceptions from insert() may block it.
-            successCallback.accept(new ReadResultEntryContents(data.getReader(), data.getLength()));
-            if (!result.isDerived()) {
-                // Only insert primary results into the cache. Derived results are always sub-portions of primaries
-                // and there is no need to insert them too, as they are already contained within.
-                insert(offset, data);
+                // Make sure we invoke our callback first, before any chance of exceptions from insert() may block it.
+                successCallback.accept(new ReadResultEntryContents(data.getReader(), data.getLength()));
+                if (!result.isDerived()) {
+                    // Only insert primary results into the cache. Derived results are always sub-portions of primaries
+                    // and there is no need to insert them too, as they are already contained within.
+                    insert(offset, data);
+                }
+            } catch (Exception ex) {
+                log.error("{}: Unable to process Storage Read callback. Offset={}, Result=[{}].", this.traceObjectId, offset, result);
             }
         };
 
