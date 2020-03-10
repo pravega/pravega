@@ -406,8 +406,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
                 byte[] writeData = String.format(APPEND_FORMAT, segmentName, j).getBytes();
 
-                // Append some garbage at the end to make sure we only write as much as instructed, and not the whole InputStream.
-                val dataStream = new SequenceInputStream(new ByteArrayInputStream(writeData), new ByteArrayInputStream(extraData));
+                val dataStream = new ByteArrayInputStream(writeData);
                 s.write(writeHandle, offset, dataStream, writeData.length, TIMEOUT).join();
                 writeStream.write(writeData);
                 offset += writeData.length;
