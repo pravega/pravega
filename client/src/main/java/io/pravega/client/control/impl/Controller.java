@@ -23,6 +23,7 @@ import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.List;
@@ -377,16 +378,6 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> updateKeyValueTable(final String scope, final String kvtName, final KeyValueTableConfiguration kvtConfig);
 
     /**
-     * API to seal a KeyValueTable.
-     *
-     * @param scope   Scope
-     * @param kvtName KeyValueTable name
-     * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     * indicate that the KeyValueTable was sealed because it was not previously.
-     */
-    CompletableFuture<Boolean> sealKeyValueTable(final String scope, final String kvtName);
-
-    /**
      * API to delete a KeyValueTable. Only a sealed KeyValueTable can be deleted.
      *
      * @param scope   Scope name.
@@ -403,7 +394,7 @@ public interface Controller extends AutoCloseable {
      * @param kvtName KeyValueTable name
      * @return Current KeyValueTable segments.
      */
-    CompletableFuture<StreamSegments> getCurrentSegmentsForKeyValueTable(final String scope, final String kvtName);
+    CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(final String scope, final String kvtName);
 
     //endregion
 }

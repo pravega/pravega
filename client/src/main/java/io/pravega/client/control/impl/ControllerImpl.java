@@ -41,6 +41,7 @@ import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -1176,17 +1177,12 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> sealKeyValueTable(String scope, String kvtName) {
-        throw new UnsupportedOperationException("sealKeyValueTable not implemented.");
-    }
-
-    @Override
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
         throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
     }
 
     @Override
-    public CompletableFuture<StreamSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
+    public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
         throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");
     }
 
