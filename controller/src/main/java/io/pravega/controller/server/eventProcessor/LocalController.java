@@ -319,7 +319,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Transaction.PingStatus> pingTransaction(Stream stream, UUID txId, long lease) {
-        return controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease)
+        return controller.pingTransaction(stream.getScope(), stream.getStreamName(), txId, lease)
                          .thenApply(status -> {
                              try {
                                  return ModelHelper.encode(status.getStatus(), stream + " " + txId);
@@ -333,20 +333,20 @@ public class LocalController implements Controller {
     public CompletableFuture<Void> commitTransaction(Stream stream, final String writerId, final Long timestamp, UUID txnId) {
         long time = Optional.ofNullable(timestamp).orElse(Long.MIN_VALUE);
         return controller
-                .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId), writerId, time)
+                .commitTransaction(stream.getScope(), stream.getStreamName(), txnId, writerId, time)
                 .thenApply(x -> null);
     }
 
     @Override
-    public CompletableFuture<Void> abortTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<Void> abortTransaction(Stream stream, UUID txnId) {
         return controller
-                .abortTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId))
+                .abortTransaction(stream.getScope(), stream.getStreamName(), txnId)
                 .thenApply(x -> null);
     }
 
     @Override
     public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txnId) {
-        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
+        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), txnId)
                 .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txnId));
     }
 
