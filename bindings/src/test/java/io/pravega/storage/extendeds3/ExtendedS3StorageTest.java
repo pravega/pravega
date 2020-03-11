@@ -227,6 +227,26 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         }
     }
 
+    /**
+     * Tests the concat() method forcing to use multipart upload.
+     *
+     * @throws Exception if an unexpected error occurred.
+     */
+    @Test
+    public void testConcatWithMultipartUpload() throws Exception {
+        val adapterConfig = ExtendedS3StorageConfig.builder()
+                .with(ExtendedS3StorageConfig.CONFIGURI, setup.configUri)
+                .with(ExtendedS3StorageConfig.BUCKET, setup.adapterConfig.getBucket())
+                .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
+                .with(ExtendedS3StorageConfig.USENONEMATCH, true)
+                .with(ExtendedS3StorageConfig.SMALL_OBJECT_THRESHOLD, 1)
+                .build();
+        final String context = createSegmentName("Concat");
+        try (Storage s = createStorage(setup.client, adapterConfig, executorService())) {
+            testConcat(context, s);
+        }
+    }
+
     private static Storage createStorage(S3Client client, ExtendedS3StorageConfig adapterConfig, Executor executor) {
         // We can't use the factory here because we're setting our own (mock) client.
         ExtendedS3Storage storage = new ExtendedS3Storage(client, adapterConfig);
