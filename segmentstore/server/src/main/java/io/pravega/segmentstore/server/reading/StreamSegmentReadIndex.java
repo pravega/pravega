@@ -482,7 +482,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         StreamSegmentReadIndex sourceIndex = redirectEntry.getRedirectReadIndex();
 
         // Get all the entries from the source index and append them here.
-        List<MergedIndexEntry> sourceEntries = sourceIndex.removeAllEntries(redirectEntry.getStreamSegmentOffset());
+        List<MergedIndexEntry> sourceEntries = sourceIndex.removeAllDataEntries(redirectEntry.getStreamSegmentOffset());
 
         synchronized (this.lock) {
             // Remove redirect entry (again, no need to update the Cache Stats, as this is a RedirectIndexEntry).
@@ -1200,7 +1200,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * live data in the {@link CacheManager}; as such it is the responsibility of the caller to manage their lifecycle
      * from now on.
      */
-    private List<MergedIndexEntry> removeAllEntries(long offsetAdjustment) {
+    private List<MergedIndexEntry> removeAllDataEntries(long offsetAdjustment) {
         Preconditions.checkState(this.metadata.isDeleted(), "Cannot fetch entries for a Segment that has not been deleted yet.");
         Exceptions.checkArgument(offsetAdjustment >= 0, "offsetAdjustment", "offsetAdjustment must be a non-negative number.");
 
