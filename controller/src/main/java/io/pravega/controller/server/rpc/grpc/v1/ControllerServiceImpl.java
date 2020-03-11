@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import io.grpc.Status;
@@ -356,7 +355,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void commitTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
-        final UUID txnId = ModelHelper.encode(Preconditions.checkNotNull(request.getTxnId(), "txnId"));
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("commitTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
@@ -372,7 +371,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
-        final UUID txnId = ModelHelper.encode(Preconditions.checkNotNull(request.getTxnId(), "txnId"));
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("abortTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults( () -> this.grpcAuthHelper.checkAuthorization(
@@ -386,7 +385,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
-        final UUID txnId = ModelHelper.encode(Preconditions.checkNotNull(request.getTxnId(), "txnId"));
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
@@ -401,7 +400,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
-        final UUID txnId = ModelHelper.encode(Preconditions.checkNotNull(request.getTxnId(), "txnId"));
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
