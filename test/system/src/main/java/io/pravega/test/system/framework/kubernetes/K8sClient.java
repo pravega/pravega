@@ -73,7 +73,7 @@ import static javax.ws.rs.core.Response.Status.NOT_FOUND;
 @Slf4j
 public class K8sClient {
 
-    private static final boolean ALLOW_WATCH_BOOKMARKS = false;
+    private static final boolean ALLOW_WATCH_BOOKMARKS = true;
     // Indicates if an object can be returned without completing its initialization.
     private static final int DEFAULT_TIMEOUT_MINUTES = 10; // timeout of http client.
     private static final int RETRY_MAX_DELAY_MS = 1_000; // max time between retries to check if pod has completed.
@@ -229,6 +229,7 @@ public class K8sClient {
         CoreV1Api api = new CoreV1Api();
 
         log.debug("Current number of http interceptors {}", api.getApiClient().getHttpClient().networkInterceptors().size());
+        client.getHttpClient().newBuilder().readTimeout(DEFAULT_TIMEOUT_MINUTES, TimeUnit.MINUTES);
 
         String labelSelector = labels.entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).collect(Collectors.joining());
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
