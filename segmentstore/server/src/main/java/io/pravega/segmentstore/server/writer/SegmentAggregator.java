@@ -726,13 +726,6 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flushPendingAppends");
 
-        if (flushArgs.getLength() == 0) {
-            // Nothing to flush.
-            WriterFlushResult result = new WriterFlushResult();
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "flushPendingAppends", traceId, result);
-            return CompletableFuture.completedFuture(result);
-        }
-
         // Flush them.
         TimeoutTimer timer = new TimeoutTimer(timeout);
         CompletableFuture<Void> flush;
@@ -1562,20 +1555,23 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * @return A FlushResult containing statistics about the flush operation.
      */
     private WriterFlushResult updateStatePostFlush(FlushArgs flushArgs) {
-        // Update the metadata Storage Length.
-        long newLength = this.metadata.getStorageLength() + flushArgs.getLength();
-        this.metadata.setStorageLength(newLength);
+        // Update the metadata Storage Length, if necessary.
+        long newLength = this.metadata.getStorageLength();
+        if (flushArgs.getLength() > 0) {
+            newLength += flushArgs.getLength();
+            this.metadata.setStorageLength(newLength);
+        }
 
-        // Remove operations from the outstanding list as long as every single byte it contains has been committed.
+        // Remove Append Operations from the outstanding list as long as every single byte they contain have been committed.
         boolean reachedEnd = false;
         while (this.operations.size() > 0 && !reachedEnd) {
             StorageOperation first = this.operations.getFirst();
             long lastOffset = first.getLastStreamSegmentOffset();
-            reachedEnd = lastOffset >= newLength;
+            boolean isAppendOperation = isAppendOperation(first);
+            reachedEnd = lastOffset >= newLength || !isAppendOperation;
 
-            // Verify that if we did reach the 'newLength' offset, we were on an append operation. Anything else is indicative of a bug.
-            assert reachedEnd || isAppendOperation(first) : "Flushed operation was not an Append.";
-            if (lastOffset <= newLength && isAppendOperation(first)) {
+            if (lastOffset <= newLength && isAppendOperation) {
+                // Fully flushed Append Operation.
                 this.operations.removeFirst();
             }
         }
