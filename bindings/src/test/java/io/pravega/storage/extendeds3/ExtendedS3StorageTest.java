@@ -185,10 +185,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             assertEquals(2, ExtendedS3Metrics.DELETE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
             assertTrue(0 < ExtendedS3Metrics.DELETE_LATENCY.toOpStatsData().getAvgLatencyMillis());
 
-        } finally {
-
         }
-
     }
 
     /**
@@ -242,8 +239,11 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
                 .with(ExtendedS3StorageConfig.SMALL_OBJECT_THRESHOLD, 1)
                 .build();
         final String context = createSegmentName("Concat");
+        assertEquals(0, ExtendedS3Metrics.LARGE_CONCAT_COUNT.get());
         try (Storage s = createStorage(setup.client, adapterConfig, executorService())) {
             testConcat(context, s);
+            assertTrue(ExtendedS3Metrics.LARGE_CONCAT_COUNT.get() > 0);
+            assertEquals(ExtendedS3Metrics.CONCAT_COUNT.get(), ExtendedS3Metrics.LARGE_CONCAT_COUNT.get());
         }
     }
 
