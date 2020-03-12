@@ -1567,10 +1567,11 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         while (this.operations.size() > 0 && !reachedEnd) {
             StorageOperation first = this.operations.getFirst();
             long lastOffset = first.getLastStreamSegmentOffset();
-            boolean isAppendOperation = isAppendOperation(first);
-            reachedEnd = lastOffset >= newLength || !isAppendOperation;
-
-            if (lastOffset <= newLength && isAppendOperation) {
+            reachedEnd = lastOffset >= newLength;
+            if (!isAppendOperation(first)) {
+                // We can only remove Append Operations.
+                reachedEnd = true;
+            } else if (lastOffset <= newLength) {
                 // Fully flushed Append Operation.
                 this.operations.removeFirst();
             }
