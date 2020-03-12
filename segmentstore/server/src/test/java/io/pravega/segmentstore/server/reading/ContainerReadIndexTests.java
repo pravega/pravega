@@ -1419,6 +1419,93 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests a scenario where a call to {@link StreamSegmentReadIndex#completeMerge} executes concurrently with a
+     * CacheManager eviction. The Cache Manager must not evict the data for recently transferred entries, even if they
+     * would otherwise be eligible for eviction in the source segment.
+     */
+    @Test
+    public void testConcurrentEvictionTransactionStorageMerge() throws Exception {
+        val mergeOffset = 1;
+        val appendLength = 1;
+        CachePolicy cachePolicy = new CachePolicy(1, Duration.ZERO, Duration.ofMillis(1));
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG, cachePolicy);
+
+        // Create parent segment and one transaction
+        long targetId = createSegment(0, context);
+        long sourceId = createTransaction(1, context);
+        val targetMetadata = context.metadata.getStreamSegmentMetadata(targetId);
+        val sourceMetadata = context.metadata.getStreamSegmentMetadata(sourceId);
+        createSegmentsInStorage(context);
+
+        // Write something to the parent segment.
+        appendSingleWrite(targetId, new ByteArraySegment(new byte[mergeOffset]), context);
+        context.storage.openWrite(targetMetadata.getName())
+                .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[mergeOffset]), mergeOffset, TIMEOUT)).join();
+
+        // Write something to the transaction, but do not write anything in Storage - we want to verify we don't even
+        // try to reach in there.
+        val sourceContents = getAppendData(context.metadata.getStreamSegmentMetadata(sourceId).getName(), sourceId, 0, 0);
+        appendSingleWrite(sourceId, sourceContents, context);
+        sourceMetadata.setStorageLength(sourceMetadata.getLength());
+
+        // Seal & Begin-merge the transaction (do not seal in storage).
+        sourceMetadata.markSealed();
+        targetMetadata.setLength(sourceMetadata.getLength() + mergeOffset);
+        context.readIndex.beginMerge(targetId, mergeOffset, sourceId);
+        sourceMetadata.markMerged();
+        sourceMetadata.markDeleted();
+
+        // Trigger a Complete Merge. We want to intercept and pause it immediately before it is unregistered from the
+        // Cache Manager.
+        @Cleanup("release")
+        val unregisterCalled = new ReusableLatch();
+        @Cleanup("release")
+        val unregisterBlocker = new ReusableLatch();
+        context.cacheManager.setUnregisterInterceptor(c -> {
+            unregisterCalled.release();
+            Exceptions.handleInterrupted(unregisterBlocker::await);
+        });
+
+        val completeMerge = CompletableFuture.runAsync(() -> {
+            try {
+                context.readIndex.completeMerge(targetId, sourceId);
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+        }, executorService());
+
+        // Clear the cache. The source Read index is still registered in the Cache Manager - we want to ensure that any
+        // eviction happening at this point will not delete anything from the Cache that we don't want deleted.
+        unregisterCalled.await();
+        context.cacheManager.applyCachePolicy();
+
+        // Wait for the operation to complete.
+        unregisterBlocker.release();
+        completeMerge.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Verify that we can append (appending will modify the last cache entry; if it had been modified this would not
+        // work anymore).
+        val appendOffset = (int) targetMetadata.getLength();
+        val appendData = new byte[appendLength];
+        appendData[0] = (byte) 23;
+        targetMetadata.setLength(appendOffset + appendLength);
+        context.readIndex.append(targetId, appendOffset, new ByteArraySegment(appendData));
+
+        // Issue a read and verify we can read everything that we wrote. If it had been evicted or erroneously deleted
+        // from the cache this would result in an error.
+        byte[] expectedData = new byte[appendOffset + appendLength];
+        sourceContents.copyTo(expectedData, mergeOffset, sourceContents.getLength());
+        System.arraycopy(appendData, 0, expectedData, appendOffset, appendLength);
+
+        ReadResult rr = context.readIndex.read(targetId, 0, expectedData.length, TIMEOUT);
+        Assert.assertTrue("Parent Segment read indicates no data available.", rr.hasNext());
+        byte[] actualData = new byte[expectedData.length];
+        rr.readRemaining(actualData, TIMEOUT);
+        Assert.assertArrayEquals("Unexpected data read back.", expectedData, actualData);
+    }
+
+    /**
      * Verifies that any FutureRead that resulted from a partial merge operation is cancelled when the ReadIndex is closed.
      */
     @Test
