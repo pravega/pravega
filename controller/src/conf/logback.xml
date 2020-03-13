@@ -12,7 +12,7 @@
     <appender name="consoleAppender" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <charset>UTF-8</charset>
-            <Pattern>%d %-4relative [%thread] %-5level %logger{35} - %msg%n</Pattern>
+            <Pattern>%d %-4relative [%thread] %-5level %logger{35}.%M\(%line\) - %msg%n</Pattern>
         </encoder>
     </appender>
 
@@ -32,7 +32,7 @@
 
         <encoder>
             <charset>UTF-8</charset>
-            <pattern>%d %-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>
+            <pattern>%d %-4relative [%thread] %-5level %logger{35}.%M\(%line\) - %msg%n</pattern>
         </encoder>
     </appender>
 
