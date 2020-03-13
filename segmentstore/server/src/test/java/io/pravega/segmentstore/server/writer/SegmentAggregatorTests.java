@@ -617,6 +617,73 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the behavior of flush() empty appends.
+     */
+    @Test
+    public void testFlushEmptyAppend() throws Exception {
+        final WriterConfig config = DEFAULT_CONFIG;
+        val rnd = new Random(0);
+        final byte[] initialBytes = new byte[config.getMaxFlushSizeBytes()];
+        final byte[] mergedBytes = new byte[100];
+        final int segmentLength = initialBytes.length + mergedBytes.length;
+        rnd.nextBytes(initialBytes);
+        rnd.nextBytes(mergedBytes);
+
+        @Cleanup
+        TestContext context = new TestContext(config);
+
+        // Create a segment in Storage.
+        context.storage.create(SEGMENT_NAME, TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT).join();
+        val metadata = (UpdateableSegmentMetadata) context.segmentAggregator.getMetadata();
+        metadata.setLength(segmentLength);
+
+        // First append fills up the max limit for the AggregatedAppend buffer.
+        val append1 = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(initialBytes), null);
+        append1.setStreamSegmentOffset(0);
+        append1.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
+        context.dataSource.recordAppend(append1);
+        context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(append1));
+
+        // Second append is empty.
+        val emptyAppend = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(new byte[0]), null);
+        emptyAppend.setStreamSegmentOffset(initialBytes.length);
+        emptyAppend.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
+        context.dataSource.recordAppend(emptyAppend);
+        context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(emptyAppend));
+
+        // Create a source segment.
+        val sourceAggregator = context.transactionAggregators[0];
+        val sourceMetadata = (UpdateableSegmentMetadata) sourceAggregator.getMetadata();
+        sourceMetadata.setLength(mergedBytes.length);
+        sourceMetadata.setStorageLength(mergedBytes.length);
+        context.storage.create(sourceMetadata.getName(), TIMEOUT).join();
+        context.storage.openWrite(sourceMetadata.getName())
+                .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(mergedBytes), mergedBytes.length, TIMEOUT)
+                        .thenCompose(v -> context.storage.seal(handle, TIMEOUT)))
+                .join();
+
+        // And include it via a Merge Op.
+        sourceMetadata.markSealed();
+        sourceMetadata.markSealedInStorage();
+        sourceMetadata.markMerged();
+        val mergeOp = new MergeSegmentOperation(SEGMENT_ID, sourceMetadata.getId());
+        mergeOp.setStreamSegmentOffset(initialBytes.length);
+        mergeOp.setLength(sourceMetadata.getLength());
+        mergeOp.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
+        context.segmentAggregator.add(mergeOp);
+
+        // Flush, and verify the result.
+        val flushResult1 = context.segmentAggregator.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected number of bytes flushed", initialBytes.length, flushResult1.getFlushedBytes());
+        Assert.assertEquals("Unexpected number of bytes merged", mergedBytes.length, flushResult1.getMergedBytes());
+        byte[] expectedData = new byte[initialBytes.length + mergedBytes.length];
+        System.arraycopy(initialBytes, 0, expectedData, 0, initialBytes.length);
+        System.arraycopy(mergedBytes, 0, expectedData, initialBytes.length, mergedBytes.length);
+        verifySegmentData(expectedData, context);
+    }
+
+    /**
      * Tests the flush() method with Append and StreamSegmentSealOperations.
      */
     @Test
