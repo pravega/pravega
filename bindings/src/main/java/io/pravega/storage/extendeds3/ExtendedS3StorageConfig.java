@@ -30,6 +30,7 @@ public class ExtendedS3StorageConfig {
     public static final Property<String> BUCKET = Property.named("bucket", "");
     public static final Property<String> PREFIX = Property.named("prefix", "/");
     public static final Property<Boolean> USENONEMATCH = Property.named("useNoneMatch", false);
+    public static final Property<Integer> SMALL_OBJECT_THRESHOLD = Property.named("smallObjectSizeLimitForConcat", 1024 * 1024);
 
     private static final String COMPONENT_CODE = "extendeds3";
     private static final String PATH_SEPARATOR = "/";
@@ -75,6 +76,14 @@ public class ExtendedS3StorageConfig {
     @Getter
     private final boolean useNoneMatch;
 
+    /**
+     * Size of ECS objects in bytes above which it is no longer considered a small object.
+     * For small source objects, to implement concat ExtendedS3Storage reads complete objects and appends it to target
+     * instead of using multi part upload.
+     */
+    @Getter
+    private final int smallObjectSizeLimitForConcat;
+
     //endregion
 
     //region Constructor
@@ -93,6 +102,7 @@ public class ExtendedS3StorageConfig {
         String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
         this.useNoneMatch = properties.getBoolean(USENONEMATCH);
+        this.smallObjectSizeLimitForConcat = properties.getInt(SMALL_OBJECT_THRESHOLD);
     }
 
     /**
