@@ -185,10 +185,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             assertEquals(2, ExtendedS3Metrics.DELETE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
             assertTrue(0 < ExtendedS3Metrics.DELETE_LATENCY.toOpStatsData().getAvgLatencyMillis());
 
-        } finally {
-
         }
-
     }
 
     /**
@@ -224,6 +221,29 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             // Verify with prefix
             assertFalse(s.exists(segmentName1, null).get());
             assertFalse(s.exists(segmentName1 + "$header", null).get());
+        }
+    }
+
+    /**
+     * Tests the concat() method forcing to use multipart upload.
+     *
+     * @throws Exception if an unexpected error occurred.
+     */
+    @Test
+    public void testConcatWithMultipartUpload() throws Exception {
+        val adapterConfig = ExtendedS3StorageConfig.builder()
+                .with(ExtendedS3StorageConfig.CONFIGURI, setup.configUri)
+                .with(ExtendedS3StorageConfig.BUCKET, setup.adapterConfig.getBucket())
+                .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
+                .with(ExtendedS3StorageConfig.USENONEMATCH, true)
+                .with(ExtendedS3StorageConfig.SMALL_OBJECT_THRESHOLD, 1)
+                .build();
+        final String context = createSegmentName("Concat");
+        assertEquals(0, ExtendedS3Metrics.LARGE_CONCAT_COUNT.get());
+        try (Storage s = createStorage(setup.client, adapterConfig, executorService())) {
+            testConcat(context, s);
+            assertTrue(ExtendedS3Metrics.LARGE_CONCAT_COUNT.get() > 0);
+            assertEquals(ExtendedS3Metrics.CONCAT_COUNT.get(), ExtendedS3Metrics.LARGE_CONCAT_COUNT.get());
         }
     }
 
