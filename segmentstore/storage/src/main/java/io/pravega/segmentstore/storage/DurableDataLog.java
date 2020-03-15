@@ -9,8 +9,8 @@
  */
 package io.pravega.segmentstore.storage;
 
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.CompositeArrayView;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -84,13 +84,13 @@ public interface DurableDataLog extends AutoCloseable {
      * is always reported when the CompletableFuture returned by this method is completed exceptionally.
      * </ul>
      *
-     * @param data    An ArrayView representing the data to append.
+     * @param data    A CompositeArrayView representing the data to append.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the LogAddress within the log for the entry. If the entry
      * failed to be added, this Future will complete with the appropriate exception.
      * @throws IllegalStateException If the DurableDataLog is not currently initialized (which implies being enabled).
      */
-    CompletableFuture<LogAddress> append(ArrayView data, Duration timeout);
+    CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout);
 
     /**
      * Truncates the log up to the given sequence.

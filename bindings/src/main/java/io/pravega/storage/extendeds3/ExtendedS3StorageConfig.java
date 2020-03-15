@@ -9,11 +9,13 @@
  */
 package io.pravega.storage.extendeds3;
 
+import com.emc.object.s3.S3Config;
+import com.emc.object.util.ConfigUri;
+import com.google.common.base.Preconditions;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
-import java.net.URI;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,13 +26,11 @@ import lombok.extern.slf4j.Slf4j;
 public class ExtendedS3StorageConfig {
     //region Config Names
 
-    public static final Property<String> ROOT = Property.named("root", "/");
-    public static final Property<String> ACCESS_KEY_ID = Property.named("accessKey", "");
-    public static final Property<String> SECRET_KEY = Property.named("secretKey", "");
-    public static final Property<String> URI = Property.named("url", "");
+    public static final Property<String> CONFIGURI = Property.named("configUri", "");
     public static final Property<String> BUCKET = Property.named("bucket", "");
-    public static final Property<String> NAMESPACE = Property.named("namespace", ""); // use default namespace
+    public static final Property<String> PREFIX = Property.named("prefix", "/");
     public static final Property<Boolean> USENONEMATCH = Property.named("useNoneMatch", false);
+    public static final Property<Integer> SMALL_OBJECT_THRESHOLD = Property.named("smallObjectSizeLimitForConcat", 1024 * 1024);
 
     private static final String COMPONENT_CODE = "extendeds3";
     private static final String PATH_SEPARATOR = "/";
@@ -40,11 +40,10 @@ public class ExtendedS3StorageConfig {
     //region Members
 
     /**
-     * Root of the Pravega owned EXTENDEDS3 path under the assigned buckets. All the objects under this path will be
-     * exclusively owned by Pravega.
+     *  The S3 complete client config of the EXTENDEDS3 REST interface
      */
     @Getter
-    private final String root;
+    private final S3Config s3Config;
 
     /**
      *  The EXTENDEDS3 access key id - this is equivalent to the user
@@ -53,16 +52,10 @@ public class ExtendedS3StorageConfig {
     private final String accessKey;
 
     /**
-     *  The EXTENDEDS3 secret key associated with the ACCESS_KEY_ID
+     *  The EXTENDEDS3 secret key associated with the accessKey
      */
     @Getter
     private final String secretKey;
-
-    /**
-     *  The end point of the EXTENDEDS3 REST interface
-     */
-    @Getter
-    private final URI url;
 
     /**
      *  A unique bucket name to store objects
@@ -71,16 +64,25 @@ public class ExtendedS3StorageConfig {
     private final String bucket;
 
     /**
-     *  The optional namespace within EXTENDEDS3 - leave blank to use the default namespace
+     * Prefix of the Pravega owned EXTENDEDS3 path under the assigned buckets. All the objects under this path will be
+     * exclusively owned by Pravega.
      */
     @Getter
-    private final String namespace;
+    private final String prefix;
 
     /**
      *
      */
     @Getter
     private final boolean useNoneMatch;
+
+    /**
+     * Size of ECS objects in bytes above which it is no longer considered a small object.
+     * For small source objects, to implement concat ExtendedS3Storage reads complete objects and appends it to target
+     * instead of using multi part upload.
+     */
+    @Getter
+    private final int smallObjectSizeLimitForConcat;
 
     //endregion
 
@@ -92,14 +94,15 @@ public class ExtendedS3StorageConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private ExtendedS3StorageConfig(TypedProperties properties) throws ConfigurationException {
-        String givenRoot = properties.get(ROOT);
-        this.root = givenRoot.endsWith(PATH_SEPARATOR) ? givenRoot : givenRoot + PATH_SEPARATOR;
-        this.accessKey = properties.get(ACCESS_KEY_ID);
-        this.secretKey = properties.get(SECRET_KEY);
-        this.url = java.net.URI.create(properties.get(URI));
-        this.bucket = properties.get(BUCKET);
-        this.namespace = properties.get(NAMESPACE);
+        ConfigUri<S3Config> s3ConfigUri = new ConfigUri<S3Config>(S3Config.class);
+        this.s3Config = Preconditions.checkNotNull(s3ConfigUri.parseUri(properties.get(CONFIGURI)), "configUri");
+        this.accessKey = Preconditions.checkNotNull(s3Config.getIdentity(), "identity");
+        this.secretKey = Preconditions.checkNotNull(s3Config.getSecretKey(), "secretKey");
+        this.bucket = Preconditions.checkNotNull(properties.get(BUCKET), "bucket");
+        String givenPrefix = Preconditions.checkNotNull(properties.get(PREFIX), "prefix");
+        this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
         this.useNoneMatch = properties.getBoolean(USENONEMATCH);
+        this.smallObjectSizeLimitForConcat = properties.getInt(SMALL_OBJECT_THRESHOLD);
     }
 
     /**

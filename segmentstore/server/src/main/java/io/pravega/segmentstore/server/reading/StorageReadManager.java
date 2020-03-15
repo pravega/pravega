@@ -369,7 +369,7 @@ public class StorageReadManager implements AutoCloseable {
                 // Get the source Request's result, slice it and return the sub-segment that this request maps to.
                 Result sourceResult = source.resultFuture.join();
                 int offset = (int) (this.getOffset() - source.getOffset());
-                this.resultFuture.complete(new Result(sourceResult.getData().subSegment(offset, getLength()), true));
+                this.resultFuture.complete(new Result(sourceResult.getData().slice(offset, getLength()), true));
             } catch (Throwable ex) {
                 if (Exceptions.mustRethrow(ex)) {
                     throw ex;

@@ -150,7 +150,7 @@ class BookKeeperAdapter extends StoreAdapter {
                         .withEnsembleSize(this.bkConfig.getBkEnsembleSize())
                         .withWriteQuorumSize(this.bkConfig.getBkWriteQuorumSize())
                         .withAckQuorumSize(this.bkConfig.getBkAckQuorumSize())
-                        .withDigestType(DigestType.MAC)
+                        .withDigestType(DigestType.CRC32C)
                         .withPassword(new byte[0])
                         .execute()
                         .get();

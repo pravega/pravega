@@ -21,7 +21,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.client.api.BookKeeper;
+import org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy;
 import org.apache.bookkeeper.conf.ClientConfiguration;
+import org.apache.bookkeeper.net.CommonConfigurationKeys;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
@@ -153,7 +155,14 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         } else {
             metadataServiceUri += this.config.getBkLedgerPath();
         }
-        config.setMetadataServiceUri(metadataServiceUri);
+        config = config.setMetadataServiceUri(metadataServiceUri);
+
+        if (this.config.isEnforceMinNumRacksPerWriteQuorum()) {
+            config = config.setEnsemblePlacementPolicy(RackawareEnsemblePlacementPolicy.class);
+            config.setEnforceMinNumRacksPerWriteQuorum(this.config.isEnforceMinNumRacksPerWriteQuorum());
+            config.setMinNumRacksPerWriteQuorum(this.config.getMinNumRacksPerWriteQuorum());
+            config.setProperty(CommonConfigurationKeys.NET_TOPOLOGY_SCRIPT_FILE_NAME_KEY, this.config.getNetworkTopologyFileName());
+        }
 
         return BookKeeper.newBuilder(config)
                          .build();

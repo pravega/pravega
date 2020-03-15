@@ -38,6 +38,7 @@ final class Ledgers {
      * How many ledgers to fence out (from the end of the list) when acquiring lock.
      */
     static final int MIN_FENCE_LEDGER_COUNT = 2;
+
     private static final DigestType LEDGER_DIGEST_TYPE = DigestType.MAC;
 
     /**
@@ -65,15 +66,16 @@ final class Ledgers {
      */
     static WriteHandle create(BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
+
             return Exceptions.handleInterruptedCall(() ->
                     FutureUtils.result(bookKeeper.newCreateLedgerOp()
                             .withEnsembleSize(config.getBkEnsembleSize())
                             .withWriteQuorumSize(config.getBkWriteQuorumSize())
                             .withAckQuorumSize(config.getBkAckQuorumSize())
-                            .withDigestType(LEDGER_DIGEST_TYPE)
+                            .withDigestType(config.getDigestType())
                             .withPassword(config.getBKPassword())
                             .execute(), BK_EXCEPTION_HANDLER) );
-        } catch (BKNotEnoughBookiesException bkEx) {
+        } catch (BKException.BKNotEnoughBookiesException bkEx) {
             throw new DataLogNotAvailableException("Unable to create new BookKeeper Ledger.", bkEx);
         } catch (BKException bkEx) {
             throw new DurableDataLogException("Unable to create new BookKeeper Ledger.", bkEx);
@@ -95,7 +97,7 @@ final class Ledgers {
                     () -> FutureUtils.result(bookKeeper
                             .newOpenLedgerOp()
                     .withLedgerId(ledgerId)
-                    .withDigestType(LEDGER_DIGEST_TYPE)
+                    .withDigestType(config.getDigestType())
                     .withPassword(config.getBKPassword())
                     .withRecovery(true)
                     .execute(), BK_EXCEPTION_HANDLER));
@@ -119,7 +121,7 @@ final class Ledgers {
                     () -> FutureUtils.result(bookKeeper
                             .newOpenLedgerOp()
                     .withLedgerId(ledgerId)
-                    .withDigestType(LEDGER_DIGEST_TYPE)
+                    .withDigestType(config.getDigestType())
                     .withPassword(config.getBKPassword())
                     .withRecovery(false)
                     .execute(), BK_EXCEPTION_HANDLER));

@@ -9,8 +9,8 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.CompositeArrayView;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
@@ -195,7 +195,7 @@ public class DebugLogWrapper implements AutoCloseable {
         }
 
         @Override
-        public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
+        public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
             throw new UnsupportedOperationException();
         }
 

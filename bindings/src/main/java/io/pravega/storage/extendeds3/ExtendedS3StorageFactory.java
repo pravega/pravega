@@ -9,7 +9,6 @@
  */
 package io.pravega.storage.extendeds3;
 
-import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
@@ -50,12 +49,7 @@ public class ExtendedS3StorageFactory implements StorageFactory {
     }
 
     private ExtendedS3Storage createS3Storage() {
-        S3Config s3Config = new S3Config(config.getUrl())
-                .withIdentity(config.getAccessKey())
-                .withSecretKey(config.getSecretKey())
-                .withNamespace(config.getNamespace());
-
-        S3JerseyClient client = new S3JerseyClient(s3Config);
+        S3JerseyClient client = new S3JerseyClient(config.getS3Config());
         return new ExtendedS3Storage(client, this.config);
     }
 }
