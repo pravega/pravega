@@ -479,7 +479,7 @@ class BookKeeperLog implements DurableDataLog {
 
                 // Invoke the BookKeeper write.
                 w.getWriteLedger()
-                      .ledger.appendAsync(w.getData().retain(), w.data.getLength())
+                      .ledger.appendAsync(w.getData().retain())
                              .whenComplete((Long entryId, Throwable error) -> {
                                 addCallback(entryId, error, w);
                              });

@@ -140,6 +140,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 .setAddEntryTimeout(writeTimeout)
                 .setReadEntryTimeout(readTimeout)
                 .setGetBookieInfoTimeout(readTimeout)
+                .setEnableDigestTypeAutodetection(true)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
 

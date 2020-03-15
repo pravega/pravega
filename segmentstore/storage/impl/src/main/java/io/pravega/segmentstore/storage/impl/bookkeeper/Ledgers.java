@@ -75,7 +75,7 @@ final class Ledgers {
                             .withDigestType(config.getDigestType())
                             .withPassword(config.getBKPassword())
                             .execute(), BK_EXCEPTION_HANDLER) );
-        } catch (BKException.BKNotEnoughBookiesException bkEx) {
+        } catch (BKNotEnoughBookiesException bkEx) {
             throw new DataLogNotAvailableException("Unable to create new BookKeeper Ledger.", bkEx);
         } catch (BKException bkEx) {
             throw new DurableDataLogException("Unable to create new BookKeeper Ledger.", bkEx);
@@ -96,8 +96,7 @@ final class Ledgers {
             return Exceptions.handleInterruptedCall(
                     () -> FutureUtils.result(bookKeeper
                             .newOpenLedgerOp()
-                    .withLedgerId(ledgerId)
-                    .withDigestType(config.getDigestType())
+                    .withLedgerId(ledgerId)                    
                     .withPassword(config.getBKPassword())
                     .withRecovery(true)
                     .execute(), BK_EXCEPTION_HANDLER));
@@ -121,7 +120,6 @@ final class Ledgers {
                     () -> FutureUtils.result(bookKeeper
                             .newOpenLedgerOp()
                     .withLedgerId(ledgerId)
-                    .withDigestType(config.getDigestType())
                     .withPassword(config.getBKPassword())
                     .withRecovery(false)
                     .execute(), BK_EXCEPTION_HANDLER));

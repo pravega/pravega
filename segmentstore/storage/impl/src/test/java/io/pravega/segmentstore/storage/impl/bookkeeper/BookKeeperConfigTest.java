@@ -13,7 +13,7 @@ import io.pravega.common.util.InvalidPropertyValueException;
 import io.pravega.test.common.AssertExtensions;
 import java.time.Duration;
 
-import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.api.DigestType;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -48,7 +48,7 @@ public class BookKeeperConfigTest {
         Assert.assertEquals(false, cfg.isEnforceMinNumRacksPerWriteQuorum());
         Assert.assertEquals(2, cfg.getMinNumRacksPerWriteQuorum());
         Assert.assertEquals("/opt/pravega/scripts/sample-bookkeeper-topology.sh", cfg.getNetworkTopologyFileName());
-        Assert.assertEquals(BookKeeper.DigestType.CRC32C, cfg.getDigestType());
+        Assert.assertEquals(DigestType.CRC32C, cfg.getDigestType());
     }
 
     @Test
