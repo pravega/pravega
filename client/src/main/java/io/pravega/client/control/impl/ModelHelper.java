@@ -19,7 +19,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.impl.PositionInternal;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.Exceptions;
@@ -35,11 +34,9 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.AbstractMap;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -339,22 +336,6 @@ public final class ModelHelper {
 
         return Controller.StreamCutRange.newBuilder().setStreamInfo(createStreamInfo(scope, stream)).putAllFrom(from)
                 .putAllTo(to).build();
-    }
-
-    public static final Set<Long> getSegmentsFromPositions(final List<PositionInternal> positions) {
-        Preconditions.checkNotNull(positions, "positions");
-        return positions.stream()
-            .flatMap(position -> position.getCompletedSegments().stream().map(Segment::getSegmentId))
-            .collect(Collectors.toSet());
-    }
-    
-    public static final Map<Long, Long> toSegmentOffsetMap(final PositionInternal position) {
-        Preconditions.checkNotNull(position, "position");
-        return position.getOwnedSegmentsWithOffsets()
-            .entrySet()
-            .stream()
-            .map(e -> new SimpleEntry<>(e.getKey().getSegmentId(), e.getValue()))
-            .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 
     public static final Controller.ScopeInfo createScopeInfo(final String scope) {
