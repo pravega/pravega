@@ -27,20 +27,24 @@ import java.util.concurrent.CompletableFuture;
  * Key Families are used to group related Keys together in the same Table Partition, which allows multiple
  * keys/entries belonging to the same Key Family to be updated/removed atomically.
  * <ul>
- * <li> Multiple Keys/Entries in the same Key Family can be updated or removed atomically (either all at once or none).
+ * <li> Multiple Keys/Entries in the same Key Family can be updated or removed atomically (either all changes will be
+ * applied or none will).
  * <li> Iterating through all Keys/Entries in the same Key Family is possible.
  * <li> The same Key may exist in multiple Key Families or even not be associated with any Key Family at all. Such keys
  * are treated as distinct keys and will not interfere with each other (i.e., if key K1 exists in Key Families F1 and F2,
  * then F1.K1 is different from F2.K1 and both are different from K1 (no Key Family association).
  * <li> Keys that do not belong to any Key Family will be uniformly distributed across the Key-Value Table Partitions and
  * cannot be used for multi-key/entry atomic updates or removals or be iterated on.
- * <li> Improper use of Key Families may result in degraded performance. If a disproportionate number of Keys/Entries
- * are placed in the same Key Family (compared to the number of Key/Entries in other Key Families), it may not be
- * possible to uniformly distribute the Key-Value Table Entries across the cluster and more load will be placed on a
- * single backing Table Segment instead of spreading such load across many Table Segments. An ideally balanced Key-Value
- * Table will be one where Keys are not part of any Key Families or the number of Keys in each Key Family is approximately
- * the same. An improperly designed Key-Value Table will have all Keys part of a single Key Family which will cause a
- * single Table Segment to bear the full storage and processing load of the entire Key-Value Table.
+ * <li> {@link TableKey}s belonging to the same Key Family are grouped into the same Table Segment; as such, the choice
+ * of Key Families can have performance implications. An ideally balanced Key-Value Table is one where no {@link TableKey}
+ * is part of any Key Family or the number of {@link TableKey}s in each Key Family is approximately the same. To enable
+ * a uniform distribution of {@link TableKey}s over the Key-Value Table, it is highly recommended not to use Key Families
+ * at all. If this situation cannot be avoided (i.e., multi-entry atomic updates or iterators are required), then it is
+ * recommended that Key Families themselves be diversified and {@link TableKey}s be equally distributed across them. Such
+ * approaches will ensure that the Key-Value Table load will be spread across all its Table Segments. An undesirable
+ * situation is an extreme case where all the {@link TableKey}s in the Key-Value Table are associated with a single
+ * Key Family; in this case the entire Key-Value Table load will be placed on a single backing Table Segment instead of
+ * spreading it across many Table Segments, leading to eventual performance degradation.
  * </ul>
  * <p>
  * Types of Updates:
