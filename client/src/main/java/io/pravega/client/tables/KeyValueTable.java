@@ -10,9 +10,11 @@
 package io.pravega.client.tables;
 
 import io.pravega.common.util.AsyncIterator;
-import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import javax.annotation.Nullable;
+import lombok.NonNull;
 
 /**
  * Defines all operations that are supported on a Key-Value Table.
@@ -78,49 +80,76 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface KeyValueTable<KeyT, ValueT> {
     /**
-     * Inserts a new or updates an existing {@link TableEntry} that does not belong to any Key Family into this
-     * {@link KeyValueTable}.
+     * Unconditionally inserts a new or updates an existing Entry in the {@link KeyValueTable}.
      *
-     * @param entry The Entry to insert or update. If {@link TableEntry#getKey()}{@link TableKey#getVersion()} indicates
-     *              a conditional update, this will perform an atomic update conditioned on the server-side version matching
-     *              the provided one. See {@link KeyValueTable} doc for more details on Types of Updates.
+     * @param keyFamily (Optional) The Key Family for the Entry. If null, this Entry will not be associated with any
+     *                  Key Family.
+     * @param key       The Key to insert or update.
+     * @param value     The Value to be associated with the Key.
      * @return A CompletableFuture that, when completed, will contain the {@link KeyVersion} associated with the newly
-     * inserted or updated entry. Notable exceptions:
-     * <ul>
-     * <li>{@link ConditionalTableUpdateException} If this is a Conditional Update and the condition was not satisfied.
-     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
-     * </ul>
+     * inserted or updated entry.
      */
-    CompletableFuture<KeyVersion> put(TableEntry<KeyT, ValueT> entry);
+    CompletableFuture<KeyVersion> put(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value);
 
     /**
-     * Inserts a new or updates an existing {@link TableEntry} that belongs to a specific Key Family into this
-     * {@link KeyValueTable}.
+     * Conditionally inserts a new Entry in the {@link KeyValueTable} if and only if the given Key is not already present.
      *
-     * @param keyFamily The Key Family for the {@link TableEntry}.
-     * @param entry     The Entry to insert or update. If {@link TableEntry#getKey()}{@link TableKey#getVersion()}
-     *                  indicates a conditional update, this will perform an atomic update conditioned on the server-side
-     *                  version matching the provided one. See {@link KeyValueTable} doc for more details on Types of
-     *                  Updates.
+     * @param keyFamily (Optional) The Key Family for the Entry. If null, this Entry will not be associated with any
+     *                  Key Family.
+     * @param key       The Key to insert.
+     * @param value     The Value to be associated with the Key.
      * @return A CompletableFuture that, when completed, will contain the {@link KeyVersion} associated with the newly
      * inserted or updated entry. Notable exceptions:
      * <ul>
-     * <li>{@link ConditionalTableUpdateException} If this is a Conditional Update and the condition was not satisfied.
+     * <li>{@link ConditionalTableUpdateException} If the Key is already present in the {@link KeyValueTable} for the
+     * provided Key Family.
      * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
-    CompletableFuture<KeyVersion> put(String keyFamily, TableEntry<KeyT, ValueT> entry);
+    CompletableFuture<KeyVersion> putIfAbsent(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value);
+
+    /**
+     * Unconditionally inserts new or updates existing {@link TableEntry} instances that belong to the same Key Family
+     * into this {@link KeyValueTable}. All changes are performed atomically (either all or none will be accepted).
+     *
+     * @param keyFamily The Key Family for the all provided {@link TableEntry} instances.
+     * @param entries   An {@link Iterable} of {@link Map.Entry} instances to insert or update.
+     * @return A CompletableFuture that, when completed, will contain a List of {@link KeyVersion} instances which
+     * represent the versions for the inserted/updated keys. The size of this list will be the same as the number of
+     * items in entries and the versions will be in the same order as the entries.
+     */
+    CompletableFuture<List<KeyVersion>> putAll(@NonNull String keyFamily, @NonNull Iterable<Map.Entry<KeyT, ValueT>> entries);
+
+    /**
+     * Conditionally updates an existing Entry in the {@link KeyValueTable} if and only if the given Key exists and its
+     * version matches the given {@link KeyVersion}.
+     *
+     * @param keyFamily (Optional) The Key Family for the Entry. If null, this Entry will not be associated with any
+     *                  Key Family.
+     * @param key       The Key to update.
+     * @param value     The new Value to be associated with the Key.
+     * @param version   A {@link KeyVersion} representing the version that this Key must have in order to replace it.
+     * @return A CompletableFuture that, when completed, will contain the {@link KeyVersion} associated with the
+     * updated entry. Notable exceptions:
+     * <ul>
+     * <li>{@link ConditionalTableUpdateException} If the Key is not present present in the {@link KeyValueTable} for the
+     * provided Key Family or it is and has a different {@link KeyVersion}.
+     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
+     * </ul>
+     */
+    CompletableFuture<KeyVersion> replace(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value,
+                                          @NonNull KeyVersion version);
 
     /**
      * Inserts new or updates existing {@link TableEntry} instances that belong to the same Key Family into this
      * {@link KeyValueTable}. All changes are performed atomically (either all or none will be accepted).
      *
      * @param keyFamily The Key Family for the all provided {@link TableEntry} instances.
-     * @param entries   A List of {@link TableEntry} instances to insert or update. If for at least one such entry,
-     *                  {@link TableEntry#getKey()}{@link TableKey#getVersion()} indicates a conditional update,
-     *                  this will perform an atomic Conditional Update conditioned on the server-side versions matching
-     *                  the provided ones (for all {@link TableEntry} instances that have one); otherwise a Unconditional
-     *                  Update will be performed.
+     * @param entries   An {@link Iterable} of {@link TableEntry} instances to insert or update. If for at least one
+     *                  such entry, {@link TableEntry#getKey()}{@link TableKey#getVersion()} indicates a conditional
+     *                  update, this will perform an atomic Conditional Update conditioned on the server-side versions
+     *                  matching the provided ones (for all {@link TableEntry} instances that have one); otherwise an
+     *                  Unconditional Update will be performed.
      *                  See {@link KeyValueTable} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will contain a List of {@link KeyVersion} instances which
      * represent the versions for the inserted/updated keys. The size of this list will be the same as entries.size()
@@ -130,43 +159,38 @@ public interface KeyValueTable<KeyT, ValueT> {
      * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
-    CompletableFuture<List<KeyVersion>> put(String keyFamily, List<TableEntry<KeyT, ValueT>> entries);
+    CompletableFuture<List<KeyVersion>> replaceAll(@NonNull String keyFamily, @NonNull Iterable<TableEntry<KeyT, ValueT>> entries);
 
     /**
-     * Removes a {@link TableKey} that does not belong to any Key Family from this Table Segment.
+     * Unconditionally removes a {@link TableKey} from this Table Segment. If the Key does not exist, no action will be
+     * taken.
      *
-     * @param key The {@link TableKey} to remove. If {@link TableKey#getVersion()} indicates a conditional update, this
-     *            will perform an atomic removal conditioned on the server-side version matching the provided one.
-     *            See {@link KeyValueTable} doc for more details on Types of Updates.
+     * @param keyFamily (Optional) The Key Family for the Key to remove.
+     * @param key       The Key to remove.
+     * @return A CompletableFuture that, when completed, will indicate the Key has been removed.
+     */
+    CompletableFuture<Void> remove(@Nullable String keyFamily, @NonNull KeyT key);
+
+    /**
+     * Conditionally Removes a Key from this Table Segment.
+     *
+     * @param keyFamily (Optional) The Key Family for the {@link TableKey} to remove.
+     * @param key       The Key to remove.
+     * @param version   A {@link KeyVersion} representing the version that this Key must have in order to remove it.
      * @return A CompletableFuture that, when completed, will indicate the Key has been removed. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
      * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
-    CompletableFuture<Void> remove(TableKey<KeyT> key);
-
-    /**
-     * Removes a {@link TableKey} that does belongs to specific Key Family from this Table Segment.
-     *
-     * @param keyFamily The Key Family for the {@link TableKey}.
-     * @param key       The {@link TableKey} to remove. If {@link TableKey#getVersion()} indicates a conditional update,
-     *                  this will perform an atomic removal conditioned on the server-side version matching the provided
-     *                  one. See {@link KeyValueTable} doc for more details on Types of Updates.
-     * @return A CompletableFuture that, when completed, will indicate the Key has been removed. Notable exceptions:
-     * <ul>
-     * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
-     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
-     * </ul>
-     */
-    CompletableFuture<Void> remove(String keyFamily, TableKey<KeyT> key);
+    CompletableFuture<Void> remove(@Nullable String keyFamily, @NonNull KeyT key, @NonNull KeyVersion version);
 
     /**
      * Removes one or more {@link TableKey} instances that belong to the same Key Family from this Table Segment.
      * All removals are performed atomically (either all keys or no key will be removed).
      *
      * @param keyFamily The Key Family for the {@link TableKey}.
-     * @param keys      A Collection of keys to remove. If for at least one such key, {@link TableKey#getVersion()}
+     * @param keys      An {@link Iterable} of keys to remove. If for at least one such key, {@link TableKey#getVersion()}
      *                  indicates a conditional update, this will perform an atomic Conditional Remove conditioned on the
      *                  server-side versions matching the provided ones (for all {@link TableKey} instances that have one);
      *                  otherwise an Unconditional Remove will be performed.
@@ -177,47 +201,28 @@ public interface KeyValueTable<KeyT, ValueT> {
      * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
-    CompletableFuture<Void> remove(String keyFamily, Collection<TableKey<KeyT>> keys);
-
-    /**
-     * Gets the latest value for the a Key that does not belong to any Key Family.
-     *
-     * @param key The Key to get the value for.
-     * @return A CompletableFuture that, when completed, will contain the requested result. If no such Key exists, this
-     * will be completed with a null value.
-     */
-    CompletableFuture<TableEntry<KeyT, ValueT>> get(KeyT key);
-
-    /**
-     * Gets the latest values for a set of Keys that do not belong to any Key Family.
-     *
-     * @param keys A List of Keys to get values for.
-     * @return A CompletableFuture that, when completed, will contain a List of {@link TableEntry} instances for the
-     * requested keys. The size of the list will be the same as keys.size() and the results will be in the same order
-     * as the requested keys. Any keys which do not have a value will have a null entry at their index.
-     */
-    CompletableFuture<List<TableEntry<KeyT, ValueT>>> get(List<KeyT> keys);
+    CompletableFuture<Void> removeAll(@Nullable String keyFamily, @NonNull Iterable<TableKey<KeyT>> keys);
 
     /**
      * Gets the latest value for the a Key that belong to a specific Key Family.
      *
-     * @param keyFamily The Key Family for the Key.
+     * @param keyFamily (Optional) The Key Family for the Key to get.
      * @param key       The Key to get the value for.
      * @return A CompletableFuture that, when completed, will contain the requested result. If no such Key exists, this
      * will be completed with a null value.
      */
-    CompletableFuture<TableEntry<KeyT, ValueT>> get(String keyFamily, KeyT key);
+    CompletableFuture<TableEntry<KeyT, ValueT>> get(@Nullable String keyFamily, @NonNull KeyT key);
 
     /**
      * Gets the latest values for a set of Keys that do belong to the same Key Family.
      *
-     * @param keyFamily The Key Family for all requested Keys.
-     * @param keys      A List of Keys to get values for.
+     * @param keyFamily (Optional) The Key Family for all requested Keys.
+     * @param keys      An {@link Iterable} of Keys to get values for.
      * @return A CompletableFuture that, when completed, will contain a List of {@link TableEntry} instances for the
      * requested keys. The size of the list will be the same as keys.size() and the results will be in the same order
      * as the requested keys. Any keys which do not have a value will have a null entry at their index.
      */
-    CompletableFuture<List<TableEntry<KeyT, ValueT>>> get(String keyFamily, List<KeyT> keys);
+    CompletableFuture<List<TableEntry<KeyT, ValueT>>> getAll(@Nullable String keyFamily, @NonNull Iterable<KeyT> keys);
 
     /**
      * Creates a new Iterator over all the {@link TableKey}s in this {@link KeyValueTable} that belong to a specific
@@ -226,13 +231,14 @@ public interface KeyValueTable<KeyT, ValueT> {
      * @param keyFamily     The Key Family for which to iterate over keys.
      * @param maxKeysAtOnce The maximum number of {@link TableKey}s to return with each call to
      *                      {@link AsyncIterator#getNext()}.
-     * @param state         An {@link IteratorState} that represents a continuation token that can be used to resume a
-     *                      previously interrupted iteration. This can be obtained by invoking {@link IteratorItem#getState()}.
-     *                      A null value will create an iterator that lists all keys.
+     * @param state         (Optional) An {@link IteratorState} that represents a continuation token that can be used to
+     *                      resume a previously interrupted iteration. This can be obtained by invoking
+     *                      {@link IteratorItem#getState()}. A null value will create an iterator that lists all keys.
      * @return An {@link AsyncIterator} that can be used to iterate over all the Keys in this {@link KeyValueTable} that
      * belong to a specific Key Family.
      */
-    AsyncIterator<IteratorItem<TableKey<KeyT>>> keyIterator(String keyFamily, int maxKeysAtOnce, IteratorState state);
+    AsyncIterator<IteratorItem<TableKey<KeyT>>> keyIterator(@NonNull String keyFamily, int maxKeysAtOnce,
+                                                            @Nullable IteratorState state);
 
     /**
      * Creates a new Iterator over all the {@link TableEntry} instances in this {@link KeyValueTable} that belong to a
@@ -241,11 +247,12 @@ public interface KeyValueTable<KeyT, ValueT> {
      * @param keyFamily        The Key Family for which to iterate over entries.
      * @param maxEntriesAtOnce The maximum number of {@link TableEntry} instances to return with each call to
      *                         {@link AsyncIterator#getNext()}.
-     * @param state            An {@link IteratorState} that represents a continuation token that can be used to resume a
-     *                         previously interrupted iteration. This can be obtained by invoking {@link IteratorItem#getState()}.
-     *                         A null value will create an iterator that lists all entries.
+     * @param state            (Optional) An {@link IteratorState} that represents a continuation token that can be used
+     *                         to resume a previously interrupted iteration. This can be obtained by invoking
+     *                         {@link IteratorItem#getState()}. A null value will create an iterator that lists all entries.
      * @return An {@link AsyncIterator} that can be used to iterate over all the Entries in this {@link KeyValueTable}
      * that belong to a specific Key Family.
      */
-    AsyncIterator<IteratorItem<TableEntry<KeyT, ValueT>>> entryIterator(String keyFamily, int maxEntriesAtOnce, IteratorState state);
+    AsyncIterator<IteratorItem<TableEntry<KeyT, ValueT>>> entryIterator(@NonNull String keyFamily, int maxEntriesAtOnce,
+                                                                        @Nullable IteratorState state);
 }
