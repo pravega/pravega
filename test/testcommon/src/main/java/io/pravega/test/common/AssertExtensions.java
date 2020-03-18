@@ -58,7 +58,7 @@ public class AssertExtensions {
     private static <T> void assertEventuallyEquals(T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
         TestUtils.await(() -> {
                 try {
-                    return expected.equals(eval.call());
+                    return (expected == null && eval.call() == null) || (expected != null && expected.equals(eval.call()));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
