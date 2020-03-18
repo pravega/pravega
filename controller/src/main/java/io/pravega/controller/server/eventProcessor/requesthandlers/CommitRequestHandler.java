@@ -107,7 +107,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                             log.debug("Cannot commit transaction on stream {}/{}. Postponing", scope, stream);
                         } else {
                             log.error("Exception while attempting to commit transaction on stream {}/{}", scope, stream, e);
-			    TransactionMetrics.getInstance().commitTransactionFailed(scope, stream);
+                            TransactionMetrics.getInstance().commitTransactionFailed(scope, stream);
                         }
                         future.completeExceptionally(cause);
                     } else {
