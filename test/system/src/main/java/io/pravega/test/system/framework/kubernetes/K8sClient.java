@@ -12,6 +12,7 @@ package io.pravega.test.system.framework.kubernetes;
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
+import io.kubernetes.client.custom.V1Patch;
 import io.kubernetes.client.openapi.ApiCallback;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
@@ -39,6 +40,7 @@ import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinition;
 import io.kubernetes.client.openapi.models.V1beta1Role;
 import io.kubernetes.client.openapi.models.V1beta1RoleBinding;
 import io.kubernetes.client.util.Config;
+import io.kubernetes.client.util.PatchUtils;
 import io.kubernetes.client.util.Watch;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -83,7 +85,7 @@ public class K8sClient {
     private static final long LOG_DOWNLOAD_INIT_DELAY_MS = SECONDS.toMillis(20);
     // When present, indicates that modifications should not be persisted. Only valid value is "All", or null.
     private static final String DRY_RUN = null;
-    private static final String FIELD_MANAGER = "operator";
+    private static final String FIELD_MANAGER = "pravega-k8-client";
     private static final String PRETTY_PRINT = "false";
     private final ApiClient client;
     private final PodLogs logUtility;
@@ -117,7 +119,7 @@ public class K8sClient {
             log.debug("Initialize KUBERNETES api client");
             client = Config.defaultClient();
             client.setDebugging(false); // this can be set to true enable http dump.
-            client.getHttpClient().newBuilder().readTimeout(DEFAULT_TIMEOUT_MINUTES, TimeUnit.MINUTES);
+            client.setHttpClient(client.getHttpClient().newBuilder().readTimeout(DEFAULT_TIMEOUT_MINUTES, TimeUnit.MINUTES).build());
             Configuration.setDefaultApiClient(client);
             Runtime.getRuntime().addShutdownHook(new Thread(this::close));
         } catch (IOException e) {
@@ -182,13 +184,13 @@ public class K8sClient {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
         api.listNamespacedPodAsync(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, "POD_NAME=" + podName, null,
-                null, null, false, callback);
+                                   null, null, false, callback);
         return callback.getFuture()
-                .thenApply(v1PodList -> {
-                    Optional<V1Pod> vpod = v1PodList.getItems().stream().filter(v1Pod -> v1Pod.getMetadata().getName().equals(podName) &&
-                            v1Pod.getMetadata().getNamespace().equals(namespace)).findFirst();
-                    return vpod.map(V1Pod::getStatus).orElseThrow(() -> new RuntimeException("pod not found" + podName));
-                });
+                       .thenApply(v1PodList -> {
+                           Optional<V1Pod> vpod = v1PodList.getItems().stream().filter(v1Pod -> v1Pod.getMetadata().getName().equals(podName) &&
+                                   v1Pod.getMetadata().getNamespace().equals(namespace)).findFirst();
+                           return vpod.map(V1Pod::getStatus).orElseThrow(() -> new RuntimeException("pod not found" + podName));
+                       });
     }
 
     /**
@@ -229,12 +231,11 @@ public class K8sClient {
         CoreV1Api api = new CoreV1Api();
 
         log.debug("Current number of http interceptors {}", api.getApiClient().getHttpClient().networkInterceptors().size());
-        client.getHttpClient().newBuilder().readTimeout(DEFAULT_TIMEOUT_MINUTES, TimeUnit.MINUTES);
 
         String labelSelector = labels.entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).collect(Collectors.joining());
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
         api.listNamespacedPodAsync(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, labelSelector, null,
-                null, null, false, callback);
+                                   null, null, false, callback);
         return callback.getFuture();
     }
 
@@ -248,11 +249,11 @@ public class K8sClient {
      */
     public CompletableFuture<Map<String, V1ContainerStatus>> getRestartedPods(String namespace, String labelName, String labelValue) {
         return getPodsWithLabel(namespace, labelName, labelValue)
-                .thenApply(v1PodList -> v1PodList.getItems().stream()
-                        .filter(pod -> !pod.getStatus().getContainerStatuses().isEmpty() &&
-                                (pod.getStatus().getContainerStatuses().get(0).getRestartCount() != 0))
-                        .collect(Collectors.toMap(pod -> pod.getMetadata().getName(),
-                                pod -> pod.getStatus().getContainerStatuses().get(0))));
+                     .thenApply(v1PodList -> v1PodList.getItems().stream()
+                             .filter(pod -> !pod.getStatus().getContainerStatuses().isEmpty() &&
+                                     (pod.getStatus().getContainerStatuses().get(0).getRestartCount() != 0))
+                             .collect(Collectors.toMap(pod -> pod.getMetadata().getName(),
+                                     pod -> pod.getStatus().getContainerStatuses().get(0))));
     }
 
     /**
@@ -324,14 +325,23 @@ public class K8sClient {
                     try {
                         //patch object
                         K8AsyncCallback<Object> cb1 = new K8AsyncCallback<>("patchCustomObject");
-                        api.patchNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, name, request, cb1);
+                        PatchUtils.patch(CustomObjectsApi.class,
+                                         () -> api.patchNamespacedCustomObjectCall(
+                                                    customResourceGroup,
+                                                    version,
+                                                    namespace,
+                                                    plural,
+                                                    name,
+                                                    request,
+                                                    cb1),
+                                         V1Patch.PATCH_FORMAT_JSON_MERGE_PATCH);
                         return cb1.getFuture();
                     } catch (ApiException e) {
                         throw Exceptions.sneakyThrow(e);
                     }
                 }).exceptionally(t -> {
                     log.warn("Exception while trying to fetch instance {} of custom resource {}, try to create it. Details: {}", name,
-                            customResourceGroup, t.getMessage());
+                             customResourceGroup, t.getMessage());
                     try {
                         //create object
                         K8AsyncCallback<Object> cb = new K8AsyncCallback<>("createCustomObject");
@@ -378,8 +388,8 @@ public class K8sClient {
         V1DeleteOptions options = new V1DeleteOptions();
         options.setOrphanDependents(false);
         K8AsyncCallback<Object> callback = new K8AsyncCallback<>("getCustomObject");
-        api.deleteNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, name, options,
-                0, false, null, callback);
+        api.deleteNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, name,
+                                              0, false, null, options, callback);
 
         return callback.getFuture();
     }
@@ -531,7 +541,7 @@ public class K8sClient {
         Watch<V1Pod> watch = Watch.createWatch(
                 client,
                 api.listNamespacedPodCall(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, "POD_NAME=" + podName, null,
-                        null, null, Boolean.TRUE, callback),
+                                          null, null, Boolean.TRUE, callback),
                 new TypeToken<Watch.Response<V1Pod>>() {
                 }.getType());
 
@@ -567,25 +577,25 @@ public class K8sClient {
         AtomicBoolean shouldRetry = new AtomicBoolean(true);
 
         return Futures.loop(shouldRetry::get,
-                () -> Futures.delayedFuture(Duration.ofSeconds(5), executor) // wait for 5 seconds before checking for status.
-                        .thenCompose(v -> getStatusOfPodWithLabel(namespace, labelName, labelValue)) // fetch status of pods with the given label.
-                        .thenApply(podStatuses -> podStatuses.stream()
-                                // check for pods where all containers are running.
-                                .filter(podStatus -> {
-                                    if (podStatus.getContainerStatuses() == null) {
-                                        return false;
-                                    } else {
-                                        return podStatus.getContainerStatuses()
-                                                .stream()
-                                                .allMatch(st -> st.getState().getRunning() != null);
-                                    }
-                                }).count()),
-                runCount -> { // Number of pods which are running
-                    log.debug("Expected running pod count : {}, actual running pod count :{}.", expectedPodCount, runCount);
-                    if (runCount == expectedPodCount) {
-                        shouldRetry.set(false);
-                    }
-                }, executor);
+                            () -> Futures.delayedFuture(Duration.ofSeconds(5), executor) // wait for 5 seconds before checking for status.
+                                    .thenCompose(v -> getStatusOfPodWithLabel(namespace, labelName, labelValue)) // fetch status of pods with the given label.
+                                    .thenApply(podStatuses -> podStatuses.stream()
+                                            // check for pods where all containers are running.
+                                            .filter(podStatus -> {
+                                                if (podStatus.getContainerStatuses() == null) {
+                                                    return false;
+                                                } else {
+                                                    return podStatus.getContainerStatuses()
+                                                            .stream()
+                                                            .allMatch(st -> st.getState().getRunning() != null);
+                                                }
+                                            }).count()),
+                            runCount -> { // Number of pods which are running
+                                log.debug("Expected running pod count : {}, actual running pod count :{}.", expectedPodCount, runCount);
+                                if (runCount == expectedPodCount) {
+                                    shouldRetry.set(false);
+                                }
+                            }, executor);
     }
 
     /**
@@ -599,26 +609,26 @@ public class K8sClient {
 
         final AtomicInteger retryCount = new AtomicInteger(0);
         return Retry.withExpBackoff(LOG_DOWNLOAD_INIT_DELAY_MS, 10, LOG_DOWNLOAD_RETRY_COUNT, RETRY_MAX_DELAY_MS)
-                .retryingOn(TestFrameworkException.class)
-                .throwingOn(RuntimeException.class)
-                .runInExecutor(() -> {
-                    final String podName = fromPod.getMetadata().getName();
-                    log.debug("Download logs from pod {}", podName);
-                    try {
-                        @Cleanup
-                        InputStream logStream = logUtility.streamNamespacedPodLog(fromPod);
-                        // On every retry this method attempts to download the complete pod logs from from K8s api-server. Due to the
-                        // amount of logs for a pod and the K8s cluster configuration it can so happen that the K8s api-server can
-                        // return truncated logs. Hence, every retry attempt does not overwrite the previously downloaded logs for
-                        // the pod.
-                        String logFile = toFile + "-" + retryCount.incrementAndGet() + ".log";
-                        Files.copy(logStream, Paths.get(logFile));
-                        log.debug("Logs downloaded from pod {} to {}", podName, logFile);
-                    } catch (ApiException | IOException e) {
-                        log.warn("Retryable error while downloading logs from pod {}. Error message: {} ", podName, e.getMessage());
-                        throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while downloading logs");
-                    }
-                }, executor);
+                    .retryingOn(TestFrameworkException.class)
+                    .throwingOn(RuntimeException.class)
+                    .runInExecutor(() -> {
+                        final String podName = fromPod.getMetadata().getName();
+                        log.debug("Download logs from pod {}", podName);
+                        try {
+                            @Cleanup
+                            InputStream logStream = logUtility.streamNamespacedPodLog(fromPod);
+                            // On every retry this method attempts to download the complete pod logs from from K8s api-server. Due to the
+                            // amount of logs for a pod and the K8s cluster configuration it can so happen that the K8s api-server can
+                            // return truncated logs. Hence, every retry attempt does not overwrite the previously downloaded logs for
+                            // the pod.
+                            String logFile = toFile + "-" + retryCount.incrementAndGet() + ".log";
+                            Files.copy(logStream, Paths.get(logFile));
+                            log.debug("Logs downloaded from pod {} to {}", podName, logFile);
+                        } catch (ApiException | IOException e) {
+                            log.warn("Retryable error while downloading logs from pod {}. Error message: {} ", podName, e.getMessage());
+                            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while downloading logs");
+                        }
+                    }, executor);
     }
 
     /**
