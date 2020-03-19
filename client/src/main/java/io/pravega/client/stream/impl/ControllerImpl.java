@@ -989,7 +989,7 @@ public class ControllerImpl implements Controller {
             if (txnStatus.getStatus().equals(TxnStatus.Status.SUCCESS)) {                
                 return null;
             }
-            log.warn("Unable to commit transaction {} commit status is {}" txId, txnStatus.getStatus());
+            log.warn("Unable to commit transaction {} commit status is {}", txId, txnStatus.getStatus());
             throw Exceptions.sneakyThrow(new TxnFailedException("Commit transaction failed with status: " + txnStatus.getStatus()));
         });
     }
