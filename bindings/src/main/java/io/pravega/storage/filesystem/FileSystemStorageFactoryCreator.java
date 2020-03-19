@@ -12,13 +12,19 @@ package io.pravega.storage.filesystem;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
+import io.pravega.segmentstore.storage.StorageFactoryInfo;
+
 import java.util.concurrent.ScheduledExecutorService;
 
 public class FileSystemStorageFactoryCreator implements StorageFactoryCreator {
 
     @Override
-    public String getName() {
-        return "FILESYSTEM";
+    public StorageFactoryInfo getStorageFactoryInfo() {
+        return StorageFactoryInfo.builder()
+                .name("FILESYSTEM")
+                .chunkManagerSupported(false)
+                .legacyLayoutSupported(true)
+                .build();
     }
 
     @Override

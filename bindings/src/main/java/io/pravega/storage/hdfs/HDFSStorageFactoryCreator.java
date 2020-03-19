@@ -12,13 +12,19 @@ package io.pravega.storage.hdfs;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
+import io.pravega.segmentstore.storage.StorageFactoryInfo;
+
 import java.util.concurrent.ScheduledExecutorService;
 
 public class HDFSStorageFactoryCreator implements StorageFactoryCreator {
 
     @Override
-    public String getName() {
-        return "HDFS";
+    public StorageFactoryInfo getStorageFactoryInfo() {
+        return StorageFactoryInfo.builder()
+                .name("HDFS")
+                .chunkManagerSupported(false)
+                .legacyLayoutSupported(true)
+                .build();
     }
 
     @Override

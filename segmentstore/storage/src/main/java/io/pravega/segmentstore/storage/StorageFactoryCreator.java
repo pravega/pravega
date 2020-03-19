@@ -24,8 +24,8 @@ public interface StorageFactoryCreator {
     StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor);
 
     /**
-     * The unique name for the storage factory.
-     * @return  Unique name for the storage factory.
+     * The properties of the storage factory.
+     * @return  The properties of the storage factory.
      */
-    String getName();
+    StorageFactoryInfo getStorageFactoryInfo();
 }

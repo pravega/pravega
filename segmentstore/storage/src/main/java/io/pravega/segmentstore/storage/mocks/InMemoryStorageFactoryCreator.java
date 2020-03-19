@@ -12,6 +12,8 @@ package io.pravega.segmentstore.storage.mocks;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
+import io.pravega.segmentstore.storage.StorageFactoryInfo;
+
 import java.util.concurrent.ScheduledExecutorService;
 
 public class InMemoryStorageFactoryCreator implements StorageFactoryCreator {
@@ -23,8 +25,12 @@ public class InMemoryStorageFactoryCreator implements StorageFactoryCreator {
     }
 
     @Override
-    public String getName() {
-        return "INMEMORY";
+    public StorageFactoryInfo getStorageFactoryInfo() {
+        return StorageFactoryInfo.builder()
+                .name("INMEMORY")
+                .chunkManagerSupported(false)
+                .legacyLayoutSupported(true)
+                .build();
     }
 
 }

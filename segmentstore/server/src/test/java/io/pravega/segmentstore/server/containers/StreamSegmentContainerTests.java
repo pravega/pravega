@@ -85,6 +85,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
+import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
@@ -156,7 +157,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 50;
     private static final int CONTAINER_ID = 1234567;
-    private static final int EXPECTED_PINNED_SEGMENT_COUNT = 1;
+    private static final int EXPECTED_PINNED_SEGMENT_COUNT = 1; //4;
     private static final long EXPECTED_METADATA_SEGMENT_ID = 1L;
     private static final String EXPECTED_METADATA_SEGMENT_NAME = NameUtils.getMetadataSegmentName(CONTAINER_ID);
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
@@ -1877,11 +1878,17 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val initialActiveSegments = container.getActiveSegments();
         int ignoredSegments = 0;
         for (SegmentProperties sp : initialActiveSegments) {
-            if (sp.getName().equals(EXPECTED_METADATA_SEGMENT_NAME)) {
+            boolean match = false;
+            for (String systemSegment : SystemJournal.getChunkStorageSystemSegments(container.getId())) {
+                if (sp.getName().equals(systemSegment)) {
+                    match = true;
+                    break;
+                }
+            }
+            if (match) {
                 ignoredSegments++;
                 continue;
             }
-
             val expectedSp = container.getStreamSegmentInfo(sp.getName(), TIMEOUT).join();
             Assert.assertEquals("Unexpected length (from getActiveSegments) for segment " + sp.getName(), expectedSp.getLength(), sp.getLength());
             Assert.assertEquals("Unexpected sealed (from getActiveSegments) for segment " + sp.getName(), expectedSp.isSealed(), sp.isSealed());

@@ -27,8 +27,8 @@ public class SynchronousStreamSegmentStoreTests extends StreamSegmentServiceTest
     }
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId) {
-        return super.createBuilder(builderConfig, instanceId)
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId, boolean useChunkStorage) {
+        return super.createBuilder(builderConfig, instanceId, useChunkStorage)
                     .withStreamSegmentStore(setup -> {
                         StreamSegmentStore base = new StreamSegmentService(setup.getContainerRegistry(), setup.getSegmentToContainerMapper());
                         return new SynchronousStreamSegmentStore(base);

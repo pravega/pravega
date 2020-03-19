@@ -12,5 +12,8 @@
 # for more reference.
 
 io.pravega.storage.filesystem.FileSystemStorageFactoryCreator
+io.pravega.storage.filesystem.FileSystemSimpleStorageFactoryCreator
 io.pravega.storage.hdfs.HDFSStorageFactoryCreator
+io.pravega.storage.hdfs.HDFSSimpleStorageFactoryCreator
 io.pravega.storage.extendeds3.ExtendedS3StorageFactoryCreator
+io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactoryCreator

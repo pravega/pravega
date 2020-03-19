@@ -12,3 +12,4 @@
 # for more reference.
 
 io.pravega.segmentstore.storage.mocks.InMemoryStorageFactoryCreator
+io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactoryCreator

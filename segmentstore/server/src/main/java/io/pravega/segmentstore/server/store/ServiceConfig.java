@@ -45,6 +45,8 @@ public class ServiceConfig {
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.HDFS);
+    public static final Property<StorageLayout> STORAGE_LAYOUT = Property.named("storageLayout", StorageLayout.TABLE_BASED);
+    public static final Property<StorageManager> STORAGE_MANAGER = Property.named("storageManager", StorageManager.CHUNK_MANAGER);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 4L * 1024 * 1024 * 1024);
     public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cacheTargetUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION));
@@ -99,6 +101,36 @@ public class ServiceConfig {
          * InMemory Storage. Contents will be lost when the process exits.
          */
         INMEMORY
+    }
+
+    /**
+     * Type of StorageManager to use.
+     */
+    public enum StorageManager {
+        /**
+         * Does not use any StorageManager.
+         */
+        NONE,
+
+        /**
+         * Uses ChunkStorageManager.
+         */
+        CHUNK_MANAGER,
+    }
+
+    /**
+     * Type of Storage metadata layout to use.
+     */
+    public enum StorageLayout {
+        /**
+         * Uses RollingStorage based layout.
+         */
+        LEGACY,
+
+        /**
+         * Uses layout that stores data in table segments.
+         */
+        TABLE_BASED,
     }
 
     //endregion
@@ -221,6 +253,18 @@ public class ServiceConfig {
     private final StorageType storageImplementation;
 
     /**
+     * The Type of Storage Layout to use.
+     */
+    @Getter
+    private final StorageLayout storageLayout;
+
+    /**
+     * The Type of Storage manager to use.
+     */
+    @Getter
+    private final StorageManager storageManager;
+
+    /**
      * Whether this SegmentStore instance is Read-Only (i.e., it can only process reads from Storage and nothing else).
      * Note that if this is set to 'true', then many other settings will not apply. The most important other one to set
      * is 'Storage Implementation'.
@@ -317,6 +361,8 @@ public class ServiceConfig {
         this.clusterName = properties.get(CLUSTER_NAME);
         this.dataLogTypeImplementation = properties.getEnum(DATALOG_IMPLEMENTATION, DataLogType.class);
         this.storageImplementation = properties.getEnum(STORAGE_IMPLEMENTATION, StorageType.class);
+        this.storageLayout = properties.getEnum(STORAGE_LAYOUT, StorageLayout.class);
+        this.storageManager = properties.getEnum(STORAGE_MANAGER, StorageManager.class);
         this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
         this.secureZK = properties.getBoolean(SECURE_ZK);
         this.zkTrustStore = properties.get(ZK_TRUSTSTORE_LOCATION);

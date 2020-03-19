@@ -1,0 +1,36 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.storage.extendeds3;
+
+import io.pravega.segmentstore.storage.ConfigSetup;
+import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.StorageFactoryCreator;
+import io.pravega.segmentstore.storage.StorageFactoryInfo;
+
+import java.util.concurrent.ScheduledExecutorService;
+
+/**
+ * {@link StorageFactoryCreator} for creating a Extended S3 based {@link io.pravega.segmentstore.storage.Storage}.
+ */
+public class ExtendedS3SimpleStorageFactoryCreator implements StorageFactoryCreator {
+    @Override
+    public StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
+        return new ExtendedS3SimpleStorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), executor);
+    }
+
+    @Override
+    public StorageFactoryInfo getStorageFactoryInfo() {
+        return StorageFactoryInfo.builder()
+                .name("EXTENDEDS3")
+                .chunkManagerSupported(true)
+                .legacyLayoutSupported(false)
+                .build();
+    }
+}

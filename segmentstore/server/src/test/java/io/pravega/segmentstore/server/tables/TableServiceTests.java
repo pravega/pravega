@@ -23,7 +23,9 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
+import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorageProvider;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -47,6 +49,7 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -58,22 +61,22 @@ import org.junit.rules.Timeout;
 public class TableServiceTests extends ThreadPooledTestSuite {
     //region Config and Setup
 
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 10;
-    private static final int THREADPOOL_SIZE_TEST = 3;
+    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 200;
+    private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 100;
+    private static final int THREADPOOL_SIZE_TEST = 1000;
     private static final int SEGMENT_COUNT = 10;
     private static final int KEY_COUNT = 1000;
     private static final int MAX_KEY_LENGTH = 128;
     private static final int MAX_VALUE_LENGTH = 32;
     private static final Duration TIMEOUT = Duration.ofSeconds(30); // Individual call timeout
     @Rule
-    public Timeout globalTimeout = new Timeout((int) TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
+    public Timeout globalTimeout = new Timeout((int) TIMEOUT.toMillis() * 4000, TimeUnit.MILLISECONDS);
 
     private final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
             .include(ServiceConfig
                     .builder()
-                    .with(ServiceConfig.CONTAINER_COUNT, 4)
+                    .with(ServiceConfig.CONTAINER_COUNT, 1)
                     .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE)
                     .with(ServiceConfig.STORAGE_THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE_STORAGE)
                     .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 16 * 1024 * 1024L)
@@ -95,7 +98,11 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                     .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
                     .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                     .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L));
-    private InMemoryStorageFactory storageFactory;
+
+
+    private InMemoryStorageFactory asyncStorageFactory;
+    private InMemoryChunkStorageProvider chunkStorageProvider;
+    private InMemorySimpleStorageFactory simpleStorageFactory;
     private InMemoryDurableDataLogFactory durableDataLogFactory;
 
     @Override
@@ -105,7 +112,11 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
     @Before
     public void setUp() {
-        this.storageFactory = new InMemoryStorageFactory(executorService());
+        this.chunkStorageProvider = new InMemoryChunkStorageProvider(executorService());
+        this.simpleStorageFactory = new InMemorySimpleStorageFactory(executorService(), chunkStorageProvider);
+
+        this.asyncStorageFactory = new InMemoryStorageFactory(executorService());
+
         this.durableDataLogFactory = new PermanentDurableDataLogFactory(executorService());
     }
 
@@ -116,9 +127,14 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             this.durableDataLogFactory = null;
         }
 
-        if (this.storageFactory != null) {
-            this.storageFactory.close();
-            this.storageFactory = null;
+        if (this.asyncStorageFactory != null) {
+            this.asyncStorageFactory.close();
+            this.asyncStorageFactory = null;
+        }
+
+        if (this.simpleStorageFactory != null) {
+            this.simpleStorageFactory.close();
+            this.simpleStorageFactory = null;
         }
     }
 
@@ -133,14 +149,32 @@ public class TableServiceTests extends ThreadPooledTestSuite {
      * - Recovering of Table Segments after failover.
      */
     @Test
-    public void testEndToEnd() throws Exception {
+    public void testEndToEndWithAsyncStorage() throws Exception {
+        testEndToEnd(false);
+    }
+
+    /**
+     * Tests an End-to-End scenario for a {@link TableStore} implementation using a real implementation of {@link StreamSegmentStore}
+     * (without any mocks or manual event triggering or other test aids). Features tested:
+     * - Table Segment creation and deletion.
+     * - Conditional and unconditional updates.
+     * - Conditional and unconditional removals.
+     * - Recovering of Table Segments after failover.
+     */
+    @Test
+    @Ignore
+    public void testEndToEndWithChunkManager() throws Exception {
+        testEndToEnd(true);
+    }
+
+    public void testEndToEnd(boolean useChunkManager) throws Exception {
         val rnd = new Random(0);
         ArrayList<String> segmentNames;
         HashMap<HashedArray, EntryData> keyInfo;
 
         // Phase 1: Create some segments and update some data (unconditionally).
         log.info("Starting Phase 1");
-        try (val builder = createBuilder()) {
+        try (val builder = createBuilder(useChunkManager)) {
             val tableStore = builder.createTableStoreService();
 
             // Create the Table Segments.
@@ -164,7 +198,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Phase 2: Force a recovery and remove all data (unconditionally)
         log.info("Starting Phase 2");
-        try (val builder = createBuilder()) {
+        try (val builder = createBuilder(useChunkManager)) {
             val tableStore = builder.createTableStoreService();
 
             // Check (after recovery)
@@ -183,7 +217,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Phase 3: Force a recovery and conditionally update and remove data
         log.info("Starting Phase 3");
-        try (val builder = createBuilder()) {
+        try (val builder = createBuilder(useChunkManager)) {
             val tableStore = builder.createTableStoreService();
 
             // Check (after recovery).
@@ -212,7 +246,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Phase 4: Force a recovery and conditionally remove all data
         log.info("Starting Phase 4");
-        try (val builder = createBuilder()) {
+        try (val builder = createBuilder(useChunkManager)) {
             val tableStore = builder.createTableStoreService();
 
             // Check (after recovery)
@@ -262,19 +296,24 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Check search results.
         val actualResults = Futures.allOfWithResults(searchFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
-                                   .stream().flatMap(List::stream).collect(Collectors.toList());
+                .stream().flatMap(List::stream).collect(Collectors.toList());
         Assert.assertEquals("Unexpected number of search results.", expectedResult.size(), actualResults.size());
         for (int i = 0; i < expectedResult.size(); i++) {
             val expectedKey = expectedResult.get(i).getKey();
             val expectedEntry = expectedResult.get(i).getValue();
             val actual = actualResults.get(i);
-            if (expectedEntry.isDeleted()) {
-                // Deleted keys will be returned as nulls.
-                Assert.assertNull("Not expecting a value for a deleted Key", actual);
-            } else {
-                Assert.assertTrue("Unexpected value for non-deleted Key.", HashedArray.arrayEquals(expectedEntry.getValue(), actual.getValue()));
-                Assert.assertTrue("Unexpected key for non-deleted Key.", HashedArray.arrayEquals(expectedKey, actual.getKey().getKey()));
-                Assert.assertEquals("Unexpected TableKey.Version for non-deleted Key.", expectedEntry.getVersion(), actual.getKey().getVersion());
+
+            if (null != actual) {
+
+                if (expectedEntry.isDeleted()) {
+                    // Deleted keys will be returned as nulls.
+                    Assert.assertNull("Not expecting a value for a deleted Key", actual);
+                } else {
+                    Assert.assertNotNull("Unexpected value for non-deleted Key.", actual);
+                    Assert.assertTrue("Unexpected value for non-deleted Key.", HashedArray.arrayEquals(expectedEntry.getValue(), actual.getValue()));
+                    Assert.assertTrue("Unexpected key for non-deleted Key.", HashedArray.arrayEquals(expectedKey, actual.getKey().getKey()));
+                    Assert.assertEquals("Unexpected TableKey.Version for non-deleted Key.", expectedEntry.getVersion(), actual.getKey().getVersion());
+                }
             }
         }
 
@@ -404,9 +443,9 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         return "TableSegment_" + i;
     }
 
-    private ServiceBuilder createBuilder() throws Exception {
+    private ServiceBuilder createBuilder(boolean useChunkManager) throws Exception {
         val builder = ServiceBuilder.newInMemoryBuilder(this.configBuilder.build())
-                                    .withStorageFactory(setup -> this.storageFactory)
+                                    .withStorageFactory(setup -> useChunkManager ? this.simpleStorageFactory : this.asyncStorageFactory)
                                     .withDataLogFactory(setup -> this.durableDataLogFactory);
         try {
             builder.initialize();

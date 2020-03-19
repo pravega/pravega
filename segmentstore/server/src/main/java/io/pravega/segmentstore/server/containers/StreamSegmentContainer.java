@@ -79,6 +79,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageManager;
+import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
+import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
+import io.pravega.shared.NameUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -177,6 +181,76 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return builder.build();
     }
 
+    /**
+     * Initializes storage.
+     * @throws Exception
+     */
+    private void InitializeStorage() throws Exception {
+        this.storage.initialize(this.metadata.getContainerEpoch());
+        if (this.storage instanceof ChunkStorageManager) {
+            ChunkStorageManager storageProvider = (ChunkStorageManager) this.storage;
+
+            // Initialize storage metadata table segment
+            ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
+            Preconditions.checkNotNull(tableExtension);
+            String s = NameUtils.getStorageMetadataSegmentName(this.metadata.getContainerId());
+
+            val metadata = new TableBasedMetadataStore(s, tableExtension);
+
+            // Initialize
+            val systemJournal = new SystemJournal(this.metadata.getContainerId(),
+                    this.metadata.getContainerEpoch(),
+                    storageProvider.getChunkStorage(),
+                    metadata,
+                    storageProvider.getDefaultRollingPolicy());
+
+            storageProvider.initialize(this.metadata.getContainerId(), metadata, systemJournal);
+
+            log.info("Storage initialized.");
+
+            // Now bootstrap
+            log.info("STORAGE BOOT: Started.");
+            systemJournal.bootstrap();
+            log.info("STORAGE BOOT: Ended.");
+        }
+    }
+
+    /**
+     * Initializes container metadata from storage.
+     * @throws Exception
+     */
+    private void updateStorageMetadata() throws Exception {
+        if (this.storage instanceof ChunkStorageManager) {
+            ChunkStorageManager storageProvider = (ChunkStorageManager) this.storage;
+
+            // Reflect this in container metadata,
+            for (String systemSegment : storageProvider.getSystemJournal().getSystemSegments()) {
+                val ssm = this.metadata.getStreamSegmentMetadata(this.metadata.getStreamSegmentId(systemSegment, false));
+                if (null != ssm) {
+                    Preconditions.checkState(!ssm.isDeleted());
+                    log.debug("STORAGE BOOT:Updating system segment {}.", systemSegment);
+                    try (val txn = storageProvider.getMetadataStore().beginTransaction()) {
+                        val segmentMetadata = (io.pravega.segmentstore.storage.metadata.SegmentMetadata) storageProvider.getMetadataStore().get(txn, systemSegment);
+                        Preconditions.checkState(segmentMetadata != null);
+                        val length = segmentMetadata.getLength();
+                        log.debug("STORAGE BOOT: Setting storage length for system segment {} to {}.", systemSegment, length);
+                        ssm.setStorageLength(length);
+                        if (length > ssm.getLength()) {
+                            log.debug("STORAGE BOOT: Setting segment length for system segment {} to {}. (Was {})", systemSegment, length, ssm.getLength());
+                            ssm.setLength(length);
+                        }
+                        if (segmentMetadata.getStartOffset() != ssm.getStartOffset()) {
+                            log.debug("STORAGE BOOT: Setting segment startOffset for system segment {} to {}. (Was {})", systemSegment, length, ssm.getLength());
+                            ssm.setStartOffset(segmentMetadata.getStartOffset());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+
     //endregion
 
     //region AutoCloseable Implementation
@@ -253,11 +327,20 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Void> initializeSecondaryServices() {
-        this.storage.initialize(this.metadata.getContainerEpoch());
+        try {
+            InitializeStorage();
+        } catch (Exception ex) {
+            doStop(ex);
+        }
         return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
     }
 
     private CompletableFuture<Void> startSecondaryServicesAsync() {
+        try {
+            updateStorageMetadata();
+        } catch (Exception ex) {
+            doStop(ex);
+        }
         return CompletableFuture.allOf(
                 Services.startAsync(this.metadataCleaner, this.executor),
                 Services.startAsync(this.writer, this.executor));

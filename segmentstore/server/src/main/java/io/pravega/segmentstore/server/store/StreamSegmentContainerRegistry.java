@@ -92,10 +92,12 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
     public SegmentContainer getContainer(int containerId) throws ContainerNotFoundException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ContainerWithHandle result = this.containers.getOrDefault(containerId, null);
-        if (result == null || Services.isTerminating(result.container.state())) {
+        if (result == null) {
             throw new ContainerNotFoundException(containerId);
         }
-
+        if (Services.isTerminating(result.container.state())) {
+            throw new ContainerNotFoundException(containerId);
+        }
         return result.container;
     }
 

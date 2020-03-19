@@ -28,12 +28,19 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class StorageLoader {
-    public StorageFactory load(ConfigSetup setup, String storageImplementation, ScheduledExecutorService executor) {
+    public StorageFactory load(ConfigSetup setup,
+                               String storageImplementation,
+                               boolean supportsChunkManager,
+                               boolean supportsLegacyLayout,
+                               ScheduledExecutorService executor) {
         ServiceLoader<StorageFactoryCreator> loader = ServiceLoader.load(StorageFactoryCreator.class);
         StorageExtraConfig noOpConfig = setup.getConfig(StorageExtraConfig::builder);
         for (StorageFactoryCreator factoryCreator : loader) {
-            log.info("Loading {}, trying {}", storageImplementation, factoryCreator.getName());
-            if (factoryCreator.getName().equals(storageImplementation)) {
+            log.info("Loading {}, trying {}", storageImplementation, factoryCreator.getStorageFactoryInfo());
+            if (factoryCreator.getStorageFactoryInfo().getName().equals(storageImplementation)
+              && factoryCreator.getStorageFactoryInfo().isChunkManagerSupported() == supportsChunkManager
+              && factoryCreator.getStorageFactoryInfo().isLegacyLayoutSupported() == supportsLegacyLayout
+            ) {
                 StorageFactory factory = factoryCreator.createFactory(setup, executor);
                 if (!noOpConfig.isStorageNoOpMode()) {
                     return factory;

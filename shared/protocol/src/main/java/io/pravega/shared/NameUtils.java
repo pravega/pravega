@@ -74,6 +74,16 @@ public final class NameUtils {
     private static final String METADATA_SEGMENT_NAME_FORMAT = "_system/containers/metadata_%d";
 
     /**
+     * Format for Storage Metadata Segment name.
+     */
+    private static final String STORAGE_METADATA_SEGMENT_NAME_FORMAT = "_system/containers/storage_metadata_%d";
+
+    /**
+     * Format for Container System Journal file name.
+     */
+    private static final String SYSJOURNAL_NAME_FORMAT = "_sysjournal_epoch%d_container%d";
+
+    /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
      */
     private static final int TRANSACTION_PART_LENGTH = Long.BYTES * 8 / 4;
@@ -98,6 +108,7 @@ public final class NameUtils {
      */
     @Getter(AccessLevel.PACKAGE)
     private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
+
 
     //endregion
 
@@ -225,6 +236,28 @@ public final class NameUtils {
     public static String getMetadataSegmentName(int containerId) {
         Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative number.");
         return String.format(METADATA_SEGMENT_NAME_FORMAT, containerId);
+    }
+
+    /**
+     * Gets the name of the Segment that is used to store the Container's Segment Metadata. There is one such Segment
+     * per container.
+     *
+     * @param containerId The Id of the Container.
+     * @return The Metadata Segment name.
+     */
+    public static String getStorageMetadataSegmentName(int containerId) {
+        Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative number.");
+        return String.format(STORAGE_METADATA_SEGMENT_NAME_FORMAT, containerId);
+    }
+
+    /**
+     * Gets file name of SystemJournal for given container instance.
+     * @param containerId The Id of the Container.
+     * @param epoch Epoch of the container instance.
+     * @return
+     */
+    public static String getSystemJournalFileName(int containerId, long epoch) {
+        return String.format(SYSJOURNAL_NAME_FORMAT, epoch, containerId);
     }
 
     /**
@@ -579,5 +612,8 @@ public final class NameUtils {
         sb.append(stream);
         return sb.toString();
     }
+    // endregion
+
+
     // endregion
 }

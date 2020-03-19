@@ -172,8 +172,11 @@ public final class ServiceStarter {
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             StorageLoader loader = new StorageLoader();
-            return loader.load(setup, this.serviceConfig.getStorageImplementation().toString(), setup.getStorageExecutor());
-
+            return loader.load(setup,
+                    this.serviceConfig.getStorageImplementation().toString(),
+                    this.serviceConfig.getStorageManager().equals(ServiceConfig.StorageManager.CHUNK_MANAGER),
+                    this.serviceConfig.getStorageLayout().equals(ServiceConfig.StorageLayout.LEGACY),
+                    setup.getStorageExecutor());
         });
     }
 

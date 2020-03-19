@@ -12,6 +12,8 @@ package io.pravega.storage.extendeds3;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
+import io.pravega.segmentstore.storage.StorageFactoryInfo;
+
 import java.util.concurrent.ScheduledExecutorService;
 
 public class ExtendedS3StorageFactoryCreator implements StorageFactoryCreator {
@@ -21,7 +23,11 @@ public class ExtendedS3StorageFactoryCreator implements StorageFactoryCreator {
     }
 
     @Override
-    public String getName() {
-        return "EXTENDEDS3";
+    public StorageFactoryInfo getStorageFactoryInfo() {
+        return StorageFactoryInfo.builder()
+                .name("EXTENDEDS3")
+                .chunkManagerSupported(false)
+                .legacyLayoutSupported(true)
+                .build();
     }
 }
