@@ -23,6 +23,7 @@ import io.grpc.netty.NegotiationType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.NoSuchScopeException;
@@ -1167,7 +1168,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public AsyncIterator<Stream> listKeyValueTables(String scopeName) {
+    public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
         throw new UnsupportedOperationException("listKeyValueTables not implemented.");
     }
 
