@@ -12,6 +12,7 @@ package io.pravega.controller.server;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
@@ -496,7 +497,7 @@ public class SegmentHelper implements AutoCloseable {
         final IteratorStateImpl token = (state == null) ? IteratorStateImpl.EMPTY : state;
 
         WireCommands.ReadTableKeys request = new WireCommands.ReadTableKeys(requestId, tableName, delegationToken, suggestedKeyCount,
-                token.getToken());
+                token.getToken(), Unpooled.EMPTY_BUFFER);
         return sendRequest(connection, requestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableKeys.class, type);
@@ -534,7 +535,7 @@ public class SegmentHelper implements AutoCloseable {
         final IteratorStateImpl token = (state == null) ? IteratorStateImpl.EMPTY : state;
 
         WireCommands.ReadTableEntries request = new WireCommands.ReadTableEntries(requestId, tableName, delegationToken,
-                suggestedEntryCount, token.getToken());
+                suggestedEntryCount, token.getToken(), Unpooled.EMPTY_BUFFER);
         return sendRequest(connection, requestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableEntries.class, type);
