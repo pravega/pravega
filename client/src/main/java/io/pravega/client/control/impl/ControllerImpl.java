@@ -1000,7 +1000,7 @@ public class ControllerImpl implements Controller {
             if (txnStatus.getStatus().equals(TxnStatus.Status.SUCCESS)) {                
                 return null;
             }
-            log.info("Unable to commit " + txnStatus + " because of " + txnStatus.getStatus());
+            log.warn("Unable to commit transaction {} commit status is {}", txId, txnStatus.getStatus());
             throw Exceptions.sneakyThrow(new TxnFailedException("Commit transaction failed with status: " + txnStatus.getStatus()));
         });
     }
@@ -1035,7 +1035,7 @@ public class ControllerImpl implements Controller {
             if (txnStatus.getStatus().equals(TxnStatus.Status.SUCCESS)) {                
                 return null;
             }
-            log.info("Unable to abort " + txnStatus + " because of " + txnStatus.getStatus());
+            log.warn("Unable to abort transaction {} abort status is {} ", txId, txnStatus.getStatus());
             throw new RuntimeException("Error aborting transaction: " + txnStatus.getStatus());
         });
     }
