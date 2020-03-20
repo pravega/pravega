@@ -19,7 +19,6 @@ import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.NoSuchKeyException;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
