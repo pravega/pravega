@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
+import io.pravega.segmentstore.server.logs.ThrottlerCalculator;
 import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.Counter;
@@ -27,6 +28,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import static io.pravega.shared.MetricsTags.containerTag;
+import static io.pravega.shared.MetricsTags.throttlerTag;
 
 /**
  * General Metrics for the SegmentStore.
@@ -154,13 +156,27 @@ public final class SegmentStoreMetrics {
             this.operationQueueSize = STATS_LOGGER.createStats(MetricsNames.OPERATION_QUEUE_SIZE, this.containerTag);
             this.operationsInFlight = STATS_LOGGER.createStats(MetricsNames.OPERATION_PROCESSOR_IN_FLIGHT, this.containerTag);
             this.operationQueueWaitTime = STATS_LOGGER.createStats(MetricsNames.OPERATION_QUEUE_WAIT_TIME, this.containerTag);
-            this.operationProcessorDelay = STATS_LOGGER.createStats(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, this.containerTag);
             this.operationCommitLatency = STATS_LOGGER.createStats(MetricsNames.OPERATION_COMMIT_LATENCY, this.containerTag);
             this.operationLatency = STATS_LOGGER.createStats(MetricsNames.OPERATION_LATENCY, this.containerTag);
             this.memoryCommitLatency = STATS_LOGGER.createStats(MetricsNames.OPERATION_COMMIT_MEMORY_LATENCY, this.containerTag);
             this.memoryCommitCount = STATS_LOGGER.createStats(MetricsNames.OPERATION_COMMIT_MEMORY_COUNT, this.containerTag);
             this.processOperationsLatency = STATS_LOGGER.createStats(MetricsNames.PROCESS_OPERATIONS_LATENCY, this.containerTag);
             this.processOperationsBatchSize = STATS_LOGGER.createStats(MetricsNames.PROCESS_OPERATIONS_BATCH_SIZE, this.containerTag);
+            this.operationProcessorCacheDelay = STATS_LOGGER.createStats(
+                    MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
+                    this.containerTag,
+                    throttlerTag(ThrottlerCalculator.ThorttlerName.Cache)
+            );
+            this.operationProcessorBatchDelay = STATS_LOGGER.createStats(
+                    MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
+                    this.containerTag,
+                    throttlerTag(ThrottlerCalculator.ThorttlerName.Batch)
+            );
+            this.operationProcessorDataLogDelay = STATS_LOGGER.createStats(
+                    MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
+                    this.containerTag,
+                    throttlerTag(ThrottlerCalculator.ThorttlerName.DurableDataLog)
+            );
         }
 
         @Override

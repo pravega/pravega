@@ -138,7 +138,6 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
     }
 
     private CompletableFuture<Void> throttleOnce(ThrottlerCalculator.DelayResult delay) {
-        this.metrics.processingDelay(delay.getDurationMillis());
         if (delay.isMaximum()
                 || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.DurableDataLog) {
             // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
@@ -153,14 +152,23 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
             // This throttling source is eligible for interruption. Set it up so that a call to cacheCleanupComplete()
             // may find it and act on it.
             val result = new InterruptibleDelay(delayFuture, delay.getDurationMillis(), delay.getThrottlerName());
+            val existingDelay = this.currentDelay.get();
+            if (existingDelay != null) {
+                int actualDelay = (int) (existingDelay.remaining.getInitial().toMillis() - existingDelay.remaining.getRemaining().toMillis());
+                this.metrics.processingDelay(actualDelay);
+            }
             this.currentDelay.set(result);
             return Futures
                     .exceptionallyComposeExpecting(
                             result.delayFuture,
                             ex -> ex instanceof ThrottlingInterruptedException,
                             this::throttle)
-                    .whenComplete((r, e) -> this.currentDelay.set(null));
+                    .whenComplete((r, e) -> {
+                        this.metrics.processingDelay(delay.getDurationMillis());
+                        this.currentDelay.set(null);
+                    });
         } else {
+            this.metrics.processingDelay(delay.getDurationMillis());
             return delayFuture;
         }
     }
