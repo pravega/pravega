@@ -35,6 +35,7 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -221,7 +222,7 @@ public class ControllerServiceTest {
         doThrow(StoreException.create(StoreException.Type.CONNECTION_ERROR, "Connection failed"))
                 .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
                 any(), any());
-        
+
         AssertExtensions.assertFutureThrows("Store connection exception should have been thrown",
                 consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
@@ -229,7 +230,16 @@ public class ControllerServiceTest {
         AssertExtensions.assertFutureThrows("Store connection exception should have been thrown",
                 consumer.abortTransaction(SCOPE, stream1, txnId),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+
+        doThrow(StoreException.create(StoreException.Type.UNKNOWN, "Connection failed"))
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
+                any(), any());
+
+        Controller.TxnStatus status = consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L).join();
+        assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
         
+        status = consumer.abortTransaction(SCOPE, stream1, txnId).join();
+        assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
         reset(streamStore);
     }
 }
