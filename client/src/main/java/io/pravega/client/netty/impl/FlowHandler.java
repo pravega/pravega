@@ -256,8 +256,11 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
             final AppendBatchSizeTracker batchSizeTracker = getAppendBatchSizeTracker(dataAppended.getRequestId());
             if (batchSizeTracker != null) {
                 long pendingAckCount = batchSizeTracker.recordAck(dataAppended.getEventNumber());
-                metricNotifier.updateSuccessMetric(CLIENT_OUTSTANDING_APPEND_COUNT, writerTags(dataAppended.getWriterId().toString()),
-                                                   pendingAckCount);
+                // Only publish client side metrics when there is some metrics notifier configured for efficiency.
+                if (!metricNotifier.equals(MetricNotifier.NO_OP_METRIC_NOTIFIER)) {
+                    metricNotifier.updateSuccessMetric(CLIENT_OUTSTANDING_APPEND_COUNT, writerTags(dataAppended.getWriterId().toString()),
+                            pendingAckCount);
+                }
             }
         }
         // Obtain ReplyProcessor and process the reply.

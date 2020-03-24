@@ -8,7 +8,7 @@
 
       http://www.apache.org/licenses/LICENSE-2.0
 -->
-<configuration scan="true">
+<configuration scan="true" scanPeriod="30 seconds">
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <charset>UTF-8</charset>

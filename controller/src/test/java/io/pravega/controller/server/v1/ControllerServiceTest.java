@@ -35,7 +35,6 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -206,12 +205,11 @@ public class ControllerServiceTest {
     @Test
     public void testTransactions() {
         TransactionMetrics.initialize();
-        UUID txn = consumer.createTransaction(SCOPE, stream1, 10000L).join().getKey();
+        UUID txnId = consumer.createTransaction(SCOPE, stream1, 10000L).join().getKey();
         doThrow(StoreException.create(StoreException.Type.WRITE_CONFLICT, "Write conflict"))
-                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txn), anyBoolean(), any(), anyString(), anyLong(), 
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
                 any(), any());
 
-        Controller.TxnId txnId = ModelHelper.decode(txn);
         AssertExtensions.assertFutureThrows("Write conflict should have been thrown", 
                 consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
@@ -221,7 +219,7 @@ public class ControllerServiceTest {
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
         doThrow(StoreException.create(StoreException.Type.CONNECTION_ERROR, "Connection failed"))
-                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txn), anyBoolean(), any(), anyString(), anyLong(), 
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
                 any(), any());
         
         AssertExtensions.assertFutureThrows("Store connection exception should have been thrown",
