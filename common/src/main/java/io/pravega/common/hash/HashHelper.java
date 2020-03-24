@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import io.pravega.common.util.ArrayView;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
 
@@ -91,6 +92,16 @@ public class HashHelper {
      */
     public double hashToRange(String str) {
         return longToDoubleFraction(hash.hashUnencodedChars(str).asLong());
+    }
+
+    /**
+     * Returns a double uniformly randomly distributed between 0 and 1 using the hash function.
+     *
+     * @param buf The input {@link ByteBuffer}.
+     * @return Uniformly distributed double between 0 and 1.
+     */
+    public double hashToRange(ByteBuffer buf) {
+        return longToDoubleFraction(hash.hashBytes(buf).asLong());
     }
 
     /**

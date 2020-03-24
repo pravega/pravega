@@ -9,15 +9,20 @@
  */
 package io.pravega.client.tables;
 
-import lombok.Data;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 /**
  * A {@link KeyValueTable} Key with a {@link KeyVersion}.
  *
  * @param <KeyT> Type of the Key.
  */
-@Data
+@Getter
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@ToString
 public class TableKey<KeyT> {
     /**
      * The Key.
@@ -30,4 +35,16 @@ public class TableKey<KeyT> {
      * conditional updates.
      */
     private final KeyVersion version;
+
+    public static <KeyT> TableKey<KeyT> unversioned(KeyT key) {
+        return versioned(key, KeyVersion.NO_VERSION);
+    }
+
+    public static <KeyT> TableKey<KeyT> notExists(KeyT key) {
+        return versioned(key, KeyVersion.NOT_EXISTS);
+    }
+
+    public static <KeyT> TableKey<KeyT> versioned(KeyT key, KeyVersion version) {
+        return new TableKey<>(key, version);
+    }
 }

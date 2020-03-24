@@ -32,7 +32,8 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.AbstractMap;
-import java.util.Collection;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -96,9 +97,9 @@ public class TableSegmentImpl implements TableSegment {
     //region TableSegment Implementation
 
     @Override
-    public CompletableFuture<List<TableSegmentKeyVersion>> put(@NonNull List<TableSegmentEntry> tableEntries) {
+    public CompletableFuture<List<TableSegmentKeyVersion>> put(@NonNull Iterator<TableSegmentEntry> tableEntries) {
+        val wireEntries = entriesToWireCommand(tableEntries);
         return execute((state, requestId) -> {
-            val wireEntries = toWireCommand(tableEntries);
             val request = new WireCommands.UpdateTableEntries(requestId, this.segmentName, state.getToken(), wireEntries);
 
             return sendRequest(request, state, WireCommands.TableEntriesUpdated.class)
@@ -107,18 +108,18 @@ public class TableSegmentImpl implements TableSegment {
     }
 
     @Override
-    public CompletableFuture<Void> remove(@NonNull Collection<TableSegmentKey> tableKeys) {
+    public CompletableFuture<Void> remove(@NonNull Iterator<TableSegmentKey> tableKeys) {
+        val wireKeys = keysToWireCommand(tableKeys);
         return execute((state, requestId) -> {
-            val wireKeys = toWireCommand(tableKeys);
             val request = new WireCommands.RemoveTableKeys(requestId, this.segmentName, state.getToken(), wireKeys);
             return Futures.toVoid(sendRequest(request, state, WireCommands.TableKeysRemoved.class));
         });
     }
 
     @Override
-    public CompletableFuture<List<TableSegmentEntry>> get(@NonNull List<ByteBuf> keys) {
+    public CompletableFuture<List<TableSegmentEntry>> get(@NonNull Iterator<ByteBuf> keys) {
+        val wireKeys = rawKeysToWireCommand(keys);
         return execute((state, requestId) -> {
-            val wireKeys = rawKeysToWireCommand(keys);
             val request = new WireCommands.ReadTable(requestId, this.segmentName, state.getToken(), wireKeys);
 
             return sendRequest(request, state, WireCommands.TableRead.class)
@@ -255,20 +256,35 @@ public class TableSegmentImpl implements TableSegment {
      * @param keys The keys.
      * @return The result.
      */
-    private List<WireCommands.TableKey> rawKeysToWireCommand(Collection<ByteBuf> keys) {
-        return keys.stream()
-                .map(key -> toWireCommand(TableSegmentKey.unversioned(key)))
-                .collect(Collectors.toList());
+    private List<WireCommands.TableKey> rawKeysToWireCommand(Iterator<ByteBuf> keys) {
+        ArrayList<WireCommands.TableKey> result = new ArrayList<>();
+        keys.forEachRemaining(key -> result.add(toWireCommand(TableSegmentKey.unversioned(key))));
+        return result;
     }
 
     /**
-     * Converts a Collection of {@link TableSegmentKey}s to a List of {@link WireCommands.TableKey}.
+     * Converts an Iterator of {@link TableSegmentKey}s to a List of {@link WireCommands.TableKey}.
      *
      * @param keys The {@link TableSegmentKey}s.
      * @return The result.
      */
-    private List<WireCommands.TableKey> toWireCommand(Collection<TableSegmentKey> keys) {
-        return keys.stream().map(this::toWireCommand).collect(Collectors.toList());
+    private List<WireCommands.TableKey> keysToWireCommand(Iterator<TableSegmentKey> keys) {
+        ArrayList<WireCommands.TableKey> result = new ArrayList<>();
+        keys.forEachRemaining(k -> result.add(toWireCommand(k)));
+        return result;
+    }
+
+    /**
+     * Converts an Iterator of {@link TableSegmentEntry} instances to a {@link WireCommands.TableEntries} instance.
+     *
+     * @param tableEntries The {@link TableSegmentEntry} instances.
+     * @return The {@link WireCommands.TableEntries} instance.
+     */
+    private WireCommands.TableEntries entriesToWireCommand(Iterator<TableSegmentEntry> tableEntries) {
+        ArrayList<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> result = new ArrayList<>();
+        tableEntries.forEachRemaining(entry -> result.add(new AbstractMap.SimpleImmutableEntry<>(
+                toWireCommand(entry.getKey()), toWireCommand(entry.getValue()))));
+        return new WireCommands.TableEntries(result);
     }
 
     /**
@@ -285,20 +301,6 @@ public class TableSegmentImpl implements TableSegment {
             // Conditional update.
             return new WireCommands.TableKey(k.getKey(), k.getVersion().getSegmentVersion());
         }
-    }
-
-    /**
-     * Converts a List of {@link TableSegmentEntry} instances to a {@link WireCommands.TableEntries} instance.
-     *
-     * @param tableEntries The {@link TableSegmentEntry} instances.
-     * @return The {@link WireCommands.TableEntries} instance.
-     */
-    private WireCommands.TableEntries toWireCommand(List<TableSegmentEntry> tableEntries) {
-        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> e = tableEntries
-                .stream()
-                .map(entry -> new AbstractMap.SimpleImmutableEntry<>(toWireCommand(entry.getKey()), toWireCommand(entry.getValue())))
-                .collect(Collectors.toList());
-        return new WireCommands.TableEntries(e);
     }
 
     /**

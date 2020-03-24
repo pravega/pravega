@@ -91,7 +91,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         val context = new TestContext();
 
         // Successful operation.
-        val putResult = context.segment.put(testEntries);
+        val putResult = context.segment.put(testEntries.iterator());
         val wireCommand = (WireCommands.UpdateTableEntries) context.getConnection().getLastSentWireCommand();
         checkWireCommand(expectedWireEntries, wireCommand.getTableEntries());
 
@@ -101,8 +101,8 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         AssertExtensions.assertListEquals("Unexpected return value", expectedVersions, actualVersions, Long::equals);
 
         // Conditional update failures.
-        checkBadKeyVersion(context, s -> s.put(testEntries));
-        checkNoSuchKey(context, s -> s.put(testEntries));
+        checkBadKeyVersion(context, s -> s.put(testEntries.iterator()));
+        checkNoSuchKey(context, s -> s.put(testEntries.iterator()));
     }
 
     /**
@@ -123,15 +123,15 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         val context = new TestContext();
 
         // Successful operation.
-        val removeResult = context.segment.remove(testKeys);
+        val removeResult = context.segment.remove(testKeys.iterator());
         val wireCommand = (WireCommands.RemoveTableKeys) context.getConnection().getLastSentWireCommand();
         checkWireCommand(expectedWireKeys, wireCommand.getKeys());
         context.sendReply(new WireCommands.TableKeysRemoved(context.getConnection().getLastRequestId(), SEGMENT_NAME));
         removeResult.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
 
         // Conditional update failures.
-        checkBadKeyVersion(context, s -> s.remove(testKeys));
-        checkNoSuchKey(context, s -> s.remove(testKeys));
+        checkBadKeyVersion(context, s -> s.remove(testKeys.iterator()));
+        checkNoSuchKey(context, s -> s.remove(testKeys.iterator()));
     }
 
     /**
@@ -152,7 +152,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         val context = new TestContext();
 
         // Successful operation.
-        val getResult = context.segment.get(requestKeys.stream().map(this::buf).collect(Collectors.toList()));
+        val getResult = context.segment.get(requestKeys.stream().map(this::buf).iterator());
         val wireCommand = (WireCommands.ReadTable) context.getConnection().getLastSentWireCommand();
         checkWireCommand(expectedWireKeys, wireCommand.getKeys());
         context.sendReply(new WireCommands.TableRead(context.getConnection().getLastRequestId(), SEGMENT_NAME, replyWireEntries));
@@ -297,7 +297,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
 
         for (val fr : failureReplies) {
             // TableSegment.put()
-            testConnectionFailure(ts -> ts.put(entries), fr,
+            testConnectionFailure(ts -> ts.put(entries.iterator()), fr,
                     requestId -> new WireCommands.TableEntriesUpdated(requestId, versions),
                     result -> AssertExtensions.assertListEquals("", versions,
                             result.stream().map(TableSegmentKeyVersion::getSegmentVersion).collect(Collectors.toList()),

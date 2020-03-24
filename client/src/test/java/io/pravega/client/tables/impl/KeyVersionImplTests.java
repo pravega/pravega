@@ -7,28 +7,28 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.tables;
+package io.pravega.client.tables.impl;
 
-import io.pravega.client.tables.impl.TableSegmentKeyVersion;
+import io.pravega.client.tables.KeyVersion;
 import org.junit.Assert;
 import org.junit.Test;
 
 /**
  * Unit tests for the {@link KeyVersion} class.
  */
-public class KeyVersionTests {
+public class KeyVersionImplTests {
     @Test
     public void testSpecialVersions() {
-        Assert.assertEquals(TableSegmentKeyVersion.NOT_EXISTS.getSegmentVersion(), KeyVersion.NOT_EXISTS.getSegmentVersion());
-        Assert.assertEquals(TableSegmentKeyVersion.NO_VERSION.getSegmentVersion(), KeyVersion.NO_VERSION.getSegmentVersion());
+        Assert.assertEquals(TableSegmentKeyVersion.NOT_EXISTS.getSegmentVersion(), KeyVersion.NOT_EXISTS.asImpl().getSegmentVersion());
+        Assert.assertEquals(TableSegmentKeyVersion.NO_VERSION.getSegmentVersion(), KeyVersion.NO_VERSION.asImpl().getSegmentVersion());
     }
 
     @Test
     public void testConstructor() {
         long version = 123L;
         String segmentName = "Segment";
-        KeyVersion v = new KeyVersion(segmentName, version);
-        Assert.assertEquals(version, v.getSegmentVersion());
+        KeyVersion v = new KeyVersionImpl(segmentName, version);
+        Assert.assertEquals(version, v.asImpl().getSegmentVersion());
     }
 }
 
