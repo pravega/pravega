@@ -35,10 +35,22 @@ public class KeyValueTableSegments extends SegmentCollection {
         super(segments, delegationToken);
     }
 
+    /**
+     * Gets the {@link Segment} that the given Key hashes to. This should be used for those keys that do not use Key
+     * Families for hashing.
+     *
+     * @param keySerialization A {@link ByteBuf} representing the serialization of the key.
+     * @return A {@link Segment}.
+     */
     Segment getSegmentForKey(ByteBuf keySerialization) {
-        return getSegmentForKey(HASHER.hashToRange(keySerialization.nioBuffer()));
+        return getSegmentForKey(HASHER.hashToRange(keySerialization.nioBuffers()));
     }
 
+    /**
+     * Gets the total number of Segments in this collection.
+     *
+     * @return The total number of Segments.
+     */
     int getSegmentCount() {
         return super.segments.size();
     }

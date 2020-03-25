@@ -30,5 +30,10 @@ public class KeyVersionImplTests {
         KeyVersion v = new KeyVersionImpl(segmentName, version);
         Assert.assertEquals(version, v.asImpl().getSegmentVersion());
     }
+
+    @Test
+    public void testFromString() {
+        Assert.fail("implement me");
+    }
 }
 

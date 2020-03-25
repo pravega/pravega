@@ -52,6 +52,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Implementation for {@link TableSegment}.
+ * TODO: validate Key Lengths, Value Lengths.
  */
 @RequiredArgsConstructor
 public class TableSegmentImpl implements TableSegment {

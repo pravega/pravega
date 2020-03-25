@@ -10,7 +10,10 @@
 package io.pravega.common.hash;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import io.pravega.common.util.ArrayView;
 import java.nio.ByteBuffer;
@@ -97,11 +100,23 @@ public class HashHelper {
     /**
      * Returns a double uniformly randomly distributed between 0 and 1 using the hash function.
      *
-     * @param buf The input {@link ByteBuffer}.
+     * @param bufs The input {@link ByteBuffer}s to hash.
      * @return Uniformly distributed double between 0 and 1.
      */
-    public double hashToRange(ByteBuffer buf) {
-        return longToDoubleFraction(hash.hashBytes(buf).asLong());
+    public double hashToRange(ByteBuffer... bufs) {
+        Preconditions.checkArgument(bufs.length > 0, "At least one buffer expected.");
+        HashCode result;
+        if (bufs.length == 1) {
+            result = hash.hashBytes(bufs[0]);
+        } else {
+            Hasher h = hash.newHasher();
+            for (ByteBuffer buf : bufs) {
+                h.putBytes(buf);
+            }
+            result = h.hash();
+        }
+
+        return longToDoubleFraction(result.asLong());
     }
 
     /**

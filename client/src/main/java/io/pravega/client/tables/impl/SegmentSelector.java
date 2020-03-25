@@ -50,10 +50,11 @@ class SegmentSelector implements AutoCloseable {
      * @param tokenProvider       The {@link DelegationTokenProvider}.
      */
     SegmentSelector(@NonNull KeyValueTableInfo kvt, @NonNull Controller controller,
-                    @NonNull TableSegmentFactory tableSegmentFactory, @NonNull DelegationTokenProvider tokenProvider) {
+                    @NonNull TableSegmentFactory tableSegmentFactory, @Nullable DelegationTokenProvider tokenProvider) {
         this.tableSegmentFactory = tableSegmentFactory;
         this.tokenProvider = tokenProvider;
         this.segmentsByRange = initializeSegments(kvt, controller);
+        assert this.segmentsByRange != null;
         this.closed = new AtomicBoolean(false);
     }
 
@@ -96,8 +97,9 @@ class SegmentSelector implements AutoCloseable {
      * @return If Key Family is null, the {@link TableSegment} that maps to the given key. If Key Family != null,
      * returns {@link #getTableSegment(String)}.
      */
-    TableSegment getTableSegment(@Nullable String keyFamily, @NonNull ByteBuf key) {
+    TableSegment getTableSegment(String keyFamily, ByteBuf key) {
         Exceptions.checkNotClosed(this.closed.get(), this);
+        assert keyFamily != null || key != null;
         Segment s = keyFamily == null
                 ? this.segmentsByRange.getSegmentForKey(key)
                 : this.segmentsByRange.getSegmentForKey(keyFamily);

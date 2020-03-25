@@ -12,6 +12,8 @@ package io.pravega.client.tables.impl;
 import io.pravega.client.tables.KeyVersion;
 import io.pravega.client.tables.TableKey;
 import java.io.Serializable;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.SerializationException;
 
@@ -24,6 +26,7 @@ public class KeyVersionImpl implements KeyVersion, Serializable {
      * The Segment where this Key resides. May be null if this is a {@link #NOT_EXISTS} or {@link #NO_VERSION}
      * {@link io.pravega.client.tables.KeyVersion}.
      */
+    @Getter(AccessLevel.PACKAGE)
     private final String segmentName;
     /**
      * The internal version inside the Table Segment for this Key.

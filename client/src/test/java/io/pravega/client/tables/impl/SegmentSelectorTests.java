@@ -1,0 +1,169 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.client.tables.impl;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.pravega.client.admin.KeyValueTableInfo;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.test.common.AssertExtensions;
+import java.util.HashMap;
+import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import lombok.val;
+import org.junit.Assert;
+import org.junit.Test;
+import org.mockito.Mockito;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * Unit tests for the {@link SegmentSelector} class.
+ */
+public class SegmentSelectorTests {
+    private static final KeyValueTableInfo KVT = new KeyValueTableInfo("Scope", "Stream");
+
+    /**
+     * Tests the {@link SegmentSelector#getTableSegment(String)} method.
+     */
+    @Test
+    public void testGetSegmentByKeyFamily() {
+        val context = new TestContext(10, (s, segments) -> {
+            String kf = Integer.toString((int) s.getSegmentId());
+            segments.byKeyFamily.put(kf, s);
+        });
+
+        for (val e : context.segments.byKeyFamily.entrySet()) {
+            TableSegment s = context.selector.getTableSegment(e.getKey());
+            Assert.assertEquals("Unexpected segment returned for KF " + e.getKey(), e.getValue().getScopedName(), s.getSegmentName());
+        }
+
+        // This verifies that we cannot possibly get away with a null result from SegmentsByRange.getSegmentForKey().
+        when(context.tsFactory.forSegment(isNull(), any())).thenThrow(NullPointerException.class);
+        AssertExtensions.assertThrows(
+                "",
+                () -> context.selector.getTableSegment("abc"),
+                ex -> ex instanceof NullPointerException);
+    }
+
+    /**
+     * Tests the {@link SegmentSelector#getTableSegment(String, ByteBuf)} method.
+     */
+    @Test
+    public void testGetSegmentByKeyOrKeyFamily() {
+        Function<Integer, ByteBuf> getKey = i -> Unpooled.wrappedBuffer(new byte[Integer.BYTES]).setInt(0, i);
+        val context = new TestContext(10, (s, segments) -> {
+            if (s.getSegmentId() % 2 == 0) {
+                // Even segments are by key family.
+                String kf = Integer.toString((int) s.getSegmentId());
+                segments.byKeyFamily.put(kf, s);
+            } else {
+                // Odd segments are by key.
+                segments.byKey.put(getKey.apply((int) s.getSegmentId()), s);
+            }
+        });
+
+        for (val e : context.segments.byKeyFamily.entrySet()) {
+            TableSegment s = context.selector.getTableSegment(e.getKey(), getKey.apply(123456));
+            Assert.assertEquals("Unexpected segment returned for KF " + e.getKey(), e.getValue().getScopedName(), s.getSegmentName());
+        }
+
+        for (val e : context.segments.byKey.entrySet()) {
+            TableSegment s = context.selector.getTableSegment(null, e.getKey());
+            Assert.assertEquals("Unexpected segment returned for Key " + e.getKey(), e.getValue().getScopedName(), s.getSegmentName());
+        }
+    }
+
+    /**
+     * Tests the {@link SegmentSelector#close()} method.
+     */
+    @Test
+    public void testClose() {
+        val context = new TestContext(10, (s, segments) -> {
+            String kf = Integer.toString((int) s.getSegmentId());
+            segments.byKeyFamily.put(kf, s);
+        });
+
+        for (val e : context.segments.byKeyFamily.entrySet()) {
+            TableSegment s = context.selector.getTableSegment(e.getKey());
+            Assert.assertEquals("Unexpected segment returned for KF " + e.getKey(), e.getValue().getScopedName(), s.getSegmentName());
+        }
+
+        int expectedClosed = context.segments.getSegmentCount();
+        context.selector.close();
+        Assert.assertEquals("Unexpected number of segments closed.", expectedClosed, context.closedCount.get());
+    }
+
+    private static class TestContext {
+        final Controller controller;
+        final TestKeyValueTableSegments segments;
+        final TableSegmentFactory tsFactory;
+        final SegmentSelector selector;
+        final AtomicInteger closedCount;
+
+        TestContext(int segmentCount, BiConsumer<Segment, TestKeyValueTableSegments> segmentCreated) {
+            this.controller = mock(Controller.class);
+            this.segments = new TestKeyValueTableSegments();
+            when(this.controller.getCurrentSegmentsForKeyValueTable(KVT.getScope(), KVT.getKeyValueTableName()))
+                    .thenReturn(CompletableFuture.completedFuture(segments));
+            this.tsFactory = mock(TableSegmentFactory.class);
+
+            this.closedCount = new AtomicInteger();
+            for (int i = 0; i < segmentCount; i++) {
+                Segment s = new Segment(KVT.getScope(), KVT.getKeyValueTableName(), i);
+                val ts = mock(TableSegment.class);
+                when(ts.getSegmentName()).thenReturn(s.getScopedName());
+                when(this.tsFactory.forSegment(eq(s), any())).thenReturn(ts);
+
+                Mockito.doAnswer(v -> {
+                    this.closedCount.incrementAndGet();
+                    return null;
+                }).when(ts).close();
+
+                segmentCreated.accept(s, this.segments);
+            }
+
+            this.selector = new SegmentSelector(KVT, this.controller, this.tsFactory, null);
+            Assert.assertEquals("Unexpected result from getSegmentCount().", segmentCount, this.selector.getSegmentCount());
+        }
+    }
+
+    private static class TestKeyValueTableSegments extends KeyValueTableSegments {
+        private final HashMap<String, Segment> byKeyFamily = new HashMap<>();
+        private final HashMap<ByteBuf, Segment> byKey = new HashMap<>();
+
+        public TestKeyValueTableSegments() {
+            super(new TreeMap<>(), null);
+        }
+
+        @Override
+        Segment getSegmentForKey(ByteBuf keySerialization) {
+            return this.byKey.get(keySerialization);
+        }
+
+        @Override
+        public Segment getSegmentForKey(String keyFamily) {
+            return this.byKeyFamily.get(keyFamily);
+        }
+
+        @Override
+        int getSegmentCount() {
+            return this.byKey.size() + this.byKeyFamily.size();
+        }
+    }
+}

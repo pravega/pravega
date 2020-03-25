@@ -49,6 +49,16 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface TableSegment extends AutoCloseable {
     /**
+     * The maximum length of a Table Segment Key.
+     */
+    int MAX_KEY_LENGTH = 8192;
+
+    /**
+     * The maximum length of a Table Segment Value.
+     */
+    int MAX_VALUE_LENGTH = 1024 * 1024 - MAX_KEY_LENGTH;
+
+    /**
      * Inserts a new or updates an existing Table Entry into this Table Segment.
      *
      * @param entry The Entry to insert or update. If {@link TableEntry#getKey()}{@link TableKey#getVersion()} indicates
