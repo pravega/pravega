@@ -15,6 +15,7 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
@@ -37,8 +38,8 @@ import lombok.val;
  */
 class EntrySerializer {
     static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
-    static final int MAX_KEY_LENGTH = 8 * 1024; // 8KB
-    static final int MAX_SERIALIZATION_LENGTH = 1024 * 1024; // 1MB
+    static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
+    static final int MAX_SERIALIZATION_LENGTH = TableStore.MAXIMUM_KEY_LENGTH + TableStore.MAXIMUM_VALUE_LENGTH;
     private static final int VERSION_POSITION = 0;
     private static final int KEY_POSITION = VERSION_POSITION + 1;
     private static final int VALUE_POSITION = KEY_POSITION + Integer.BYTES;

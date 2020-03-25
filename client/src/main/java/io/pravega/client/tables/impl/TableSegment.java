@@ -50,13 +50,15 @@ import java.util.concurrent.CompletableFuture;
 public interface TableSegment extends AutoCloseable {
     /**
      * The maximum length of a Table Segment Key.
+     * Synchronized with io.pravega.segmentstore.contracts.tables.TableStore.MAXIMUM_KEY_LENGTH.
      */
-    int MAX_KEY_LENGTH = 8192;
+    int MAXIMUM_KEY_LENGTH = 8192;
 
     /**
      * The maximum length of a Table Segment Value.
+     * Synchronized with io.pravega.segmentstore.contracts.tables.TableStore.MAXIMUM_VALUE_LENGTH().
      */
-    int MAX_VALUE_LENGTH = 1024 * 1024 - MAX_KEY_LENGTH;
+    int MAXIMUM_VALUE_LENGTH = 1024 * 1024 - MAXIMUM_KEY_LENGTH;
 
     /**
      * Inserts a new or updates an existing Table Entry into this Table Segment.

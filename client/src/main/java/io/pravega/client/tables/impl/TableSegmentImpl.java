@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables.impl;
 
+import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
@@ -52,7 +53,6 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Implementation for {@link TableSegment}.
- * TODO: validate Key Lengths, Value Lengths.
  */
 @RequiredArgsConstructor
 public class TableSegmentImpl implements TableSegment {
@@ -295,6 +295,8 @@ public class TableSegmentImpl implements TableSegment {
      * @return The {@link WireCommands.TableKey}.
      */
     private WireCommands.TableKey toWireCommand(final TableSegmentKey k) {
+        Preconditions.checkArgument(k.getKey().readableBytes() <= TableSegment.MAXIMUM_KEY_LENGTH,
+                "Key Length too long. Must be less than %s; given %s.", TableSegment.MAXIMUM_KEY_LENGTH, k.getKey().readableBytes());
         if (k.getVersion() == null || k.getVersion().equals(TableSegmentKeyVersion.NO_VERSION)) {
             // Unconditional update.
             return new WireCommands.TableKey(k.getKey(), WireCommands.TableKey.NO_VERSION);
@@ -311,6 +313,8 @@ public class TableSegmentImpl implements TableSegment {
      * @return The {@link WireCommands.TableValue}.
      */
     private WireCommands.TableValue toWireCommand(ByteBuf value) {
+        Preconditions.checkArgument(value.readableBytes() <= TableSegment.MAXIMUM_VALUE_LENGTH,
+                "Value Length too long. Must be less than %s; given %s.", TableSegment.MAXIMUM_VALUE_LENGTH, value.readableBytes());
         return new WireCommands.TableValue(value);
     }
 

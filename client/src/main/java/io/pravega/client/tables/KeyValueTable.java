@@ -74,6 +74,15 @@ import lombok.NonNull;
  * <li> {@link BadKeyVersionException}: the update or removal has been conditioned on a specific version (different from
  * {@link KeyVersion#NO_VERSION} but the {@link TableKey} exists in the {@link KeyValueTable} with a different version.
  * </ul>
+ * <p>
+ * Key, Key Family and Value serialization constraints:
+ * <ul>
+ * <li> For any given Key that does not belong to a Key Family, the serialization length for that Key must not exceed
+ * 8190 bytes.
+ * <li> For any given Key K that belongs to a Key Family KF, the UTF8 serialization for KF plus the serialization length
+ * of K must not exceed 8190 bytes.
+ * <li> Any {@link TableEntry} Value must not serialize to more than 1040384 bytes (1MB - 8KB).
+ * </ul>
  *
  * @param <KeyT>   Table Key Type.
  * @param <ValueT> Table Value Type.
@@ -201,7 +210,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
-    CompletableFuture<Void> removeAll(@Nullable String keyFamily, @NonNull Iterable<TableKey<KeyT>> keys);
+    CompletableFuture<Void> removeAll(@NonNull String keyFamily, @NonNull Iterable<TableKey<KeyT>> keys);
 
     /**
      * Gets the latest value for the a Key that belong to a specific Key Family.

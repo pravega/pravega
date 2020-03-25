@@ -149,7 +149,7 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     }
 
     @Override
-    public CompletableFuture<Void> removeAll(@Nullable String keyFamily, @NonNull Iterable<TableKey<KeyT>> keys) {
+    public CompletableFuture<Void> removeAll(@NonNull String keyFamily, @NonNull Iterable<TableKey<KeyT>> keys) {
         TableSegment s = this.selector.getTableSegment(keyFamily);
         return removeFromSegment(s, toTableSegmentKeys(s, keyFamily, keys));
     }
@@ -311,7 +311,7 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     }
 
     private void validateKeyFamily(String expected, String actual) {
-        boolean valid = expected == null && actual == null || expected.equals(actual);
+        boolean valid = (expected == null && actual == null) || (expected != null && expected.equals(actual));
         if (!valid) {
             throw new SerializationException(String.format(
                     "Unexpected Key Family deserialized. Expected '%s', actual '%s'.", expected, actual));

@@ -13,6 +13,7 @@ import io.pravega.client.tables.KeyVersion;
 import io.pravega.client.tables.TableKey;
 import java.io.Serializable;
 import lombok.AccessLevel;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.SerializationException;
@@ -21,6 +22,7 @@ import org.apache.commons.lang3.SerializationException;
  * Version of a Key in a Table.
  */
 @RequiredArgsConstructor
+@EqualsAndHashCode
 public class KeyVersionImpl implements KeyVersion, Serializable {
     /**
      * The Segment where this Key resides. May be null if this is a {@link #NOT_EXISTS} or {@link #NO_VERSION}

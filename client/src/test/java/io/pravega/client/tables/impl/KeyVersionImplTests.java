@@ -10,11 +10,14 @@
 package io.pravega.client.tables.impl;
 
 import io.pravega.client.tables.KeyVersion;
+import io.pravega.test.common.AssertExtensions;
+import lombok.val;
+import org.apache.commons.lang3.SerializationException;
 import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the {@link KeyVersion} class.
+ * Unit tests for the {@link KeyVersionImpl} class.
  */
 public class KeyVersionImplTests {
     @Test
@@ -33,7 +36,18 @@ public class KeyVersionImplTests {
 
     @Test
     public void testFromString() {
-        Assert.fail("implement me");
+        val noSegmentVersion = new KeyVersionImpl(null, 1234L);
+        val s1 = KeyVersion.fromString(noSegmentVersion.toString()).asImpl();
+        Assert.assertEquals(noSegmentVersion, s1);
+
+        val withSegmentVersion = new KeyVersionImpl("SegmentName", 567L);
+        val s2 = KeyVersion.fromString(withSegmentVersion.toString()).asImpl();
+        Assert.assertEquals(withSegmentVersion, s2);
+
+        AssertExtensions.assertThrows(
+                "Invalid deserialization worked.",
+                () -> KeyVersion.fromString("abc"),
+                ex -> ex instanceof SerializationException);
     }
 }
 

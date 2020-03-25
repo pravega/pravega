@@ -10,6 +10,7 @@
 package io.pravega.client.tables.impl;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
@@ -350,6 +351,47 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         val resultContents = result.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
         checkResult.accept(resultContents);
         Assert.assertEquals("Unexpected number of connection attempts.", 2, context.getReconnectCount());
+    }
+
+    /**
+     * Tests the ability to swiftly reject requests with Key or Value lengths exceeding predefined limits.
+     */
+    @Test
+    public void testTooLongKeysOrValues() throws Exception {
+        @Cleanup
+        val context = new TestContext();
+
+        // Check all operations that accept keys with keys that exceed length limits.
+        val exceedsKeyLength = TableSegmentEntry.unversioned(new byte[TableSegment.MAXIMUM_KEY_LENGTH + 1], new byte[10]);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "put() accepted Key exceeding length limit.",
+                () -> context.segment.put(Iterators.singletonIterator(exceedsKeyLength)),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "remove() accepted Key exceeding length limit.",
+                () -> context.segment.remove(Iterators.singletonIterator(exceedsKeyLength.getKey())),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "get() accepted Key exceeding length limit.",
+                () -> context.segment.get(exceedsKeyLength.getKey().getKey()),
+                ex -> ex instanceof IllegalArgumentException);
+
+        // Check all operations that accept entries with values that exceed length limits.
+        val exceedsValueLength = TableSegmentEntry.unversioned(new byte[10], new byte[TableSegment.MAXIMUM_VALUE_LENGTH + 1]);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "put() accepted Value exceeding length limit.",
+                () -> context.segment.put(Iterators.singletonIterator(exceedsValueLength)),
+                ex -> ex instanceof IllegalArgumentException);
+
+        // Check that an entry update that has both Key and Value at the limit goes through.
+        val limitEntry = TableSegmentEntry.unversioned(new byte[TableSegment.MAXIMUM_KEY_LENGTH], new byte[TableSegment.MAXIMUM_VALUE_LENGTH]);
+        val putResult = context.segment.put(Iterators.singletonIterator(limitEntry));
+        val wireCommand = (WireCommands.UpdateTableEntries) context.getConnection().getLastSentWireCommand();
+        val expectedWireEntries = toWireEntries(Collections.singletonList(limitEntry), null);
+        checkWireCommand(expectedWireEntries, wireCommand.getTableEntries());
+        context.sendReply(new WireCommands.TableEntriesUpdated(context.getConnection().getLastRequestId(), Collections.singletonList(1L)));
+        val actualVersion = putResult.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS).get(0).getSegmentVersion();
+        Assert.assertEquals("Unexpected return value", 1L, actualVersion);
     }
 
     private void checkBadKeyVersion(TestContext context, Function<TableSegmentImpl, CompletableFuture<?>> action) {

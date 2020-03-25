@@ -21,6 +21,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import lombok.EqualsAndHashCode;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -143,6 +144,7 @@ public class SegmentSelectorTests {
         }
     }
 
+    @EqualsAndHashCode
     private static class TestKeyValueTableSegments extends KeyValueTableSegments {
         private final HashMap<String, Segment> byKeyFamily = new HashMap<>();
         private final HashMap<ByteBuf, Segment> byKey = new HashMap<>();
