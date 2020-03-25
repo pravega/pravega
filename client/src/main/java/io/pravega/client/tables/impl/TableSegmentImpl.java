@@ -21,6 +21,7 @@ import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
+import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.NoSuchKeyException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -46,7 +47,6 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.slf4j.LoggerFactory;
@@ -54,34 +54,49 @@ import org.slf4j.LoggerFactory;
 /**
  * Implementation for {@link TableSegment}.
  */
-@RequiredArgsConstructor
 public class TableSegmentImpl implements TableSegment {
     // region Members
+
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TableSegmentImpl.class));
+    @Getter
+    private final String segmentName;
+    private final Controller controller;
+    private final ConnectionFactory connectionFactory;
+    private final DelegationTokenProvider tokenProvider;
     /**
      * We only retry {@link AuthenticationException} and {@link ConnectionFailedException}. Any other exceptions are not
      * retryable and should be bubbled up to the caller.
-     *
+     * <p>
      * These exceptions are thrown by {@link RawClient} and therefore we do not need to handle the underlying
      * {@link WireCommand}s that generate them.
      */
-    private static final Retry.RetryAndThrowConditionally RETRY = Retry
-            .withExpBackoff(50, 2, 5, 30000)
-            .retryWhen(TableSegmentImpl::isRetryableException);
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TableSegmentImpl.class));
-    @Getter
-    @NonNull
-    private final String segmentName;
-    @NonNull
-    private final Controller controller;
-    @NonNull
-    private final ConnectionFactory connectionFactory;
-    private final DelegationTokenProvider tokenProvider;
+    private final Retry.RetryAndThrowConditionally retry;
     private final AtomicBoolean closed = new AtomicBoolean();
     @GuardedBy("stateLock")
     private CompletableFuture<ConnectionState> state;
     private final Object stateLock = new Object();
 
     //endregion
+
+    /**
+     * Creates a new instance of the {@link TableSegmentImpl} class.
+     *
+     * @param segmentName       The name of the Table Segment.
+     * @param controller        The {@link Controller} to use.
+     * @param connectionFactory The {@link ConnectionFactory} to use.
+     * @param clientConfig      The {@link KeyValueTableClientConfiguration} to use to configure this client.
+     * @param tokenProvider     A Token provider.
+     */
+    TableSegmentImpl(@NonNull String segmentName, @NonNull Controller controller, @NonNull ConnectionFactory connectionFactory,
+                     @NonNull KeyValueTableClientConfiguration clientConfig, DelegationTokenProvider tokenProvider) {
+        this.segmentName = segmentName;
+        this.controller = controller;
+        this.connectionFactory = connectionFactory;
+        this.tokenProvider = tokenProvider;
+        this.retry = Retry
+                .withExpBackoff(clientConfig.getInitialBackoffMillis(), clientConfig.getBackoffMultiple(), clientConfig.getRetryAttempts(), clientConfig.getMaxBackoffMillis())
+                .retryWhen(TableSegmentImpl::isRetryableException);
+    }
 
     //region AutoCloseable Implementation
 
@@ -388,7 +403,7 @@ public class TableSegmentImpl implements TableSegment {
     }
 
     /**
-     * Executes an action with retries (see {@link #RETRY} for retry details).
+     * Executes an action with retries (see {@link #retry} for retry details).
      *
      * @param action A {@link BiFunction} representing the action to execute. The first argument is the {@link ConnectionState}
      *               that should be used, and the second is the request id for this action.
@@ -397,7 +412,7 @@ public class TableSegmentImpl implements TableSegment {
      * the Future will be failed with the appropriate exception.
      */
     private <T> CompletableFuture<T> execute(BiFunction<ConnectionState, Long, CompletableFuture<T>> action) {
-        return RETRY.runAsync(
+        return retry.runAsync(
                 () -> getOrCreateState()
                         .thenCompose(state -> action.apply(state, state.nextRequestId())),
                 this.connectionFactory.getInternalExecutor());

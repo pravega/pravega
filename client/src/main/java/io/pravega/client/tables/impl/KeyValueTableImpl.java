@@ -14,7 +14,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
@@ -70,13 +69,21 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
 
     //region Constructor
 
+    /**
+     * Creates a new instance of the {@link KeyValueTableImpl} class.
+     *
+     * @param kvt                 A {@link KeyValueTableInfo} containing information about the Key-Value Table.
+     * @param tableSegmentFactory Factory to create {@link TableSegment} instances.
+     * @param controller          Controller client.
+     * @param keySerializer       Serializer for keys.
+     * @param valueSerializer     Serializer for values.
+     */
     KeyValueTableImpl(@NonNull KeyValueTableInfo kvt, @NonNull TableSegmentFactory tableSegmentFactory, @NonNull Controller controller,
                       @NonNull Serializer<KeyT> keySerializer, @NonNull Serializer<ValueT> valueSerializer) {
         this.kvt = kvt;
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-        this.selector = new SegmentSelector(this.kvt, controller, tableSegmentFactory,
-                DelegationTokenProviderFactory.create(controller, this.kvt.getScope(), this.kvt.getKeyValueTableName()));
+        this.selector = new SegmentSelector(this.kvt, controller, tableSegmentFactory);
         this.logTraceId = String.format("KeyValueTable[%s]", this.kvt.getScopedName());
         this.closed = new AtomicBoolean(false);
         log.info("{}: Initialized. SegmentCount={}.", this.logTraceId, this.selector.getSegmentCount());

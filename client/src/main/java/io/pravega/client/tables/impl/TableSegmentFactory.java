@@ -9,20 +9,18 @@
  */
 package io.pravega.client.tables.impl;
 
-import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.Segment;
-import javax.annotation.Nullable;
 import lombok.NonNull;
 
 /**
- * Factory for {@link TableSegment} instances.
+ * Factory for {@link TableSegment} instances that belong to a single {@link io.pravega.client.tables.KeyValueTable}.
  */
 interface TableSegmentFactory {
     /**
      * Creates a new {@link TableSegment} instance.
+     *
      * @param segment The {@link Segment} to create for.
-     * @param tokenProvider The {@link DelegationTokenProvider} to use.
      * @return A new {@link TableSegment} instance.
      */
-    TableSegment forSegment(@NonNull Segment segment, @Nullable DelegationTokenProvider tokenProvider);
+    TableSegment forSegment(@NonNull Segment segment);
 }

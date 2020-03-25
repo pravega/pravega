@@ -27,7 +27,6 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -55,7 +54,7 @@ public class SegmentSelectorTests {
         }
 
         // This verifies that we cannot possibly get away with a null result from SegmentsByRange.getSegmentForKey().
-        when(context.tsFactory.forSegment(isNull(), any())).thenThrow(NullPointerException.class);
+        when(context.tsFactory.forSegment(isNull())).thenThrow(NullPointerException.class);
         AssertExtensions.assertThrows(
                 "",
                 () -> context.selector.getTableSegment("abc"),
@@ -129,7 +128,7 @@ public class SegmentSelectorTests {
                 Segment s = new Segment(KVT.getScope(), KVT.getKeyValueTableName(), i);
                 val ts = mock(TableSegment.class);
                 when(ts.getSegmentName()).thenReturn(s.getScopedName());
-                when(this.tsFactory.forSegment(eq(s), any())).thenReturn(ts);
+                when(this.tsFactory.forSegment(eq(s))).thenReturn(ts);
 
                 Mockito.doAnswer(v -> {
                     this.closedCount.incrementAndGet();
@@ -139,12 +138,12 @@ public class SegmentSelectorTests {
                 segmentCreated.accept(s, this.segments);
             }
 
-            this.selector = new SegmentSelector(KVT, this.controller, this.tsFactory, null);
+            this.selector = new SegmentSelector(KVT, this.controller, this.tsFactory);
             Assert.assertEquals("Unexpected result from getSegmentCount().", segmentCount, this.selector.getSegmentCount());
         }
     }
 
-    @EqualsAndHashCode
+    @EqualsAndHashCode(callSuper = true)
     private static class TestKeyValueTableSegments extends KeyValueTableSegments {
         private final HashMap<String, Segment> byKeyFamily = new HashMap<>();
         private final HashMap<ByteBuf, Segment> byKey = new HashMap<>();

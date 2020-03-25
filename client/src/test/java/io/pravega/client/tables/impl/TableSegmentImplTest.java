@@ -16,10 +16,12 @@ import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
+import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.NoSuchKeyException;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
@@ -65,7 +67,7 @@ import org.junit.Test;
  * Unit tests for the {@link TableSegmentImpl} class.
  */
 public class TableSegmentImplTest extends ThreadPooledTestSuite {
-    private static final String SEGMENT_NAME = "TableSegment";
+    private static final Segment SEGMENT = new Segment("scope", "kvt", 0);
     private static final PravegaNodeUri URI = new PravegaNodeUri("endpoint", 12345);
     private static final long SHORT_TIMEOUT = 2000;
 
@@ -127,7 +129,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         val removeResult = context.segment.remove(testKeys.iterator());
         val wireCommand = (WireCommands.RemoveTableKeys) context.getConnection().getLastSentWireCommand();
         checkWireCommand(expectedWireKeys, wireCommand.getKeys());
-        context.sendReply(new WireCommands.TableKeysRemoved(context.getConnection().getLastRequestId(), SEGMENT_NAME));
+        context.sendReply(new WireCommands.TableKeysRemoved(context.getConnection().getLastRequestId(), SEGMENT.getScopedName()));
         removeResult.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
 
         // Conditional update failures.
@@ -156,7 +158,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         val getResult = context.segment.get(requestKeys.stream().map(this::buf).iterator());
         val wireCommand = (WireCommands.ReadTable) context.getConnection().getLastSentWireCommand();
         checkWireCommand(expectedWireKeys, wireCommand.getKeys());
-        context.sendReply(new WireCommands.TableRead(context.getConnection().getLastRequestId(), SEGMENT_NAME, replyWireEntries));
+        context.sendReply(new WireCommands.TableRead(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), replyWireEntries));
         val actualEntries = getResult.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
         AssertExtensions.assertListEquals("Unexpected return value", expectedEntries, actualEntries, this::entryEquals);
     }
@@ -176,7 +178,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
                 (expectedResult, replyToken) -> {
                     val replyKeys = toWireKeys(expectedResult);
                     context.sendReply(
-                            new WireCommands.TableKeysRead(context.getConnection().getLastRequestId(), SEGMENT_NAME, replyKeys, replyToken));
+                            new WireCommands.TableKeysRead(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), replyKeys, replyToken));
                 },
                 this::keyEquals);
     }
@@ -196,7 +198,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
                 (expectedResult, replyToken) -> {
                     val replyEntries = toWireEntries(expectedResult, null);
                     context.sendReply(
-                            new WireCommands.TableEntriesRead(context.getConnection().getLastRequestId(), SEGMENT_NAME, replyEntries, replyToken));
+                            new WireCommands.TableEntriesRead(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), replyEntries, replyToken));
                 },
                 this::entryEquals);
     }
@@ -292,7 +294,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         // All retryable replies. WrongHost and AuthTokenCheckFailed are converted into exceptions by RawClient, while all
         // others need to be handled by TableSegmentImpl.handleReply.
         val failureReplies = Arrays.<Function<Long, Reply>>asList(
-                requestId -> new WireCommands.WrongHost(requestId, SEGMENT_NAME, "NewHost", ""),
+                requestId -> new WireCommands.WrongHost(requestId, SEGMENT.getScopedName(), "NewHost", ""),
                 requestId -> new WireCommands.AuthTokenCheckFailed(requestId, ""),
                 requestId -> new WireCommands.OperationUnsupported(requestId, "Intentional", ""));
 
@@ -307,24 +309,24 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
             // TableSegment.get()
             val wireEntries = entries.subList(0, 1);
             testConnectionFailure(ts -> ts.get(buf(keys.get(0))), fr,
-                    requestId -> new WireCommands.TableRead(requestId, SEGMENT_NAME, toWireEntries(wireEntries, null)),
+                    requestId -> new WireCommands.TableRead(requestId, SEGMENT.getScopedName(), toWireEntries(wireEntries, null)),
                     result -> Assert.assertTrue("", entryEquals(wireEntries.get(0), result)));
 
             // TableSegment.remove()
             testConnectionFailure(ts -> ts.remove(unversionedKey(keys.get(0))), fr,
-                    requestId -> new WireCommands.TableKeysRemoved(requestId, SEGMENT_NAME),
+                    requestId -> new WireCommands.TableKeysRemoved(requestId, SEGMENT.getScopedName()),
                     result -> {
                     });
 
             // Iterators. It is sufficient to test one of them,
             testConnectionFailure(ts -> ts.entryIterator(IteratorArgs.builder().maxItemsAtOnce(1).build()).getNext(), fr,
-                    requestId -> new WireCommands.TableEntriesRead(requestId, SEGMENT_NAME, toWireEntries(entries, null), Unpooled.wrappedBuffer(new byte[1])),
+                    requestId -> new WireCommands.TableEntriesRead(requestId, SEGMENT.getScopedName(), toWireEntries(entries, null), Unpooled.wrappedBuffer(new byte[1])),
                     result -> AssertExtensions.assertListEquals("", entries, result.getItems(), this::entryEquals));
         }
     }
 
     private <T extends Reply, U> void testConnectionFailure(
-            Function<TableSegmentImpl, CompletableFuture<U>> toInvoke,
+            Function<TableSegment, CompletableFuture<U>> toInvoke,
             Function<Long, T> createFailureReply,
             Function<Long, T> createSuccessfulReply,
             Consumer<U> checkResult) throws Exception {
@@ -394,21 +396,21 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected return value", 1L, actualVersion);
     }
 
-    private void checkBadKeyVersion(TestContext context, Function<TableSegmentImpl, CompletableFuture<?>> action) {
+    private void checkBadKeyVersion(TestContext context, Function<TableSegment, CompletableFuture<?>> action) {
         checkConditionalUpdateFailure(context,
                 action,
-                requestId -> new WireCommands.TableKeyBadVersion(context.getConnection().getLastRequestId(), SEGMENT_NAME, ""),
+                requestId -> new WireCommands.TableKeyBadVersion(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), ""),
                 BadKeyVersionException.class);
     }
 
-    private void checkNoSuchKey(TestContext context, Function<TableSegmentImpl, CompletableFuture<?>> action) {
+    private void checkNoSuchKey(TestContext context, Function<TableSegment, CompletableFuture<?>> action) {
         checkConditionalUpdateFailure(context,
                 action,
-                requestId -> new WireCommands.TableKeyDoesNotExist(context.getConnection().getLastRequestId(), SEGMENT_NAME, ""),
+                requestId -> new WireCommands.TableKeyDoesNotExist(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), ""),
                 NoSuchKeyException.class);
     }
 
-    private void checkConditionalUpdateFailure(TestContext context, Function<TableSegmentImpl, CompletableFuture<?>> action,
+    private void checkConditionalUpdateFailure(TestContext context, Function<TableSegment, CompletableFuture<?>> action,
                                                Function<Long, Reply> getReply, Class<? extends Throwable> expectedException) {
         val result = action.apply(context.segment);
         context.sendReply(getReply.apply(context.getConnection().getLastRequestId()));
@@ -537,7 +539,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         final MockConnectionFactoryImpl connectionFactory;
         final MockController controller;
         final AtomicReference<MockConnection> connection;
-        final TableSegmentImpl segment;
+        final TableSegment segment;
         final AtomicBoolean autoReconnect = new AtomicBoolean(true);
         final AtomicInteger reconnectCount = new AtomicInteger();
 
@@ -546,8 +548,10 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
             this.connectionFactory = new MockConnectionFactoryImpl();
             this.connectionFactory.setExecutor(executorService());
             this.controller = new MockController(URI.getEndpoint(), URI.getPort(), this.connectionFactory, true);
-            this.segment = new TableSegmentImpl(SEGMENT_NAME, this.controller, this.connectionFactory,
+            val factory = new TableSegmentFactoryImpl(this.controller, this.connectionFactory,
+                    KeyValueTableClientConfiguration.builder().build(),
                     DelegationTokenProviderFactory.createWithEmptyToken());
+            this.segment = factory.forSegment(SEGMENT);
             reconnect();
         }
 

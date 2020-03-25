@@ -12,7 +12,6 @@ package io.pravega.client.tables.impl;
 import io.netty.buffer.ByteBuf;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -20,7 +19,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.NonNull;
 
@@ -31,7 +29,6 @@ class SegmentSelector implements AutoCloseable {
     //region Members
 
     private final TableSegmentFactory tableSegmentFactory;
-    private final DelegationTokenProvider tokenProvider;
     private final KeyValueTableSegments segmentsByRange;
     @GuardedBy("segments")
     private final Map<Segment, TableSegment> segments = new HashMap<>();
@@ -47,12 +44,9 @@ class SegmentSelector implements AutoCloseable {
      * @param kvt                 The {@link KeyValueTableInfo} describing the Key Value Table.
      * @param controller          The {@link Controller} to use.
      * @param tableSegmentFactory A {@link TableSegmentFactory} to create {@link TableSegment} instances.
-     * @param tokenProvider       The {@link DelegationTokenProvider}.
      */
-    SegmentSelector(@NonNull KeyValueTableInfo kvt, @NonNull Controller controller,
-                    @NonNull TableSegmentFactory tableSegmentFactory, @Nullable DelegationTokenProvider tokenProvider) {
+    SegmentSelector(@NonNull KeyValueTableInfo kvt, @NonNull Controller controller, @NonNull TableSegmentFactory tableSegmentFactory) {
         this.tableSegmentFactory = tableSegmentFactory;
-        this.tokenProvider = tokenProvider;
         this.segmentsByRange = initializeSegments(kvt, controller);
         assert this.segmentsByRange != null;
         this.closed = new AtomicBoolean(false);
@@ -107,7 +101,7 @@ class SegmentSelector implements AutoCloseable {
         synchronized (this.segments) {
             TableSegment ts = this.segments.get(s);
             if (ts == null) {
-                ts = this.tableSegmentFactory.forSegment(s, this.tokenProvider);
+                ts = this.tableSegmentFactory.forSegment(s);
                 this.segments.put(s, ts);
             }
 

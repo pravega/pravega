@@ -13,6 +13,7 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
@@ -26,10 +27,12 @@ class TableSegmentFactoryImpl implements TableSegmentFactory {
     @NonNull
     private final ConnectionFactory connectionFactory;
     @NonNull
+    private final KeyValueTableClientConfiguration clientConfig;
     private final DelegationTokenProvider tokenProvider;
 
     @Override
-    public TableSegment forSegment(@NonNull Segment segment, DelegationTokenProvider tokenProvider) {
-        return new TableSegmentImpl(segment.getScopedName(), this.controller, this.connectionFactory, this.tokenProvider);
+    public TableSegment forSegment(@NonNull Segment segment) {
+        return new TableSegmentImpl(segment.getScopedName(), this.controller, this.connectionFactory, this.clientConfig,
+                this.tokenProvider);
     }
 }
