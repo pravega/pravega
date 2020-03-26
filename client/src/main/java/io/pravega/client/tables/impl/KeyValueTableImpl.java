@@ -288,7 +288,9 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
         DeserializedKey key = deserializeKey(e.getKey().getKey());
         validateKeyFamily(expectedKeyFamily, key.keyFamily);
 
-        ValueT value = deserializeValue(e.getValue());
+        ValueT value = e.getValue() == null ? null : deserializeValue(e.getValue());
+        assert value != null ^ e.getKey().getVersion().equals(TableSegmentKeyVersion.NOT_EXISTS);
+
         KeyVersion version = new KeyVersionImpl(s.getSegmentName(), e.getKey().getVersion());
         return TableEntry.versioned(key.key, version, value);
     }

@@ -21,6 +21,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import lombok.Cleanup;
 import lombok.EqualsAndHashCode;
 import lombok.val;
 import org.junit.Assert;
@@ -43,6 +44,7 @@ public class SegmentSelectorTests {
      */
     @Test
     public void testGetSegmentByKeyFamily() {
+        @Cleanup
         val context = new TestContext(10, (s, segments) -> {
             String kf = Integer.toString((int) s.getSegmentId());
             segments.byKeyFamily.put(kf, s);
@@ -67,6 +69,7 @@ public class SegmentSelectorTests {
     @Test
     public void testGetSegmentByKeyOrKeyFamily() {
         Function<Integer, ByteBuf> getKey = i -> Unpooled.wrappedBuffer(new byte[Integer.BYTES]).setInt(0, i);
+        @Cleanup
         val context = new TestContext(10, (s, segments) -> {
             if (s.getSegmentId() % 2 == 0) {
                 // Even segments are by key family.
@@ -94,6 +97,7 @@ public class SegmentSelectorTests {
      */
     @Test
     public void testClose() {
+        @Cleanup
         val context = new TestContext(10, (s, segments) -> {
             String kf = Integer.toString((int) s.getSegmentId());
             segments.byKeyFamily.put(kf, s);
@@ -109,7 +113,7 @@ public class SegmentSelectorTests {
         Assert.assertEquals("Unexpected number of segments closed.", expectedClosed, context.closedCount.get());
     }
 
-    private static class TestContext {
+    private static class TestContext implements AutoCloseable {
         final Controller controller;
         final TestKeyValueTableSegments segments;
         final TableSegmentFactory tsFactory;
@@ -140,6 +144,11 @@ public class SegmentSelectorTests {
 
             this.selector = new SegmentSelector(KVT, this.controller, this.tsFactory);
             Assert.assertEquals("Unexpected result from getSegmentCount().", segmentCount, this.selector.getSegmentCount());
+        }
+
+        @Override
+        public void close() {
+            this.selector.close();
         }
     }
 

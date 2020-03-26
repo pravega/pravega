@@ -63,7 +63,9 @@ public class KeyFamilySerializer implements Serializer<String> {
             // No Key Family
             return null;
         } else {
-            return ENCODING.decode((ByteBuffer) serializedValue.slice().limit(kfLength)).toString();
+            String result = ENCODING.decode((ByteBuffer) serializedValue.slice().limit(kfLength)).toString();
+            serializedValue.position(serializedValue.position() + kfLength);
+            return result;
         }
     }
 }
