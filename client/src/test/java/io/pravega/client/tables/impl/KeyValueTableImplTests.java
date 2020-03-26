@@ -40,6 +40,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Cleanup;
@@ -347,7 +348,17 @@ public class KeyValueTableImplTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testClose() {
+        @Cleanup
+        val context = new TestContext();
+        val iteration = new AtomicInteger(0);
+        forEveryKeyFamily(false, context, (keyFamily, keyIds) -> {
+            val entry = TableEntry.notExists(getKey(0), getValue(0, iteration.get()));
+            context.keyValueTable.replaceAll(keyFamily, Collections.singletonList(entry)).join();
+        });
 
+        Assert.assertEquals("Unexpected number of open segments before closing.", SEGMENT_COUNT, context.segmentFactory.getOpenSegmentCount());
+        context.keyValueTable.close();
+        Assert.assertEquals("Not expecting any open segments after closing.", 0, context.segmentFactory.getOpenSegmentCount());
     }
 
     private void checkValues(int iteration, Versions versions, TestContext context) {
@@ -521,18 +532,38 @@ public class KeyValueTableImplTests extends ThreadPooledTestSuite {
 
     @RequiredArgsConstructor
     private class MockTableSegmentFactory implements TableSegmentFactory {
+        @GuardedBy("segments")
+        private final HashMap<Segment, TableSegment> segments = new HashMap<>();
         private final int segmentCount;
 
         @Override
         public TableSegment forSegment(@NonNull Segment segment) {
             AssertExtensions.assertLessThan("Too many segments requested.", this.segmentCount, segment.getSegmentId());
-            return new MockTableSegment(segment);
+            synchronized (this.segments) {
+                Assert.assertNull("Segment requested multiple times.", this.segments.get(segment));
+                TableSegment ts = new MockTableSegment(segment, this::segmentClosed);
+                this.segments.put(segment, ts);
+                return ts;
+            }
+        }
+
+        int getOpenSegmentCount() {
+            synchronized (this.segments) {
+                return this.segments.size();
+            }
+        }
+
+        private void segmentClosed(Segment s) {
+            synchronized (this.segments) {
+                this.segments.remove(s);
+            }
         }
     }
 
     @RequiredArgsConstructor
     private class MockTableSegment implements TableSegment {
         private final Segment segment;
+        private final Consumer<Segment> onClose;
         private final AtomicLong nextVersion = new AtomicLong();
         @GuardedBy("data")
         private final Map<ByteBuf, EntryValue> data = new HashMap<>();
@@ -608,6 +639,7 @@ public class KeyValueTableImplTests extends ThreadPooledTestSuite {
 
         @Override
         public void close() {
+            Consumer<Segment> callback = null;
             synchronized (this.data) {
                 if (!this.closed) {
                     this.data.forEach((k, e) -> {
@@ -615,8 +647,13 @@ public class KeyValueTableImplTests extends ThreadPooledTestSuite {
                         e.value.release();
                     });
                     this.data.clear();
+                    callback = this.onClose;
                     this.closed = true;
                 }
+            }
+
+            if (callback != null) {
+                callback.accept(this.segment);
             }
         }
 
