@@ -51,7 +51,16 @@ public class TimeoutTimer {
     public Duration getRemaining() {
         return timeout.minusNanos(getNanos.get() - initialNanos);
     }
-    
+
+    /**
+     * Returns the Duration object passed in during instantiation.
+     *
+     * @return The original duration.
+     */
+    public Duration getInitial() {
+        return timeout;
+    }
+
     /**
      * Returns true if there is time remaining.
      *
