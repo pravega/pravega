@@ -10,9 +10,9 @@
 package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ObjectArrays;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
-import io.pravega.segmentstore.server.logs.ThrottlerCalculator;
 import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.Counter;
@@ -120,7 +120,19 @@ public final class SegmentStoreMetrics {
          * Amount of time the OperationProcessor delays between calls to processOperations() when there is significant
          * Tier1 backup.
          */
-        private final OpStatsLogger operationProcessorDelay;
+        private final OpStatsLogger operationProcessorCacheDelay;
+
+        /**
+         * Amount of time the OperationProcessor delays between calls to processOperations() when there is significant
+         * Tier1 backup.
+         */
+        private final OpStatsLogger operationProcessorDurableDataLogDelay;
+
+        /**
+         * Amount of time the OperationProcessor delays between calls to processOperations() when there is significant
+         * Tier1 backup.
+         */
+        private final OpStatsLogger operationProcessorBatchingDelay;
 
         /**
          * Amount of time spent committing an operation after being written to Tier1 (this includes in-memory structures
@@ -164,18 +176,15 @@ public final class SegmentStoreMetrics {
             this.processOperationsBatchSize = STATS_LOGGER.createStats(MetricsNames.PROCESS_OPERATIONS_BATCH_SIZE, this.containerTag);
             this.operationProcessorCacheDelay = STATS_LOGGER.createStats(
                     MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
-                    this.containerTag,
-                    throttlerTag(ThrottlerCalculator.ThorttlerName.Cache)
+                    ObjectArrays.concat(containerTag, throttlerTag("Cache"), String.class)
             );
-            this.operationProcessorBatchDelay = STATS_LOGGER.createStats(
+            this.operationProcessorBatchingDelay = STATS_LOGGER.createStats(
                     MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
-                    this.containerTag,
-                    throttlerTag(ThrottlerCalculator.ThorttlerName.Batch)
+                    ObjectArrays.concat(containerTag, throttlerTag("Batching"), String.class)
             );
-            this.operationProcessorDataLogDelay = STATS_LOGGER.createStats(
+            this.operationProcessorDurableDataLogDelay = STATS_LOGGER.createStats(
                     MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
-                    this.containerTag,
-                    throttlerTag(ThrottlerCalculator.ThorttlerName.DurableDataLog)
+                    ObjectArrays.concat(containerTag, throttlerTag("DurableDataLog"), String.class)
             );
         }
 
@@ -184,13 +193,15 @@ public final class SegmentStoreMetrics {
             this.operationQueueSize.close();
             this.operationsInFlight.close();
             this.operationQueueWaitTime.close();
-            this.operationProcessorDelay.close();
             this.operationCommitLatency.close();
             this.operationLatency.close();
             this.memoryCommitLatency.close();
             this.memoryCommitCount.close();
             this.processOperationsLatency.close();
             this.processOperationsBatchSize.close();
+            this.operationProcessorBatchingDelay.close();
+            this.operationProcessorCacheDelay.close();
+            this.operationProcessorDurableDataLogDelay.close();
         }
 
         public void currentState(int queueSize, int inFlightCount) {
@@ -198,8 +209,16 @@ public final class SegmentStoreMetrics {
             this.operationsInFlight.reportSuccessValue(inFlightCount);
         }
 
-        public void processingDelay(int millis) {
-            this.operationProcessorDelay.reportSuccessValue(millis);
+        public void processingCacheDelay(int millis) {
+            this.operationProcessorCacheDelay.reportSuccessValue(millis);
+        }
+
+        public void processingBatchingDelay(int millis) {
+            this.operationProcessorBatchingDelay.reportSuccessValue(millis);
+        }
+
+        public void processingDurableDataLogDelay(int millis) {
+            this.operationProcessorDurableDataLogDelay.reportSuccessValue(millis);
         }
 
         public void operationQueueWaitTime(long queueWaitTimeMillis) {
