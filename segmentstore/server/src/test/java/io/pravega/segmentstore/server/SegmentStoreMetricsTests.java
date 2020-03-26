@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server;
 
+import com.google.common.collect.ObjectArrays;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
@@ -24,6 +25,8 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static io.pravega.shared.MetricsTags.containerTag;
+import static io.pravega.shared.MetricsTags.throttlerTag;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -134,5 +137,31 @@ public class SegmentStoreMetricsTests {
         assertNull(MetricRegistryUtils.getCounter(MetricsNames.STORAGE_WRITER_FLUSHED_ATTRIBUTES, containerTag));
         assertNull(MetricRegistryUtils.getTimer(MetricsNames.STORAGE_WRITER_FLUSH_ELAPSED, containerTag));
         assertNull(MetricRegistryUtils.getTimer(MetricsNames.STORAGE_WRITER_ITERATION_ELAPSED, containerTag));
+    }
+
+    @Test
+    public void testThrottlerMetrics() {
+        final int delay = 100;
+        final int containerId = new Random().nextInt(Integer.MAX_VALUE);
+        final String[] containerTag = containerTag(containerId);
+        final String[] durableDataLogTag = throttlerTag("DurableDataLog");
+        final String[] cacheTag = throttlerTag("Cache");
+        final String[] batchingTag = throttlerTag("Batching");
+
+        @Cleanup
+        SegmentStoreMetrics.OperationProcessor op = new SegmentStoreMetrics.OperationProcessor(containerId);
+
+        op.processingDurableDataLogDelay(delay);
+        assertEquals(delay, (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, concat(containerTag, durableDataLogTag)).totalTime(TimeUnit.MILLISECONDS));
+
+        op.processingCacheDelay(delay);
+        assertEquals(delay, (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, concat(containerTag, cacheTag)).totalTime(TimeUnit.MILLISECONDS));
+
+        op.processingBatchingDelay(delay);
+        assertEquals(delay, (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, concat(containerTag, batchingTag)).totalTime(TimeUnit.MILLISECONDS));
+    }
+
+    private String[] concat(String[] one, String[] two) {
+        return ObjectArrays.concat(one, two, String.class);
     }
 }
