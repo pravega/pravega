@@ -165,11 +165,11 @@ public interface TableSegment extends AutoCloseable {
     AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(IteratorArgs args);
 
     /**
-     * Gets a value indicating the name of the Table Segment.
+     * Gets a value indicating the internal Id of the Table Segment, as assigned by the Controller.
      *
-     * @return The Table Segment name.
+     * @return The Table Segment Id.
      */
-    String getSegmentName();
+    long getSegmentId();
 
     @Override
     void close();

@@ -19,6 +19,7 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
+import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.KeyVersion;
@@ -32,6 +33,7 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -40,7 +42,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Cleanup;
@@ -300,7 +304,7 @@ public class KeyValueTableImplTests extends ThreadPooledTestSuite {
                     .map(keyId -> TableKey.versioned(getKey(keyId), alterVersion(versions.get(keyFamily, keyId), keyId % 3 < 1, keyId % 3 < 2)))
                     .collect(Collectors.toList());
             AssertExtensions.assertSuppliedFutureThrows(
-                    "removeAll did not throw for bad version.",
+                    "removeAll did not throw for bad version." + hint,
                     () -> kvt.removeAll(keyFamily, badKeys),
                     ex -> ex instanceof BadKeyVersionException);
 
@@ -334,13 +338,66 @@ public class KeyValueTableImplTests extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testKeyIterator() {
-        // TODO
+    public void testIterators() {
+        @Cleanup
+        val context = new TestContext();
+        val iteration = new AtomicInteger(0);
+
+        // Populate everything.
+        forEveryKey(context, (keyFamily, keyId) -> {
+            val key = getKey(keyId);
+            val value = getValue(keyId, iteration.get());
+            context.keyValueTable.putIfAbsent(keyFamily, key, value).join();
+        });
+
+        // Check the key iterator.
+        checkIterator(context, KeyValueTable::keyIterator, k -> k, TableEntry::getKey, this::areEqual);
+
+        // Check the entry iterator.
+        checkIterator(context, KeyValueTable::entryIterator, TableEntry::getKey, e -> e, this::areEqual);
     }
 
-    @Test
-    public void testEntryIterator() {
-        // TODO
+    private <ItemT> void checkIterator(TestContext context, InvokeIterator<ItemT> invokeIterator,
+                                       Function<ItemT, TableKey<Integer>> getKeyFromItem,
+                                       Function<TableEntry<Integer, String>, ItemT> getItemFromEntry,
+                                       BiPredicate<ItemT, ItemT> areEqual) {
+        val itemsAtOnce = KEYS_PER_KEY_FAMILY / 5;
+
+        BiPredicate<IteratorItem<ItemT>, IteratorItem<ItemT>> iteratorItemEquals = (e, a) ->
+                AssertExtensions.listEquals(e.getItems(), a.getItems(), areEqual)
+                        && e.getState().toBytes().equals(a.getState().toBytes());
+
+        forEveryKeyFamily(false, context, (keyFamily, keyIds) -> {
+            val hint = String.format("(KF=%s)", keyFamily);
+
+            // Collect all the items from the beginning.
+            val iteratorResults = new ArrayList<IteratorItem<ItemT>>();
+            invokeIterator.apply(context.keyValueTable, keyFamily, itemsAtOnce, null)
+                    .forEachRemaining(iteratorResults::add, executorService()).join();
+
+            // Order them by Key.
+            val keys = keyIds.stream().map(this::getKey).sorted().collect(Collectors.toList());
+            val actualKeys = iteratorResults.stream()
+                    .flatMap(ii -> ii.getItems().stream())
+                    .sorted(Comparator.comparingInt(e -> getKeyFromItem.apply(e).getKey()))
+                    .collect(Collectors.toList());
+            Assert.assertEquals("Unexpected item count" + hint, keys.size(), actualKeys.size());
+            for (int i = 0; i < keys.size(); i++) {
+                val tableEntry = context.keyValueTable.get(keyFamily, keys.get(i)).join();
+                val actualItem = getItemFromEntry.apply(tableEntry);
+                Assert.assertTrue("", areEqual.test(actualItem, actualKeys.get(i)));
+            }
+
+            // Now issue "resumed" iterators. We want to verify that we are recording the correct IteratorState and that
+            // when we issue a new iterator with that state, we are able to resume the iteration.
+            while (!iteratorResults.isEmpty()) {
+                IteratorState requestState = iteratorResults.remove(0).getState();
+                val resumedResults = new ArrayList<IteratorItem<ItemT>>();
+                invokeIterator.apply(context.keyValueTable, keyFamily, itemsAtOnce, requestState)
+                        .forEachRemaining(resumedResults::add, executorService()).join();
+                AssertExtensions.assertListEquals("Resumed iterators not consistent" + hint, iteratorResults, resumedResults, iteratorItemEquals);
+            }
+        });
     }
 
     /**
@@ -403,7 +460,7 @@ public class KeyValueTableImplTests extends ThreadPooledTestSuite {
 
     private void checkSegmentDistributions(Versions v) {
         v.versions.forEach((keyFamily, versions) -> {
-            val segments = versions.values().stream().map(KeyVersionImpl::getSegmentName).distinct().collect(Collectors.toList());
+            val segments = versions.values().stream().map(KeyVersionImpl::getSegmentId).distinct().collect(Collectors.toList());
             if (keyFamily.equals(NULL_KEY_FAMILY)) {
                 AssertExtensions.assertGreaterThan("Keys without families were not distributed to multiple segments.",
                         1, segments.size());
@@ -442,11 +499,11 @@ public class KeyValueTableImplTests extends ThreadPooledTestSuite {
         }
     }
 
-    private KeyVersion alterVersion(KeyVersion original, boolean changeSegmentName, boolean changeVersion) {
+    private KeyVersion alterVersion(KeyVersion original, boolean changeSegmentId, boolean changeVersion) {
         KeyVersionImpl impl = original.asImpl();
-        String newSegmentName = changeSegmentName ? impl.getSegmentName() + "a" : impl.getSegmentName();
+        long newSegmentId = changeSegmentId ? impl.getSegmentId() + 1 : impl.getSegmentId();
         long newVersion = changeVersion ? impl.getSegmentVersion() + 1 : impl.getSegmentVersion();
-        return new KeyVersionImpl(newSegmentName, newVersion);
+        return new KeyVersionImpl(newSegmentId, newVersion);
     }
 
     private int getKey(int keyId) {
@@ -455,6 +512,14 @@ public class KeyValueTableImplTests extends ThreadPooledTestSuite {
 
     private String getValue(int keyId, int iteration) {
         return String.format("%s_%s", keyId, iteration);
+    }
+
+    private boolean areEqual(TableKey<Integer> k1, TableKey<Integer> k2) {
+        return k1.getKey().equals(k2.getKey()) && k1.getVersion().equals(k2.getVersion());
+    }
+
+    private boolean areEqual(TableEntry<Integer, String> e1, TableEntry<Integer, String> e2) {
+        return areEqual(e1.getKey(), e2.getKey()) && e1.getValue().equals(e2.getValue());
     }
 
     private static class Versions {
@@ -571,6 +636,31 @@ public class KeyValueTableImplTests extends ThreadPooledTestSuite {
         private boolean closed = false;
 
         @Override
+        public long getSegmentId() {
+            return this.segment.getSegmentId();
+        }
+
+        @Override
+        public void close() {
+            Consumer<Segment> callback = null;
+            synchronized (this.data) {
+                if (!this.closed) {
+                    this.data.forEach((k, e) -> {
+                        k.release();
+                        e.value.release();
+                    });
+                    this.data.clear();
+                    callback = this.onClose;
+                    this.closed = true;
+                }
+            }
+
+            if (callback != null) {
+                callback.accept(this.segment);
+            }
+        }
+
+        @Override
         public CompletableFuture<List<TableSegmentKeyVersion>> put(Iterator<TableSegmentEntry> entries) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.data) {
@@ -624,37 +714,53 @@ public class KeyValueTableImplTests extends ThreadPooledTestSuite {
 
         @Override
         public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(IteratorArgs args) {
-            throw new UnsupportedOperationException();
+            return getIterator(args, (key, value, ver) -> TableSegmentKey.versioned(key, ver));
         }
 
         @Override
         public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(IteratorArgs args) {
-            throw new UnsupportedOperationException();
+            return getIterator(args, TableSegmentEntry::versioned);
         }
 
-        @Override
-        public String getSegmentName() {
-            return this.segment.getScopedName();
-        }
+        private <T> AsyncIterator<IteratorItem<T>> getIterator(IteratorArgs args, IteratorConverter<T> converter) {
+            // The real Table Segment allows iterating while updating. Since we use HashMap, we don't have that luxury,
+            // but we can take a snapshot now and iterate through that. This doesn't necessarily break the Table Segment
+            // contract as it makes no guarantees about whether (or when) concurrent updates will make it into an ongoing
+            // iteration.
+            List<T> iteratorItems = getFilteredEntries(args.getKeyPrefixFilter(), converter);
+            val position = new AtomicInteger(0);
+            if (args.getState() != null) {
+                position.set(args.getState().toBytes().getInt());
+            }
 
-        @Override
-        public void close() {
-            Consumer<Segment> callback = null;
-            synchronized (this.data) {
-                if (!this.closed) {
-                    this.data.forEach((k, e) -> {
-                        k.release();
-                        e.value.release();
-                    });
-                    this.data.clear();
-                    callback = this.onClose;
-                    this.closed = true;
+            return () -> CompletableFuture.supplyAsync(() -> {
+                if (position.get() >= iteratorItems.size()) {
+                    return null;
                 }
-            }
+                int newPosition = Math.min(position.get() + args.getMaxItemsAtOnce(), iteratorItems.size());
+                val result = iteratorItems.subList(position.get(), newPosition);
+                position.set(newPosition);
+                val newState = IteratorState.fromBytes(ByteBuffer.allocate(Integer.BYTES).putInt(0, newPosition));
+                return new IteratorItem<>(newState, result);
+            }, executorService());
+        }
 
-            if (callback != null) {
-                callback.accept(this.segment);
+        private <T> List<T> getFilteredEntries(ByteBuf prefix, IteratorConverter<T> converter) {
+            Assert.assertNotNull("Key Family iterations require a prefix.", prefix);
+            AssertExtensions.assertGreaterThan("Key Family iterations require a prefix.",
+                    KeyFamilySerializer.PREFIX_LENGTH, prefix.readableBytes());
+            synchronized (this.data) {
+                return this.data.entrySet().stream()
+                        .filter(e -> startsWith(e.getKey(), prefix))
+                        .map(e -> converter.apply(e.getKey().copy(), e.getValue().value.copy(), e.getValue().version))
+                        .collect(Collectors.toList());
             }
+        }
+
+        private boolean startsWith(ByteBuf key, ByteBuf prefix) {
+
+            return key.readableBytes() >= prefix.readableBytes()
+                    && key.slice(0, prefix.readableBytes()).equals(prefix.duplicate());
         }
 
         @GuardedBy("data")
@@ -682,6 +788,16 @@ public class KeyValueTableImplTests extends ThreadPooledTestSuite {
             final ByteBuf value;
             final long version;
         }
+    }
+
+    @FunctionalInterface
+    private interface IteratorConverter<T> {
+        T apply(ByteBuf key, ByteBuf value, Long version);
+    }
+
+    @FunctionalInterface
+    private interface InvokeIterator<T> {
+        AsyncIterator<IteratorItem<T>> apply(KeyValueTable<Integer, String> kvt, String keyFamily, int itemsAtOnce, IteratorState state);
     }
 
     private static class IntegerSerializer implements Serializer<Integer> {

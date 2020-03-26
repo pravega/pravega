@@ -52,7 +52,7 @@ public class SegmentSelectorTests {
 
         for (val e : context.segments.byKeyFamily.entrySet()) {
             TableSegment s = context.selector.getTableSegment(e.getKey());
-            Assert.assertEquals("Unexpected segment returned for KF " + e.getKey(), e.getValue().getScopedName(), s.getSegmentName());
+            Assert.assertEquals("Unexpected segment returned for KF " + e.getKey(), e.getValue().getSegmentId(), s.getSegmentId());
         }
 
         // This verifies that we cannot possibly get away with a null result from SegmentsByRange.getSegmentForKey().
@@ -83,12 +83,12 @@ public class SegmentSelectorTests {
 
         for (val e : context.segments.byKeyFamily.entrySet()) {
             TableSegment s = context.selector.getTableSegment(e.getKey(), getKey.apply(123456));
-            Assert.assertEquals("Unexpected segment returned for KF " + e.getKey(), e.getValue().getScopedName(), s.getSegmentName());
+            Assert.assertEquals("Unexpected segment returned for KF " + e.getKey(), e.getValue().getSegmentId(), s.getSegmentId());
         }
 
         for (val e : context.segments.byKey.entrySet()) {
             TableSegment s = context.selector.getTableSegment(null, e.getKey());
-            Assert.assertEquals("Unexpected segment returned for Key " + e.getKey(), e.getValue().getScopedName(), s.getSegmentName());
+            Assert.assertEquals("Unexpected segment returned for Key " + e.getKey(), e.getValue().getSegmentId(), s.getSegmentId());
         }
     }
 
@@ -105,7 +105,7 @@ public class SegmentSelectorTests {
 
         for (val e : context.segments.byKeyFamily.entrySet()) {
             TableSegment s = context.selector.getTableSegment(e.getKey());
-            Assert.assertEquals("Unexpected segment returned for KF " + e.getKey(), e.getValue().getScopedName(), s.getSegmentName());
+            Assert.assertEquals("Unexpected segment returned for KF " + e.getKey(), e.getValue().getSegmentId(), s.getSegmentId());
         }
 
         int expectedClosed = context.segments.getSegmentCount();
@@ -131,7 +131,7 @@ public class SegmentSelectorTests {
             for (int i = 0; i < segmentCount; i++) {
                 Segment s = new Segment(KVT.getScope(), KVT.getKeyValueTableName(), i);
                 val ts = mock(TableSegment.class);
-                when(ts.getSegmentName()).thenReturn(s.getScopedName());
+                when(ts.getSegmentId()).thenReturn(s.getSegmentId());
                 when(this.tsFactory.forSegment(eq(s))).thenReturn(ts);
 
                 Mockito.doAnswer(v -> {

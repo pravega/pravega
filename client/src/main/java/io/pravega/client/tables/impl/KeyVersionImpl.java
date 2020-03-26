@@ -25,11 +25,15 @@ import org.apache.commons.lang3.SerializationException;
 @EqualsAndHashCode
 public class KeyVersionImpl implements KeyVersion, Serializable {
     /**
-     * The Segment where this Key resides. May be null if this is a {@link #NOT_EXISTS} or {@link #NO_VERSION}
-     * {@link io.pravega.client.tables.KeyVersion}.
+     * Denotes the lack of any Segment.
+     */
+    public static final long NO_SEGMENT_ID = Long.MIN_VALUE;
+    /**
+     * The Segment where this Key resides. May equal {@link #NO_SEGMENT_ID}if this is a {@link #NOT_EXISTS} or
+     * {@link #NO_VERSION} {@link io.pravega.client.tables.KeyVersion}.
      */
     @Getter(AccessLevel.PACKAGE)
-    private final String segmentName;
+    private final long segmentId;
     /**
      * The internal version inside the Table Segment for this Key.
      */
@@ -38,11 +42,11 @@ public class KeyVersionImpl implements KeyVersion, Serializable {
     /**
      * Creates a new instance of the {@link io.pravega.client.tables.KeyVersion} class.
      *
-     * @param segmentName    The name of the Table Segment that contains the {@link TableKey}.
+     * @param segmentId      The internal id of the Table Segment that contains the {@link TableKey}.
      * @param segmentVersion The version within the Table Segment for the {@link TableKey}.
      */
-    public KeyVersionImpl(String segmentName, long segmentVersion) {
-        this(segmentName, TableSegmentKeyVersion.from(segmentVersion));
+    KeyVersionImpl(long segmentId, long segmentVersion) {
+        this(segmentId, TableSegmentKeyVersion.from(segmentVersion));
     }
 
     /**
@@ -61,13 +65,7 @@ public class KeyVersionImpl implements KeyVersion, Serializable {
 
     @Override
     public String toString() {
-        StringBuffer sb = new StringBuffer();
-        if (this.segmentName != null) {
-            sb.append(this.segmentName);
-        }
-        sb.append(":");
-        sb.append(getSegmentVersion());
-        return sb.toString();
+        return String.format("%d:%d", this.segmentId, getSegmentVersion());
     }
 
     /**
@@ -79,8 +77,7 @@ public class KeyVersionImpl implements KeyVersion, Serializable {
     public static KeyVersionImpl fromString(String str) {
         String[] tokens = str.split(":");
         if (tokens.length == 2) {
-            String segmentName = tokens[0].length() == 0 ? null : tokens[0];
-            return new KeyVersionImpl(segmentName, Long.parseLong(tokens[1]));
+            return new KeyVersionImpl(Long.parseLong(tokens[0]), Long.parseLong(tokens[1]));
         }
 
         throw new SerializationException(String.format("Not a valid KeyVersion serialization: '%s'.", str));

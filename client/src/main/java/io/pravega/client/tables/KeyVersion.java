@@ -20,13 +20,13 @@ public interface KeyVersion {
      * {@link KeyVersion} that indicates no specific version is desired. Using this will result in an unconditional
      * update or removal being performed. See {@link KeyValueTable} for details on conditional/unconditional updates.
      */
-    KeyVersion NO_VERSION = new KeyVersionImpl(null, TableSegmentKeyVersion.NO_VERSION);
+    KeyVersion NO_VERSION = new KeyVersionImpl(KeyVersionImpl.NO_SEGMENT_ID, TableSegmentKeyVersion.NO_VERSION);
     /**
      * {@link KeyVersion} that indicates the {@link TableKey} must not exist. Using this will result in an conditional
      * update or removal being performed, conditioned on the {@link TableKey} not existing at the time of the operation.
      * See {@link KeyValueTable} for details on conditional/unconditional updates.
      */
-    KeyVersion NOT_EXISTS = new KeyVersionImpl(null, TableSegmentKeyVersion.NOT_EXISTS);
+    KeyVersion NOT_EXISTS = new KeyVersionImpl(KeyVersionImpl.NO_SEGMENT_ID, TableSegmentKeyVersion.NOT_EXISTS);
 
     /**
      * Returns the actual instance.

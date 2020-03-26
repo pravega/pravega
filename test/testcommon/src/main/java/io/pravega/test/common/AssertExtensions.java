@@ -318,6 +318,29 @@ public class AssertExtensions {
     }
 
     /**
+     * Determines whether two list contain the same elements.
+     *
+     * @param expected The list to check against.
+     * @param actual   The list to check.
+     * @param tester   A BiPredicate that will be used to verify the elements at the same indices in each list are equivalent.
+     * @param <T>      The type of the list's elements.
+     * @return True if the lists are equal, false otherwise.
+     */
+    public static <T> boolean listEquals(List<T> expected, List<T> actual, BiPredicate<T, T> tester) {
+        if (expected.size() != actual.size()) {
+            return false;
+        }
+        for (int i = 0; i < expected.size(); i++) {
+            T expectedItem = expected.get(i);
+            T actualItem = actual.get(i);
+            if (!tester.test(expectedItem, actualItem)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Asserts that actual {@literal <} expected.
      *
      * @param message  The message to include in the Assert calls.

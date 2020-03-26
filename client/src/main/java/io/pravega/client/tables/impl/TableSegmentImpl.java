@@ -17,6 +17,7 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
@@ -54,12 +55,13 @@ import org.slf4j.LoggerFactory;
 /**
  * Implementation for {@link TableSegment}.
  */
-public class TableSegmentImpl implements TableSegment {
+class TableSegmentImpl implements TableSegment {
     // region Members
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TableSegmentImpl.class));
-    @Getter
     private final String segmentName;
+    @Getter
+    private final long segmentId;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
     private final DelegationTokenProvider tokenProvider;
@@ -81,15 +83,16 @@ public class TableSegmentImpl implements TableSegment {
     /**
      * Creates a new instance of the {@link TableSegmentImpl} class.
      *
-     * @param segmentName       The name of the Table Segment.
+     * @param segment           A {@link Segment} representing the Pravega Table Segment this instance will interact with.
      * @param controller        The {@link Controller} to use.
      * @param connectionFactory The {@link ConnectionFactory} to use.
      * @param clientConfig      The {@link KeyValueTableClientConfiguration} to use to configure this client.
      * @param tokenProvider     A Token provider.
      */
-    TableSegmentImpl(@NonNull String segmentName, @NonNull Controller controller, @NonNull ConnectionFactory connectionFactory,
+    TableSegmentImpl(@NonNull Segment segment, @NonNull Controller controller, @NonNull ConnectionFactory connectionFactory,
                      @NonNull KeyValueTableClientConfiguration clientConfig, DelegationTokenProvider tokenProvider) {
-        this.segmentName = segmentName;
+        this.segmentName = segment.getScopedName();
+        this.segmentId = segment.getSegmentId();
         this.controller = controller;
         this.connectionFactory = connectionFactory;
         this.tokenProvider = tokenProvider;

@@ -32,7 +32,6 @@ class TableSegmentFactoryImpl implements TableSegmentFactory {
 
     @Override
     public TableSegment forSegment(@NonNull Segment segment) {
-        return new TableSegmentImpl(segment.getScopedName(), this.controller, this.connectionFactory, this.clientConfig,
-                this.tokenProvider);
+        return new TableSegmentImpl(segment, this.controller, this.connectionFactory, this.clientConfig, this.tokenProvider);
     }
 }

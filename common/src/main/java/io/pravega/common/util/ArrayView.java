@@ -9,6 +9,8 @@
  */
 package io.pravega.common.util;
 
+import java.nio.ByteBuffer;
+
 /**
  * Defines a generic read-only view of an index-based, array-like structure.
  */
@@ -48,4 +50,14 @@ public interface ArrayView extends BufferView {
      * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
      */
     void copyTo(byte[] target, int targetOffset, int length);
+
+    /**
+     * Returns a new {@link ByteBuffer} that wraps the contents of this {@link ArrayView}.
+     *
+     * @return A {@link ByteBuffer} that shares the same backing array as this {@link ArrayView}. Any changes made to
+     * the {@link ByteBuffer} will be reflected in this {@link ArrayView} and viceversa.
+     */
+    default ByteBuffer asByteBuffer() {
+        return ByteBuffer.wrap(array(), arrayOffset(), getLength());
+    }
 }

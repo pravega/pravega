@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables.impl;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -187,14 +188,18 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     public AsyncIterator<IteratorItem<TableKey<KeyT>>> keyIterator(@NonNull String keyFamily, int maxKeysAtOnce,
                                                                    @Nullable IteratorState state) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException(); // TODO
+        TableSegment ts = this.selector.getTableSegment(keyFamily);
+        IteratorArgs args = getIteratorArgs(ts, keyFamily, maxKeysAtOnce, state);
+        return ts.keyIterator(args).thenApply(si -> fromSegmentIteratorItem(ts, keyFamily, si, this::fromTableSegmentKey));
     }
 
     @Override
     public AsyncIterator<IteratorItem<TableEntry<KeyT, ValueT>>> entryIterator(@NonNull String keyFamily, int maxEntriesAtOnce,
                                                                                @Nullable IteratorState state) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException(); // TODO
+        TableSegment ts = this.selector.getTableSegment(keyFamily);
+        IteratorArgs args = getIteratorArgs(ts, keyFamily, maxEntriesAtOnce, state);
+        return ts.entryIterator(args).thenApply(si -> fromSegmentIteratorItem(ts, keyFamily, si, this::fromTableSegmentEntry));
     }
 
     //endregion
@@ -208,7 +213,7 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     private CompletableFuture<List<KeyVersion>> updateToSegment(TableSegment segment, Iterator<TableSegmentEntry> tableSegmentEntries) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return segment.put(tableSegmentEntries)
-                .thenApply(versions -> versions.stream().map(v -> new KeyVersionImpl(segment.getSegmentName(), v)).collect(Collectors.toList()));
+                .thenApply(versions -> versions.stream().map(v -> new KeyVersionImpl(segment.getSegmentId(), v)).collect(Collectors.toList()));
     }
 
     private CompletableFuture<Void> removeFromSegment(TableSegment segment, Iterator<TableSegmentKey> tableSegmentKeys) {
@@ -251,6 +256,41 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
                 .thenApply(entries -> entries.stream().map(e -> fromTableSegmentEntry(s, e, expectedKeyFamily)).collect(Collectors.toList()));
     }
 
+    private IteratorArgs getIteratorArgs(TableSegment ts, String keyFamily, int maxItemsAtOnce, IteratorState state) {
+        IteratorState segmentIteratorState = null;
+        if (state != null) {
+            val kvtState = KeyValueTableIteratorState.fromBytes(state.toBytes());
+            Preconditions.checkArgument(this.kvt.getScopedName().equals(kvtState.getKeyValueTableName()),
+                    "IteratorState refers to a different Key-ValueTable (%s) than this one (%s).",
+                    kvtState.getKeyValueTableName(), this.kvt.getScopedName());
+            Preconditions.checkArgument(ts.getSegmentId() == kvtState.getSegmentId(),
+                    "IteratorState refers to a different Segment (%s) than assigned to KeyFamily '%s' (%s).",
+                    kvtState.getSegmentId(), keyFamily, ts.getSegmentId());
+            segmentIteratorState = IteratorStateImpl.fromBytes(kvtState.getSegmentIteratorState());
+        }
+
+        return IteratorArgs.builder()
+                .keyPrefixFilter(Unpooled.wrappedBuffer(KEY_FAMILY_SERIALIZER.serialize(keyFamily)))
+                .maxItemsAtOnce(maxItemsAtOnce)
+                .state(segmentIteratorState)
+                .build();
+    }
+
+    private <T, V> IteratorItem<V> fromSegmentIteratorItem(TableSegment ts, String keyFamily, IteratorItem<T> segmentIteratorItem,
+                                                           SegmentItemConverter<T, V> converter) {
+        IteratorState segmentState = segmentIteratorItem.getState();
+        IteratorState state;
+        if (segmentState.isEmpty()) {
+            state = IteratorStateImpl.EMPTY;
+        } else {
+            val kvtState = new KeyValueTableIteratorState(this.kvt.getScopedName(), ts.getSegmentId(), Unpooled.wrappedBuffer(segmentState.toBytes()));
+            state = IteratorStateImpl.fromBytes(kvtState.toBytes());
+        }
+
+        val items = segmentIteratorItem.getItems().stream().map(k -> converter.apply(ts, k, keyFamily)).collect(Collectors.toList());
+        return new IteratorItem<>(state, items);
+    }
+
     private Iterator<TableSegmentKey> toTableSegmentKeys(TableSegment tableSegment, String keyFamily, Iterable<TableKey<KeyT>> keys) {
         return StreamSupport.stream(keys.spliterator(), false)
                 .map(k -> {
@@ -285,14 +325,18 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     }
 
     private TableEntry<KeyT, ValueT> fromTableSegmentEntry(TableSegment s, TableSegmentEntry e, String expectedKeyFamily) {
-        DeserializedKey key = deserializeKey(e.getKey().getKey());
-        validateKeyFamily(expectedKeyFamily, key.keyFamily);
-
+        TableKey<KeyT> segmentKey = fromTableSegmentKey(s, e.getKey(), expectedKeyFamily);
         ValueT value = e.getValue() == null ? null : deserializeValue(e.getValue());
-        assert value != null ^ e.getKey().getVersion().equals(TableSegmentKeyVersion.NOT_EXISTS);
+        assert value != null ^ e.getKey().getVersion().equals(TableSegmentKeyVersion.NOT_EXISTS)
+                : "Illegal value-version combination. Value = '" + value + "'; Version = " + e.getKey().getVersion();
+        return TableEntry.versioned(segmentKey.getKey(), segmentKey.getVersion(), value);
+    }
 
-        KeyVersion version = new KeyVersionImpl(s.getSegmentName(), e.getKey().getVersion());
-        return TableEntry.versioned(key.key, version, value);
+    private TableKey<KeyT> fromTableSegmentKey(TableSegment s, TableSegmentKey tableSegmentKey, String expectedKeyFamily) {
+        DeserializedKey key = deserializeKey(tableSegmentKey.getKey());
+        validateKeyFamily(expectedKeyFamily, key.keyFamily);
+        KeyVersion version = new KeyVersionImpl(s.getSegmentId(), tableSegmentKey.getVersion());
+        return TableKey.versioned(key.key, version);
     }
 
     private ByteBuf serializeKey(String keyFamily, KeyT k) {
@@ -334,8 +378,7 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
         }
 
         KeyVersionImpl impl = version.asImpl();
-        boolean valid = impl.getSegmentName() == null
-                || ts.getSegmentName().equals(impl.getSegmentName());
+        boolean valid = impl.getSegmentId() == KeyVersionImpl.NO_SEGMENT_ID || ts.getSegmentId() == impl.getSegmentId();
         if (!valid) {
             throw new BadKeyVersionException(this.kvt.getScopedName(), "Wrong TableSegment.");
         }
@@ -359,6 +402,11 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
             this.keys.add(key);
             this.ordinals.add(ordinal);
         }
+    }
+
+    @FunctionalInterface
+    private interface SegmentItemConverter<SegmentItemType, TableItemType> {
+        TableItemType apply(TableSegment ts, SegmentItemType item, String keyFamily);
     }
 
     //endregion

@@ -29,18 +29,18 @@ public class KeyVersionImplTests {
     @Test
     public void testConstructor() {
         long version = 123L;
-        String segmentName = "Segment";
-        KeyVersion v = new KeyVersionImpl(segmentName, version);
+        long segmentId = 8946L;
+        KeyVersion v = new KeyVersionImpl(segmentId, version);
         Assert.assertEquals(version, v.asImpl().getSegmentVersion());
     }
 
     @Test
     public void testFromString() {
-        val noSegmentVersion = new KeyVersionImpl(null, 1234L);
+        val noSegmentVersion = new KeyVersionImpl(KeyVersionImpl.NO_SEGMENT_ID, 1234L);
         val s1 = KeyVersion.fromString(noSegmentVersion.toString()).asImpl();
         Assert.assertEquals(noSegmentVersion, s1);
 
-        val withSegmentVersion = new KeyVersionImpl("SegmentName", 567L);
+        val withSegmentVersion = new KeyVersionImpl(123L, 567L);
         val s2 = KeyVersion.fromString(withSegmentVersion.toString()).asImpl();
         Assert.assertEquals(withSegmentVersion, s2);
 
