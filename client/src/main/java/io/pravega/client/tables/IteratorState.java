@@ -16,8 +16,14 @@ import java.nio.ByteBuffer;
 /**
  * Represents the state of a resumable iterator. Such an iterator can be executed asynchronously and continued after an
  * interruption. Each iteration will result in a new request to the server (which is stateless). The entire state of
- * the iterator is encoded in this object and is non-transferable between different types of iterations. The server will
- * use the information within it to decide what to return for the next iteration call.
+ * the iterator is encoded in this object and and is used by the server to decide what to return for the next iteration
+ * call.
+ * <p>
+ * Each {@link IteratorState} instance is coupled to the Key-Value Table that it was created for and is tailored for the
+ * type of iteration that generates it (i.e., {@link KeyValueTable#keyIterator} vs {@link KeyValueTable#entryIterator}).
+ * As such, an {@link IteratorState} instance is non-transferable between different types of iterations or between
+ * different Key-Value Tables. It is OK to pass a {@link IteratorState} generated from a {@link KeyValueTable} instance
+ * to another {@link KeyValueTable} instance for the same Key-Value Table.
  */
 public interface IteratorState {
     /**

@@ -92,7 +92,7 @@ public interface KeyValueTable<KeyT, ValueT> {
     CompletableFuture<KeyVersion> put(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value);
 
     /**
-     * Conditionally inserts a new Entry in the {@link KeyValueTable} if and only if the given Key is not already present.
+     * Conditionally inserts a new Entry in the {@link KeyValueTable} if the given Key is not already present.
      *
      * @param keyFamily (Optional) The Key Family for the Entry. If null, this Entry will not be associated with any
      *                  Key Family.
@@ -121,7 +121,7 @@ public interface KeyValueTable<KeyT, ValueT> {
     CompletableFuture<List<KeyVersion>> putAll(@NonNull String keyFamily, @NonNull Iterable<Map.Entry<KeyT, ValueT>> entries);
 
     /**
-     * Conditionally updates an existing Entry in the {@link KeyValueTable} if and only if the given Key exists and its
+     * Conditionally updates an existing Entry in the {@link KeyValueTable} if the given Key exists and its
      * version matches the given {@link KeyVersion}.
      *
      * @param keyFamily (Optional) The Key Family for the Entry. If null, this Entry will not be associated with any
