@@ -49,7 +49,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * Unit tests for the {@link KeyValueTableImpl} class.
+ * Unit tests for the {@link KeyValueTableImpl} class. This uses mocked {@link TableSegment}s so it does not actually
+ * verify over-the-wire commands. Integration tests (`io.pravega.test.integration.KeyValueTableImplTests`) cover end-to-end
+ * scenarios instead.
  */
 public class KeyValueTableImplTests extends KeyValueTableTestBase {
     private static final KeyValueTableInfo KVT = new KeyValueTableInfo("Scope", "KVT");

@@ -40,6 +40,11 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+/**
+ * Base test suite for anything testing {@link KeyValueTable}s. This covers core functionality for {@link KeyValueTable}s
+ * and currently applies both to {@link KeyValueTableImplTests} (using mocked Controller and Segment Store) and
+ * `io.pravega.test.integration.KeyValueTableImplTests` (using real Segment Store and Wire Protocol).
+ */
 public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
     //region Members
 
