@@ -59,6 +59,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -126,7 +127,8 @@ public class MockController implements Controller {
     }
 
     private CompletableFuture<Boolean> createStreamInternal(String scope, String streamName, StreamConfiguration streamConfig) {
-        return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams, this::getSegmentsForStream);
+        return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams,
+                this::getSegmentsForStream, this::createSegment);
     }
     
     @Synchronized
@@ -224,7 +226,8 @@ public class MockController implements Controller {
     @Override
     @Synchronized
     public CompletableFuture<Boolean> deleteStream(String scope, String streamName) {
-        return deleteFromScope(scope, new StreamImpl(scope, streamName), s -> s.streams, this::getSegmentsForStream);
+        return deleteFromScope(scope, new StreamImpl(scope, streamName), s -> s.streams, this::getSegmentsForStream,
+                this::deleteSegment);
     }
 
     private boolean createSegment(String name) {
@@ -232,7 +235,25 @@ public class MockController implements Controller {
             return true;
         }
         CompletableFuture<Boolean> result = new CompletableFuture<>();
-        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+        FailingReplyProcessor replyProcessor = createReplyProcessorCreateSegment(result);
+        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0, "");
+        sendRequestOverNewConnection(command, replyProcessor, result);
+        return getAndHandleExceptions(result, RuntimeException::new);
+    }
+
+    private boolean createTableSegment(String name) {
+        if (!callServer) {
+            return true;
+        }
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        FailingReplyProcessor replyProcessor = createReplyProcessorCreateSegment(result);
+        WireCommands.CreateTableSegment command = new WireCommands.CreateTableSegment(idGenerator.get(), name, "");
+        sendRequestOverNewConnection(command, replyProcessor, result);
+        return getAndHandleExceptions(result, RuntimeException::new);
+    }
+
+    private FailingReplyProcessor createReplyProcessorCreateSegment(CompletableFuture<Boolean> result) {
+        return new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
@@ -264,18 +285,32 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0, "");
-        sendRequestOverNewConnection(command, replyProcessor, result);
-        return getAndHandleExceptions(result, RuntimeException::new);
     }
-    
+
     private boolean deleteSegment(String name) {
         if (!callServer) {
             return true;
         }
         CompletableFuture<Boolean> result = new CompletableFuture<>();
-        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+        FailingReplyProcessor replyProcessor = createReplyProcessorDeleteSegment(result);
+        DeleteSegment command = new WireCommands.DeleteSegment(idGenerator.get(), name, "");
+        sendRequestOverNewConnection(command, replyProcessor, result);
+        return getAndHandleExceptions(result, RuntimeException::new);
+    }
 
+    private boolean deleteTableSegment(String name) {
+        if (!callServer) {
+            return true;
+        }
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        FailingReplyProcessor replyProcessor = createReplyProcessorDeleteSegment(result);
+        WireCommands.DeleteTableSegment command = new WireCommands.DeleteTableSegment(idGenerator.get(), name, false, "");
+        sendRequestOverNewConnection(command, replyProcessor, result);
+        return getAndHandleExceptions(result, RuntimeException::new);
+    }
+
+    private FailingReplyProcessor createReplyProcessorDeleteSegment(CompletableFuture<Boolean> result) {
+        return new FailingReplyProcessor() {
             @Override
             public void connectionDropped() {
                 result.completeExceptionally(new ConnectionClosedException());
@@ -306,9 +341,6 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        DeleteSegment command = new WireCommands.DeleteSegment(idGenerator.get(), name, "");
-        sendRequestOverNewConnection(command, replyProcessor, result);
-        return getAndHandleExceptions(result, RuntimeException::new);
     }
 
     @Override
@@ -588,13 +620,15 @@ public class MockController implements Controller {
     @Override
     @Synchronized
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
-        return createInScope(scope, new KeyValueTableInfo(scope, kvtName), kvtConfig, s -> s.keyValueTables, this::getSegmentsForKeyValueTable);
+        return createInScope(scope, new KeyValueTableInfo(scope, kvtName), kvtConfig, s -> s.keyValueTables,
+                this::getSegmentsForKeyValueTable, this::createTableSegment);
     }
 
     @Override
     @Synchronized
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
-        return deleteFromScope(scope, new KeyValueTableInfo(scope, kvtName), s -> s.keyValueTables, this::getSegmentsForKeyValueTable);
+        return deleteFromScope(scope, new KeyValueTableInfo(scope, kvtName), s -> s.keyValueTables,
+                this::getSegmentsForKeyValueTable, this::deleteTableSegment);
     }
 
     @Override
@@ -634,7 +668,8 @@ public class MockController implements Controller {
     @Synchronized
     private <ItemT, ConfigT> CompletableFuture<Boolean> createInScope(String scope, ItemT item, ConfigT config,
                                                                       Function<MockScope, Map<ItemT, ConfigT>> getScopeContents,
-                                                                      Function<ItemT, List<Segment>> getSegments) {
+                                                                      Function<ItemT, List<Segment>> getSegments,
+                                                                      Consumer<String> createSegment) {
         MockScope s = createdScopes.get(scope);
         if (s == null) {
             return Futures.failedFuture(new IllegalArgumentException("Scope does not exist."));
@@ -647,21 +682,21 @@ public class MockController implements Controller {
 
         scopeContents.put(item, config);
         for (Segment segment : getSegments.apply(item)) {
-            createSegment(segment.getScopedName());
+            createSegment.accept(segment.getScopedName());
         }
         return CompletableFuture.completedFuture(true);
     }
 
     @Synchronized
     private <T> CompletableFuture<Boolean> deleteFromScope(String scope, T toDelete, Function<MockScope, Map<T, ?>> getItems,
-                                                           Function<T, List<Segment>> getSegments) {
+                                                           Function<T, List<Segment>> getSegments, Consumer<String> deleteSegment) {
         MockScope s = createdScopes.get(scope);
         if (s == null || !getItems.apply(s).containsKey(toDelete)) {
             return CompletableFuture.completedFuture(false);
         }
 
         for (Segment segment : getSegments.apply(toDelete)) {
-            deleteSegment(segment.getScopedName());
+            deleteSegment.accept(segment.getScopedName());
         }
         getItems.apply(s).remove(toDelete);
         return CompletableFuture.completedFuture(true);
