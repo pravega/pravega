@@ -643,7 +643,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.info(updateTableEntries.getRequestId(), "Updating table segment {}.", updateTableEntries);
+        log.debug(updateTableEntries.getRequestId(), "Updating table segment {}.", updateTableEntries);
         val entries = new ArrayList<TableEntry>(updateTableEntries.getTableEntries().getEntries().size());
         val conditional = new AtomicBoolean(false);
         for (val e : updateTableEntries.getTableEntries().getEntries()) {
@@ -672,7 +672,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.info(removeTableKeys.getRequestId(), "Removing table keys {}.", removeTableKeys);
+        log.debug(removeTableKeys.getRequestId(), "Removing table keys {}.", removeTableKeys);
         val keys = new ArrayList<TableKey>(removeTableKeys.getKeys().size());
         val conditional = new AtomicBoolean(false);
         for (val k : removeTableKeys.getKeys()) {
@@ -701,7 +701,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.info(readTable.getRequestId(), "Reading from table {}.", readTable);
+        log.debug(readTable.getRequestId(), "Reading from table {}.", readTable);
 
         final List<ArrayView> keys = readTable.getKeys().stream()
                                               .map(k -> getArrayView(k.getData()))
@@ -724,7 +724,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.info(readTableKeys.getRequestId(), "Fetching keys from {}.", readTableKeys);
+        log.debug(readTableKeys.getRequestId(), "Fetching keys from {}.", readTableKeys);
 
         int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
         ByteBuf token = readTableKeys.getContinuationToken();
@@ -786,7 +786,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.info(readTableEntries.getRequestId(), "Fetching keys from {}.", readTableEntries);
+        log.debug(readTableEntries.getRequestId(), "Fetching keys from {}.", readTableEntries);
 
         int suggestedEntryCount = readTableEntries.getSuggestedEntryCount();
         ByteBuf token = readTableEntries.getContinuationToken();

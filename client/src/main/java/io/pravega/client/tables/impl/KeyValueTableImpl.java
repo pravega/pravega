@@ -325,10 +325,12 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     }
 
     private TableEntry<KeyT, ValueT> fromTableSegmentEntry(TableSegment s, TableSegmentEntry e, String expectedKeyFamily) {
+        if (e == null) {
+            return null;
+        }
+
         TableKey<KeyT> segmentKey = fromTableSegmentKey(s, e.getKey(), expectedKeyFamily);
-        ValueT value = e.getValue() == null ? null : deserializeValue(e.getValue());
-        assert value != null ^ e.getKey().getVersion().equals(TableSegmentKeyVersion.NOT_EXISTS)
-                : "Illegal value-version combination. Value = '" + value + "'; Version = " + e.getKey().getVersion();
+        ValueT value = deserializeValue(e.getValue());
         return TableEntry.versioned(segmentKey.getKey(), segmentKey.getVersion(), value);
     }
 

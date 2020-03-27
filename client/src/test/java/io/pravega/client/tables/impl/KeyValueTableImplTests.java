@@ -213,7 +213,7 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
                     keys.forEachRemaining(k -> {
                         EntryValue ev = this.data.getOrDefault(k, null);
                         TableSegmentEntry e = ev == null
-                                ? TableSegmentEntry.notFound(k.copy())
+                                ? null
                                 : TableSegmentEntry.versioned(k.copy(), ev.value.copy(), ev.version);
                         result.add(e);
                     });

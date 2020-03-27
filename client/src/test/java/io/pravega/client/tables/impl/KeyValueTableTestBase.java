@@ -450,13 +450,12 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
     }
 
     private void checkValue(Integer key, String expectedValue, KeyVersion expectedVersion, TableEntry<Integer, String> actualEntry, String hint) {
-        Assert.assertEquals("Unexpected key" + hint, key, actualEntry.getKey().getKey());
         if (expectedVersion == null) {
             // Key was removed or never inserted.
-            Assert.assertNull("Not expecting a value for removed key" + hint, actualEntry.getValue());
-            Assert.assertEquals("", KeyVersion.NOT_EXISTS.asImpl().getSegmentVersion(), actualEntry.getKey().getVersion().asImpl().getSegmentVersion());
+            Assert.assertNull("Not expecting a value for removed key" + hint, actualEntry);
         } else {
             // Key exists.
+            Assert.assertEquals("Unexpected key" + hint, key, actualEntry.getKey().getKey());
             Assert.assertEquals("Unexpected version" + hint, expectedVersion, actualEntry.getKey().getVersion());
             Assert.assertEquals("Unexpected value" + hint, expectedValue, actualEntry.getValue());
         }
