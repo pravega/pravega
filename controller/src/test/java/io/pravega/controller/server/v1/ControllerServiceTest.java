@@ -176,7 +176,7 @@ public class ControllerServiceTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    @Test
+    @Test(timeout = 10000L)
     public void testMethods() throws InterruptedException, ExecutionException {
         Map<SegmentId, Long> segments;
 
@@ -203,7 +203,7 @@ public class ControllerServiceTest {
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 2)));
     }
     
-    @Test
+    @Test(timeout = 10000L)
     public void testTransactions() {
         TransactionMetrics.initialize();
         UUID txnId = consumer.createTransaction(SCOPE, stream1, 10000L).join().getKey();
