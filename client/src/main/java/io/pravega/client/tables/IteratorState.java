@@ -9,7 +9,6 @@
  */
 package io.pravega.client.tables;
 
-import io.netty.buffer.Unpooled;
 import io.pravega.client.tables.impl.IteratorStateImpl;
 import java.nio.ByteBuffer;
 
@@ -48,6 +47,6 @@ public interface IteratorState {
      * @return A {@link IteratorState}.
      */
     static IteratorState fromBytes(ByteBuffer buffer) {
-        return buffer == null ? IteratorStateImpl.EMPTY : IteratorStateImpl.fromBytes(Unpooled.wrappedBuffer(buffer));
+        return IteratorStateImpl.fromBytes(buffer);
     }
 }
