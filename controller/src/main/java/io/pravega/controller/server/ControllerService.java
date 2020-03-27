@@ -17,8 +17,10 @@ import io.pravega.common.Timer;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
+import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
@@ -338,7 +340,13 @@ public class ControllerService {
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         log.warn("Transaction commit failed", ex);
-                        // TODO: return appropriate failures to user.
+                        Throwable unwrap = getRealException(ex);
+                        if (unwrap instanceof RetryableException) {
+                            // if its a retryable exception (it could be either write conflict or store exception)
+                            // let it be thrown and translated to appropriate error code so that the client 
+                            // retries upon failure.
+                            throw new CompletionException(unwrap);
+                        }
                         TransactionMetrics.getInstance().commitTransactionFailed(scope, stream, txId.toString());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
@@ -346,6 +354,14 @@ public class ControllerService {
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });
+    }
+
+    private Throwable getRealException(Throwable ex) {
+        Throwable unwrap = Exceptions.unwrap(ex);
+        if (unwrap instanceof RetriesExhaustedException) {
+            unwrap = Exceptions.unwrap(unwrap.getCause());
+        }
+        return unwrap;
     }
 
     public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId) {
@@ -357,7 +373,13 @@ public class ControllerService {
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         log.warn("Transaction abort failed", ex);
-                        // TODO: return appropriate failures to user.
+                        Throwable unwrap = getRealException(ex);
+                        if (unwrap instanceof RetryableException) {
+                            // if its a retryable exception (it could be either write conflict or store exception)
+                            // let it be thrown and translated to appropriate error code so that the client 
+                            // retries upon failure.
+                            throw new CompletionException(unwrap);
+                        }
                         TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, txId.toString());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
