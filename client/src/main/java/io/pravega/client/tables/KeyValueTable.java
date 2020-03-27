@@ -37,16 +37,16 @@ import lombok.NonNull;
  * then F1.K1 is different from F2.K1 and both are different from K1 (no Key Family association).
  * <li> Keys that do not belong to any Key Family will be uniformly distributed across the Key-Value Table Partitions and
  * cannot be used for multi-key/entry atomic updates or removals or be iterated on.
- * <li> {@link TableKey}s belonging to the same Key Family are grouped into the same Table Segment; as such, the choice
- * of Key Families can have performance implications. An ideally balanced Key-Value Table is one where no {@link TableKey}
- * is part of any Key Family or the number of {@link TableKey}s in each Key Family is approximately the same. To enable
- * a uniform distribution of {@link TableKey}s over the Key-Value Table, it is highly recommended not to use Key Families
- * at all. If this situation cannot be avoided (i.e., multi-entry atomic updates or iterators are required), then it is
- * recommended that Key Families themselves be diversified and {@link TableKey}s be equally distributed across them. Such
- * approaches will ensure that the Key-Value Table load will be spread across all its Table Segments. An undesirable
- * situation is an extreme case where all the {@link TableKey}s in the Key-Value Table are associated with a single
- * Key Family; in this case the entire Key-Value Table load will be placed on a single backing Table Segment instead of
- * spreading it across many Table Segments, leading to eventual performance degradation.
+ * <li> Keys belonging to the same Key Family are grouped into the same Table Segment; as such, the choice of Key Families
+ * can have performance implications. An ideally balanced Key-Value Table is one where no Key is part of any Key Family
+ * or the number of Keys in each Key Family is approximately the same. To enable a uniform distribution of Keys over the
+ * Key-Value Table, it is highly recommended not to use Key Families at all. If this situation cannot be avoided (i.e.,
+ * multi-entry atomic updates or iterators are required), then it is recommended that Key Families themselves be
+ * diversified and Keys be equally distributed across them. Such approaches will ensure that the Key-Value Table load
+ * will be spread across all its Table Segments. An undesirable situation is an extreme case where all the Keys in the
+ * Key-Value Table are associated with a single Key Family; in this case the entire Key-Value Table load will be placed
+ * on a single backing Table Segment instead of spreading it across many Table Segments, leading to eventual performance
+ * degradation.
  * </ul>
  * <p>
  * Types of Updates:
@@ -64,11 +64,11 @@ import lombok.NonNull;
  * <li> Conditional Removals will remove a Key only if the specified {@link Version} matches the one that is currently
  * present on the server. Such removals can be performed using {@link #remove(String, KeyT, Version)}.
  * <li> Multi-key updates allow mixing different types of updates in the same update batch. Some entries may be conditioned
- * on their Keys not existing at all ({@link TableEntry#getKey()}{@link TableKey#getVersion()} equals {@link Version#NOT_EXISTS}),
- * some may be conditioned on specific versions and some may not have condition attached at all
- * ({@link TableEntry#getKey()}{@link TableKey#getVersion()} equals {@link Version#NO_VERSION}). All the conditions that
- * are present in the update batch must be satisfied in order for the update batch to be accepted - the condition checks
- * and updates are performed atomically. Use {@link #replaceAll(String, Iterable)} for such an update.
+ * on their Keys not existing at all ({@link TableEntry#getKey()}{@link TableKey#getVersion()} equals
+ * {@link Version#NOT_EXISTS}), some may be conditioned on specific versions and some may not have condition attached at
+ * all ({@link TableEntry#getKey()}{@link TableKey#getVersion()} equals {@link Version#NO_VERSION}). All the conditions
+ * that are present in the update batch must be satisfied in order for the update batch to be accepted - the condition
+ * checks and updates are performed atomically. Use {@link #replaceAll(String, Iterable)} for such an update.
  * <li> Multi-key removals allow mixing different types of removals in the same removal batch. Some removals may be
  * conditioned on their affected Keys having a specific version and some may not have a condition attached at all
  * ({@link TableKey#getVersion()} equals {@link Version#NO_VERSION}). Although unusual, it is possible to have a removal
@@ -86,10 +86,9 @@ import lombok.NonNull;
  * request have been accepted.
  * <li> Failure: the update or removal has been rejected due to version mismatch; no update or removal has been performed.
  * <li> {@link NoSuchKeyException}: the update or removal has been conditioned on a specific version (different from
- * {@link Version#NOT_EXISTS} or {@link Version#NO_VERSION}) but the {@link TableKey} does not exist in the
- * {@link KeyValueTable}.
+ * {@link Version#NOT_EXISTS} or {@link Version#NO_VERSION}) but the Key does not exist in the {@link KeyValueTable}.
  * <li> {@link BadKeyVersionException}: the update or removal has been conditioned on a specific version (different from
- * {@link Version#NO_VERSION} but the {@link TableKey} exists in the {@link KeyValueTable} with a different version.
+ * {@link Version#NO_VERSION} but the Key exists in the {@link KeyValueTable} with a different version.
  * </ul>
  *
  * @param <KeyT>   Table Key Type.
