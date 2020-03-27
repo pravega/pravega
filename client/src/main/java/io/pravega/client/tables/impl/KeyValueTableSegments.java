@@ -9,7 +9,9 @@
  */
 package io.pravega.client.tables.impl;
 
+import io.netty.buffer.ByteBuf;
 import io.pravega.client.control.impl.SegmentCollection;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.common.hash.HashHelper;
 import java.util.NavigableMap;
@@ -31,6 +33,26 @@ public class KeyValueTableSegments extends SegmentCollection {
      */
     public KeyValueTableSegments(NavigableMap<Double, SegmentWithRange> segments, String delegationToken) {
         super(segments, delegationToken);
+    }
+
+    /**
+     * Gets the {@link Segment} that the given Key hashes to. This should be used for those keys that do not use Key
+     * Families for hashing.
+     *
+     * @param keySerialization A {@link ByteBuf} representing the serialization of the key.
+     * @return A {@link Segment}.
+     */
+    Segment getSegmentForKey(ByteBuf keySerialization) {
+        return getSegmentForKey(HASHER.hashToRange(keySerialization.nioBuffers()));
+    }
+
+    /**
+     * Gets the total number of Segments in this collection.
+     *
+     * @return The total number of Segments.
+     */
+    int getSegmentCount() {
+        return super.segments.size();
     }
 
     @Override
