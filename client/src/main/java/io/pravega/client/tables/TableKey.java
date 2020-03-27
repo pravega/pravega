@@ -13,7 +13,7 @@ import lombok.Data;
 import lombok.NonNull;
 
 /**
- * A {@link KeyValueTable} Key with a {@link KeyVersion}.
+ * A {@link KeyValueTable} Key with a {@link Version}.
  *
  * @param <KeyT> Type of the Key.
  */
@@ -29,5 +29,5 @@ public class TableKey<KeyT> {
      * The Version. If null, any updates for this Key will be unconditional. See {@link KeyValueTable} for details on
      * conditional updates.
      */
-    private final KeyVersion version;
+    private final Version version;
 }

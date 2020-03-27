@@ -18,22 +18,22 @@ import lombok.RequiredArgsConstructor;
  * Version of a Key in a Table.
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public class KeyVersion implements Serializable {
+public class Version implements Serializable {
     /**
-     * {@link KeyVersion} that indicates no specific version is desired. Using this will result in an unconditional
+     * {@link Version} that indicates no specific version is desired. Using this will result in an unconditional
      * update or removal being performed. See {@link KeyValueTable} for details on conditional/unconditional updates.
      */
-    public static final KeyVersion NO_VERSION = new KeyVersion(null, TableSegmentKeyVersion.NO_VERSION);
+    public static final Version NO_VERSION = new Version(null, TableSegmentKeyVersion.NO_VERSION);
     /**
-     * {@link KeyVersion} that indicates the {@link TableKey} must not exist. Using this will result in an conditional
+     * {@link Version} that indicates the {@link TableKey} must not exist. Using this will result in an conditional
      * update or removal being performed, conditioned on the {@link TableKey} not existing at the time of the operation.
      * See {@link KeyValueTable} for details on conditional/unconditional updates.
      */
-    public static final KeyVersion NOT_EXISTS = new KeyVersion(null, TableSegmentKeyVersion.NOT_EXISTS);
+    public static final Version NOT_EXISTS = new Version(null, TableSegmentKeyVersion.NOT_EXISTS);
 
     /**
      * The Segment where this Key resides. May be null if this is a {@link #NOT_EXISTS} or {@link #NO_VERSION}
-     * {@link KeyVersion}.
+     * {@link Version}.
      */
     private final String segmentName;
     /**
@@ -42,12 +42,12 @@ public class KeyVersion implements Serializable {
     private final TableSegmentKeyVersion segmentVersion;
 
     /**
-     * Creates a new instance of the {@link KeyVersion} class.
+     * Creates a new instance of the {@link Version} class.
      *
      * @param segmentName    The name of the Table Segment that contains the {@link TableKey}.
      * @param segmentVersion The version within the Table Segment for the {@link TableKey}.
      */
-    KeyVersion(String segmentName, long segmentVersion) {
+    Version(String segmentName, long segmentVersion) {
         this.segmentName = segmentName;
         this.segmentVersion = TableSegmentKeyVersion.from(segmentVersion);
     }

@@ -14,20 +14,20 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the {@link KeyVersion} class.
+ * Unit tests for the {@link Version} class.
  */
-public class KeyVersionTests {
+public class VersionTests {
     @Test
     public void testSpecialVersions() {
-        Assert.assertEquals(TableSegmentKeyVersion.NOT_EXISTS.getSegmentVersion(), KeyVersion.NOT_EXISTS.getSegmentVersion());
-        Assert.assertEquals(TableSegmentKeyVersion.NO_VERSION.getSegmentVersion(), KeyVersion.NO_VERSION.getSegmentVersion());
+        Assert.assertEquals(TableSegmentKeyVersion.NOT_EXISTS.getSegmentVersion(), Version.NOT_EXISTS.getSegmentVersion());
+        Assert.assertEquals(TableSegmentKeyVersion.NO_VERSION.getSegmentVersion(), Version.NO_VERSION.getSegmentVersion());
     }
 
     @Test
     public void testConstructor() {
         long version = 123L;
         String segmentName = "Segment";
-        KeyVersion v = new KeyVersion(segmentName, version);
+        Version v = new Version(segmentName, version);
         Assert.assertEquals(version, v.getSegmentVersion());
     }
 }

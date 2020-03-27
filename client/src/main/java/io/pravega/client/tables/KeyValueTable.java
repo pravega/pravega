@@ -55,12 +55,12 @@ import lombok.NonNull;
  * that Key previously existed or not, and regardless of what that Key's version is.
  * <li> Conditional Updates will only overwrite an existing value if the specified version matches that Key's version.
  * If the key does not exist, the {@link TableKey} or {@link TableEntry} must have been created with
- * {@link KeyVersion#NOT_EXISTS} in order for the update to succeed.
+ * {@link Version#NOT_EXISTS} in order for the update to succeed.
  * <li> Unconditional Removals will remove a Key regardless of what that Key's version is. The operation will also
  * succeed (albeit with no effect) if the Key does not exist.
  * <li> Conditional Removals will remove a Key only if the specified {@link TableKey#getVersion()} matches that Key's
  * version. It will also fail (with no effect) if the Key does not exist and Version is not set to
- * {@link KeyVersion#NOT_EXISTS}.
+ * {@link Version#NOT_EXISTS}.
  * </ul>
  * <p>
  * Conditional Update Responses:
@@ -69,10 +69,10 @@ import lombok.NonNull;
  * request have been accepted.
  * <li> Failure: the update or removal has been rejected due to version mismatch; no update or removal has been performed.
  * <li> {@link NoSuchKeyException}: the update or removal has been conditioned on a specific version (different from
- * {@link KeyVersion#NOT_EXISTS} or {@link KeyVersion#NO_VERSION}) but the {@link TableKey} does not exist in the
+ * {@link Version#NOT_EXISTS} or {@link Version#NO_VERSION}) but the {@link TableKey} does not exist in the
  * {@link KeyValueTable}.
  * <li> {@link BadKeyVersionException}: the update or removal has been conditioned on a specific version (different from
- * {@link KeyVersion#NO_VERSION} but the {@link TableKey} exists in the {@link KeyValueTable} with a different version.
+ * {@link Version#NO_VERSION} but the {@link TableKey} exists in the {@link KeyValueTable} with a different version.
  * </ul>
  *
  * @param <KeyT>   Table Key Type.
@@ -86,10 +86,10 @@ public interface KeyValueTable<KeyT, ValueT> {
      *                  Key Family.
      * @param key       The Key to insert or update.
      * @param value     The Value to be associated with the Key.
-     * @return A CompletableFuture that, when completed, will contain the {@link KeyVersion} associated with the newly
+     * @return A CompletableFuture that, when completed, will contain the {@link Version} associated with the newly
      * inserted or updated entry.
      */
-    CompletableFuture<KeyVersion> put(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value);
+    CompletableFuture<Version> put(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value);
 
     /**
      * Conditionally inserts a new Entry in the {@link KeyValueTable} if the given Key is not already present.
@@ -98,7 +98,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      *                  Key Family.
      * @param key       The Key to insert.
      * @param value     The Value to be associated with the Key.
-     * @return A CompletableFuture that, when completed, will contain the {@link KeyVersion} associated with the newly
+     * @return A CompletableFuture that, when completed, will contain the {@link Version} associated with the newly
      * inserted or updated entry. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If the Key is already present in the {@link KeyValueTable} for the
@@ -106,7 +106,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
-    CompletableFuture<KeyVersion> putIfAbsent(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value);
+    CompletableFuture<Version> putIfAbsent(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value);
 
     /**
      * Unconditionally inserts new or updates existing {@link TableEntry} instances that belong to the same Key Family
@@ -114,31 +114,31 @@ public interface KeyValueTable<KeyT, ValueT> {
      *
      * @param keyFamily The Key Family for the all provided {@link TableEntry} instances.
      * @param entries   An {@link Iterable} of {@link Map.Entry} instances to insert or update.
-     * @return A CompletableFuture that, when completed, will contain a List of {@link KeyVersion} instances which
+     * @return A CompletableFuture that, when completed, will contain a List of {@link Version} instances which
      * represent the versions for the inserted/updated keys. The size of this list will be the same as the number of
      * items in entries and the versions will be in the same order as the entries.
      */
-    CompletableFuture<List<KeyVersion>> putAll(@NonNull String keyFamily, @NonNull Iterable<Map.Entry<KeyT, ValueT>> entries);
+    CompletableFuture<List<Version>> putAll(@NonNull String keyFamily, @NonNull Iterable<Map.Entry<KeyT, ValueT>> entries);
 
     /**
      * Conditionally updates an existing Entry in the {@link KeyValueTable} if the given Key exists and its
-     * version matches the given {@link KeyVersion}.
+     * version matches the given {@link Version}.
      *
      * @param keyFamily (Optional) The Key Family for the Entry. If null, this Entry will not be associated with any
      *                  Key Family.
      * @param key       The Key to update.
      * @param value     The new Value to be associated with the Key.
-     * @param version   A {@link KeyVersion} representing the version that this Key must have in order to replace it.
-     * @return A CompletableFuture that, when completed, will contain the {@link KeyVersion} associated with the
+     * @param version   A {@link Version} representing the version that this Key must have in order to replace it.
+     * @return A CompletableFuture that, when completed, will contain the {@link Version} associated with the
      * updated entry. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If the Key is not present present in the {@link KeyValueTable} for the
-     * provided Key Family or it is and has a different {@link KeyVersion}.
+     * provided Key Family or it is and has a different {@link Version}.
      * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
-    CompletableFuture<KeyVersion> replace(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value,
-                                          @NonNull KeyVersion version);
+    CompletableFuture<Version> replace(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value,
+                                       @NonNull Version version);
 
     /**
      * Inserts new or updates existing {@link TableEntry} instances that belong to the same Key Family into this
@@ -151,7 +151,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      *                  matching the provided ones (for all {@link TableEntry} instances that have one); otherwise an
      *                  Unconditional Update will be performed.
      *                  See {@link KeyValueTable} doc for more details on Types of Updates.
-     * @return A CompletableFuture that, when completed, will contain a List of {@link KeyVersion} instances which
+     * @return A CompletableFuture that, when completed, will contain a List of {@link Version} instances which
      * represent the versions for the inserted/updated keys. The size of this list will be the same as entries.size()
      * and the versions will be in the same order as the entries. Notable exceptions:
      * <ul>
@@ -159,7 +159,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
-    CompletableFuture<List<KeyVersion>> replaceAll(@NonNull String keyFamily, @NonNull Iterable<TableEntry<KeyT, ValueT>> entries);
+    CompletableFuture<List<Version>> replaceAll(@NonNull String keyFamily, @NonNull Iterable<TableEntry<KeyT, ValueT>> entries);
 
     /**
      * Unconditionally removes a {@link TableKey} from this Table Segment. If the Key does not exist, no action will be
@@ -176,14 +176,14 @@ public interface KeyValueTable<KeyT, ValueT> {
      *
      * @param keyFamily (Optional) The Key Family for the {@link TableKey} to remove.
      * @param key       The Key to remove.
-     * @param version   A {@link KeyVersion} representing the version that this Key must have in order to remove it.
+     * @param version   A {@link Version} representing the version that this Key must have in order to remove it.
      * @return A CompletableFuture that, when completed, will indicate the Key has been removed. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
      * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
      * </ul>
      */
-    CompletableFuture<Void> remove(@Nullable String keyFamily, @NonNull KeyT key, @NonNull KeyVersion version);
+    CompletableFuture<Void> remove(@Nullable String keyFamily, @NonNull KeyT key, @NonNull Version version);
 
     /**
      * Removes one or more {@link TableKey} instances that belong to the same Key Family from this Table Segment.
