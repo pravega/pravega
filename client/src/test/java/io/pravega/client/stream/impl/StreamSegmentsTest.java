@@ -45,7 +45,7 @@ public class StreamSegmentsTest {
 
     @Test
     public void testInvalidInput() {
-        val s = new Segment("a", "b", 9l);
+        val s = new Segment("a", "b", 9L);
         val n1 = new TreeMap<Double, SegmentWithRange>();
         n1.put(0.0, new SegmentWithRange(s, 0.0, 0.1));
         AssertExtensions.assertThrows(
