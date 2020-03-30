@@ -59,6 +59,14 @@ public class KeyValueTableSegmentsTests {
         }
     }
 
+    @Test
+    public void testEquals() {
+        val s1 = new KeyValueTableSegments(createSegmentMap(), null);
+        val s2 = new KeyValueTableSegments(createSegmentMap(), null);
+        Assert.assertEquals(s1.hashCode(), s2.hashCode());
+        Assert.assertEquals(s1, s2);
+    }
+
     private TreeMap<Double, SegmentWithRange> createSegmentMap() {
         final int rangeIncrease = 10;
         int totalRangeLength = 0;
