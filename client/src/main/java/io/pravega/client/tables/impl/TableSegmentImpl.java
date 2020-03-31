@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables.impl;
 
+import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
@@ -16,10 +17,12 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
+import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.NoSuchKeyException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -32,7 +35,8 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.AbstractMap;
-import java.util.Collection;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -44,7 +48,6 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.slf4j.LoggerFactory;
@@ -52,34 +55,51 @@ import org.slf4j.LoggerFactory;
 /**
  * Implementation for {@link TableSegment}.
  */
-@RequiredArgsConstructor
-public class TableSegmentImpl implements TableSegment {
+class TableSegmentImpl implements TableSegment {
     // region Members
+
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TableSegmentImpl.class));
+    private final String segmentName;
+    @Getter
+    private final long segmentId;
+    private final Controller controller;
+    private final ConnectionFactory connectionFactory;
+    private final DelegationTokenProvider tokenProvider;
     /**
      * We only retry {@link AuthenticationException} and {@link ConnectionFailedException}. Any other exceptions are not
      * retryable and should be bubbled up to the caller.
-     *
+     * <p>
      * These exceptions are thrown by {@link RawClient} and therefore we do not need to handle the underlying
      * {@link WireCommand}s that generate them.
      */
-    private static final Retry.RetryAndThrowConditionally RETRY = Retry
-            .withExpBackoff(50, 2, 5, 30000)
-            .retryWhen(TableSegmentImpl::isRetryableException);
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TableSegmentImpl.class));
-    @Getter
-    @NonNull
-    private final String segmentName;
-    @NonNull
-    private final Controller controller;
-    @NonNull
-    private final ConnectionFactory connectionFactory;
-    private final DelegationTokenProvider tokenProvider;
+    private final Retry.RetryAndThrowConditionally retry;
     private final AtomicBoolean closed = new AtomicBoolean();
     @GuardedBy("stateLock")
     private CompletableFuture<ConnectionState> state;
     private final Object stateLock = new Object();
 
     //endregion
+
+    /**
+     * Creates a new instance of the {@link TableSegmentImpl} class.
+     *
+     * @param segment           A {@link Segment} representing the Pravega Table Segment this instance will interact with.
+     * @param controller        The {@link Controller} to use.
+     * @param connectionFactory The {@link ConnectionFactory} to use.
+     * @param clientConfig      The {@link KeyValueTableClientConfiguration} to use to configure this client.
+     * @param tokenProvider     A Token provider.
+     */
+    TableSegmentImpl(@NonNull Segment segment, @NonNull Controller controller, @NonNull ConnectionFactory connectionFactory,
+                     @NonNull KeyValueTableClientConfiguration clientConfig, DelegationTokenProvider tokenProvider) {
+        this.segmentName = segment.getScopedName();
+        this.segmentId = segment.getSegmentId();
+        this.controller = controller;
+        this.connectionFactory = connectionFactory;
+        this.tokenProvider = tokenProvider;
+        this.retry = Retry
+                .withExpBackoff(clientConfig.getInitialBackoffMillis(), clientConfig.getBackoffMultiple(), clientConfig.getRetryAttempts(), clientConfig.getMaxBackoffMillis())
+                .retryWhen(TableSegmentImpl::isRetryableException);
+    }
 
     //region AutoCloseable Implementation
 
@@ -96,9 +116,9 @@ public class TableSegmentImpl implements TableSegment {
     //region TableSegment Implementation
 
     @Override
-    public CompletableFuture<List<TableSegmentKeyVersion>> put(@NonNull List<TableSegmentEntry> tableEntries) {
+    public CompletableFuture<List<TableSegmentKeyVersion>> put(@NonNull Iterator<TableSegmentEntry> tableEntries) {
+        val wireEntries = entriesToWireCommand(tableEntries);
         return execute((state, requestId) -> {
-            val wireEntries = toWireCommand(tableEntries);
             val request = new WireCommands.UpdateTableEntries(requestId, this.segmentName, state.getToken(), wireEntries);
 
             return sendRequest(request, state, WireCommands.TableEntriesUpdated.class)
@@ -107,18 +127,18 @@ public class TableSegmentImpl implements TableSegment {
     }
 
     @Override
-    public CompletableFuture<Void> remove(@NonNull Collection<TableSegmentKey> tableKeys) {
+    public CompletableFuture<Void> remove(@NonNull Iterator<TableSegmentKey> tableKeys) {
+        val wireKeys = keysToWireCommand(tableKeys);
         return execute((state, requestId) -> {
-            val wireKeys = toWireCommand(tableKeys);
             val request = new WireCommands.RemoveTableKeys(requestId, this.segmentName, state.getToken(), wireKeys);
             return Futures.toVoid(sendRequest(request, state, WireCommands.TableKeysRemoved.class));
         });
     }
 
     @Override
-    public CompletableFuture<List<TableSegmentEntry>> get(@NonNull List<ByteBuf> keys) {
+    public CompletableFuture<List<TableSegmentEntry>> get(@NonNull Iterator<ByteBuf> keys) {
+        val wireKeys = rawKeysToWireCommand(keys);
         return execute((state, requestId) -> {
-            val wireKeys = rawKeysToWireCommand(keys);
             val request = new WireCommands.ReadTable(requestId, this.segmentName, state.getToken(), wireKeys);
 
             return sendRequest(request, state, WireCommands.TableRead.class)
@@ -255,20 +275,35 @@ public class TableSegmentImpl implements TableSegment {
      * @param keys The keys.
      * @return The result.
      */
-    private List<WireCommands.TableKey> rawKeysToWireCommand(Collection<ByteBuf> keys) {
-        return keys.stream()
-                .map(key -> toWireCommand(TableSegmentKey.unversioned(key)))
-                .collect(Collectors.toList());
+    private List<WireCommands.TableKey> rawKeysToWireCommand(Iterator<ByteBuf> keys) {
+        ArrayList<WireCommands.TableKey> result = new ArrayList<>();
+        keys.forEachRemaining(key -> result.add(toWireCommand(TableSegmentKey.unversioned(key))));
+        return result;
     }
 
     /**
-     * Converts a Collection of {@link TableSegmentKey}s to a List of {@link WireCommands.TableKey}.
+     * Converts an Iterator of {@link TableSegmentKey}s to a List of {@link WireCommands.TableKey}.
      *
      * @param keys The {@link TableSegmentKey}s.
      * @return The result.
      */
-    private List<WireCommands.TableKey> toWireCommand(Collection<TableSegmentKey> keys) {
-        return keys.stream().map(this::toWireCommand).collect(Collectors.toList());
+    private List<WireCommands.TableKey> keysToWireCommand(Iterator<TableSegmentKey> keys) {
+        ArrayList<WireCommands.TableKey> result = new ArrayList<>();
+        keys.forEachRemaining(k -> result.add(toWireCommand(k)));
+        return result;
+    }
+
+    /**
+     * Converts an Iterator of {@link TableSegmentEntry} instances to a {@link WireCommands.TableEntries} instance.
+     *
+     * @param tableEntries The {@link TableSegmentEntry} instances.
+     * @return The {@link WireCommands.TableEntries} instance.
+     */
+    private WireCommands.TableEntries entriesToWireCommand(Iterator<TableSegmentEntry> tableEntries) {
+        ArrayList<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> result = new ArrayList<>();
+        tableEntries.forEachRemaining(entry -> result.add(new AbstractMap.SimpleImmutableEntry<>(
+                toWireCommand(entry.getKey()), toWireCommand(entry.getValue()))));
+        return new WireCommands.TableEntries(result);
     }
 
     /**
@@ -278,6 +313,8 @@ public class TableSegmentImpl implements TableSegment {
      * @return The {@link WireCommands.TableKey}.
      */
     private WireCommands.TableKey toWireCommand(final TableSegmentKey k) {
+        Preconditions.checkArgument(k.getKey().readableBytes() <= TableSegment.MAXIMUM_KEY_LENGTH,
+                "Key Length too long. Must be less than %s; given %s.", TableSegment.MAXIMUM_KEY_LENGTH, k.getKey().readableBytes());
         if (k.getVersion() == null || k.getVersion().equals(TableSegmentKeyVersion.NO_VERSION)) {
             // Unconditional update.
             return new WireCommands.TableKey(k.getKey(), WireCommands.TableKey.NO_VERSION);
@@ -288,26 +325,14 @@ public class TableSegmentImpl implements TableSegment {
     }
 
     /**
-     * Converts a List of {@link TableSegmentEntry} instances to a {@link WireCommands.TableEntries} instance.
-     *
-     * @param tableEntries The {@link TableSegmentEntry} instances.
-     * @return The {@link WireCommands.TableEntries} instance.
-     */
-    private WireCommands.TableEntries toWireCommand(List<TableSegmentEntry> tableEntries) {
-        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> e = tableEntries
-                .stream()
-                .map(entry -> new AbstractMap.SimpleImmutableEntry<>(toWireCommand(entry.getKey()), toWireCommand(entry.getValue())))
-                .collect(Collectors.toList());
-        return new WireCommands.TableEntries(e);
-    }
-
-    /**
      * Converts the given value to a {@link WireCommands.TableValue}.
      *
      * @param value The value.
      * @return The {@link WireCommands.TableValue}.
      */
     private WireCommands.TableValue toWireCommand(ByteBuf value) {
+        Preconditions.checkArgument(value.readableBytes() <= TableSegment.MAXIMUM_VALUE_LENGTH,
+                "Value Length too long. Must be less than %s; given %s.", TableSegment.MAXIMUM_VALUE_LENGTH, value.readableBytes());
         return new WireCommands.TableValue(value);
     }
 
@@ -381,7 +406,7 @@ public class TableSegmentImpl implements TableSegment {
     }
 
     /**
-     * Executes an action with retries (see {@link #RETRY} for retry details).
+     * Executes an action with retries (see {@link #retry} for retry details).
      *
      * @param action A {@link BiFunction} representing the action to execute. The first argument is the {@link ConnectionState}
      *               that should be used, and the second is the request id for this action.
@@ -390,7 +415,7 @@ public class TableSegmentImpl implements TableSegment {
      * the Future will be failed with the appropriate exception.
      */
     private <T> CompletableFuture<T> execute(BiFunction<ConnectionState, Long, CompletableFuture<T>> action) {
-        return RETRY.runAsync(
+        return retry.runAsync(
                 () -> getOrCreateState()
                         .thenCompose(state -> action.apply(state, state.nextRequestId())),
                 this.connectionFactory.getInternalExecutor());
@@ -447,8 +472,7 @@ public class TableSegmentImpl implements TableSegment {
 
     private static boolean isRetryableException(Throwable ex) {
         ex = Exceptions.unwrap(ex);
-        boolean retry = ex instanceof AuthenticationException || ex instanceof ConnectionFailedException;
-        return retry;
+        return ex instanceof AuthenticationException || ex instanceof ConnectionFailedException;
     }
 
     //endregion
