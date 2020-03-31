@@ -9,14 +9,15 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.control.impl.ControllerFailureException;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -321,5 +322,29 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 CompletableFuture.completedFuture(list));
         Assert.assertTrue(Futures.await(this.testController.getSegments(new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()),
                 new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()))));
+    }
+
+    @Test
+    public void testKeyValueTables() {
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.testController.createKeyValueTable("", "", null),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.testController.deleteKeyValueTable("", ""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.testController.getCurrentSegmentsForKeyValueTable("", ""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.testController.listKeyValueTables(""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.testController.updateKeyValueTable("", "", null),
+                ex -> ex instanceof UnsupportedOperationException);
     }
 }
