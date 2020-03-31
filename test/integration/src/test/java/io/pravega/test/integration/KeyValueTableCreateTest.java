@@ -22,7 +22,6 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
-import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.curator.test.TestingServer;
@@ -42,7 +41,6 @@ public class KeyValueTableCreateTest extends ThreadPooledTestSuite {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
-    private ScheduledExecutorService executor;
 
     @Override
     protected int getThreadPoolSize() {
@@ -101,7 +99,6 @@ public class KeyValueTableCreateTest extends ThreadPooledTestSuite {
                 "",
                 () -> manager.deleteKeyValueTable(scope, kvtName),
                 ex -> ex instanceof UnsupportedOperationException);
-
 
         // Explicitly close to verify idempotence.
         manager.close();
