@@ -1204,6 +1204,7 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+<<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/ControllerImpl.java
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(kvtConfig, "KeyValueTableConfig");
@@ -1283,10 +1284,24 @@ public class ControllerImpl implements Controller {
         } finally {
             LoggerHelpers.traceLeave(log, "listKeyValueTables", traceId);
         }
+=======
+        throw new UnsupportedOperationException("createKeyValueTable not implemented.");
+    }
+
+    @Override
+    public AsyncIterator<Stream> listKeyValueTables(String scopeName) {
+        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/main/java/io/pravega/client/stream/impl/ControllerImpl.java
     }
 
     @Override
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
+<<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/ControllerImpl.java
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTableName");
@@ -1320,10 +1335,14 @@ public class ControllerImpl implements Controller {
             }
             LoggerHelpers.traceLeave(log, "deleteKeyValueTable", traceId, scope, kvtName, requestId);
         });
+=======
+        throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/main/java/io/pravega/client/stream/impl/ControllerImpl.java
     }
 
     @Override
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
+<<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/ControllerImpl.java
             Exceptions.checkNotClosed(closed.get(), this);
             Exceptions.checkNotNullOrEmpty(scope, "scope");
             Exceptions.checkNotNullOrEmpty(kvtName, "stream");
@@ -1352,6 +1371,10 @@ public class ControllerImpl implements Controller {
                 LoggerHelpers.traceLeave(log, "getCurrentSegmentsForKeyValueTable", traceId);
             });
         }
+=======
+        throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");
+    }
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/main/java/io/pravega/client/stream/impl/ControllerImpl.java
 
     //endregion
 

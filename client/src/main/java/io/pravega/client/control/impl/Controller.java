@@ -375,7 +375,22 @@ public interface Controller extends AutoCloseable {
      * @param scopeName The name of the scope for which to list KeyValueTables in.
      * @return An {@link AsyncIterator} which can be used to iterate over all KeyValueTables in the scope.
      */
+<<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/Controller.java
     AsyncIterator<KeyValueTableInfo> listKeyValueTables(final String scopeName);
+=======
+    AsyncIterator<Stream> listKeyValueTables(final String scopeName);
+
+    /**
+     * API to update the configuration of a KeyValueTable.
+     *
+     * @param scope     Scope
+     * @param kvtName   KeyValueTable name
+     * @param kvtConfig The {@link KeyValueTableConfiguration} to update.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     * indicate that the KeyValueTable was updated because the config is now different from before.
+     */
+    CompletableFuture<Boolean> updateKeyValueTable(final String scope, final String kvtName, final KeyValueTableConfiguration kvtConfig);
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/main/java/io/pravega/client/stream/impl/Controller.java
 
     /**
      * API to delete a KeyValueTable. Only a sealed KeyValueTable can be deleted.

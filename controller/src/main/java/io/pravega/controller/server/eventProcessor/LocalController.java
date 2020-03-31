@@ -448,6 +448,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+<<<<<<< HEAD
         return this.controller.createKeyValueTable(scope, kvtName, kvtConfig, System.currentTimeMillis()).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
@@ -479,10 +480,24 @@ public class LocalController implements Controller {
                         });
 
         return new ContinuationTokenAsyncIterator<>(function, "");
+=======
+        throw new UnsupportedOperationException("createKeyValueTable not implemented.");
+    }
+
+    @Override
+    public AsyncIterator<Stream> listKeyValueTables(String scopeName) {
+        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
     }
 
     @Override
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
+<<<<<<< HEAD
         return this.controller.deleteKeyValueTable(scope, kvtName).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
@@ -496,10 +511,14 @@ public class LocalController implements Controller {
                             + x.getStatus());
             }
         });
+=======
+        throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
     }
 
     @Override
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
+<<<<<<< HEAD
         return controller.getCurrentSegmentsKeyValueTable(scope, kvtName)
                 .thenApply(this::getKeyValueTableSegments);
     }
@@ -515,5 +534,10 @@ public class LocalController implements Controller {
         }
         return rangeMap;
     }
+=======
+        throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");
+    }
+
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
     //endregion
 }

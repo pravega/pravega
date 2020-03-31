@@ -38,8 +38,11 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
+<<<<<<< HEAD:client/src/test/java/io/pravega/client/control/impl/ControllerImplTest.java
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
+=======
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/test/java/io/pravega/client/stream/impl/ControllerImplTest.java
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
@@ -1802,6 +1805,7 @@ public class ControllerImplTest {
     }
 
     @Test
+<<<<<<< HEAD:client/src/test/java/io/pravega/client/control/impl/ControllerImplTest.java
     public void testCreateKeyValueTable() throws Exception {
         CompletableFuture<Boolean> createKVTableStatus;
         createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable1",
@@ -1875,4 +1879,28 @@ public class ControllerImplTest {
     }
 
 
+=======
+    public void testKeyValueTables() {
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.createKeyValueTable("", "", null),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.deleteKeyValueTable("", ""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.getCurrentSegmentsForKeyValueTable("", ""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.listKeyValueTables(""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.updateKeyValueTable("", "", null),
+                ex -> ex instanceof UnsupportedOperationException);
+    }
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/test/java/io/pravega/client/stream/impl/ControllerImplTest.java
 }

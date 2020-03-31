@@ -42,7 +42,11 @@ public class KeyValueTableSegmentsTests {
         val rnd = new Random(0);
 
         for (int i = 0; i < testCount; i++) {
+<<<<<<< HEAD
             byte[] a1 = new byte[KeyFamilySerializer.PREFIX_LENGTH];
+=======
+            byte[] a1 = new byte[2];
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
             byte[] a2 = new byte[128];
             rnd.nextBytes(a1);
             rnd.nextBytes(a2);

@@ -9,7 +9,10 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+<<<<<<< HEAD
 import io.pravega.client.admin.KeyValueTableInfo;
+=======
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.StreamCutImpl;
@@ -20,6 +23,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -329,6 +333,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     }
 
     @Test
+<<<<<<< HEAD
     public void testCreateKeyValueTable() {
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
@@ -435,4 +440,28 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
+=======
+    public void testKeyValueTables() {
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.testController.createKeyValueTable("", "", null),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.testController.deleteKeyValueTable("", ""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.testController.getCurrentSegmentsForKeyValueTable("", ""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.testController.listKeyValueTables(""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.testController.updateKeyValueTable("", "", null),
+                ex -> ex instanceof UnsupportedOperationException);
+    }
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
 }

@@ -15,7 +15,11 @@ import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
+=======
+import io.pravega.common.util.ArrayView;
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;

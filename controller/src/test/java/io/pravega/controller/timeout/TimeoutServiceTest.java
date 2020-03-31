@@ -11,6 +11,10 @@ package io.pravega.controller.timeout;
 
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+<<<<<<< HEAD
+=======
+import io.pravega.client.control.impl.ModelHelper;
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;

@@ -15,7 +15,10 @@ import io.grpc.stub.StreamObserver;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.control.impl.ModelHelper;
+<<<<<<< HEAD
 import io.pravega.client.tables.KeyValueTableConfiguration;
+=======
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;

@@ -14,7 +14,10 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.SegmentWithRange;
+<<<<<<< HEAD:client/src/test/java/io/pravega/client/control/impl/ModelHelperTest.java
 import io.pravega.client.tables.KeyValueTableConfiguration;
+=======
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/test/java/io/pravega/client/stream/impl/ModelHelperTest.java
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;

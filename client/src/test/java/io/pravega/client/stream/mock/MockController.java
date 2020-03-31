@@ -25,7 +25,13 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
+<<<<<<< HEAD
 import io.pravega.client.stream.impl.ConnectionClosedException;
+=======
+import io.pravega.client.control.impl.CancellableRequest;
+import io.pravega.client.stream.impl.ConnectionClosedException;
+import io.pravega.client.control.impl.Controller;
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
@@ -624,6 +630,7 @@ public class MockController implements Controller {
     //region KeyValueTables
 
     @Override
+<<<<<<< HEAD
     @Synchronized
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
         return createInScope(scope, new KeyValueTableInfo(scope, kvtName), kvtConfig, s -> s.keyValueTables,
@@ -717,6 +724,30 @@ public class MockController implements Controller {
                 return CompletableFuture.completedFuture(next);
             }
         };
+=======
+    public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        throw new UnsupportedOperationException("createKeyValueTable not implemented.");
+    }
+
+    @Override
+    public AsyncIterator<Stream> listKeyValueTables(String scopeName) {
+        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
+        throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
+        throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
     }
 
     //endregion

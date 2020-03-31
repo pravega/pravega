@@ -40,6 +40,7 @@ public class StreamSegments extends SegmentCollection {
      */
     public StreamSegments(NavigableMap<Double, SegmentWithRange> segments, String delegationToken) {
         super(segments, delegationToken);
+<<<<<<< HEAD
     }
 
     @Override
@@ -49,6 +50,13 @@ public class StreamSegments extends SegmentCollection {
 
     public int getNumberOfSegments() {
         return segments.size();
+=======
+    }
+
+    @Override
+    protected double hashToRange(String key) {
+        return HASHER.hashToRange(key);
+>>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
     }
 
     public StreamSegments withReplacementRange(Segment segment, StreamSegmentsWithPredecessors replacementRanges) {
