@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.impl;
+package io.pravega.client.control.impl;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
@@ -45,7 +45,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @ThreadSafe
 @RequiredArgsConstructor
-public class ControllerResolverFactory extends NameResolver.Factory {
+class ControllerResolverFactory extends NameResolver.Factory {
 
     // Use this scheme when client want to connect to a static set of controller servers.
     // Eg: tcp://ip1:port1,ip2:port2

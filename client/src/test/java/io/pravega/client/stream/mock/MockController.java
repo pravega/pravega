@@ -22,9 +22,9 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
-import io.pravega.client.stream.impl.CancellableRequest;
+import io.pravega.client.control.impl.CancellableRequest;
 import io.pravega.client.stream.impl.ConnectionClosedException;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
@@ -32,6 +32,8 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
@@ -578,5 +580,34 @@ public class MockController implements Controller {
     public CompletableFuture<Void> removeWriter(String writerId, Stream stream) {
         return CompletableFuture.completedFuture(null);
     }
+
+    //region KeyValueTables
+
+    @Override
+    public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        throw new UnsupportedOperationException("createKeyValueTable not implemented.");
+    }
+
+    @Override
+    public AsyncIterator<Stream> listKeyValueTables(String scopeName) {
+        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
+        throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
+        throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");
+    }
+
+    //endregion
 }
 

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.impl;
+package io.pravega.client.control.impl;
 
 public class ControllerFailureException extends RuntimeException {
 

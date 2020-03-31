@@ -7,12 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.impl;
+package io.pravega.client.control.impl;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
@@ -70,7 +71,7 @@ public class ModelHelperTest {
         assertEquals("scope", segment.getScope());
         assertEquals(2L, segment.getSegmentId());
     }
-    
+
     @Test
     public void encodeSegmentWithRange() {
         SegmentWithRange segment = ModelHelper.encode(createSegmentRange(.25, .75));
@@ -166,9 +167,9 @@ public class ModelHelperTest {
     @Test
     public void encodeStreamConfig() {
         StreamConfiguration config = ModelHelper.encode(ModelHelper.decode("scope", "test", StreamConfiguration.builder()
-          .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
-          .retentionPolicy(RetentionPolicy.bySizeBytes(1000L))
-          .build()));
+                .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
+                .retentionPolicy(RetentionPolicy.bySizeBytes(1000L))
+                .build()));
         ScalingPolicy policy = config.getScalingPolicy();
         assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
         assertEquals(100L, policy.getTargetRate());
