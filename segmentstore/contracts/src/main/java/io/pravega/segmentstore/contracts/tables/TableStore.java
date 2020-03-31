@@ -28,8 +28,7 @@ import java.util.concurrent.CompletableFuture;
  * Conditional vs Unconditional Updates
  * * The {@link #put(String, List, Duration)} and {@link #remove(String, Collection, Duration)} methods support conditional
  * updates.
- *
- * * If at least one of the {@link TableEntry} instances in the put() call has {@link TableEntry#key}.{@link TableKey#version hasVerion()} true,
+ * * If at least one of the {@link TableEntry} instances in the {@link #put} call has {@link TableEntry#key}.{@link TableKey#hasVersion} true,
  * or if at least one of the {@link TableKey} instances in the remove() call has {@link TableKey#hasVersion()} true, then
  * the operation will perform a Conditional Update. If the "hasVersion()" method returns false for ALL the items in the
  * respective collections, then the operation will perform an Unconditional Update.
@@ -41,6 +40,14 @@ import java.util.concurrent.CompletableFuture;
  * will be atomically checked-and-applied.
  * * Unconditional Updates (insert, update, remove) will take effect regardless of what the current Key version exists in
  * the Table Segment.
+ *
+ * Sorted vs Non-Sorted Table Segments:
+ * * All Table Segments are a Hash-Table-like data structure, where Keys are mapped to Values.
+ * * Non-Sorted Table Segments provide no ordering guarantees for {@link #keyIterator} or {@link #entryIterator}.
+ * * Sorted Table Segments store additional information about the Keys and will return results for {@link #keyIterator}
+ * or {@link #entryIterator} in lexicographic bitwise order. All other contracts are identical to the Non-Sorted variant.
+ * * Sorted Table Segments will require additional storage space to store the ordered Keys and may require additional
+ * processing time to maintain the said data structure.
  */
 @Beta
 public interface TableStore {
@@ -63,7 +70,8 @@ public interface TableStore {
     }
 
     /**
-     * Creates a new Segment and marks it as a Table Segment.
+     * Creates a new Segment and marks it as a Table Segment. This will be a non-sorted Table Segment.
+     * See {@link #createSegment(String, boolean, Duration)} (invoked with sorted:=false).
      * This segment may not be used for Streaming purposes (i.e., it cannot be used with {@link StreamSegmentStore}).
      *
      * @param segmentName The name of the Table Segment to create.
@@ -74,7 +82,25 @@ public interface TableStore {
      * <li>{@link StreamSegmentExistsException} If the Segment does exist (whether as a Table Segment or Stream Segment).
      * </ul>
      */
-    CompletableFuture<Void> createSegment(String segmentName, Duration timeout);
+    default CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
+        return createSegment(segmentName, false, timeout);
+    }
+
+    /**
+     * Creates a new Segment and marks it as a Table Segment.
+     * This segment may not be used for Streaming purposes (i.e., it cannot be used with {@link StreamSegmentStore}).
+     *
+     * @param segmentName The name of the Table Segment to create.
+     * @param sorted      If true, the created Table Segment will be a Sorted Table Segment, otherwise it will be a
+     *                    plain Hash Table. See {@link TableStore} Javadoc for difference between the two.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
+     * failed, the future will be failed with the causing exception. Notable Exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentExistsException} If the Segment does exist (whether as a Table Segment or Stream Segment).
+     * </ul>
+     */
+    CompletableFuture<Void> createSegment(String segmentName, boolean sorted, Duration timeout);
 
     /**
      * Deletes an existing Table Segment.
@@ -125,7 +151,7 @@ public interface TableStore {
      * Inserts new or updates existing Table Entries into the given Table Segment.
      *
      * @param segmentName The name of the Table Segment to insert/update the Table Entries.
-     * @param entries     A List of {@link TableEntry} instances to insert or update. If {@link TableEntry#key} {@link TableKey#version hasVersion}
+     * @param entries     A List of {@link TableEntry} instances to insert or update. If {@link TableEntry#key} {@link TableKey#hasVersion}
      *                    returns true for at least one of the items in the list, then this will perform an atomic Conditional
      *                    Update. If {@link TableEntry#key} {@link TableKey#version} hasVersion} returns false for ALL items in the list, then this
      *                    will perform an Unconditional update.

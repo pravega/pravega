@@ -295,9 +295,12 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                                 .thenComposeAsync(v -> {
                                     val bucketUpdates = builders.stream().map(BucketUpdate.Builder::build).collect(Collectors.toList());
                                     logBucketUpdates(bucketUpdates);
-                                    return this.indexWriter.updateBuckets(segment, bucketUpdates,
-                                            this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
-                                            keyUpdates.getTotalUpdateCount(), timer.getRemaining());
+                                    return this.connector.getSortedKeyIndex().persistUpdate(bucketUpdates, timer.getRemaining())
+                                            .thenComposeAsync(v2 ->
+                                                    this.indexWriter.updateBuckets(segment, bucketUpdates,
+                                                            this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
+                                                            keyUpdates.getTotalUpdateCount(), timer.getRemaining()),
+                                                    this.executor);
                                 }, this.executor),
                         this.executor)
                 .thenApply(ignored -> new TableWriterFlushResult(keyUpdates.getLastIndexedOffset(), keyUpdates.getHighestCopiedOffset()));

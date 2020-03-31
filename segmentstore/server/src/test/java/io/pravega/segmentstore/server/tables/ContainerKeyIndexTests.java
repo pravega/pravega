@@ -23,6 +23,7 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.TableStoreMock;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.test.common.AssertExtensions;
@@ -804,6 +805,8 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         final CacheStorage cacheStorage;
         final CacheManager cacheManager;
         final SegmentMock segment;
+        final TableStoreMock sortedKeyStorage;
+        final ContainerSortedKeyIndex sortedKeyIndex;
         final ContainerKeyIndex index;
         final TimeoutTimer timer;
         final Random random;
@@ -818,7 +821,10 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
             this.segment = new SegmentMock(executorService());
-            this.index = new TestContainerKeyIndex(CONTAINER_ID, this.cacheManager, KeyHashers.DEFAULT_HASHER, executorService());
+            this.sortedKeyStorage = new TableStoreMock(executorService());
+            this.sortedKeyStorage.createSegment(this.segment.getInfo().getName(), TIMEOUT).join();
+            this.sortedKeyIndex = new ContainerSortedKeyIndex(this.sortedKeyStorage::put, this.sortedKeyStorage::remove, this.sortedKeyStorage::get);
+            this.index = new TestContainerKeyIndex(CONTAINER_ID, this.cacheManager, this.sortedKeyIndex, KeyHashers.DEFAULT_HASHER, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);
             this.random = new Random(0);
         }
@@ -831,8 +837,9 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         }
 
         private class TestContainerKeyIndex extends ContainerKeyIndex {
-            TestContainerKeyIndex(int containerId, @NonNull CacheManager cacheManager, @NonNull KeyHasher keyHasher, @NonNull ScheduledExecutorService executor) {
-                super(containerId, cacheManager, keyHasher, executor);
+            TestContainerKeyIndex(int containerId, @NonNull CacheManager cacheManager, @NonNull ContainerSortedKeyIndex sortedKeyIndex,
+                                  @NonNull KeyHasher keyHasher, @NonNull ScheduledExecutorService executor) {
+                super(containerId, cacheManager, sortedKeyIndex, keyHasher, executor);
             }
 
             @Override

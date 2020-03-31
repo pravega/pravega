@@ -540,6 +540,11 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             }
 
             @Override
+            public SegmentSortedKeyIndex getSortedKeyIndex() {
+                return SegmentSortedKeyIndex.noop(); //TODO
+            }
+
+            @Override
             public CompletableFuture<DirectSegmentAccess> getSegment(Duration timeout) {
                 return CompletableFuture.supplyAsync(() -> segmentMock, executorService());
             }

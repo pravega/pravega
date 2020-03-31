@@ -21,6 +21,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -38,6 +39,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -70,6 +72,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     private final SegmentContainer segmentContainer;
     private final ScheduledExecutorService executor;
     private final KeyHasher hasher;
+    private final ContainerSortedKeyIndex sortedKeyIndex;
     private final ContainerKeyIndex keyIndex;
     private final EntrySerializer serializer;
     private final AtomicBoolean closed;
@@ -104,7 +107,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         this.segmentContainer = segmentContainer;
         this.executor = executor;
         this.hasher = hasher;
-        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheManager, this.hasher, this.executor);
+        this.sortedKeyIndex = new ContainerSortedKeyIndex(this::put, this::remove, this::get);
+        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheManager, this.sortedKeyIndex, this.hasher, this.executor);
         this.serializer = new EntrySerializer();
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("TableExtension[%d]", this.segmentContainer.getId());
@@ -142,14 +146,19 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region TableStore Implementation
 
     @Override
-    public CompletableFuture<Void> createSegment(@NonNull String segmentName, Duration timeout) {
+    public CompletableFuture<Void> createSegment(@NonNull String segmentName, boolean sorted, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        val attributes = TableAttributes.DEFAULT_VALUES
+        val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
+        if (sorted) {
+            attributes.put(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE);
+        }
+
+        val attributeUpdates = attributes
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
         logRequest("createSegment", segmentName);
-        return this.segmentContainer.createStreamSegment(segmentName, attributes, timeout);
+        return this.segmentContainer.createStreamSegment(segmentName, attributeUpdates, timeout);
     }
 
     @Override
@@ -318,6 +327,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, @NonNull IteratorArgs args,
                                                                               @NonNull GetBucketReader<T> createBucketReader) {
+        //TODO: wire up SortedKeyIndex here. this.keyIndex.getSortedKeyIndex()
         Preconditions.checkArgument(args.getPrefixFilter() == null, "Prefix Iterator not supported.");
         UUID fromHash;
         try {
@@ -386,6 +396,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         }
 
         @Override
+        public SegmentSortedKeyIndex getSortedKeyIndex() {
+            return ContainerTableExtensionImpl.this.sortedKeyIndex.getSortedKeyIndex(this.metadata.getId(), this.metadata);
+        }
+
+        @Override
         public CompletableFuture<DirectSegmentAccess> getSegment(Duration timeout) {
             return ContainerTableExtensionImpl.this.segmentContainer.forSegment(this.metadata.getName(), timeout);
         }
@@ -451,7 +466,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region IteratorItemImpl
 
     @RequiredArgsConstructor
-    private class IteratorItemImpl<T> implements IteratorItem<T> {
+    private static class IteratorItemImpl<T> implements IteratorItem<T> {
         private final IteratorState state;
         @Getter
         private final Collection<T> entries;
