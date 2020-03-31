@@ -12,7 +12,7 @@ package io.pravega.client.segment.impl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import org.junit.Before;

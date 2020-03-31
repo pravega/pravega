@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 
+import io.pravega.client.control.impl.Controller;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;

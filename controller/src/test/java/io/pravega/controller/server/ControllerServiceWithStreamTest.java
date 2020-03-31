@@ -13,7 +13,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.impl;
+package io.pravega.client.control.impl;
 
 import com.google.common.base.Strings;
 import io.grpc.ManagedChannel;
@@ -29,6 +29,15 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
+import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
+import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
@@ -1628,5 +1637,29 @@ public class ControllerImplTest {
         // verify that a stub level deadline is not set and that the stub can still make successful calls for which we 
         // have mocked successful responses.
         controller.createScope("scope1").join();
+    }
+
+    @Test
+    public void testKeyValueTables() {
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.createKeyValueTable("", "", null),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.deleteKeyValueTable("", ""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.getCurrentSegmentsForKeyValueTable("", ""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.listKeyValueTables(""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.updateKeyValueTable("", "", null),
+                ex -> ex instanceof UnsupportedOperationException);
     }
 }

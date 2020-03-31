@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;

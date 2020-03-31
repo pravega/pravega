@@ -30,7 +30,7 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 
 import java.util.Optional;
 import java.util.UUID;
