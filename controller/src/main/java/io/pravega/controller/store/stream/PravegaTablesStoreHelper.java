@@ -11,13 +11,12 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
-import io.pravega.client.tables.impl.IteratorState;
-import io.pravega.client.tables.impl.KeyVersion;
-import io.pravega.client.tables.impl.KeyVersionImpl;
-import io.pravega.client.tables.impl.TableEntry;
-import io.pravega.client.tables.impl.TableEntryImpl;
-import io.pravega.client.tables.impl.TableKey;
-import io.pravega.client.tables.impl.TableKeyImpl;
+import io.netty.buffer.Unpooled;
+import io.netty.util.ReferenceCountUtil;
+import io.pravega.client.tables.impl.IteratorStateImpl;
+import io.pravega.client.tables.impl.TableSegmentEntry;
+import io.pravega.client.tables.impl.TableSegmentKey;
+import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
@@ -29,11 +28,6 @@ import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostStoreException;
 import io.pravega.controller.util.RetryHelper;
-import lombok.EqualsAndHashCode;
-import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.shaded.com.google.common.base.Charsets;
-
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
@@ -41,16 +35,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
+import lombok.EqualsAndHashCode;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.shaded.com.google.common.base.Charsets;
 
 /**
  * Helper class for all table related queries to segment store. This class invokes appropriate wire command calls into
@@ -172,8 +165,8 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Version> addNewEntry(String tableName, String key, @NonNull byte[] value) {
         log.trace("addNewEntry called for : {} key : {}", tableName, key);
 
-        List<TableEntry<byte[], byte[]>> entries = Collections.singletonList(
-                new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), KeyVersion.NOT_EXISTS), value));
+        List<TableSegmentEntry> entries = Collections.singletonList(
+                TableSegmentEntry.notExists(key.getBytes(Charsets.UTF_8), value));
         Supplier<String> errorMessage = () -> String.format("addNewEntry: key: %s table: %s", key, tableName);
         return withRetries(() -> segmentHelper.updateTableEntries(tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 errorMessage)
@@ -187,10 +180,11 @@ public class PravegaTablesStoreHelper {
                     }
                 })
                 .thenApplyAsync(x -> {
-                    KeyVersion first = x.get(0);
+                    TableSegmentKeyVersion first = x.get(0);
                     log.trace("entry for key {} added to table {} with version {}", key, tableName, first.getSegmentVersion());
-                    return new Version.LongVersion(first.getSegmentVersion());
-                }, executor);
+                    return (Version) new Version.LongVersion(first.getSegmentVersion());
+                }, executor)
+                .whenComplete((r, ex) -> releaseEntries(entries));
     }
 
     /**
@@ -219,13 +213,14 @@ public class PravegaTablesStoreHelper {
      * @return CompletableFuture which when completed successfully will indicate that all entries have been added successfully.
      */
     public CompletableFuture<Void> addNewEntriesIfAbsent(String tableName, Map<String, byte[]> toAdd) {
-        List<TableEntry<byte[], byte[]>> entries = toAdd.entrySet().stream().map(x ->
-                new TableEntryImpl<>(new TableKeyImpl<>(x.getKey().getBytes(Charsets.UTF_8), KeyVersion.NOT_EXISTS), x.getValue()))
-                                                        .collect(Collectors.toList());
+        List<TableSegmentEntry> entries = toAdd.entrySet().stream().map(x ->
+                TableSegmentEntry.notExists(x.getKey().getBytes(Charsets.UTF_8), x.getValue()))
+                                               .collect(Collectors.toList());
         Supplier<String> errorMessage = () -> String.format("addNewEntriesIfAbsent: table: %s", tableName);
         return expectingDataExists(withRetries(() -> segmentHelper.updateTableEntries(tableName, entries, authToken.get(),
-                        RequestTag.NON_EXISTENT_ID), errorMessage)
+                RequestTag.NON_EXISTENT_ID), errorMessage)
                 .handle((r, e) -> {
+                    releaseEntries(entries);
                     if (e != null) {
                         Throwable unwrap = Exceptions.unwrap(e);
                         if (unwrap instanceof StoreException.WriteConflictException) {
@@ -250,19 +245,19 @@ public class PravegaTablesStoreHelper {
      * @return CompletableFuture which when completed will indicate that the value is updated in the table.
      */
     public CompletableFuture<Version> updateEntry(String tableName, String key, byte[] value, Version ver) {
-        log.trace("updateEntry entry called for : {} key : {} version {}", tableName, key, ver.asLongVersion().getLongValue());
+        long version = ver.asLongVersion().getLongValue();
+        log.trace("updateEntry entry called for : {} key : {} version {}", tableName, key, version);
 
-        KeyVersionImpl version = new KeyVersionImpl(ver.asLongVersion().getLongValue());
-
-        List<TableEntry<byte[], byte[]>> entries = Collections.singletonList(
-                new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), version), value));
+        List<TableSegmentEntry> entries = Collections.singletonList(
+                TableSegmentEntry.versioned(key.getBytes(Charsets.UTF_8), value, version));
         return withRetries(() -> segmentHelper.updateTableEntries(tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("updateEntry: key: %s table: %s", key, tableName))
                 .thenApplyAsync(x -> {
-                    KeyVersion first = x.get(0);
+                    TableSegmentKeyVersion first = x.get(0);
                     log.trace("entry for key {} updated to table {} with new version {}", key, tableName, first.getSegmentVersion());
-                    return new Version.LongVersion(first.getSegmentVersion());
-                }, executor);
+                    return (Version) new Version.LongVersion(first.getSegmentVersion());
+                }, executor)
+                .whenComplete((r, ex) -> releaseEntries(entries));
     }
 
     /**
@@ -276,30 +271,35 @@ public class PravegaTablesStoreHelper {
      */
     public <T> CompletableFuture<VersionedMetadata<T>> getEntry(String tableName, String key, Function<byte[], T> fromBytes) {
         log.trace("get entry called for : {} key : {}", tableName, key);
-        List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
+        List<TableSegmentKey> keys = Collections.singletonList(TableSegmentKey.unversioned(key.getBytes(Charsets.UTF_8)));
         CompletableFuture<VersionedMetadata<T>> result = new CompletableFuture<>();
         String message = "get entry: key: %s table: %s";
         withRetries(() -> segmentHelper.readTable(tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format(message, key, tableName))
                 .thenApplyAsync(x -> {
-                    TableEntry<byte[], byte[]> first = x.get(0);
-                    if (first.getKey().getVersion().equals(KeyVersion.NOT_EXISTS)) {
-                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, String.format(message, key, tableName));
-                    } else {
-                        log.trace("returning entry for : {} key : {} with version {}", tableName, key,
-                                first.getKey().getVersion().getSegmentVersion());
+                    try {
+                        TableSegmentEntry first = x.get(0);
+                        if (first.getKey().getVersion().equals(TableSegmentKeyVersion.NOT_EXISTS)) {
+                            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, String.format(message, key, tableName));
+                        } else {
+                            log.trace("returning entry for : {} key : {} with version {}", tableName, key,
+                                    first.getKey().getVersion().getSegmentVersion());
 
-                        T deserialized = fromBytes.apply(first.getValue());
+                            T deserialized = fromBytes.apply(getArray(first.getValue()));
 
-                        return new VersionedMetadata<>(deserialized, new Version.LongVersion(first.getKey().getVersion().getSegmentVersion()));
+                            return new VersionedMetadata<>(deserialized, new Version.LongVersion(first.getKey().getVersion().getSegmentVersion()));
+                        }
+                    } finally {
+                        releaseEntries(x);
                     }
                 }, executor)
                 .whenCompleteAsync((r, e) -> {
-                   if (e != null) {
-                       result.completeExceptionally(e);
-                   } else {
-                       result.complete(r);
-                   }
+                    releaseKeys(keys);
+                    if (e != null) {
+                        result.completeExceptionally(e);
+                    } else {
+                        result.complete(r);
+                    }
                 }, executor);
         return result;
     }
@@ -317,27 +317,34 @@ public class PravegaTablesStoreHelper {
     public <T> CompletableFuture<List<VersionedMetadata<T>>> getEntries(String tableName, List<String> keys, 
                                                                         Function<byte[], T> fromBytes, VersionedMetadata<T> nonExistent) {
         log.trace("get entries called for : {} keys : {}", tableName, keys);
-        List<TableKey<byte[]>> tableKeys = keys.stream().map(key -> new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null))
-                                           .collect(Collectors.toList());
+        List<TableSegmentKey> tableKeys = keys.stream().map(key -> TableSegmentKey.unversioned(key.getBytes(Charsets.UTF_8)))
+                                              .collect(Collectors.toList());
         CompletableFuture<List<VersionedMetadata<T>>> result = new CompletableFuture<>();
 
         String message = "get entry: key: %s table: %s";
         withRetries(() -> segmentHelper.readTable(tableName, tableKeys, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format(message, keys, tableName))
-                .thenApplyAsync(entries -> entries.stream().map(entry -> {
-                    if (entry.getKey().getVersion().equals(KeyVersion.NOT_EXISTS)) {
-                        return nonExistent;
-                    } else {
-                        return new VersionedMetadata<>(fromBytes.apply(entry.getValue()), 
-                                new Version.LongVersion(entry.getKey().getVersion().getSegmentVersion()));
+                .thenApplyAsync(entries -> {
+                    try {
+                        return entries.stream().map(entry -> {
+                            if (entry.getKey().getVersion().equals(TableSegmentKeyVersion.NOT_EXISTS)) {
+                                return nonExistent;
+                            } else {
+                                return new VersionedMetadata<>(fromBytes.apply(getArray(entry.getValue())),
+                                        new Version.LongVersion(entry.getKey().getVersion().getSegmentVersion()));
+                            }
+                        }).collect(Collectors.toList());
+                    } finally {
+                        releaseEntries(entries);
                     }
-                }).collect(Collectors.toList()), executor)
+                }, executor)
                 .whenCompleteAsync((r, e) -> {
-                   if (e != null) {
-                       result.completeExceptionally(e);
-                   } else {
-                       result.complete(r);
-                   }
+                    releaseKeys(tableKeys);
+                    if (e != null) {
+                        result.completeExceptionally(e);
+                    } else {
+                        result.complete(r);
+                    }
                 }, executor);
         
         return result;
@@ -364,13 +371,15 @@ public class PravegaTablesStoreHelper {
      */
     public CompletableFuture<Void> removeEntry(String tableName, String key, Version ver) {
         log.trace("remove entry called for : {} key : {}", tableName, key);
-        KeyVersionImpl version = ver == null ? null : new KeyVersionImpl(ver.asLongVersion().getLongValue());
+        TableSegmentKey tableKey = ver == null
+                ? TableSegmentKey.unversioned(key.getBytes(Charsets.UTF_8))
+                : TableSegmentKey.versioned(key.getBytes(Charsets.UTF_8), ver.asLongVersion().getLongValue());
 
-        List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), version));
         return expectingDataNotFound(withRetries(() -> segmentHelper.removeTableKeys(
-                tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID),
+                tableName, Collections.singletonList(tableKey), authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("remove entry: key: %s table: %s", key, tableName)), null)
-                .thenAcceptAsync(v -> log.trace("entry for key {} removed from table {}", key, tableName), executor);
+                .thenAcceptAsync(v -> log.trace("entry for key {} removed from table {}", key, tableName), executor)
+                .whenComplete((r, ex) -> releaseKeys(Collections.singleton(tableKey)));
     }
 
     /**
@@ -385,11 +394,14 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Void> removeEntries(String tableName, Collection<String> keys) {
         log.trace("remove entry called for : {} keys : {}", tableName, keys);
 
-        List<TableKey<byte[]>> listOfKeys = keys.stream().map(x -> new TableKeyImpl<>(x.getBytes(Charsets.UTF_8), null)).collect(Collectors.toList());
+        List<TableSegmentKey> listOfKeys = keys.stream()
+                                               .map(x -> TableSegmentKey.unversioned(x.getBytes(Charsets.UTF_8)))
+                                               .collect(Collectors.toList());
         return expectingDataNotFound(withRetries(() -> segmentHelper.removeTableKeys(
                 tableName, listOfKeys, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("remove entries: keys: %s table: %s", keys.toString(), tableName)), null)
-                .thenAcceptAsync(v -> log.trace("entry for keys {} removed from table {}", keys, tableName), executor);
+                .thenAcceptAsync(v -> log.trace("entry for keys {} removed from table {}", keys, tableName), executor)
+                .whenComplete((r, ex) -> releaseKeys(listOfKeys));
     }
 
     /**
@@ -404,13 +416,17 @@ public class PravegaTablesStoreHelper {
         log.trace("get keys paginated called for : {}", tableName);
 
         return withRetries(() ->
-                segmentHelper.readTableKeys(tableName, limit, IteratorState.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
+                segmentHelper.readTableKeys(tableName, limit, IteratorStateImpl.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
                         () -> String.format("get keys paginated for table: %s", tableName))
                              .thenApplyAsync(result -> {
-                                 List<String> items = result.getItems().stream().map(x -> new String(x.getKey(), Charsets.UTF_8))
-                                                            .collect(Collectors.toList());
-                                 log.trace("get keys paginated on table {} returned items {}", tableName, items);
-                                 return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
+                                 try {
+                                     List<String> items = result.getItems().stream().map(x -> new String(getArray(x.getKey()), Charsets.UTF_8))
+                                                                .collect(Collectors.toList());
+                                     log.trace("get keys paginated on table {} returned items {}", tableName, items);
+                                     return new AbstractMap.SimpleEntry<>(Unpooled.wrappedBuffer(result.getState().toBytes()), items);
+                                 } finally {
+                                     releaseKeys(result.getItems());
+                                 }
                              }, executor);
     }
 
@@ -429,67 +445,22 @@ public class PravegaTablesStoreHelper {
             Function<byte[], T> fromBytes) {
         log.trace("get entries paginated called for : {}", tableName);
         return withRetries(() -> segmentHelper.readTableEntries(tableName, limit,
-                IteratorState.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
+                IteratorStateImpl.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("get entries paginated for table: %s", tableName))
                 .thenApplyAsync(result -> {
-                    List<Map.Entry<String, VersionedMetadata<T>>> items = result.getItems().stream().map(x -> {
-                        String key = new String(x.getKey().getKey(), Charsets.UTF_8);
-                        T deserialized = fromBytes.apply(x.getValue());
-                        VersionedMetadata<T> value = new VersionedMetadata<>(deserialized, new Version.LongVersion(x.getKey().getVersion().getSegmentVersion()));
-                        return new AbstractMap.SimpleEntry<>(key, value);
-                    }).collect(Collectors.toList());
-                    log.trace("get keys paginated on table {} returned number of items {}", tableName, items.size());
-                    return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
+                    try {
+                        List<Map.Entry<String, VersionedMetadata<T>>> items = result.getItems().stream().map(x -> {
+                            String key = new String(getArray(x.getKey().getKey()), Charsets.UTF_8);
+                            T deserialized = fromBytes.apply(getArray(x.getValue()));
+                            VersionedMetadata<T> value = new VersionedMetadata<>(deserialized, new Version.LongVersion(x.getKey().getVersion().getSegmentVersion()));
+                            return new AbstractMap.SimpleEntry<>(key, value);
+                        }).collect(Collectors.toList());
+                        log.trace("get keys paginated on table {} returned number of items {}", tableName, items.size());
+                        return new AbstractMap.SimpleEntry<>(Unpooled.wrappedBuffer(result.getState().toBytes()), items);
+                    } finally {
+                        releaseEntries(result.getItems());
+                    }
                 }, executor);
-    }
-
-    /**
-     * Method to retrieve a collection of entries bounded by the specified limit size that satisfy the supplied filter.
-     * This function makes calls into segment store and includes entries that satisfy the supplied
-     * predicate. It makes repeated paginated calls into segment store until it has either collected deseried number
-     * of entries or it has exhausted all entries in the store.
-     * @param table table
-     * @param fromStringKey function to deserialize key from String.
-     * @param fromBytesValue function to deserialize value from byte array
-     * @param filter filer predicate which takes key and value and returns true or false.
-     * @param limit maximum number of entries to retrieve
-     * @param <K> Type of Key
-     * @param <V> Type of Value
-     * @return CompletableFuture which when completed will have a map of keys and values of size bounded by supplied limit
-     */
-    public <K, V> CompletableFuture<Map<K, V>> getEntriesWithFilter(
-            String table, Function<String, K> fromStringKey,
-            Function<byte[], V> fromBytesValue, BiFunction<K, V, Boolean> filter, int limit) {
-        Map<K, V> result = new ConcurrentHashMap<>();
-        AtomicBoolean canContinue = new AtomicBoolean(true);
-        AtomicReference<ByteBuf> token = new AtomicReference<>(IteratorState.EMPTY.toBytes());
-
-        return Futures.exceptionallyExpecting(
-                Futures.loop(canContinue::get,
-                        () -> getEntriesPaginated(table, token.get(), limit, fromBytesValue)
-                                .thenAccept(v -> {
-                                    // we exit if we have either received `limit` number of entries
-                                    List<Map.Entry<String, VersionedMetadata<V>>> pair = v.getValue();
-                                    for (Map.Entry<String, VersionedMetadata<V>> val : pair) {
-                                        K key = fromStringKey.apply(val.getKey());
-                                        V value = val.getValue().getObject();
-                                        if (filter.apply(key, value)) {
-                                            result.put(key, value);
-                                            if (result.size() == limit) {
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    // if we get less than the requested number, then we will exit the loop.
-                                    // otherwise if we have collected all the desired results
-                                    canContinue.set(!(v.getValue().size() < limit || result.size() >= limit));
-                                    token.get().release();
-                                    if (canContinue.get()) {
-                                        // set next continuation token
-                                        token.set(v.getKey());
-                                    }
-                                }), executor)
-                       .thenApply(x -> result), DATA_NOT_FOUND_PREDICATE, Collections.emptyMap());
     }
 
     /**
@@ -503,7 +474,7 @@ public class PravegaTablesStoreHelper {
                     token.release();
                     return new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue());
                 }, executor),
-                IteratorState.EMPTY.toBytes());
+                IteratorStateImpl.EMPTY.getToken());
     }
 
     /**
@@ -519,7 +490,7 @@ public class PravegaTablesStoreHelper {
                     token.release();
                     return new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue());
                 }, executor),
-                IteratorState.EMPTY.toBytes());
+                IteratorStateImpl.EMPTY.getToken());
     }
 
     <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
@@ -578,7 +549,7 @@ public class PravegaTablesStoreHelper {
     }
 
     /*
-     * We dont want to do indefinite retries because for controller's graceful shutting down, it waits on grpc service to
+     * We don't want to do indefinite retries because for controller's graceful shutting down, it waits on grpc service to
      * be terminated which in turn waits on all outstanding grpc calls to complete. And the store may stall the calls if
      * there is indefinite retries. Restricting it to 12 retries gives us ~60 seconds worth of wait on the upper side.
      * Also, note that the call can fail because hostContainerMap has not been updated or it can fail because it cannot
@@ -591,13 +562,33 @@ public class PravegaTablesStoreHelper {
                     Throwable unwrap = Exceptions.unwrap(e);
                     return unwrap instanceof StoreException.StoreConnectionException;
                 }, numOfRetries, executor)
-                .exceptionally(e -> {
-                    Throwable t = Exceptions.unwrap(e);
-                    if (t instanceof RetriesExhaustedException) {
-                        throw new CompletionException(t.getCause());
-                    } else {
-                        throw new CompletionException(t);
-                    }
-                });
+                          .exceptionally(e -> {
+                              Throwable t = Exceptions.unwrap(e);
+                              if (t instanceof RetriesExhaustedException) {
+                                  throw new CompletionException(t.getCause());
+                              } else {
+                                  throw new CompletionException(t);
+                              }
+                          });
+    }
+
+    private byte[] getArray(ByteBuf buf) {
+        final byte[] bytes = new byte[buf.readableBytes()];
+        final int readerIndex = buf.readerIndex();
+        buf.getBytes(readerIndex, bytes);
+        return bytes;
+    }
+
+    private void releaseKeys(Collection<TableSegmentKey> keys) {
+        for (TableSegmentKey k : keys) {
+            ReferenceCountUtil.safeRelease(k.getKey());
+        }
+    }
+
+    private void releaseEntries(Collection<TableSegmentEntry> entries) {
+        for (TableSegmentEntry e : entries) {
+            ReferenceCountUtil.safeRelease(e.getKey().getKey());
+            ReferenceCountUtil.safeRelease(e.getValue());
+        }
     }
 }

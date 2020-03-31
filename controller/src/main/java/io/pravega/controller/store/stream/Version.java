@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.client.tables.impl.KeyVersionImpl;
+import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -116,7 +116,7 @@ public interface Version {
     @Builder
     @EqualsAndHashCode(callSuper = false)
     class LongVersion extends UnsupportedVersion {
-        public static final LongVersion EMPTY = LongVersion.builder().longValue(KeyVersionImpl.NOT_EXISTS.getSegmentVersion()).build();
+        public static final LongVersion EMPTY = LongVersion.builder().longValue(TableSegmentKeyVersion.NOT_EXISTS.getSegmentVersion()).build();
         static final LongVersionSerializer SERIALIZER = new LongVersionSerializer();
         private final long longValue;
 
