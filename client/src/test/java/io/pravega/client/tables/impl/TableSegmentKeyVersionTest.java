@@ -9,43 +9,53 @@
  */
 package io.pravega.client.tables.impl;
 
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import lombok.Cleanup;
+import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class KeyVersionTest {
+public class TableSegmentKeyVersionTest {
 
     @Test
     public void testKeyVersionSerialization() throws Exception {
-        KeyVersion kv = new KeyVersionImpl(5L);
-        assertEquals(kv, KeyVersion.fromBytes(kv.toBytes()));
+        TableSegmentKeyVersion kv = TableSegmentKeyVersion.from(5L);
+        assertEquals(kv, TableSegmentKeyVersion.fromBytes(kv.toBytes()));
         byte[] buf = serialize(kv);
         assertEquals(kv, deSerializeKeyVersion(buf));
     }
 
     @Test
     public void testNotExistsKeySerialization() throws Exception {
-        KeyVersion kv = KeyVersion.NOT_EXISTS;
-        assertEquals(kv, KeyVersion.fromBytes(kv.toBytes()));
+        TableSegmentKeyVersion kv = TableSegmentKeyVersion.NOT_EXISTS;
+        assertEquals(kv, TableSegmentKeyVersion.fromBytes(kv.toBytes()));
         byte[] buf = serialize(kv);
         assertEquals(kv, deSerializeKeyVersion(buf));
     }
 
     @Test
     public void testNoVersionKeySerialization() throws Exception {
-        KeyVersion kv = KeyVersion.NO_VERSION;
-        assertEquals(kv, KeyVersion.fromBytes(kv.toBytes()));
+        TableSegmentKeyVersion kv = TableSegmentKeyVersion.NO_VERSION;
+        assertEquals(kv, TableSegmentKeyVersion.fromBytes(kv.toBytes()));
         byte[] buf = serialize(kv);
         assertEquals(kv, deSerializeKeyVersion(buf));
     }
 
-    private byte[] serialize(KeyVersion sc) throws IOException {
+    @Test
+    public void testSpecialVersions() {
+        Assert.assertEquals(WireCommands.TableKey.NO_VERSION, TableSegmentKeyVersion.NO_VERSION.getSegmentVersion());
+        Assert.assertEquals(WireCommands.TableKey.NOT_EXISTS, TableSegmentKeyVersion.NOT_EXISTS.getSegmentVersion());
+        Assert.assertSame(TableSegmentKeyVersion.NO_VERSION, TableSegmentKeyVersion.from(WireCommands.TableKey.NO_VERSION));
+        Assert.assertSame(TableSegmentKeyVersion.NOT_EXISTS, TableSegmentKeyVersion.from(WireCommands.TableKey.NOT_EXISTS));
+    }
+
+    private byte[] serialize(TableSegmentKeyVersion sc) throws IOException {
         @Cleanup
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         @Cleanup
@@ -54,11 +64,11 @@ public class KeyVersionTest {
         return baos.toByteArray();
     }
 
-    private KeyVersion deSerializeKeyVersion(final byte[] buf) throws Exception {
+    private TableSegmentKeyVersion deSerializeKeyVersion(final byte[] buf) throws Exception {
         @Cleanup
         ByteArrayInputStream bais = new ByteArrayInputStream(buf);
         @Cleanup
         ObjectInputStream ois = new ObjectInputStream(bais);
-        return (KeyVersion) ois.readObject();
+        return (TableSegmentKeyVersion) ois.readObject();
     }
 }

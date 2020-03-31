@@ -7,24 +7,27 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.tables.impl;
+package io.pravega.client.tables;
+
+import lombok.Data;
+import lombok.NonNull;
 
 /**
- * A Table Entry with a Version.
+ * A {@link KeyValueTable} Entry.
  *
  * @param <KeyT>   Key Type.
  * @param <ValueT> Value Type
  */
-public interface TableEntry<KeyT, ValueT> {
+@Data
+public class TableEntry<KeyT, ValueT> {
     /**
-     * The Key.
-     * @return {@link TableKey}
+     * The {@link TableKey}.
      */
-    TableKey<KeyT> getKey();
+    @NonNull
+    private final TableKey<KeyT> key;
 
     /**
      * The Value.
-     * @return Value.
      */
-    ValueT getValue();
+    private final ValueT value;
 }
