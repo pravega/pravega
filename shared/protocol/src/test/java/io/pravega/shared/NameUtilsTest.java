@@ -45,6 +45,15 @@ public class NameUtilsTest {
     }
 
     @Test
+    public void testGetScopedKeyValueTableName() {
+        String scope = "scope";
+        String kvt = "kvt";
+        String scopedName = NameUtils.getScopedKeyValueTableName(scope, kvt);
+        Assert.assertTrue(scopedName.startsWith(scope));
+        Assert.assertTrue(scopedName.endsWith(kvt));
+    }
+
+    @Test
     public void testStreamNameVerifier() {
         NameUtils.validateStreamName("_systemstream123");
         NameUtils.validateStreamName("stream123");
