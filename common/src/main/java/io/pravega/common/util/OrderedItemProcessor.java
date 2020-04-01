@@ -70,6 +70,8 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
      * @param capacity  The maximum number of concurrent executions.
      * @param processor A Function that, given an Item, returns a CompletableFuture that indicates when the item has been
      *                  processed (successfully or not).
+     * @param closeOnException Whether or not the OrderedItemProcessor should shut down when it throws an exception
+     *                         processing an item. The default behavior is to close the processor on exception.
      * @param executor  An Executor for async invocations.
      */
     public OrderedItemProcessor(int capacity, Function<ItemType, CompletableFuture<ResultType>> processor,
