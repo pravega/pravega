@@ -32,7 +32,7 @@ public class KeyValueTableClientConfiguration implements Serializable {
         private int initialBackoffMillis = 10;
         private int maxBackoffMillis = 30000;
         private int retryAttempts = 10;
-        private int backoffMultiple = 2;
+        private int backoffMultiple = 4;
 
         public KeyValueTableClientConfiguration build() {
             Preconditions.checkArgument(this.initialBackoffMillis >= 0, "Initial backoff must be non-negative number.");
