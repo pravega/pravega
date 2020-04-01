@@ -40,10 +40,17 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+<<<<<<< HEAD
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.shaded.com.google.common.base.Charsets;
+=======
+
+import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionDropped;
+import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionFailed;
+import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
+>>>>>>> Issue 4639: Table store helper to retry only on unknownhost and auth failure for update requests (#4641)
 
 /**
  * Helper class for all table related queries to segment store. This class invokes appropriate wire command calls into
@@ -169,7 +176,7 @@ public class PravegaTablesStoreHelper {
                 TableSegmentEntry.notExists(key.getBytes(Charsets.UTF_8), value));
         Supplier<String> errorMessage = () -> String.format("addNewEntry: key: %s table: %s", key, tableName);
         return withRetries(() -> segmentHelper.updateTableEntries(tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                errorMessage)
+                errorMessage, true)
                 .exceptionally(e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
                     if (unwrap instanceof StoreException.WriteConflictException) {
@@ -251,7 +258,7 @@ public class PravegaTablesStoreHelper {
         List<TableSegmentEntry> entries = Collections.singletonList(
                 TableSegmentEntry.versioned(key.getBytes(Charsets.UTF_8), value, version));
         return withRetries(() -> segmentHelper.updateTableEntries(tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                () -> String.format("updateEntry: key: %s table: %s", key, tableName))
+                () -> String.format("updateEntry: key: %s table: %s", key, tableName), true)
                 .thenApplyAsync(x -> {
                     TableSegmentKeyVersion first = x.get(0);
                     log.trace("entry for key {} updated to table {} with new version {}", key, tableName, first.getSegmentVersion());
@@ -500,8 +507,10 @@ public class PravegaTablesStoreHelper {
     <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
         return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, toReturn);
     }
-
-    private <T> Supplier<CompletableFuture<T>> exceptionalCallback(Supplier<CompletableFuture<T>> future, Supplier<String> errorMessageSupplier) {
+    
+    private <T> Supplier<CompletableFuture<T>> exceptionalCallback(Supplier<CompletableFuture<T>> future, 
+                                                                   Supplier<String> errorMessageSupplier, 
+                                                                   boolean throwOriginalOnCFE) {
         return () -> CompletableFuture.completedFuture(null).thenComposeAsync(v -> future.get(), executor).exceptionally(t -> {
             String errorMessage = errorMessageSupplier.get();
             Throwable cause = Exceptions.unwrap(t);
@@ -511,6 +520,9 @@ public class PravegaTablesStoreHelper {
                 switch (wcfe.getReason()) {
                     case ConnectionDropped:
                     case ConnectionFailed:
+                        toThrow = throwOriginalOnCFE ? wcfe : 
+                                StoreException.create(StoreException.Type.CONNECTION_ERROR, wcfe, errorMessage);        
+                        break;
                     case UnknownHost:
                         toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, wcfe, errorMessage);
                         break;
@@ -557,6 +569,7 @@ public class PravegaTablesStoreHelper {
      * are thrown back
      */
     private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, Supplier<String> errorMessage) {
+<<<<<<< HEAD
         return RetryHelper.withRetriesAsync(exceptionalCallback(futureSupplier, errorMessage),
                 e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
@@ -590,5 +603,30 @@ public class PravegaTablesStoreHelper {
             ReferenceCountUtil.safeRelease(e.getKey().getKey());
             ReferenceCountUtil.safeRelease(e.getValue());
         }
+=======
+        return withRetries(futureSupplier, errorMessage, false);
+    }
+
+    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, Supplier<String> errorMessage, 
+                                         boolean throwOriginalOnCfe) {
+        return RetryHelper.withRetriesAsync(exceptionalCallback(futureSupplier, errorMessage, throwOriginalOnCfe),
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException, numOfRetries, executor)
+                .exceptionally(e -> {
+                    Throwable t = Exceptions.unwrap(e);
+                    if (t instanceof RetriesExhaustedException) {
+                        throw new CompletionException(t.getCause());
+                    } else {
+                        Throwable unwrap = Exceptions.unwrap(e);
+                        if (unwrap instanceof WireCommandFailedException &&
+                                (((WireCommandFailedException) unwrap).getReason().equals(ConnectionDropped) ||
+                                        ((WireCommandFailedException) unwrap).getReason().equals(ConnectionFailed))) {
+                            throw new CompletionException(StoreException.create(StoreException.Type.CONNECTION_ERROR, 
+                                    errorMessage.get()));
+                        } else {
+                            throw new CompletionException(unwrap);
+                        }
+                    }
+                });
+>>>>>>> Issue 4639: Table store helper to retry only on unknownhost and auth failure for update requests (#4641)
     }
 }
