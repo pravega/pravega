@@ -102,7 +102,9 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         this.hostContainerMapNode = new NodeCache(zkClient, clusterPath);
         this.assigmentTask = new AtomicReference<>();
         this.lastReportTime = new AtomicLong(CURRENT_TIME_MILLIS.get());
-        this.startContainerOrderedProcessor = new OrderedItemProcessor<>(1, this::startContainer, this.executor);
+        // Allow OrderedItemProcessor to throw exceptions, as they may happen while starting containers. But we want to
+        // continue processing subsequent container starts irrespective of such failures.
+        this.startContainerOrderedProcessor = new OrderedItemProcessor<>(1, this::startContainer, false, this.executor);
     }
 
     /**
