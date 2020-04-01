@@ -36,10 +36,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertSame;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.*;
 
 public class PravegaTablesStoreHelperTest {
     private ScheduledExecutorService executor;
@@ -196,5 +196,58 @@ public class PravegaTablesStoreHelperTest {
         doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong());
         AssertExtensions.assertFutureThrows("AuthFailed", storeHelper.createTable("table"),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+    }
+    
+    @Test
+    public void testNoRetriesOnUpdate() {
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
+        GrpcAuthHelper authHelper = GrpcAuthHelper.getDisabledAuthHelper();
+        PravegaTablesStoreHelper storeHelper = spy(new PravegaTablesStoreHelper(segmentHelper, authHelper, executor, 2));
+
+        // region connection dropped
+        CompletableFuture<Void> connectionDropped = Futures.failedFuture(
+                new WireCommandFailedException(WireCommandType.UPDATE_TABLE_ENTRIES, WireCommandFailedException.Reason.ConnectionDropped));
+        doAnswer(x -> connectionDropped).when(segmentHelper).updateTableEntries(anyString(), any(), anyString(), anyLong());
+        
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", new byte[0]),
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+        verify(segmentHelper, times(1)).updateTableEntries(anyString(), any(), anyString(), anyLong());
+
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", new byte[0],
+                new Version.LongVersion(0L)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+        verify(segmentHelper, times(2)).updateTableEntries(anyString(), any(), anyString(), anyLong());
+
+        // endregion
+        
+        // region connectionfailed
+        CompletableFuture<Void> connectionFailed = Futures.failedFuture(
+                new WireCommandFailedException(WireCommandType.UPDATE_TABLE_ENTRIES, WireCommandFailedException.Reason.ConnectionFailed));
+        doAnswer(x -> connectionFailed).when(segmentHelper).updateTableEntries(anyString(), any(), anyString(), anyLong());
+
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", new byte[0]),
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+        verify(segmentHelper, times(3)).updateTableEntries(anyString(), any(), anyString(), anyLong());
+        
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", new byte[0],
+                new Version.LongVersion(0L)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+        verify(segmentHelper, times(4)).updateTableEntries(anyString(), any(), anyString(), anyLong());
+
+        // endregion
+        
+        CompletableFuture<Void> unknownHost = Futures.failedFuture(
+                new WireCommandFailedException(WireCommandType.UPDATE_TABLE_ENTRIES, WireCommandFailedException.Reason.UnknownHost));
+        doAnswer(x -> unknownHost).when(segmentHelper).updateTableEntries(anyString(), any(), anyString(), anyLong());
+        
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", new byte[0]),
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+        // this should be retried. we have configured 2 retries, so 2 retries should happen hence jump from 4 to 6. 
+        verify(segmentHelper, times(6)).updateTableEntries(anyString(), any(), anyString(), anyLong());
+
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", new byte[0],
+                new Version.LongVersion(0L)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+        verify(segmentHelper, times(8)).updateTableEntries(anyString(), any(), anyString(), anyLong());
     }
 }
