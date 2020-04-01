@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables;
 
+import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import java.io.Serializable;
 import lombok.Builder;
@@ -17,6 +18,7 @@ import lombok.Data;
 /**
  * Configuration for the {@link KeyValueTable} client.
  */
+@Beta
 @Data
 @Builder
 public class KeyValueTableClientConfiguration implements Serializable {

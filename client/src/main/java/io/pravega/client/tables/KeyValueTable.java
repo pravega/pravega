@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables;
 
+import com.google.common.annotations.Beta;
 import io.pravega.common.util.AsyncIterator;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +95,7 @@ import lombok.NonNull;
  * @param <KeyT>   Table Key Type.
  * @param <ValueT> Table Value Type.
  */
+@Beta
 public interface KeyValueTable<KeyT, ValueT> {
     /**
      * Unconditionally inserts a new or updates an existing Entry in the {@link KeyValueTable}.
