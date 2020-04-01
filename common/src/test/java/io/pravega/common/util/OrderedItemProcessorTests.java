@@ -243,12 +243,14 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
             try {
                 p.process(i);
             } catch (IntentionalException ex) {
+                // Ensure that the only IntentionalException happens at the given failedIndex.
                 Assert.assertEquals(i, failedIndex);
             }
         }
 
+        // The rest of futures (i.e. CAPACITY - 1) before and after the failure should have been completed.
         for (int i = 0; i < CAPACITY - 1; i++) {
-            Assert.assertTrue("Already-processing future was completed as well.", processFutures.get(i).isDone());
+            Assert.assertTrue("A future was expected to be completed, but it was not.", processFutures.get(i).isDone());
         }
     }
 
