@@ -60,8 +60,8 @@ public final class MetricsTags {
      * @param throttler throttler name.
      * @return string array as the throttler tag of metric.
      */
-    public static String[] throttlerTag(String throttler) {
-        return new String[] {TAG_THROTTLER, throttler};
+    public static String[] throttlerTag(int containerId, String throttler) {
+        return new String[] {TAG_CONTAINER, String.valueOf(containerId), TAG_THROTTLER, throttler};
     }
 
     /**

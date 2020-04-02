@@ -198,7 +198,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
 
         // Because the supplied delays is monotonically decreasing, only the first delay value should be used to calculate
         // the duration supplied.
-        Assert.assertEquals((int) suppliedDelays.get(0), (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).totalTime(TimeUnit.MILLISECONDS));
+        Assert.assertEquals((int) suppliedDelays.get(0), (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value());
     }
 
     /**
@@ -246,13 +246,13 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         AssertExtensions.assertGreaterThanOrEqual(
                 "Excepted delay to be at least smallest value.",
                  suppliedDelays.get(2),
-                (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).totalTime(TimeUnit.MILLISECONDS)
+                (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value()
         );
 
         AssertExtensions.assertLessThan(
                 "Excepted delay to be strictly less than the max.",
                  suppliedDelays.get(0),
-                (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).totalTime(TimeUnit.MILLISECONDS)
+                (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value()
         );
     }
 
@@ -263,15 +263,20 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
      * @throws Exception
      */
     @Test
-    public void testInterruptedMixedDelayMetrics() throws Exception {
+    public void testInterrutedMixedDelayMetrics() throws Exception {
+
 
         val cacheCalculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Cache);
         val batchingCalculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Batching);
         val durableDataLogCalculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.DurableDataLog);
 
-        cacheCalculator.setDelayMillis(6000);
-        batchingCalculator.setDelayMillis(5000);
-        durableDataLogCalculator.setDelayMillis(3000);
+        int cacheDelay = 6000;
+        int batchingDelay = 5000;
+        int durableDataLogDelay = 3000;
+
+        cacheCalculator.setDelayMillis(cacheDelay);
+        batchingCalculator.setDelayMillis(batchingDelay);
+        durableDataLogCalculator.setDelayMillis(durableDataLogDelay);
 
         Consumer<Integer> recordDelay = delayMillis -> {};
         ArrayList<ThrottlerCalculator.Throttler> throttlers = new ArrayList<>(Arrays.asList(cacheCalculator, batchingCalculator, durableDataLogCalculator));
@@ -281,8 +286,10 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
 
         val t1 = t.throttle();
         Assert.assertFalse("Not expected throttle future to be completed yet.", t1.isDone());
+
+        int throttlerActiveTime = 2000;
         // Suppose a second goes by.
-        TimeUnit.MILLISECONDS.sleep(2000);
+        TimeUnit.MILLISECONDS.sleep(throttlerActiveTime);
         // Now the Cache state has changed.
         // Change delay of Cache throttler in order to make the ThrottlerCalculator pick up the Batching Throttler.
         cacheCalculator.setDelayMillis(1000);
@@ -290,51 +297,47 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         t.notifyThrottleSourceChanged();
         // Wait for the batching throttler to complete.
         TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
+        // Throttler should report it spent at least `throttlerActiveTime` throttled.
+        AssertExtensions.assertGreaterThanOrEqual(
+                "Expected to be greater than the time left uninterrupted.",
+                throttlerActiveTime,
+                (int) getThrottlerMetric(ThrottlerCalculator.ThrottlerName.Cache)
+        );
+        // Force an interruption. The throttler should take the min of the left over delay from the previous throttler,
+        // or the throttling delay originally assigned.
+        AssertExtensions.assertLessThanOrEqual(
+                "Expected to be greater than the time left uninterrupted.",
+                 min(batchingDelay, cacheDelay - throttlerActiveTime),
+                (int) getThrottlerMetric(ThrottlerCalculator.ThrottlerName.Batching)
+        );
 
+        durableDataLogDelay = max(cacheDelay, batchingDelay) + 1000;
         // This should force the throttler calculator to pick up the durable data log throttler.
-        durableDataLogCalculator.setDelayMillis(6000);
+        durableDataLogCalculator.setDelayMillis(durableDataLogDelay);
         val t2 = t.throttle();
+        Assert.assertFalse("Not expected throttle future to be completed yet.", t2.isDone());
         // Arbitrary amount of time goes by.
-        TimeUnit.MILLISECONDS.sleep(3000);
+        TimeUnit.MILLISECONDS.sleep(throttlerActiveTime);
         // Change the throttler again, but this time force it to apply the cache throttler.
-        cacheCalculator.setDelayMillis(7000);
+        cacheDelay = max(durableDataLogDelay, batchingDelay) + 1000;
+        cacheCalculator.setDelayMillis(cacheDelay);
         t.notifyThrottleSourceChanged();
         // Run until completion.
         TestUtils.await(t2::isDone, 5, TIMEOUT_MILLIS);
-
-        /**
-         * We should expect approximately:
-         * - 5000: (2000 + min(7000, (6000 - 3000))) ms to have been recorded on the CacheThrottler.
-         * - 4000: min(5000, (6000 - 2000)) ms to have been recorded on the BatchingThrottler.
-         * - 3000: (6000 - 3000) ms to have been recorded on the DurableDataLogThrottler.
-         */
-        double cacheDelayMetric = MetricRegistryUtils.getTimer(
-                MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
-                throttlerTags(ThrottlerCalculator.ThrottlerName.Cache)
-        ).totalTime(TimeUnit.MILLISECONDS);
-        double batchingDelayMetric = MetricRegistryUtils.getTimer(
-                MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
-                throttlerTags(ThrottlerCalculator.ThrottlerName.Batching)
-        ).totalTime(TimeUnit.MILLISECONDS);
-        double durableDataLogMetric = MetricRegistryUtils.getTimer(
-                MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
-                throttlerTags(ThrottlerCalculator.ThrottlerName.DurableDataLog)
-        ).totalTime(TimeUnit.MILLISECONDS);
-
+        // Throttler should report at least `throttlerActiveTime` throttled.
         AssertExtensions.assertGreaterThanOrEqual(
                 "Expected to be greater than the time left uninterrupted.",
-                3000,
-                (int) durableDataLogMetric
+                throttlerActiveTime,
+                (int) getThrottlerMetric(ThrottlerCalculator.ThrottlerName.DurableDataLog)
         );
+
+
+        // Force an interruption. The throttler should take the min of the left over delay from the previous throttler,
+        // or the throttling delay originally assigned.
         AssertExtensions.assertLessThanOrEqual(
-                "Expected to be less than the time remaining from the Cache throttler.",
-                4000,
-                (int) batchingDelayMetric
-        );
-        AssertExtensions.assertGreaterThanOrEqual(
-                "Expected to be greater than initial throttler, plus the remaing duration on the DurableDataLog throttler",
-                5000,
-                (int) cacheDelayMetric
+                "Expected to be greater than the time left uninterrupted.",
+                min(cacheDelay, durableDataLogDelay - throttlerActiveTime),
+                (int) getThrottlerMetric(ThrottlerCalculator.ThrottlerName.Cache)
         );
     }
 
@@ -394,6 +397,18 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
 
     private String[] throttlerTags(ThrottlerCalculator.ThrottlerName name)  {
         return  new String[] { "container", String.valueOf(CONTAINER_ID), "throttler", name.toString() };
+    }
+
+    private double getThrottlerMetric(ThrottlerCalculator.ThrottlerName name) {
+        return MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTags(name)).value();
+    }
+
+    private static int min(int a, int b) {
+        return (a < b ? a : b);
+    }
+
+    private static int max(int a, int b) {
+        return (a > b ? a : b);
     }
 
     //region Helper Classes

@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ObjectArrays;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.storage.cache.CacheState;
@@ -22,6 +21,7 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -117,24 +117,6 @@ public final class SegmentStoreMetrics {
         private final OpStatsLogger operationQueueWaitTime;
 
         /**
-         * Amount of time the OperationProcessor delays between calls to processOperations() when there is significant
-         * Tier1 backup.
-         */
-        private final OpStatsLogger operationProcessorCacheDelay;
-
-        /**
-         * Amount of time the OperationProcessor delays between calls to processOperations() when there is significant
-         * Tier1 backup.
-         */
-        private final OpStatsLogger operationProcessorDurableDataLogDelay;
-
-        /**
-         * Amount of time the OperationProcessor delays between calls to processOperations() when there is significant
-         * Tier1 backup.
-         */
-        private final OpStatsLogger operationProcessorBatchingDelay;
-
-        /**
          * Amount of time spent committing an operation after being written to Tier1 (this includes in-memory structures
          * and Cache).
          */
@@ -162,9 +144,13 @@ public final class SegmentStoreMetrics {
         private final OpStatsLogger processOperationsLatency;
         private final OpStatsLogger processOperationsBatchSize;
         private final String[] containerTag;
+        private final HashMap<String, String[]> throttlerTags = new HashMap<>();
 
         public OperationProcessor(int containerId) {
             this.containerTag = containerTag(containerId);
+            for (ThrottlerName name : ThrottlerName.values()) {
+                this.throttlerTags.put(name.toString(), throttlerTag(containerId, name.toString()));
+            }
             this.operationQueueSize = STATS_LOGGER.createStats(MetricsNames.OPERATION_QUEUE_SIZE, this.containerTag);
             this.operationsInFlight = STATS_LOGGER.createStats(MetricsNames.OPERATION_PROCESSOR_IN_FLIGHT, this.containerTag);
             this.operationQueueWaitTime = STATS_LOGGER.createStats(MetricsNames.OPERATION_QUEUE_WAIT_TIME, this.containerTag);
@@ -174,18 +160,6 @@ public final class SegmentStoreMetrics {
             this.memoryCommitCount = STATS_LOGGER.createStats(MetricsNames.OPERATION_COMMIT_MEMORY_COUNT, this.containerTag);
             this.processOperationsLatency = STATS_LOGGER.createStats(MetricsNames.PROCESS_OPERATIONS_LATENCY, this.containerTag);
             this.processOperationsBatchSize = STATS_LOGGER.createStats(MetricsNames.PROCESS_OPERATIONS_BATCH_SIZE, this.containerTag);
-            this.operationProcessorCacheDelay = STATS_LOGGER.createStats(
-                    MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
-                    ObjectArrays.concat(containerTag, throttlerTag("Cache"), String.class)
-            );
-            this.operationProcessorBatchingDelay = STATS_LOGGER.createStats(
-                    MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
-                    ObjectArrays.concat(containerTag, throttlerTag("Batching"), String.class)
-            );
-            this.operationProcessorDurableDataLogDelay = STATS_LOGGER.createStats(
-                    MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
-                    ObjectArrays.concat(containerTag, throttlerTag("DurableDataLog"), String.class)
-            );
         }
 
         @Override
@@ -199,9 +173,6 @@ public final class SegmentStoreMetrics {
             this.memoryCommitCount.close();
             this.processOperationsLatency.close();
             this.processOperationsBatchSize.close();
-            this.operationProcessorBatchingDelay.close();
-            this.operationProcessorCacheDelay.close();
-            this.operationProcessorDurableDataLogDelay.close();
         }
 
         public void currentState(int queueSize, int inFlightCount) {
@@ -209,16 +180,8 @@ public final class SegmentStoreMetrics {
             this.operationsInFlight.reportSuccessValue(inFlightCount);
         }
 
-        public void processingCacheDelay(int millis) {
-            this.operationProcessorCacheDelay.reportSuccessValue(millis);
-        }
-
-        public void processingBatchingDelay(int millis) {
-            this.operationProcessorBatchingDelay.reportSuccessValue(millis);
-        }
-
-        public void processingDurableDataLogDelay(int millis) {
-            this.operationProcessorDurableDataLogDelay.reportSuccessValue(millis);
+        public void processingDelay(int millis, String throttlerName) {
+            DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, millis, this.throttlerTags.get(throttlerName));
         }
 
         public void operationQueueWaitTime(long queueWaitTimeMillis) {
@@ -263,6 +226,12 @@ public final class SegmentStoreMetrics {
                 this.operationLatency.reportFailValue(millis);
                 GLOBAL_OPERATION_LATENCY.reportFailValue(millis);
             });
+        }
+
+        private static enum ThrottlerName {
+            Batching,
+            Cache,
+            DurableDataLog,
         }
     }
 

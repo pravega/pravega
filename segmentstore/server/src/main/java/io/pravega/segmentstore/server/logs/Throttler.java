@@ -123,7 +123,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
                     delay.set(delay.get().withNewDelay(remaining));
                 }
                 int incurredDelay = (int) (existingDelay.remaining.getInitial().toMillis() - existingDelay.remaining.getRemaining().toMillis());
-                processDelay(incurredDelay, existingDelay.source);
+                this.metrics.processingDelay(incurredDelay, existingDelay.source.toString());
             }
 
             return throttleOnce(delay.get());
@@ -161,14 +161,14 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
                             ex -> ex instanceof ThrottlingInterruptedException,
                             this::throttle)
                     .whenComplete((r, e) -> {
-                        if (this.currentDelay.get() != null && currentDelay.get().remaining.getRemaining().toMillis() == 0) {
-                            processDelay(delay.getDurationMillis(), delay.getThrottlerName());
+                        if (this.currentDelay.get() != null && currentDelay.get().remaining.getRemaining().toMillis() <= 0) {
+                            this.metrics.processingDelay(delay.getDurationMillis(), delay.getThrottlerName().toString());
                         }
                         this.currentDelay.set(null);
                     });
         } else {
             // The future won't be interrupted, so we can assume it will run till completion.
-            processDelay(delay.getDurationMillis(), delay.getThrottlerName());
+            this.metrics.processingDelay(delay.getDurationMillis(), delay.getThrottlerName().toString());
             return delayFuture;
         }
     }
@@ -183,19 +183,6 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
         return Futures.delayedFuture(Duration.ofMillis(millis), this.executor);
     }
 
-    private void processDelay(int delay, ThrottlerCalculator.ThrottlerName name) {
-        switch (name) {
-            case Batching:
-                this.metrics.processingBatchingDelay(delay);
-                break;
-            case Cache:
-                this.metrics.processingCacheDelay(delay);
-                break;
-            case DurableDataLog:
-                this.metrics.processingDurableDataLogDelay(delay);
-                break;
-        }
-    }
     //endregion
 
     //region Helper Classes

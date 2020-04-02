@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server;
 
-import com.google.common.collect.ObjectArrays;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
@@ -143,25 +142,20 @@ public class SegmentStoreMetricsTests {
     public void testThrottlerMetrics() {
         final int delay = 100;
         final int containerId = new Random().nextInt(Integer.MAX_VALUE);
-        final String[] containerTag = containerTag(containerId);
-        final String[] durableDataLogTag = throttlerTag("DurableDataLog");
-        final String[] cacheTag = throttlerTag("Cache");
-        final String[] batchingTag = throttlerTag("Batching");
 
         @Cleanup
         SegmentStoreMetrics.OperationProcessor op = new SegmentStoreMetrics.OperationProcessor(containerId);
 
-        op.processingDurableDataLogDelay(delay);
-        assertEquals(delay, (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, concat(containerTag, durableDataLogTag)).totalTime(TimeUnit.MILLISECONDS));
+        op.processingDelay(delay, "DurableDataLog");
+        assertEquals(delay, (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTag(containerId, "DurableDataLog")).value());
 
-        op.processingCacheDelay(delay);
-        assertEquals(delay, (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, concat(containerTag, cacheTag)).totalTime(TimeUnit.MILLISECONDS));
+        op.processingDelay(delay, "Cache");
+        assertEquals(delay, (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTag(containerId, "Cache")).value());
 
-        op.processingBatchingDelay(delay);
-        assertEquals(delay, (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, concat(containerTag, batchingTag)).totalTime(TimeUnit.MILLISECONDS));
+        op.processingDelay(delay, "Batching");
+        assertEquals(delay, (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTag(containerId, "Batching")).value());
+        op.processingDelay(delay * delay, "Batching");
+        assertEquals(delay * delay, (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTag(containerId, "Batching")).value());
     }
 
-    private String[] concat(String[] one, String[] two) {
-        return ObjectArrays.concat(one, two, String.class);
-    }
 }
