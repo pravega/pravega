@@ -28,6 +28,7 @@ public class ServiceConfig {
     //region Config Names
 
     public static final Property<Integer> CONTAINER_COUNT = Property.named("container.count", null, "containerCount");
+    public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("container.parallelStarts", 1);
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPool.core.size", 30, "threadPoolSize");
     public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("threadPool.storage.size", 200, "storageThreadPoolSize");
     public static final Property<Integer> LOW_PRIORITY_THREAD_POOL_SIZE = Property.named("threadPool.lowPriorityTasks.size", 10, "lowPriorityThreadPoolSize");
@@ -48,7 +49,6 @@ public class ServiceConfig {
     // 1. Modify the operator to set this old, as well as the new property.
     // 2. Modify this property to use the new key, with legacy key name set as the old key.
     // 3. Remove old property from the operator.
-
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY, "dataLogImplementation");
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS, "storageImplementation");
@@ -166,6 +166,12 @@ public class ServiceConfig {
      */
     @Getter
     private final String publishedIPAddress;
+
+    /**
+     * Number of segment containers that a Segment Store will start (and recover) in parallel.
+     */
+    @Getter
+    private final int parallelContainerStarts;
 
     /**
      * The Zookeeper URL.
@@ -317,6 +323,7 @@ public class ServiceConfig {
         } else {
             this.publishedIPAddress = publishedIPAddress;
         }
+        this.parallelContainerStarts = properties.getInt(PARALLEL_CONTAINER_STARTS);
         this.zkURL = properties.get(ZK_URL);
         this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
@@ -367,6 +374,7 @@ public class ServiceConfig {
                 .append(String.format("listeningIPAddress: %s, ", listeningIPAddress))
                 .append(String.format("publishedPort: %d, ", publishedPort))
                 .append(String.format("publishedIPAddress: %s, ", publishedIPAddress))
+                .append(String.format("parallelContainerStarts: %d, ", parallelContainerStarts))
                 .append(String.format("zkURL: %s, ", zkURL))
                 .append(String.format("zkRetrySleepMs: %d, ", zkRetrySleepMs))
                 .append(String.format("zkSessionTimeoutMs: %d, ", zkSessionTimeoutMs))

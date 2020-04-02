@@ -90,7 +90,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
      * @param pravegaServiceEndpoint The pravega endpoint for which we need to fetch the container assignment.
      */
     ZKSegmentContainerMonitor(SegmentContainerRegistry containerRegistry, CuratorFramework zkClient,
-                              Host pravegaServiceEndpoint, ScheduledExecutorService executor) {
+                              Host pravegaServiceEndpoint, int parallelContainerStarts, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(zkClient, "zkClient");
 
         this.registry = Preconditions.checkNotNull(containerRegistry, "containerRegistry");
@@ -104,7 +104,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         this.lastReportTime = new AtomicLong(CURRENT_TIME_MILLIS.get());
         // Allow OrderedItemProcessor to throw exceptions, as they may happen while starting containers. But we want to
         // continue processing subsequent container starts irrespective of such failures.
-        this.startContainerOrderedProcessor = new OrderedItemProcessor<>(1, this::startContainer, false, this.executor);
+        this.startContainerOrderedProcessor = new OrderedItemProcessor<>(parallelContainerStarts, this::startContainer, false, this.executor);
     }
 
     /**
