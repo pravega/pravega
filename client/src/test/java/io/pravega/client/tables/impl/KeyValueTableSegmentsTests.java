@@ -55,6 +55,18 @@ public class KeyValueTableSegmentsTests {
         for (val e : segmentsWithRange.entrySet()) {
             double expected = e.getValue().getRange().getHigh() - e.getValue().getRange().getLow();
             double actual = hits.get(e.getValue().getSegment());
+            Assert.assertEquals("Unexpected count for range " + e.getValue().getRange() + " for " + s, expected, actual, 0.01);
+        }
+    }
+
+    @Test
+    public void testEquals() {
+        val s1 = new KeyValueTableSegments(createSegmentMap(), null);
+        val s2 = new KeyValueTableSegments(createSegmentMap(), null);
+        Assert.assertEquals(s1.hashCode(), s2.hashCode());
+        Assert.assertEquals(s1, s2);
+    }
+
             Assert.assertEquals(expected, actual, 0.01);
         }
     }

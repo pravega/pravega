@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables;
 
+import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import java.io.Serializable;
 import lombok.Builder;
@@ -17,6 +18,7 @@ import lombok.Data;
 /**
  * Configuration for the {@link KeyValueTable} client.
  */
+@Beta
 @Data
 @Builder
 public class KeyValueTableClientConfiguration implements Serializable {
@@ -30,7 +32,7 @@ public class KeyValueTableClientConfiguration implements Serializable {
         private int initialBackoffMillis = 10;
         private int maxBackoffMillis = 30000;
         private int retryAttempts = 10;
-        private int backoffMultiple = 2;
+        private int backoffMultiple = 4;
 
         public KeyValueTableClientConfiguration build() {
             Preconditions.checkArgument(this.initialBackoffMillis >= 0, "Initial backoff must be non-negative number.");

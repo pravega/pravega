@@ -126,6 +126,7 @@ public class KeyValueTableManagerImplTest {
         Assert.assertFalse(manager.updateKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
         Assert.assertTrue(manager.createKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
         Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), this.segments.size());
+        manager.close(); // Closing twice to verify operation is idempotent.
     }
 
     /**

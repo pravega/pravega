@@ -158,6 +158,17 @@ public class MockController implements Controller {
     }
 
     @Synchronized
+    List<Segment> getSegmentsForKeyValueTable(KeyValueTableInfo kvt) {
+        KeyValueTableConfiguration config = getKeyValueTableConfiguration(kvt);
+        Preconditions.checkArgument(config != null, "Key-Value Table " + kvt.getScopedName() + " must be created first");
+        List<Segment> result = new ArrayList<>(config.getPartitionCount());
+        for (int i = 0; i < config.getPartitionCount(); i++) {
+            result.add(new Segment(kvt.getScope(), kvt.getKeyValueTableName(), i));
+        }
+        return result;
+    }
+
+    @Synchronized
     List<SegmentWithRange> getSegmentsWithRanges(Stream stream) {
         StreamConfiguration config = getStreamConfiguration(stream);
         Preconditions.checkArgument(config != null, "Stream must be created first");

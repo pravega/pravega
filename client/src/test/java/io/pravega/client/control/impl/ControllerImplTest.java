@@ -1638,4 +1638,28 @@ public class ControllerImplTest {
         // have mocked successful responses.
         controller.createScope("scope1").join();
     }
+
+    @Test
+    public void testKeyValueTables() {
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.createKeyValueTable("", "", null),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.deleteKeyValueTable("", ""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.getCurrentSegmentsForKeyValueTable("", ""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.listKeyValueTables(""),
+                ex -> ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> this.controllerClient.updateKeyValueTable("", "", null),
+                ex -> ex instanceof UnsupportedOperationException);
+    }
 }

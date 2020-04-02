@@ -151,7 +151,8 @@ class TableSegmentImpl implements TableSegment {
         return new TableSegmentIterator<>(
                 s -> fetchIteratorItems(args, s, WireCommands.ReadTableKeys::new, WireCommands.TableKeysRead.class,
                         WireCommands.TableKeysRead::getContinuationToken, this::fromWireCommand),
-                args.getState());
+                args.getState())
+                .asSequential(this.connectionFactory.getInternalExecutor());
     }
 
     @Override
@@ -159,7 +160,8 @@ class TableSegmentImpl implements TableSegment {
         return new TableSegmentIterator<>(
                 s -> fetchIteratorItems(args, s, WireCommands.ReadTableEntries::new, WireCommands.TableEntriesRead.class,
                         WireCommands.TableEntriesRead::getContinuationToken, reply -> fromWireCommand(reply.getEntries())),
-                args.getState());
+                args.getState())
+                .asSequential(this.connectionFactory.getInternalExecutor());
     }
 
     /**
@@ -415,7 +417,7 @@ class TableSegmentImpl implements TableSegment {
      * the Future will be failed with the appropriate exception.
      */
     private <T> CompletableFuture<T> execute(BiFunction<ConnectionState, Long, CompletableFuture<T>> action) {
-        return retry.runAsync(
+        return this.retry.runAsync(
                 () -> getOrCreateState()
                         .thenCompose(state -> action.apply(state, state.nextRequestId())),
                 this.connectionFactory.getInternalExecutor());
@@ -472,8 +474,7 @@ class TableSegmentImpl implements TableSegment {
 
     private static boolean isRetryableException(Throwable ex) {
         ex = Exceptions.unwrap(ex);
-        boolean retry = ex instanceof AuthenticationException || ex instanceof ConnectionFailedException;
-        return retry;
+        return ex instanceof AuthenticationException || ex instanceof ConnectionFailedException;
     }
 
     //endregion

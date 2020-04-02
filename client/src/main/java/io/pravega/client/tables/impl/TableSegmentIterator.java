@@ -20,14 +20,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 
 /**
  * Iterator over Table Segment Keys or Values.
  *
  * @param <T> Type of item iterated over. Usually {@link TableSegmentKey} or {@link TableSegmentEntry}.
  */
-@RequiredArgsConstructor
 class TableSegmentIterator<T> implements AsyncIterator<IteratorItem<T>> {
     private final Function<IteratorState, CompletableFuture<IteratorItem<T>>> fetchNext;
     private final AtomicReference<IteratorState> state;
@@ -37,11 +35,6 @@ class TableSegmentIterator<T> implements AsyncIterator<IteratorItem<T>> {
         this.fetchNext = fetchNext;
         this.state = new AtomicReference<>(initialState);
         this.closed = new AtomicBoolean(false);
-    }
-
-    @VisibleForTesting
-    boolean isClosed() {
-        return this.closed.get();
     }
 
     @Override

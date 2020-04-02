@@ -300,11 +300,9 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
 
         for (val fr : failureReplies) {
             // TableSegment.put()
-            testConnectionFailure(ts -> ts.put(entries.iterator()), fr,
+            testConnectionFailure(ts -> ts.put(entries.get(0)), fr,
                     requestId -> new WireCommands.TableEntriesUpdated(requestId, versions),
-                    result -> AssertExtensions.assertListEquals("", versions,
-                            result.stream().map(TableSegmentKeyVersion::getSegmentVersion).collect(Collectors.toList()),
-                            Long::equals));
+                    result -> Assert.assertEquals("", (long) versions.get(0), result.getSegmentVersion()));
 
             // TableSegment.get()
             val wireEntries = entries.subList(0, 1);

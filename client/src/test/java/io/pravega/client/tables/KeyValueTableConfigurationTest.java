@@ -14,16 +14,12 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the {@link TableEntry} class.
+ * Unit test for the {@link KeyValueTableConfiguration} class.
  */
-public class TableEntryTests {
+public class KeyValueTableConfigurationTest {
     @Test
-    public void testConstructor() {
-        String keyContents = "KeyContents";
-        long valueContents = 1234L;
-        val k = new TableKey<>(keyContents, Version.NOT_EXISTS);
-        val e = new TableEntry<>(k, valueContents);
-        Assert.assertSame(k, e.getKey());
-        Assert.assertEquals(valueContents, (long) e.getValue());
+    public void testBuilder() {
+        val c = KeyValueTableConfiguration.builder().partitionCount(4).build();
+        Assert.assertEquals(4, c.getPartitionCount());
     }
 }
