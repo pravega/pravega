@@ -15,9 +15,9 @@ import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTable;
-import io.pravega.client.tables.KeyVersion;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
+import io.pravega.client.tables.Version;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -118,7 +118,7 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
             val value = getValue(keyId, iteration.get());
 
             // First one should work.
-            KeyVersion kv = kvt.putIfAbsent(keyFamily, key, value).join();
+            Version kv = kvt.putIfAbsent(keyFamily, key, value).join();
             versions.add(keyFamily, keyId, kv);
 
             // Second one should throw.
@@ -149,7 +149,7 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
             val key = getKey(keyId);
             val value = getValue(keyId, iteration.get());
 
-            KeyVersion kv = kvt.put(keyFamily, key, value).join();
+            Version kv = kvt.put(keyFamily, key, value).join();
             versions.add(keyFamily, keyId, kv);
         });
         checkSegmentDistributions(versions);
@@ -163,13 +163,13 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
             val existingVersion = versions.get(keyFamily, keyId);
 
             // Verify that conditions are checked both for segment names and their versions.
-            KeyVersion badVersion = alterVersion(existingVersion, keyId % 2 == 0, keyId % 2 == 1);
+            Version badVersion = alterVersion(existingVersion, keyId % 2 == 0, keyId % 2 == 1);
             AssertExtensions.assertSuppliedFutureThrows(
                     "replace did not throw for bad version.",
                     () -> kvt.replace(keyFamily, key, value, badVersion),
                     ex -> ex instanceof BadKeyVersionException);
 
-            KeyVersion kv = kvt.replace(keyFamily, key, value, existingVersion).join();
+            Version kv = kvt.replace(keyFamily, key, value, existingVersion).join();
             versions.add(keyFamily, keyId, kv);
         });
         checkSegmentDistributions(versions);
@@ -180,7 +180,7 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
      * Tests the ability to perform single-key updates and removals (conditional and unconditional). These methods are exercised:
      * - {@link KeyValueTable#put}
      * - {@link KeyValueTable#remove(String, Object)}
-     * - {@link KeyValueTable#remove(String, Object, KeyVersion)}
+     * - {@link KeyValueTable#remove(String, Object, Version)}
      * - {@link KeyValueTable#get} and {@link KeyValueTable#getAll}
      */
     @Test
@@ -195,7 +195,7 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
             val key = getKey(keyId);
             val value = getValue(keyId, iteration.get());
 
-            KeyVersion kv = kvt.put(keyFamily, key, value).join();
+            Version kv = kvt.put(keyFamily, key, value).join();
             versions.add(keyFamily, keyId, kv);
         });
 
@@ -209,7 +209,7 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
             boolean conditional = keyId % 2 == 0;
             if (conditional) {
                 // First check that a bad version will be checked.
-                KeyVersion badVersion = alterVersion(existingVersion, keyId % 4 == 0, keyId % 4 != 0);
+                Version badVersion = alterVersion(existingVersion, keyId % 4 == 0, keyId % 4 != 0);
                 AssertExtensions.assertSuppliedFutureThrows(
                         "remove did not throw for bad version.",
                         () -> kvt.remove(keyFamily, key, badVersion),
@@ -233,7 +233,7 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
             val value = getValue(keyId, iteration.get());
 
             // First one should work.
-            KeyVersion kv = kvt.putIfAbsent(keyFamily, key, value).join();
+            Version kv = kvt.putIfAbsent(keyFamily, key, value).join();
             versions.add(keyFamily, keyId, kv);
         });
         checkSegmentDistributions(versions);
@@ -454,7 +454,7 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
         });
     }
 
-    private void checkValue(Integer key, String expectedValue, KeyVersion expectedVersion, TableEntry<Integer, String> actualEntry, String hint) {
+    private void checkValue(Integer key, String expectedValue, Version expectedVersion, TableEntry<Integer, String> actualEntry, String hint) {
         if (expectedVersion == null) {
             // Key was removed or never inserted.
             Assert.assertNull("Not expecting a value for removed key" + hint, actualEntry);
@@ -468,7 +468,7 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
 
     private void checkSegmentDistributions(Versions v) {
         v.versions.forEach((keyFamily, versions) -> {
-            val segments = versions.values().stream().map(KeyVersionImpl::getSegmentId).distinct().collect(Collectors.toList());
+            val segments = versions.values().stream().map(VersionImpl::getSegmentId).distinct().collect(Collectors.toList());
             if (keyFamily.equals(NULL_KEY_FAMILY)) {
                 AssertExtensions.assertGreaterThan("Keys without families were not distributed to multiple segments.",
                         1, segments.size());
@@ -507,11 +507,11 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
         }
     }
 
-    private KeyVersion alterVersion(KeyVersion original, boolean changeSegmentId, boolean changeVersion) {
-        KeyVersionImpl impl = original.asImpl();
+    private Version alterVersion(Version original, boolean changeSegmentId, boolean changeVersion) {
+        VersionImpl impl = original.asImpl();
         long newSegmentId = changeSegmentId ? impl.getSegmentId() + 1 : impl.getSegmentId();
         long newVersion = changeVersion ? impl.getSegmentVersion() + 1 : impl.getSegmentVersion();
-        return new KeyVersionImpl(newSegmentId, newVersion);
+        return new VersionImpl(newSegmentId, newVersion);
     }
 
     protected int getKey(int keyId) {
@@ -535,9 +535,9 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
     //region Helper classes
 
     private static class Versions {
-        private final HashMap<String, HashMap<Integer, KeyVersionImpl>> versions = new HashMap<>();
+        private final HashMap<String, HashMap<Integer, VersionImpl>> versions = new HashMap<>();
 
-        void add(String keyFamily, int keyId, KeyVersion kv) {
+        void add(String keyFamily, int keyId, Version kv) {
             keyFamily = adjustKeyFamily(keyFamily);
             val familyVersions = this.versions.computeIfAbsent(keyFamily, kf -> new HashMap<>());
             familyVersions.put(keyId, kv.asImpl());
@@ -554,7 +554,7 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
             }
         }
 
-        KeyVersionImpl get(String keyFamily, int keyId) {
+        VersionImpl get(String keyFamily, int keyId) {
             keyFamily = adjustKeyFamily(keyFamily);
             val familyVersions = this.versions.getOrDefault(keyFamily, null);
             if (familyVersions != null) {

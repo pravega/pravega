@@ -9,7 +9,7 @@
  */
 package io.pravega.client.tables.impl;
 
-import io.pravega.client.tables.KeyVersion;
+import io.pravega.client.tables.Version;
 import io.pravega.test.common.AssertExtensions;
 import lombok.val;
 import org.apache.commons.lang3.SerializationException;
@@ -17,36 +17,36 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the {@link KeyVersionImpl} class.
+ * Unit tests for the {@link VersionImpl} class.
  */
-public class KeyVersionImplTests {
+public class VersionImplTests {
     @Test
     public void testSpecialVersions() {
-        Assert.assertEquals(TableSegmentKeyVersion.NOT_EXISTS.getSegmentVersion(), KeyVersion.NOT_EXISTS.asImpl().getSegmentVersion());
-        Assert.assertEquals(TableSegmentKeyVersion.NO_VERSION.getSegmentVersion(), KeyVersion.NO_VERSION.asImpl().getSegmentVersion());
+        Assert.assertEquals(TableSegmentKeyVersion.NOT_EXISTS.getSegmentVersion(), Version.NOT_EXISTS.asImpl().getSegmentVersion());
+        Assert.assertEquals(TableSegmentKeyVersion.NO_VERSION.getSegmentVersion(), Version.NO_VERSION.asImpl().getSegmentVersion());
     }
 
     @Test
     public void testConstructor() {
         long version = 123L;
         long segmentId = 8946L;
-        KeyVersion v = new KeyVersionImpl(segmentId, version);
+        Version v = new VersionImpl(segmentId, version);
         Assert.assertEquals(version, v.asImpl().getSegmentVersion());
     }
 
     @Test
     public void testFromString() {
-        val noSegmentVersion = new KeyVersionImpl(KeyVersionImpl.NO_SEGMENT_ID, 1234L);
-        val s1 = KeyVersion.fromString(noSegmentVersion.toString()).asImpl();
+        val noSegmentVersion = new VersionImpl(VersionImpl.NO_SEGMENT_ID, 1234L);
+        val s1 = Version.fromString(noSegmentVersion.toString()).asImpl();
         Assert.assertEquals(noSegmentVersion, s1);
 
-        val withSegmentVersion = new KeyVersionImpl(123L, 567L);
-        val s2 = KeyVersion.fromString(withSegmentVersion.toString()).asImpl();
+        val withSegmentVersion = new VersionImpl(123L, 567L);
+        val s2 = Version.fromString(withSegmentVersion.toString()).asImpl();
         Assert.assertEquals(withSegmentVersion, s2);
 
         AssertExtensions.assertThrows(
                 "Invalid deserialization worked.",
-                () -> KeyVersion.fromString("abc"),
+                () -> Version.fromString("abc"),
                 ex -> ex instanceof SerializationException);
     }
 }

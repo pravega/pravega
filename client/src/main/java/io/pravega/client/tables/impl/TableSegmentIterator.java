@@ -9,7 +9,6 @@
  */
 package io.pravega.client.tables.impl;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.common.ObjectClosedException;

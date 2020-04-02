@@ -67,10 +67,6 @@ public class KeyValueTableSegmentsTests {
         Assert.assertEquals(s1, s2);
     }
 
-            Assert.assertEquals(expected, actual, 0.01);
-        }
-    }
-
     private TreeMap<Double, SegmentWithRange> createSegmentMap() {
         final int rangeIncrease = 10;
         int totalRangeLength = 0;
@@ -95,4 +91,3 @@ public class KeyValueTableSegmentsTests {
         return result;
     }
 }
-

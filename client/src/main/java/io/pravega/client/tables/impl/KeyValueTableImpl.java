@@ -20,9 +20,9 @@ import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTable;
-import io.pravega.client.tables.KeyVersion;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
+import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
@@ -107,28 +107,28 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     //region KeyValueTable Implementation
 
     @Override
-    public CompletableFuture<KeyVersion> put(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value) {
+    public CompletableFuture<Version> put(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value) {
         ByteBuf keySerialization = serializeKey(keyFamily, key);
         TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
-        return updateToSegment(s, toTableSegmentEntry(keySerialization, serializeValue(value), KeyVersion.NO_VERSION));
+        return updateToSegment(s, toTableSegmentEntry(keySerialization, serializeValue(value), Version.NO_VERSION));
     }
 
     @Override
-    public CompletableFuture<KeyVersion> putIfAbsent(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value) {
+    public CompletableFuture<Version> putIfAbsent(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value) {
         ByteBuf keySerialization = serializeKey(keyFamily, key);
         TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
-        return updateToSegment(s, toTableSegmentEntry(keySerialization, serializeValue(value), KeyVersion.NOT_EXISTS));
+        return updateToSegment(s, toTableSegmentEntry(keySerialization, serializeValue(value), Version.NOT_EXISTS));
     }
 
     @Override
-    public CompletableFuture<List<KeyVersion>> putAll(@NonNull String keyFamily, @NonNull Iterable<Map.Entry<KeyT, ValueT>> entries) {
+    public CompletableFuture<List<Version>> putAll(@NonNull String keyFamily, @NonNull Iterable<Map.Entry<KeyT, ValueT>> entries) {
         TableSegment s = this.selector.getTableSegment(keyFamily);
         return updateToSegment(s, toTableSegmentEntries(s, keyFamily, entries, e -> TableEntry.unversioned(e.getKey(), e.getValue())));
     }
 
     @Override
-    public CompletableFuture<KeyVersion> replace(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value,
-                                                 @NonNull KeyVersion version) {
+    public CompletableFuture<Version> replace(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value,
+                                                 @NonNull Version version) {
         ByteBuf keySerialization = serializeKey(keyFamily, key);
         TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
         validateKeyVersionSegment(s, version);
@@ -136,7 +136,7 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     }
 
     @Override
-    public CompletableFuture<List<KeyVersion>> replaceAll(@NonNull String keyFamily, @NonNull Iterable<TableEntry<KeyT, ValueT>> entries) {
+    public CompletableFuture<List<Version>> replaceAll(@NonNull String keyFamily, @NonNull Iterable<TableEntry<KeyT, ValueT>> entries) {
         TableSegment s = this.selector.getTableSegment(keyFamily);
         return updateToSegment(s, toTableSegmentEntries(s, keyFamily, entries, e -> e));
     }
@@ -145,11 +145,11 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     public CompletableFuture<Void> remove(@Nullable String keyFamily, @NonNull KeyT key) {
         ByteBuf keySerialization = serializeKey(keyFamily, key);
         TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
-        return removeFromSegment(s, Iterators.singletonIterator(toTableSegmentKey(keySerialization, KeyVersion.NO_VERSION)));
+        return removeFromSegment(s, Iterators.singletonIterator(toTableSegmentKey(keySerialization, Version.NO_VERSION)));
     }
 
     @Override
-    public CompletableFuture<Void> remove(@Nullable String keyFamily, @NonNull KeyT key, @NonNull KeyVersion version) {
+    public CompletableFuture<Void> remove(@Nullable String keyFamily, @NonNull KeyT key, @NonNull Version version) {
         ByteBuf keySerialization = serializeKey(keyFamily, key);
         TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
         validateKeyVersionSegment(s, version);
@@ -206,14 +206,14 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
 
     //region Helpers
 
-    private CompletableFuture<KeyVersion> updateToSegment(TableSegment segment, TableSegmentEntry tableSegmentEntry) {
+    private CompletableFuture<Version> updateToSegment(TableSegment segment, TableSegmentEntry tableSegmentEntry) {
         return updateToSegment(segment, Iterators.singletonIterator(tableSegmentEntry)).thenApply(r -> r.get(0));
     }
 
-    private CompletableFuture<List<KeyVersion>> updateToSegment(TableSegment segment, Iterator<TableSegmentEntry> tableSegmentEntries) {
+    private CompletableFuture<List<Version>> updateToSegment(TableSegment segment, Iterator<TableSegmentEntry> tableSegmentEntries) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return segment.put(tableSegmentEntries)
-                .thenApply(versions -> versions.stream().map(v -> new KeyVersionImpl(segment.getSegmentId(), v)).collect(Collectors.toList()));
+                .thenApply(versions -> versions.stream().map(v -> new VersionImpl(segment.getSegmentId(), v)).collect(Collectors.toList()));
     }
 
     private CompletableFuture<Void> removeFromSegment(TableSegment segment, Iterator<TableSegmentKey> tableSegmentKeys) {
@@ -300,7 +300,7 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
                 .iterator();
     }
 
-    private TableSegmentKey toTableSegmentKey(ByteBuf key, KeyVersion keyVersion) {
+    private TableSegmentKey toTableSegmentKey(ByteBuf key, Version keyVersion) {
         return new TableSegmentKey(key, toTableSegmentVersion(keyVersion));
     }
 
@@ -316,11 +316,11 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
                 .iterator();
     }
 
-    private TableSegmentEntry toTableSegmentEntry(ByteBuf keySerialization, ByteBuf valueSerialization, KeyVersion keyVersion) {
+    private TableSegmentEntry toTableSegmentEntry(ByteBuf keySerialization, ByteBuf valueSerialization, Version keyVersion) {
         return new TableSegmentEntry(toTableSegmentKey(keySerialization, keyVersion), valueSerialization);
     }
 
-    private TableSegmentKeyVersion toTableSegmentVersion(KeyVersion version) {
+    private TableSegmentKeyVersion toTableSegmentVersion(Version version) {
         return version == null ? TableSegmentKeyVersion.NO_VERSION : TableSegmentKeyVersion.from(version.asImpl().getSegmentVersion());
     }
 
@@ -337,7 +337,7 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     private TableKey<KeyT> fromTableSegmentKey(TableSegment s, TableSegmentKey tableSegmentKey, String expectedKeyFamily) {
         DeserializedKey key = deserializeKey(tableSegmentKey.getKey());
         validateKeyFamily(expectedKeyFamily, key.keyFamily);
-        KeyVersion version = new KeyVersionImpl(s.getSegmentId(), tableSegmentKey.getVersion());
+        Version version = new VersionImpl(s.getSegmentId(), tableSegmentKey.getVersion());
         return TableKey.versioned(key.key, version);
     }
 
@@ -374,13 +374,13 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     }
 
     @SneakyThrows(BadKeyVersionException.class)
-    private void validateKeyVersionSegment(TableSegment ts, KeyVersion version) {
+    private void validateKeyVersionSegment(TableSegment ts, Version version) {
         if (version == null) {
             return;
         }
 
-        KeyVersionImpl impl = version.asImpl();
-        boolean valid = impl.getSegmentId() == KeyVersionImpl.NO_SEGMENT_ID || ts.getSegmentId() == impl.getSegmentId();
+        VersionImpl impl = version.asImpl();
+        boolean valid = impl.getSegmentId() == VersionImpl.NO_SEGMENT_ID || ts.getSegmentId() == impl.getSegmentId();
         if (!valid) {
             throw new BadKeyVersionException(this.kvt.getScopedName(), "Wrong TableSegment.");
         }
