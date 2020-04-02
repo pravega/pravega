@@ -375,10 +375,14 @@ public interface Controller extends AutoCloseable {
      * @param scopeName The name of the scope for which to list KeyValueTables in.
      * @return An {@link AsyncIterator} which can be used to iterate over all KeyValueTables in the scope.
      */
+<<<<<<< HEAD
 <<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/Controller.java
     AsyncIterator<KeyValueTableInfo> listKeyValueTables(final String scopeName);
 =======
     AsyncIterator<Stream> listKeyValueTables(final String scopeName);
+=======
+    AsyncIterator<KeyValueTableInfo> listKeyValueTables(final String scopeName);
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
 
     /**
      * API to update the configuration of a KeyValueTable.

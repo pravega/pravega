@@ -109,6 +109,19 @@ public class KeyValueTableManagerImpl implements KeyValueTableManager {
     }
 
     @Override
+<<<<<<< HEAD
+=======
+    public boolean updateKeyValueTable(@NonNull String scopeName, @NonNull String keyValueTableName, @NonNull KeyValueTableConfiguration config) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        NameUtils.validateUserKeyValueTableName(keyValueTableName);
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Updating scope/key-value-table: {}/{} with configuration: {}", scopeName, keyValueTableName, config);
+        return Futures.getThrowingException(this.controller.updateKeyValueTable(
+                scopeName, keyValueTableName, config));
+    }
+
+    @Override
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
     public boolean deleteKeyValueTable(@NonNull String scopeName, @NonNull String keyValueTableName) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         NameUtils.validateUserKeyValueTableName(keyValueTableName);

@@ -1289,7 +1289,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public AsyncIterator<Stream> listKeyValueTables(String scopeName) {
+    public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
         throw new UnsupportedOperationException("listKeyValueTables not implemented.");
     }
 

@@ -311,6 +311,7 @@ public final class NameUtils {
     }
 
     /**
+<<<<<<< HEAD
      * Method to generate Fully Qualified TableSegmentName using scope, stream and segment id.
      *
      * @param scope scope to be used in the ScopedTableSegment name
@@ -330,6 +331,8 @@ public final class NameUtils {
     }
 
     /**
+=======
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
      * Method to generate Fully Qualified StreamSegmentName using scope, stream and segment id.
      *
      * @param scope scope to be used in the ScopedStreamSegment name

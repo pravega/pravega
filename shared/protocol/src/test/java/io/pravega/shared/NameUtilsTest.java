@@ -10,7 +10,10 @@
 package io.pravega.shared;
 
 import io.pravega.test.common.AssertExtensions;
+<<<<<<< HEAD
 import java.util.UUID;
+=======
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.junit.Assert;
@@ -18,7 +21,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+<<<<<<< HEAD
 import static org.junit.Assert.assertEquals;
+=======
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
 import static org.junit.Assert.assertTrue;
 
 public class NameUtilsTest {

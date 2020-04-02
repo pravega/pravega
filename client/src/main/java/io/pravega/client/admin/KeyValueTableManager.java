@@ -52,7 +52,23 @@ public interface KeyValueTableManager extends AutoCloseable {
      * @return True if the Key-Value Table is created
      */
     boolean createKeyValueTable(String scopeName, String keyValueTableName, KeyValueTableConfiguration config);
+<<<<<<< HEAD
     
+=======
+
+    /**
+     * Updates the configuration for an existing Key-Value Table.
+     * <p>
+     * Note: This method is idempotent assuming called with the same name and config. This method may block.
+     *
+     * @param scopeName         The name of the scope for the Key-Value Table to update
+     * @param keyValueTableName The name of the Key-Value Table to be updated.
+     * @param config            The new configuration the Key-Value Table should use.
+     * @return True if the configuration is updated.
+     */
+    boolean updateKeyValueTable(String scopeName, String keyValueTableName, KeyValueTableConfiguration config);
+
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
     /**
      * Deletes the provided Key-Value Table. No more updates, removals or queries may be performed.
      * Resources used by the Key-Value Table will be freed.

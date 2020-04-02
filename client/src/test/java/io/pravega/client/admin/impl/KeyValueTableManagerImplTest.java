@@ -53,7 +53,11 @@ public class KeyValueTableManagerImplTest {
         this.connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
         Mockito.doAnswer(invocation -> {
+<<<<<<< HEAD
             WireCommands.CreateTableSegment request = invocation.getArgument(0);
+=======
+            WireCommands.CreateSegment request = invocation.getArgument(0);
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
             if (segments.add(request.getSegment())) {
                 this.connectionFactory.getProcessor(SERVER_LOCATION).process(
                         new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
@@ -62,11 +66,19 @@ public class KeyValueTableManagerImplTest {
                         new WireCommands.SegmentAlreadyExists(request.getRequestId(), request.getSegment(), ""));
             }
             return null;
+<<<<<<< HEAD
         }).when(connection).sendAsync(Mockito.any(WireCommands.CreateTableSegment.class),
                 Mockito.any(ClientConnection.CompletedCallback.class));
 
         Mockito.doAnswer(invocation -> {
             WireCommands.DeleteTableSegment request = invocation.getArgument(0);
+=======
+        }).when(connection).sendAsync(Mockito.any(WireCommands.CreateSegment.class),
+                Mockito.any(ClientConnection.CompletedCallback.class));
+
+        Mockito.doAnswer(invocation -> {
+            WireCommands.DeleteSegment request = invocation.getArgument(0);
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
             if (segments.remove(request.getSegment())) {
                 this.connectionFactory.getProcessor(SERVER_LOCATION).process(
                         new WireCommands.SegmentDeleted(request.getRequestId(), request.getSegment()));
@@ -75,7 +87,11 @@ public class KeyValueTableManagerImplTest {
                         new WireCommands.NoSuchSegment(request.getRequestId(), request.getSegment(), "", 0L));
             }
             return null;
+<<<<<<< HEAD
         }).when(connection).sendAsync(Mockito.any(WireCommands.DeleteTableSegment.class),
+=======
+        }).when(connection).sendAsync(Mockito.any(WireCommands.DeleteSegment.class),
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
                 Mockito.any(ClientConnection.CompletedCallback.class));
 
         this.connectionFactory.provideConnection(SERVER_LOCATION, connection);
@@ -97,6 +113,10 @@ public class KeyValueTableManagerImplTest {
     /**
      * Tests the following methods:
      * - {@link KeyValueTableManagerImpl#createKeyValueTable}
+<<<<<<< HEAD
+=======
+     * - {@link KeyValueTableManagerImpl#updateKeyValueTable}
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
      * - {@link KeyValueTableManagerImpl#deleteKeyValueTable}
      */
     @Test
@@ -110,14 +130,28 @@ public class KeyValueTableManagerImplTest {
                 ex -> ex instanceof IllegalArgumentException);
 
         Assert.assertFalse(manager.deleteKeyValueTable(DEFAULT_SCOPE, name));
+<<<<<<< HEAD
+=======
+        Assert.assertFalse(manager.updateKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
 
         Assert.assertTrue(manager.createKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
         Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), this.segments.size());
         Assert.assertFalse(manager.createKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
+<<<<<<< HEAD
+=======
+        Assert.assertTrue(manager.updateKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
+        Assert.assertFalse(manager.updateKeyValueTable(DEFAULT_SCOPE, name,
+                KeyValueTableConfiguration.builder().partitionCount(DEFAULT_CONFIG.getPartitionCount() + 1).build()));
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
 
         Assert.assertTrue(manager.deleteKeyValueTable(DEFAULT_SCOPE, name));
         Assert.assertEquals(0, this.segments.size());
         Assert.assertFalse(manager.deleteKeyValueTable(DEFAULT_SCOPE, name));
+<<<<<<< HEAD
+=======
+        Assert.assertFalse(manager.updateKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
         Assert.assertTrue(manager.createKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
         Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), this.segments.size());
         manager.close(); // Closing twice to verify operation is idempotent.

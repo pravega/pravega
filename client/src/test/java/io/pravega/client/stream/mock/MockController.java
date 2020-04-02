@@ -26,12 +26,16 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.client.stream.impl.ConnectionClosedException;
 =======
 import io.pravega.client.control.impl.CancellableRequest;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.control.impl.Controller;
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
+=======
+import io.pravega.client.stream.impl.ConnectionClosedException;
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
@@ -65,7 +69,10 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+<<<<<<< HEAD
 import java.util.function.Consumer;
+=======
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -133,8 +140,12 @@ public class MockController implements Controller {
     }
 
     private CompletableFuture<Boolean> createStreamInternal(String scope, String streamName, StreamConfiguration streamConfig) {
+<<<<<<< HEAD
         return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams,
                 this::getSegmentsForStream, Segment::getScopedName, this::createSegment);
+=======
+        return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams, this::getSegmentsForStream);
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
     }
     
     @Synchronized
@@ -232,8 +243,12 @@ public class MockController implements Controller {
     @Override
     @Synchronized
     public CompletableFuture<Boolean> deleteStream(String scope, String streamName) {
+<<<<<<< HEAD
         return deleteFromScope(scope, new StreamImpl(scope, streamName), s -> s.streams, this::getSegmentsForStream,
                 Segment::getScopedName, this::deleteSegment);
+=======
+        return deleteFromScope(scope, new StreamImpl(scope, streamName), s -> s.streams, this::getSegmentsForStream);
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
     }
 
     private boolean createSegment(String name) {
@@ -627,9 +642,11 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(null);
     }
 
+
     //region KeyValueTables
 
     @Override
+<<<<<<< HEAD
 <<<<<<< HEAD
     @Synchronized
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
@@ -725,29 +742,119 @@ public class MockController implements Controller {
             }
         };
 =======
+=======
+    @Synchronized
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
-        throw new UnsupportedOperationException("createKeyValueTable not implemented.");
+        return createInScope(scope, new KeyValueTableInfo(scope, kvtName), kvtConfig, s -> s.keyValueTables, this::getSegmentsForKeyValueTable);
     }
 
     @Override
-    public AsyncIterator<Stream> listKeyValueTables(String scopeName) {
-        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
-    }
-
-    @Override
-    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
-        throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
-    }
-
-    @Override
+    @Synchronized
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
-        throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
+        return deleteFromScope(scope, new KeyValueTableInfo(scope, kvtName), s -> s.keyValueTables, this::getSegmentsForKeyValueTable);
     }
 
     @Override
+    @Synchronized
+    public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
+        return list(scopeName, s -> s.keyValueTables.keySet(), KeyValueTableInfo::getKeyValueTableName);
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration newConfig) {
+        KeyValueTableInfo kvt = new KeyValueTableInfo(scope, kvtName);
+        MockScope s = createdScopes.get(scope);
+        if (s == null) {
+            return Futures.failedFuture(new IllegalArgumentException("Scope does not exist."));
+        }
+
+        KeyValueTableConfiguration existingConfig = s.keyValueTables.get(kvt);
+        if (existingConfig == null || existingConfig.getPartitionCount() != newConfig.getPartitionCount()) {
+            return CompletableFuture.completedFuture(false);
+        }
+
+        s.keyValueTables.put(kvt, newConfig);
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    @Synchronized
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
+<<<<<<< HEAD
         throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
+=======
+        return CompletableFuture.completedFuture(getCurrentSegments(new KeyValueTableInfo(scope, kvtName)));
+    }
+
+    //endregion
+
+    //region Helpers
+
+    @Synchronized
+    private <ItemT, ConfigT> CompletableFuture<Boolean> createInScope(String scope, ItemT item, ConfigT config,
+                                                                      Function<MockScope, Map<ItemT, ConfigT>> getScopeContents,
+                                                                      Function<ItemT, List<Segment>> getSegments) {
+        MockScope s = createdScopes.get(scope);
+        if (s == null) {
+            return Futures.failedFuture(new IllegalArgumentException("Scope does not exist."));
+        }
+
+        Map<ItemT, ConfigT> scopeContents = getScopeContents.apply(s);
+        if (scopeContents.containsKey(item)) {
+            return CompletableFuture.completedFuture(false);
+        }
+
+        scopeContents.put(item, config);
+        for (Segment segment : getSegments.apply(item)) {
+            createSegment(segment.getScopedName());
+        }
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Synchronized
+    private <T> CompletableFuture<Boolean> deleteFromScope(String scope, T toDelete, Function<MockScope, Map<T, ?>> getItems,
+                                                           Function<T, List<Segment>> getSegments) {
+        MockScope s = createdScopes.get(scope);
+        if (s == null || !getItems.apply(s).containsKey(toDelete)) {
+            return CompletableFuture.completedFuture(false);
+        }
+
+        for (Segment segment : getSegments.apply(toDelete)) {
+            deleteSegment(segment.getScopedName());
+        }
+        getItems.apply(s).remove(toDelete);
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Synchronized
+    private <T> AsyncIterator<T> list(String scopeName, Function<MockScope, Collection<T>> get, Function<T, String> getName) {
+        Set<T> collect = get.apply(createdScopes.get(scopeName))
+                .stream()
+                .filter(s -> !getName.apply(s).startsWith(NameUtils.INTERNAL_NAME_PREFIX))
+                .collect(Collectors.toSet());
+        return new AsyncIterator<T>() {
+            Object lock = new Object();
+            @GuardedBy("lock")
+            Iterator<T> iterator = collect.iterator();
+
+            @Override
+            public CompletableFuture<T> getNext() {
+                T next;
+                synchronized (lock) {
+                    if (!iterator.hasNext()) {
+                        next = null;
+                    } else {
+                        next = iterator.next();
+                    }
+                }
+
+                return CompletableFuture.completedFuture(next);
+            }
+        };
+>>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
     }
 
     //endregion
