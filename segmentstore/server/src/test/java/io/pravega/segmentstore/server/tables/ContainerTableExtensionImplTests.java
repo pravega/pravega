@@ -658,7 +658,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     @SneakyThrows
+<<<<<<< HEAD
     private void checkIterators(Map<BufferView, BufferView> expectedEntries, ContainerTableExtension ext) {
+=======
+    private void checkIterators(Map<HashedArray, HashedArray> expectedEntries, ContainerTableExtension ext) {
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
         val iteratorArgs = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
         // Collect and verify all Table Entries.
         val entryIterator = ext.entryIterator(SEGMENT_NAME, iteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);

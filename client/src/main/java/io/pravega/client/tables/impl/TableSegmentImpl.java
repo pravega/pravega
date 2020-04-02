@@ -91,7 +91,11 @@ class TableSegmentImpl implements TableSegment {
      */
     TableSegmentImpl(@NonNull Segment segment, @NonNull Controller controller, @NonNull ConnectionFactory connectionFactory,
                      @NonNull KeyValueTableClientConfiguration clientConfig, DelegationTokenProvider tokenProvider) {
+<<<<<<< HEAD
         this.segmentName = segment.getKVTScopedName();
+=======
+        this.segmentName = segment.getScopedName();
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
         this.segmentId = segment.getSegmentId();
         this.controller = controller;
         this.connectionFactory = connectionFactory;
@@ -119,7 +123,11 @@ class TableSegmentImpl implements TableSegment {
     public CompletableFuture<List<TableSegmentKeyVersion>> put(@NonNull Iterator<TableSegmentEntry> tableEntries) {
         val wireEntries = entriesToWireCommand(tableEntries);
         return execute((state, requestId) -> {
+<<<<<<< HEAD
             val request = new WireCommands.UpdateTableEntries(requestId, this.segmentName, state.getToken(), wireEntries, Long.MIN_VALUE);
+=======
+            val request = new WireCommands.UpdateTableEntries(requestId, this.segmentName, state.getToken(), wireEntries);
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
 
             return sendRequest(request, state, WireCommands.TableEntriesUpdated.class)
                     .thenApply(this::fromWireCommand);
@@ -130,7 +138,11 @@ class TableSegmentImpl implements TableSegment {
     public CompletableFuture<Void> remove(@NonNull Iterator<TableSegmentKey> tableKeys) {
         val wireKeys = keysToWireCommand(tableKeys);
         return execute((state, requestId) -> {
+<<<<<<< HEAD
             val request = new WireCommands.RemoveTableKeys(requestId, this.segmentName, state.getToken(), wireKeys, Long.MIN_VALUE);
+=======
+            val request = new WireCommands.RemoveTableKeys(requestId, this.segmentName, state.getToken(), wireKeys);
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
             return Futures.toVoid(sendRequest(request, state, WireCommands.TableKeysRemoved.class));
         });
     }
@@ -364,7 +376,10 @@ class TableSegmentImpl implements TableSegment {
             return new TableSegmentEntry(key, e.getValue().getData());
         } else {
             // No entry found for this key.
+<<<<<<< HEAD
             key.getKey().release();
+=======
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
             return null;
         }
     }

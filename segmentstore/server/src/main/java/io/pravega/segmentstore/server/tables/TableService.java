@@ -11,7 +11,10 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.annotations.Beta;
 import io.pravega.common.util.AsyncIterator;
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
+=======
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;

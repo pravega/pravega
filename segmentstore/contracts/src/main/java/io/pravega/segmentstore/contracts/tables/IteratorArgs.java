@@ -10,8 +10,13 @@
 package io.pravega.segmentstore.contracts.tables;
 
 import com.google.common.annotations.Beta;
+<<<<<<< HEAD
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
+=======
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.AsyncIterator;
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
 import java.time.Duration;
 import lombok.Builder;
 import lombok.Data;
@@ -24,6 +29,7 @@ import lombok.NonNull;
 @Builder
 public class IteratorArgs {
     /**
+<<<<<<< HEAD
      * EXPERIMENTAL!
      * (Optional) A filter to apply to all returned Iterator Entries. If specified, only those entries whose keys begin
      * with this prefix will be included.
@@ -32,11 +38,23 @@ public class IteratorArgs {
      */
     @Beta
     private final BufferView prefixFilter;
+=======
+     * (Optional) A filter to apply to all returned Iterator Entries. If specified, only those entries whose keys begin
+     * with this prefix will be included.
+     * TODO: this feature is not currently supported.
+     */
+    @Beta
+    private final ArrayView prefixFilter;
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
     /**
      * (Optional) The serialized form of the State. This can be obtained from {@link IteratorItem#getState()}.
      * If provided, the iteration will resume from where it left off, otherwise it will start from the beginning.
      */
+<<<<<<< HEAD
     private BufferView serializedState;
+=======
+    private ArrayView serializedState;
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
     /**
      * Timeout for each invocation to {@link AsyncIterator#getNext()}.
      */

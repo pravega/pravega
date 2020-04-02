@@ -96,7 +96,11 @@ import lombok.NonNull;
  * @param <ValueT> Table Value Type.
  */
 @Beta
+<<<<<<< HEAD
 public interface KeyValueTable<KeyT, ValueT> extends AutoCloseable {
+=======
+public interface KeyValueTable<KeyT, ValueT> {
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
     /**
      * Unconditionally inserts a new or updates an existing Entry in the {@link KeyValueTable}.
      *

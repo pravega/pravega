@@ -338,6 +338,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
+<<<<<<< HEAD
         return this.segmentContainer.forSegment(segmentName, args.getFetchTimeout())
                 .thenComposeAsync(segment -> {
                     if (ContainerSortedKeyIndex.isSortedTableSegment(segment.getInfo())) {
@@ -349,10 +350,15 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                         return newHashIterator(segment, args, TableBucketReader::key, KeyTranslator::outbound);
                     }
                 }, this.executor);
+=======
+        logRequest("keyIterator", segmentName);
+        return newIterator(segmentName, args, TableBucketReader::key);
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
     }
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
+<<<<<<< HEAD
         return this.segmentContainer.forSegment(segmentName, args.getFetchTimeout())
                 .thenComposeAsync(segment -> {
                     if (ContainerSortedKeyIndex.isSortedTableSegment(segment.getInfo())) {
@@ -363,6 +369,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                         return newHashIterator(segment, args, TableBucketReader::entry, KeyTranslator::outbound);
                     }
                 }, this.executor);
+=======
+        logRequest("entryIterator", segmentName);
+        return newIterator(segmentName, args, TableBucketReader::entry);
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
     }
 
     //endregion
@@ -409,6 +419,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 });
     }
 
+<<<<<<< HEAD
     private <T> CompletableFuture<IteratorItem<T>> toSortedIteratorItem(List<BufferView> keys, Function<List<BufferView>,
             CompletableFuture<List<T>>> toResult, SegmentProperties segmentInfo) {
         if (keys == null || keys.isEmpty()) {
@@ -435,6 +446,12 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                                                                                   @NonNull GetBucketReader<T> createBucketReader,
                                                                                   @NonNull BiFunction<KeyTranslator, T, T> translateItem) {
         Preconditions.checkArgument(args.getPrefixFilter() == null, "Cannot perform a KeyHash iteration with a prefix.");
+=======
+    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, @NonNull IteratorArgs args,
+                                                                              @NonNull GetBucketReader<T> createBucketReader) {
+        // TODO: this should be implemented with https://github.com/pravega/pravega/issues/4656.
+        Preconditions.checkArgument(args.getPrefixFilter() == null, "Prefix Iterator not supported.");
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
         UUID fromHash;
         try {
             fromHash = KeyHasher.getNextHash(args.getSerializedState() == null ? null : IteratorState.deserialize(args.getSerializedState()).getKeyHash());
@@ -448,6 +465,16 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return CompletableFuture.completedFuture(TableIterator.empty());
         }
 
+<<<<<<< HEAD
+=======
+        return this.segmentContainer
+                .forSegment(segmentName, args.getFetchTimeout())
+                .thenComposeAsync(segment -> buildIterator(segment, createBucketReader, fromHash, args.getFetchTimeout()), this.executor);
+    }
+
+    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> buildIterator(
+            DirectSegmentAccess segment, GetBucketReader<T> createBucketReader, UUID fromHash, Duration fetchTimeout) {
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
         // Create a converter that will use a TableBucketReader to fetch all requested items in the iterated Buckets.
         val bucketReader = createBucketReader.apply(segment, this.keyIndex::getBackpointerOffset, this.executor);
         val segmentInfo = segment.getInfo();

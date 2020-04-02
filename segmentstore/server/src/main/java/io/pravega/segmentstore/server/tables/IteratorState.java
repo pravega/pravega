@@ -60,7 +60,11 @@ class IteratorState {
      * @return As new instance of the IteratorState class.
      * @throws IOException If unable to deserialize.
      */
+<<<<<<< HEAD
     static IteratorState deserialize(BufferView data) throws IOException {
+=======
+    static IteratorState deserialize(ArrayView data) throws IOException {
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
         return SERIALIZER.deserialize(data);
     }
 

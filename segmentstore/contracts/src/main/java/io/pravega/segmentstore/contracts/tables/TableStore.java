@@ -61,6 +61,7 @@ public interface TableStore {
 
     /**
      * Gets a value indicating the maximum length of any Table Entry Value supported by the TableStore.
+<<<<<<< HEAD
      */
     int MAXIMUM_VALUE_LENGTH = 1024 * 1024 - MAXIMUM_KEY_LENGTH;
 
@@ -80,6 +81,10 @@ public interface TableStore {
     default CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
         return createSegment(segmentName, false, timeout);
     }
+=======
+     */
+    int MAXIMUM_VALUE_LENGTH = 1024 * 1024 - MAXIMUM_KEY_LENGTH;
+>>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
 
     /**
      * Creates a new Segment and marks it as a Table Segment.
