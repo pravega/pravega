@@ -275,6 +275,17 @@ public final class NameUtils {
     }
 
     /**
+     * Compose and return scoped Key-Value Table name.
+     *
+     * @param scope scope to be used in scoped Key-Value Table name.
+     * @param streamName Key-Value Table name to be used in Scoped Key-Value Table name.
+     * @return scoped Key-Value Table name.
+     */
+    public static String getScopedKeyValueTableName(String scope, String streamName) {
+        return getScopedStreamNameInternal(scope, streamName).toString();
+    }
+
+    /**
      * Method to generate Fully Qualified StreamSegmentName using scope, stream and segment id.
      *
      * @param scope scope to be used in the ScopedStreamSegment name
@@ -505,6 +516,15 @@ public final class NameUtils {
         Preconditions.checkNotNull(name);
         Preconditions.checkArgument(name.matches("[\\p{Alnum}\\.\\-]+"), "Name must be a-z, 0-9, ., -.");
         return name;
+    }
+
+    /**
+     * Validates a user-created Key-Value Table name.
+     * @param name User supplied Key-Value Table name to validate.
+     * @return The name, if valid.
+     */
+    public static String validateUserKeyValueTableName(String name) {
+        return validateUserStreamName(name); // Currently, the same rules apply as for Streams.
     }
 
     /**

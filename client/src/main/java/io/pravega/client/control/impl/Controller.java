@@ -9,6 +9,7 @@
  */
 package io.pravega.client.control.impl;
 
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -364,7 +365,7 @@ public interface Controller extends AutoCloseable {
      * @param scopeName The name of the scope for which to list KeyValueTables in.
      * @return An {@link AsyncIterator} which can be used to iterate over all KeyValueTables in the scope.
      */
-    AsyncIterator<Stream> listKeyValueTables(final String scopeName);
+    AsyncIterator<KeyValueTableInfo> listKeyValueTables(final String scopeName);
 
     /**
      * API to update the configuration of a KeyValueTable.

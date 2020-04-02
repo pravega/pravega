@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
@@ -449,7 +450,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public AsyncIterator<Stream> listKeyValueTables(String scopeName) {
+    public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
         throw new UnsupportedOperationException("listKeyValueTables not implemented.");
     }
 
