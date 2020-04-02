@@ -55,7 +55,9 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
 
     @Before
     public void setUp() {
-        MetricsProvider.initialize(MetricsConfig.builder() .with(MetricsConfig.ENABLE_STATISTICS, true).build());
+        MetricsProvider.initialize(MetricsConfig.builder()
+                                                .with(MetricsConfig.ENABLE_STATISTICS, true)
+                                                .build());
         MetricsProvider.getMetricsProvider().startWithoutExporting();
         this.metrics = new SegmentStoreMetrics.OperationProcessor(CONTAINER_ID);
     }
