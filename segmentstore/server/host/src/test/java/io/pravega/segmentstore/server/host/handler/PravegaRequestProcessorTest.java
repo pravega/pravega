@@ -62,8 +62,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Data;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -859,7 +859,7 @@ public class PravegaRequestProcessorTest {
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(3), eq(false), any());
 
         // 1. Now read the table keys where suggestedKeyCount is equal to number of entries in the Table Store.
-        processor.readTableKeys(new WireCommands.ReadTableKeys(3, tableSegmentName, "", 3, wrappedBuffer(new byte[0])));
+        processor.readTableKeys(new WireCommands.ReadTableKeys(3, tableSegmentName, "", 3, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
 
         // Capture the WireCommands sent.
         ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
@@ -872,7 +872,7 @@ public class PravegaRequestProcessorTest {
         assertTrue(getTableKeysReadResponse.getKeys().stream().map(WireCommands.TableKey::getKeyVersion).collect(Collectors.toList()).containsAll(keyVersions));
 
         // 2. Now read the table keys where suggestedKeyCount is less than the number of keys in the Table Store.
-        processor.readTableKeys(new WireCommands.ReadTableKeys(3, tableSegmentName, "", 1, wrappedBuffer(new byte[0])));
+        processor.readTableKeys(new WireCommands.ReadTableKeys(3, tableSegmentName, "", 1, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
 
         // Capture the WireCommands sent.
         ArgumentCaptor<WireCommands.TableKeysRead> tableKeysCaptor = ArgumentCaptor.forClass(WireCommands.TableKeysRead.class);
@@ -887,7 +887,7 @@ public class PravegaRequestProcessorTest {
         ByteBuf state = getTableKeysReadResponse.getContinuationToken();
 
         // 3. Now read the remaining table keys by providing a higher suggestedKeyCount and the state to the iterator.
-        processor.readTableKeys(new WireCommands.ReadTableKeys(3, tableSegmentName, "", 3, state));
+        processor.readTableKeys(new WireCommands.ReadTableKeys(3, tableSegmentName, "", 3, state, Unpooled.EMPTY_BUFFER));
         // Capture the WireCommands sent.
         tableKeysCaptor = ArgumentCaptor.forClass(WireCommands.TableKeysRead.class);
         order.verify(connection, times(1)).send(tableKeysCaptor.capture());
@@ -930,7 +930,7 @@ public class PravegaRequestProcessorTest {
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(3), eq(false), any());
 
         // 1. Now read the table entries where suggestedEntryCount is equal to number of entries in the Table Store.
-        processor.readTableEntries(new WireCommands.ReadTableEntries(3, tableSegmentName, "", 3, wrappedBuffer(new byte[0])));
+        processor.readTableEntries(new WireCommands.ReadTableEntries(3, tableSegmentName, "", 3, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
 
         // Capture the WireCommands sent.
         ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
@@ -951,7 +951,7 @@ public class PravegaRequestProcessorTest {
         }));
 
         // 2. Now read the table keys where suggestedEntryCount is less than the number of entries in the Table Store.
-        processor.readTableEntries(new WireCommands.ReadTableEntries(3, tableSegmentName, "", 1, wrappedBuffer(new byte[0])));
+        processor.readTableEntries(new WireCommands.ReadTableEntries(3, tableSegmentName, "", 1, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
 
         // Capture the WireCommands sent.
         ArgumentCaptor<WireCommands.TableEntriesRead> tableEntriesCaptor =
@@ -966,7 +966,7 @@ public class PravegaRequestProcessorTest {
         ByteBuf state = getTableEntriesIteratorsResp.getContinuationToken();
 
         // 3. Now read the remaining table entries by providing a higher suggestedKeyCount and the state to the iterator.
-        processor.readTableEntries(new WireCommands.ReadTableEntries(3, tableSegmentName, "", 3, state));
+        processor.readTableEntries(new WireCommands.ReadTableEntries(3, tableSegmentName, "", 3, state, Unpooled.EMPTY_BUFFER));
         // Capture the WireCommands sent.
         tableEntriesCaptor = ArgumentCaptor.forClass(WireCommands.TableEntriesRead.class);
         order.verify(connection, times(1)).send(tableEntriesCaptor.capture());

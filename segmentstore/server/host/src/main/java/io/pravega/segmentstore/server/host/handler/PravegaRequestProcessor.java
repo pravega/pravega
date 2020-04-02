@@ -39,6 +39,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -726,20 +727,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(readTableKeys.getRequestId(), "Fetching keys from {}.", readTableKeys);
 
-        int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
-        ByteBuf token = readTableKeys.getContinuationToken();
-
-        byte[] state = null;
-        if (!token.equals(EMPTY_BUFFER)) {
-            state = token.array();
-        }
+        final int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
+        final IteratorArgs args = getIteratorArgs(readTableKeys.getContinuationToken(), readTableKeys.getPrefixFilter());
 
         final AtomicInteger msgSize = new AtomicInteger(0);
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
         final List<TableKey> keys = new ArrayList<>();
 
         val timer = new Timer();
-        tableStore.keyIterator(segment, state, TIMEOUT)
+        tableStore.keyIterator(segment, args)
                   .thenCompose(itr -> itr.collectRemaining(
                           e -> {
                               synchronized (keys) {
@@ -788,19 +784,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(readTableEntries.getRequestId(), "Fetching keys from {}.", readTableEntries);
 
-        int suggestedEntryCount = readTableEntries.getSuggestedEntryCount();
-        ByteBuf token = readTableEntries.getContinuationToken();
-
-        byte[] state = null;
-        if (!token.equals(EMPTY_BUFFER)) {
-            state = token.array();
-        }
+        final int suggestedEntryCount = readTableEntries.getSuggestedEntryCount();
+        final IteratorArgs args = getIteratorArgs(readTableEntries.getContinuationToken(), readTableEntries.getPrefixFilter());
 
         final AtomicInteger msgSize = new AtomicInteger(0);
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
         final List<TableEntry> entries = new ArrayList<>();
         val timer = new Timer();
-        tableStore.entryIterator(segment, state, TIMEOUT)
+        tableStore.entryIterator(segment, args)
                   .thenCompose(itr -> itr.collectRemaining(
                           e -> {
                               synchronized (entries) {
@@ -844,6 +835,18 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                       this.tableStatsRecorder.iterateEntries(readTableEntries.getSegment(), entries.size(), timer.getElapsed());
                   }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
     }
+
+    private IteratorArgs getIteratorArgs(ByteBuf token, ByteBuf prefix) {
+        val args = IteratorArgs.builder().fetchTimeout(TIMEOUT);
+        if (token != null && !token.equals(EMPTY_BUFFER)) {
+            args.serializedState(getArrayView(token));
+        }
+        if (prefix != null && !prefix.equals(EMPTY_BUFFER)) {
+            args.prefixFilter(getArrayView(token));
+        }
+        return args.build();
+    }
+
 
     private int getTableKeyBytes(String segment, Collection<TableKey> keys, int continuationTokenLength) {
         int headerLength = WireCommands.TableKeysRead.GET_HEADER_BYTES.apply(keys.size());

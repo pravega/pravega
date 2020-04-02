@@ -13,6 +13,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -252,7 +253,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             }
 
             searchFutures.add(tableStore.get(segmentName, keys, TIMEOUT));
-            iteratorFutures.add(tableStore.entryIterator(segmentName, null, TIMEOUT)
+            iteratorFutures.add(tableStore.entryIterator(segmentName, IteratorArgs.builder().fetchTimeout(TIMEOUT).build())
                     .thenCompose(ei -> {
                         val result = new ArrayList<TableEntry>();
                         return ei.forEachRemaining(i -> result.addAll(i.getEntries()), executorService())
