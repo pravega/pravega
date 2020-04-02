@@ -12,6 +12,7 @@ package io.pravega.shared.protocol.netty;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
+import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutput;
@@ -30,7 +31,9 @@ import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class WireCommandsTest {
@@ -730,18 +733,34 @@ public class WireCommandsTest {
 
     @Test
     public void testGetTableKeys() throws IOException {
-        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, buf);
+        ByteBuf buf2 = buf.copy().setInt(0, Integer.MAX_VALUE);
+        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, buf, buf2);
         testCommand(cmd);
-        cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, wrappedBuffer(new byte[0]));
+
+        cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, wrappedBuffer(new byte[0]), wrappedBuffer(new byte[0]));
         testCommand(cmd);
+
+        // Test that we are able to read fields from an older version.
+        cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, buf, Unpooled.EMPTY_BUFFER);
+        EnhancedByteArrayOutputStream bout = new EnhancedByteArrayOutputStream();
+        cmd.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.getData().slice(0, bout.size() - Integer.BYTES).getCopy(), cmd);
     }
 
     @Test
     public void testGetTableEntries() throws IOException {
-        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, buf);
+        ByteBuf buf2 = buf.copy().setInt(0, Integer.MAX_VALUE);
+        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, buf, buf2);
         testCommand(cmd);
-        cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, wrappedBuffer(new byte[0]));
+
+        cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, wrappedBuffer(new byte[0]), wrappedBuffer(new byte[0]));
         testCommand(cmd);
+
+        // Test that we are able to read fields from an older version.
+        cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, buf, Unpooled.EMPTY_BUFFER);
+        EnhancedByteArrayOutputStream bout = new EnhancedByteArrayOutputStream();
+        cmd.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.getData().slice(0, bout.size() - Integer.BYTES).getCopy(), cmd);
     }
 
     @Test

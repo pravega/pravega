@@ -25,6 +25,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -300,7 +301,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout) {
         ensureRunning();
         return this.tableStore
-                .entryIterator(tableName, null, timeout)
+                .entryIterator(tableName, IteratorArgs.builder().fetchTimeout(timeout).build())
                 .thenApply(iterator -> () ->
                         iterator.getNext().thenApply(item -> {
                             if (item == null) {

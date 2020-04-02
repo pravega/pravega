@@ -22,6 +22,7 @@ import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -269,15 +270,15 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
         logRequest("keyIterator", segmentName);
-        return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::key);
+        return newIterator(segmentName, args, TableBucketReader::key);
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
         logRequest("entryIterator", segmentName);
-        return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::entry);
+        return newIterator(segmentName, args, TableBucketReader::entry);
     }
 
     //endregion
@@ -315,12 +316,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return segment.append(new ByteArraySegment(s), null, timeout);
     }
 
-    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, byte[] serializedState,
-                                                                              @NonNull Duration fetchTimeout,
+    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, @NonNull IteratorArgs args,
                                                                               @NonNull GetBucketReader<T> createBucketReader) {
+        // TODO: this should be implemented with https://github.com/pravega/pravega/issues/4656.
+        Preconditions.checkArgument(args.getPrefixFilter() == null, "Prefix Iterator not supported.");
         UUID fromHash;
         try {
-            fromHash = KeyHasher.getNextHash(serializedState == null ? null : IteratorState.deserialize(serializedState).getKeyHash());
+            fromHash = KeyHasher.getNextHash(args.getSerializedState() == null ? null : IteratorState.deserialize(args.getSerializedState()).getKeyHash());
         } catch (IOException ex) {
             // Bad IteratorState serialization.
             throw new IllegalDataFormatException("Unable to deserialize `serializedState`.", ex);
@@ -332,8 +334,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         }
 
         return this.segmentContainer
-                .forSegment(segmentName, fetchTimeout)
-                .thenComposeAsync(segment -> buildIterator(segment, createBucketReader, fromHash, fetchTimeout), this.executor);
+                .forSegment(segmentName, args.getFetchTimeout())
+                .thenComposeAsync(segment -> buildIterator(segment, createBucketReader, fromHash, args.getFetchTimeout()), this.executor);
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> buildIterator(
