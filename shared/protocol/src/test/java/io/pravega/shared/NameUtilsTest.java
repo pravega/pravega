@@ -10,12 +10,12 @@
 package io.pravega.shared;
 
 import io.pravega.test.common.AssertExtensions;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertTrue;
 
@@ -27,11 +27,30 @@ public class NameUtilsTest {
 
     @Test
     public void testUserStreamNameVerifier() {
-        NameUtils.validateUserStreamName("stream123");
-        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateUserStreamName("_stream"));
-        AssertExtensions.assertThrows(NullPointerException.class, () -> NameUtils.validateUserStreamName(null));
-        NameUtils.validateUserStreamName("a-b-c");
-        NameUtils.validateUserStreamName("1.2.3");
+        testUserStreamNameVerifier(NameUtils::validateUserStreamName);
+    }
+
+    private void testUserStreamNameVerifier(Function<String, String> toTest) {
+        Assert.assertEquals("stream123", toTest.apply("stream123"));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> toTest.apply("_stream"));
+        AssertExtensions.assertThrows(NullPointerException.class, () -> toTest.apply(null));
+        Assert.assertEquals("a-b-c", toTest.apply("a-b-c"));
+        Assert.assertEquals("1.2.3", toTest.apply("1.2.3"));
+    }
+
+    @Test
+    public void testUserKeyValueTableNameVerifier() {
+        // Currently, the same set of rules apply as for User Stream Names.
+        testUserStreamNameVerifier(NameUtils::validateUserKeyValueTableName);
+    }
+
+    @Test
+    public void testGetScopedKeyValueTableName() {
+        String scope = "scope";
+        String kvt = "kvt";
+        String scopedName = NameUtils.getScopedKeyValueTableName(scope, kvt);
+        Assert.assertTrue(scopedName.startsWith(scope));
+        Assert.assertTrue(scopedName.endsWith(kvt));
     }
 
     @Test
