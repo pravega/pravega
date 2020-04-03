@@ -19,6 +19,7 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Random;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -40,13 +41,13 @@ import org.junit.Test;
  * Unit tests for the {@link Throttler} class.
  */
 public class ThrottlerTests extends ThreadPooledTestSuite {
-    private static final int CONTAINER_ID = 1;
     private static final ThrottlerCalculator.ThrottlerName THROTTLER_NAME = ThrottlerCalculator.ThrottlerName.Cache;
     private static final int MAX_THROTTLE_MILLIS = ThrottlerCalculator.MAX_DELAY_MILLIS;
     private static final int NON_MAX_THROTTLE_MILLIS = MAX_THROTTLE_MILLIS - 1;
     private static final int TIMEOUT_MILLIS = 10000;
     private static final int SHORT_TIMEOUT_MILLIS = 50;
     private SegmentStoreMetrics.OperationProcessor metrics;
+    private static int containerId = 1;
 
     @Override
     protected int getThreadPoolSize() {
@@ -55,11 +56,12 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
 
     @Before
     public void setUp() {
+        this.containerId = new Random().nextInt(Integer.MAX_VALUE);
         MetricsProvider.initialize(MetricsConfig.builder()
                                                 .with(MetricsConfig.ENABLE_STATISTICS, true)
                                                 .build());
         MetricsProvider.getMetricsProvider().startWithoutExporting();
-        this.metrics = new SegmentStoreMetrics.OperationProcessor(CONTAINER_ID);
+        this.metrics = new SegmentStoreMetrics.OperationProcessor(this.containerId);
     }
 
     @After
@@ -75,7 +77,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         val delays = Collections.<Integer>synchronizedList(new ArrayList<>());
         val calculator = new TestCalculatorThrottler(THROTTLER_NAME);
         @Cleanup
-        Throttler t = new AutoCompleteTestThrottler(CONTAINER_ID, wrap(calculator), executorService(), metrics, delays::add);
+        Throttler t = new AutoCompleteTestThrottler(this.containerId, wrap(calculator), executorService(), metrics, delays::add);
 
         calculator.setThrottlingRequired(false);
         Assert.assertFalse("Not expecting any throttling to be required.", t.isThrottlingRequired());
@@ -98,7 +100,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         val delays = Collections.<Integer>synchronizedList(new ArrayList<>());
         val calculator = new TestCalculatorThrottler(THROTTLER_NAME);
         @Cleanup
-        Throttler t = new AutoCompleteTestThrottler(CONTAINER_ID, wrap(calculator), executorService(), metrics, delays::add);
+        Throttler t = new AutoCompleteTestThrottler(this.containerId, wrap(calculator), executorService(), metrics, delays::add);
 
         // Set a non-maximum delay and ask to throttle, then verify we throttled the correct amount.
         calculator.setDelayMillis(NON_MAX_THROTTLE_MILLIS);
@@ -129,7 +131,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         // block as long as necessary; at each throttle cycle it should check the calculator for a new value, which we
         // will decrease an expect to unblock once we got a value smaller than MAX.
         @Cleanup
-        Throttler t = new AutoCompleteTestThrottler(CONTAINER_ID, wrap(calculator), executorService(), metrics, recordDelay);
+        Throttler t = new AutoCompleteTestThrottler(this.containerId, wrap(calculator), executorService(), metrics, recordDelay);
         calculator.setDelayMillis(nextDelay.get());
         t.throttle().get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected number of delays recorded.", repeatCount, delays.size());
@@ -176,7 +178,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
             calculator.setDelayMillis(nextDelay.hasNext() ? nextDelay.next() : 0); // 0 means we're done (no more throttling).
         };
         @Cleanup
-        TestThrottler t = new TestThrottler(CONTAINER_ID, wrap(calculator), executorService(), metrics, recordDelay);
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), executorService(), metrics, recordDelay);
 
         // Set a non-maximum delay and ask to throttle, then verify we throttled the correct amount.
         calculator.setDelayMillis(nextDelay.next());
@@ -196,11 +198,15 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         }
         TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
 
-        String[] tags = { "container", String.valueOf(CONTAINER_ID), "throttler", "Cache" };
+        String[] tags = { "container", String.valueOf(this.containerId), "throttler", "Cache" };
 
         // Because the supplied delays is monotonically decreasing, only the first delay value should be used to calculate
         // the duration supplied.
-        Assert.assertEquals((int) suppliedDelays.get(0), (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value());
+        AssertExtensions.assertLessThanOrEqual(
+                "Throttler should be at most the first supplied delay",
+                (int) suppliedDelays.get(0),
+                (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value()
+        );
     }
 
     /**
@@ -220,7 +226,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
             calculator.setDelayMillis(nextDelay.hasNext() ? nextDelay.next() : 0); // 0 means we're done (no more throttling).
         };
         @Cleanup
-        TestThrottler t = new TestThrottler(CONTAINER_ID, wrap(calculator), executorService(), metrics, recordDelay);
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), executorService(), metrics, recordDelay);
 
         // Set a non-maximum delay and ask to throttle, then verify we throttled the correct amount.
         calculator.setDelayMillis(nextDelay.next());
@@ -240,7 +246,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         }
         TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
 
-        String[] tags = { "container", String.valueOf(CONTAINER_ID), "throttler", "Cache" };
+        String[] tags = { "container", String.valueOf(this.containerId), "throttler", "Cache" };
 
         // Because the supplied delays is monotonically decreasing, only the first delay value should be used to calculate
         // the duration supplied.
@@ -284,7 +290,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         ArrayList<ThrottlerCalculator.Throttler> throttlers = new ArrayList<>(Arrays.asList(cacheCalculator, batchingCalculator, durableDataLogCalculator));
 
         @Cleanup
-        TestThrottler t = new TestThrottler(CONTAINER_ID, wrap(throttlers), executorService(), metrics, recordDelay);
+        TestThrottler t = new TestThrottler(this.containerId, wrap(throttlers), executorService(), metrics, recordDelay);
 
         val t1 = t.throttle();
         Assert.assertFalse("Not expected throttle future to be completed yet.", t1.isDone());
@@ -356,7 +362,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
             calculator.setDelayMillis(nextDelay.hasNext() ? nextDelay.next() : 0); // 0 means we're done (no more throttling).
         };
         @Cleanup
-        TestThrottler t = new TestThrottler(CONTAINER_ID, wrap(calculator), executorService(), metrics, recordDelay);
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), executorService(), metrics, recordDelay);
 
         // Set a non-maximum delay and ask to throttle, then verify we throttled the correct amount.
         calculator.setDelayMillis(nextDelay.next());
@@ -398,7 +404,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     }
 
     private String[] throttlerTags(ThrottlerCalculator.ThrottlerName name)  {
-        return  new String[] { "container", String.valueOf(CONTAINER_ID), "throttler", name.toString() };
+        return  new String[] { "container", String.valueOf(this.containerId), "throttler", name.toString() };
     }
 
     private double getThrottlerMetric(ThrottlerCalculator.ThrottlerName name) {
