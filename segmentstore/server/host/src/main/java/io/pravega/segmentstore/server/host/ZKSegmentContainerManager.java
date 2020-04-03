@@ -37,18 +37,20 @@ class ZKSegmentContainerManager implements SegmentContainerManager {
     /**
      * Creates a new instance of the ZKSegmentContainerManager class.
      *
-     * @param containerRegistry      The SegmentContainerRegistry to manage.
-     * @param zkClient               ZooKeeper client.
-     * @param pravegaServiceEndpoint Pravega service endpoint details.
-     * @param executor               Executor service for running async operations.
+     * @param containerRegistry       The SegmentContainerRegistry to manage.
+     * @param zkClient                ZooKeeper client.
+     * @param pravegaServiceEndpoint  Pravega service endpoint details.
+     * @param parallelContainerStarts Defines the number of containers to start in parallel.
+     * @param executor                Executor service for running async operations.
      */
     ZKSegmentContainerManager(SegmentContainerRegistry containerRegistry, CuratorFramework zkClient,
-                              Host pravegaServiceEndpoint, ScheduledExecutorService executor) {
+                              Host pravegaServiceEndpoint, int parallelContainerStarts, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         Preconditions.checkNotNull(zkClient, "zkClient");
         this.host = Preconditions.checkNotNull(pravegaServiceEndpoint, "pravegaServiceEndpoint");
         this.cluster = new ClusterZKImpl(zkClient, ClusterType.HOST);
-        this.containerMonitor = new ZKSegmentContainerMonitor(containerRegistry, zkClient, pravegaServiceEndpoint, executor);
+        this.containerMonitor = new ZKSegmentContainerMonitor(containerRegistry, zkClient, pravegaServiceEndpoint,
+                parallelContainerStarts, executor);
     }
 
     @Override
