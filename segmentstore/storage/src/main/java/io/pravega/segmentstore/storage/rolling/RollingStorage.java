@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.rolling;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -29,6 +30,7 @@ import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.shared.NameUtils;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -307,6 +309,7 @@ public class RollingStorage implements SyncStorage {
     }
 
     @Override
+    @SneakyThrows(IOException.class)
     public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
         val h = getHandle(handle);
         ensureNotDeleted(h);
@@ -327,7 +330,13 @@ public class RollingStorage implements SyncStorage {
             int writeLength = (int) Math.min(length - bytesWritten, h.getRollingPolicy().getMaxLength() - last.getLength());
             assert writeLength > 0 : "non-positive write length";
             long chunkOffset = offset + bytesWritten - last.getStartOffset();
-            this.baseStorage.write(h.getActiveChunkHandle(), chunkOffset, data, writeLength);
+
+            // Use a BoundedInputStream to ensure that the underlying storage does not try to read more (or less) data
+            // than we instructed it to. Invoking BoundedInputStream.close() will throw an IOException if baseStorage.write()
+            // has not read all the bytes it was supposed to.
+            try (BoundedInputStream bis = new BoundedInputStream(data, writeLength)) {
+                this.baseStorage.write(h.getActiveChunkHandle(), chunkOffset, bis, writeLength);
+            }
             last.increaseLength(writeLength);
             bytesWritten += writeLength;
         }
@@ -550,7 +559,7 @@ public class RollingStorage implements SyncStorage {
         public SegmentProperties next() {
             if (null != current) {
                 try {
-                    RollingSegmentHandle handle = instance.openHandle(getSegmentNameFromHeader(current.getName()), true);
+                    val handle = instance.openHandle(getSegmentNameFromHeader(current.getName()), true);
                     return StreamSegmentInformation.builder()
                             .name(getSegmentNameFromHeader(current.getName()))
                             .length(handle.length())

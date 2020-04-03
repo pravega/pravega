@@ -510,10 +510,8 @@ class HDFSStorage implements SyncStorage {
                         }
                         return true;
                     });
-        } catch (FileNotFoundException e) {
-            // TODO log
         } catch (IOException e) {
-            // TODO log
+            log.error("Hit an exception: ", e);
         }
         return Collections.emptyIterator();
     }

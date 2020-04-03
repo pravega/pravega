@@ -142,7 +142,7 @@ public class AsyncStorageWrapper implements Storage {
 
     @Override
     public CompletableFuture<Iterator<SegmentProperties>> listSegments() {
-        return CompletableFuture.completedFuture(this.syncStorage.listSegments()); // Why?
+        return CompletableFuture.completedFuture(this.syncStorage.listSegments());
     }
 
     //endregion

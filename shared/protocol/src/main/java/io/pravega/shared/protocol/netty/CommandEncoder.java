@@ -318,8 +318,11 @@ public class CommandEncoder extends FlushingMessageToByteEncoder<Object> {
         int blockSize = 0;
         if (blockSizeSupplier != null) {
             blockSize = blockSizeSupplier.getAppendBlockSize();
-            metricNotifier.updateSuccessMetric(CLIENT_APPEND_BLOCK_SIZE, segmentTags(append.getSegment(), append.getWriterId().toString()),
-                                               blockSize);
+            // Only publish client side metrics when there is some metrics notifier configured for efficiency.
+            if (!metricNotifier.equals(MetricNotifier.NO_OP_METRIC_NOTIFIER)) {
+                metricNotifier.updateSuccessMetric(CLIENT_APPEND_BLOCK_SIZE, segmentTags(append.getSegment(), append.getWriterId().toString()),
+                        blockSize);
+            }
         }
         segmentBeingAppendedTo = append.segment;
         writerIdPerformingAppends = append.writerId;

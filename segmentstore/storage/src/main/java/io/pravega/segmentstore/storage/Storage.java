@@ -170,7 +170,11 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * @return True or false.
      */
     boolean supportsTruncation();
-
+    /**
+     * Lists all the segments stored on the storage device.
+     *
+     * @return Iterator that can be used to enumerate and retrieve properties of all the segments.
+     */
     CompletableFuture<Iterator<SegmentProperties>> listSegments();
 
     @Override

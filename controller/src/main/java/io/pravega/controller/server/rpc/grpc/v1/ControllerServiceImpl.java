@@ -62,6 +62,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Function;
@@ -354,8 +355,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void commitTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("commitTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+                request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(
                         request.getStreamInfo().getScope(),
@@ -363,47 +365,50 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId(), request.getWriterId(), request.getTimestamp()),
+                        txnId, request.getWriterId(), request.getTimestamp()),
                 responseObserver);
     }
 
     @Override
     public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("abortTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+                request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults( () -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.abortTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId()),
+                        txnId),
                 responseObserver);
     }
 
     @Override
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+                request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                delegationToken  -> controllerService.pingTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId(),
+                        txnId,
                         request.getLease()),
                 responseObserver);
     }
 
     @Override
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+                request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId()),
+                        txnId),
                 responseObserver);
     }
 
