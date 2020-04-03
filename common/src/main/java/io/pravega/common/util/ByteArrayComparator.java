@@ -13,19 +13,26 @@ import java.io.Serializable;
 import java.util.Comparator;
 
 /**
- * Performs a lexicographic bitwise comparison of two byte arrays of the same length.
- * <p>
- * Lexicographic bitwise comparison:
+ * Performs a lexicographic bitwise comparison of two byte arrays.
+ *
+ * Lexicographic bitwise comparison for arrays of the same length:
  * - Consider two arrays A and B, with each having L bits (L is a multiple of 8).
  * - Define A{n} and B{n} as the bit at position n in A and B, respectively. This can be either 0 or 1.
  * - A precedes B if there exists bit position i such that for all bit positions j smaller than i,
  * then A{j} is equal to B{j}, A{i} is 0 and B{i} is 1.
  * - A is equal to B if the values of all bit positions in both arrays match.
- * <p>
+ *
+ * Lexicographic bitwise comparison for arrays of different lengths:
+ * - Consider two arrays A and B, with A having LA bits and B having LB bits (LA, LB are multiples of 8).
+ * - We do a Lexicographic bitwise comparison of the prefixes of A and B of lengths Min(LA, LB).
+ * - If the prefixes are equal, then the shorter of A and B precedes the longer of A and B.
+ * -- If LA &lt; LB, then A is before B; if LA &gt; LB, then A is after B.
+ * - If the prefixes are not equal, then the result from the prefix comparison is used to order A and B (see above).
+ *
  * Lexicographic bitwise comparison matches the natural order of numbers when serialized as unsigned (i.e., using the
  * specialized methods in {@link BitConverter}) since they avoid the complications involved with interpreting individual
  * bytes with the first bit set to 1 using 2's complement (128 is before 127 if we used signed bytes).
- * <p>
+ *
  * For example:
  * - Consider any two Longs L1 and L2.
  * - Let S1 be the result of {@link BitConverter#writeUnsignedLong} when applied to L1, and S2 the result when applied to L2.
@@ -67,8 +74,7 @@ public final class ByteArrayComparator implements Comparator<byte[]>, Serializab
             if (c == 0) {
                 // If b2 is longer than b1, then b1 is a prefix of b2 so b1 should be before b2.
                 // If b2 is shorter than b1, then b2 is a prefix of b1 so b2 should be before b1.
-                c = b2.getLength() > b1.getLength() ? 1 : -1;
-                // TODO: unit tests for this.
+                c = b2.getLength() > b1.getLength() ? -1 : 1;
             }
             return c;
         }
@@ -95,5 +101,14 @@ public final class ByteArrayComparator implements Comparator<byte[]>, Serializab
         }
 
         return 0;
+    }
+
+    /**
+     * Gets the minimum non-empty value. When compared against this, all other byte arrays will be larger.
+     *
+     * @return The minimum, non-empty value.
+     */
+    public byte[] getMinValue() {
+        return new byte[MIN_VALUE];
     }
 }

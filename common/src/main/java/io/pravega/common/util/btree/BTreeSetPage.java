@@ -11,7 +11,6 @@ package io.pravega.common.util.btree;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.sun.istack.internal.NotNull;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArrayComparator;
@@ -28,7 +27,10 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
-abstract class BTreeListPage {
+/**
+ * Represents a Page (Node) within a {@link BTreeSet}. Pages can be of type {@link IndexPage} or {@link LeafPage}.
+ */
+abstract class BTreeSetPage {
     //region Serialization format
 
     /**
@@ -36,13 +38,14 @@ abstract class BTreeListPage {
      * support multiple versions, we will need to read this byte and choose the appropriate deserialization approach.
      * We cannot use VersionedSerializer in here - doing so would prevent us from efficiently querying and modifying the
      * page contents itself, as it would force us to load everything in memory (as objects) and then reserialize them.
-     * <p>
+     *
      * Serialization Format:
-     * - Index Page: VFC|I[0]...I[C-1]|K[0]P[0]..K[C-1]P[C-1]|PID
-     * - Leaf Page: VFC|I[0]...I[C-1]|K[0]..K[C-1]|PID
+     * - Index Page: VFSC|I[0]...I[C-1]|K[0]P[0]..K[C-1]P[C-1]|PID
+     * - Leaf Page: VFSC|I[0]...I[C-1]|K[0]..K[C-1]|PID
      * - Legend:
      * -- V: Version (1 byte)
      * -- F: Flags (1 byte)
+     * -- S: Total Size of the buffer (4 bytes)
      * -- C: Item Count (4 bytes)
      * -- I[i]: Index of Item with offset 'i' (4 bytes)
      * -- K[i]: Item i (I[i+1]-I[i] bytes)
@@ -61,10 +64,13 @@ abstract class BTreeListPage {
     private static final byte FLAG_NONE = 0;
     private static final byte FLAG_INDEX_PAGE = 0x1; // If set, indicates this is an Index Page; if not, it's a Leaf Page.
 
+    private static final int TOTAL_SIZE_OFFSET = FLAGS_OFFSET + FLAGS_LENGTH;
+    private static final int TOTAL_SIZE_LENGTH = 4;
+
     /**
      * Item Count.
      */
-    private static final int COUNT_OFFSET = FLAGS_OFFSET + FLAGS_LENGTH;
+    private static final int COUNT_OFFSET = TOTAL_SIZE_OFFSET + TOTAL_SIZE_LENGTH;
     private static final int COUNT_LENGTH = 4;
 
     /**
@@ -80,13 +86,13 @@ abstract class BTreeListPage {
 
     //region Members
 
-    private static final ByteArrayComparator COMPARATOR = new ByteArrayComparator();
+    private static final ByteArrayComparator COMPARATOR = BTreeSet.COMPARATOR;
     @Getter
     private final PagePointer pagePointer;
     @Getter
     private final long parentPageId;
     @Getter
-    private ArrayView contents;
+    private ArrayView data;
     @Getter
     private int itemCount;
 
@@ -94,24 +100,56 @@ abstract class BTreeListPage {
 
     //region Constructor
 
-    private BTreeListPage(@NonNull BTreeListPage.PagePointer pagePointer, long parentPageId) {
+    /**
+     * Creates a new, empty {@link BTreeSetPage}.
+     *
+     * @param pagePointer  {@link PagePointer} to the page.
+     * @param parentPageId Id of the parent Page.
+     */
+    private BTreeSetPage(@NonNull PagePointer pagePointer, long parentPageId) {
         this.pagePointer = pagePointer;
         this.parentPageId = parentPageId;
-        this.contents = newContents(0, 0, this.pagePointer.getPageId());
+        this.data = newContents(0, 0, this.pagePointer.getPageId());
         this.itemCount = 0;
     }
 
-    private BTreeListPage(@NonNull BTreeListPage.PagePointer pagePointer, long parentPageId, @NotNull ArrayView contents) {
+    /**
+     * Creates a new instance of a {@link BTreeSetPage} from an existing serialization.
+     *
+     * @param pagePointer  {@link PagePointer} to the page.
+     * @param parentPageId Id of the parent Page.
+     * @param data         The contents of a {@link BTreeSetPage} to wrap.
+     */
+    private BTreeSetPage(@NonNull PagePointer pagePointer, long parentPageId, @NonNull ArrayView data) {
         this.pagePointer = pagePointer;
         this.parentPageId = parentPageId;
-        this.contents = loadContents(contents);
+        loadContents(data);
     }
 
-    static BTreeListPage parse(PagePointer pagePointer, long parentPageId, @NotNull ArrayView contents) {
+    /**
+     * Creates a new instance of a {@link BTreeSetPage} from an existing serialization.
+     *
+     * @param pagePointer  {@link PagePointer} to the page.
+     * @param parentPageId Id of the parent Page.
+     * @param contents     The contents of the {@link BTreeSetPage} to wrap.
+     * @return A {@link IndexPage} or {@link LeafPage}, depending on what the serialization indicates.
+     * @throws IllegalDataFormatException If the serialization is invalid.
+     */
+    static BTreeSetPage parse(PagePointer pagePointer, long parentPageId, @NonNull ArrayView contents) {
         byte version = contents.get(0);
         if (version != CURRENT_VERSION) {
             throw new IllegalDataFormatException("Unsupported version. PageId=%s, Expected=%s, Actual=%s.",
                     pagePointer.getPageId(), CURRENT_VERSION, version);
+        }
+
+        int size = BitConverter.readInt(contents, TOTAL_SIZE_OFFSET);
+        if (size < HEADER_FOOTER_LENGTH || size > contents.getLength()) {
+            throw new IllegalDataFormatException("Invalid size. PageId=%s, Expected in range [%s, %s], actual=%s.",
+                    pagePointer.getPageId(), TOTAL_SIZE_OFFSET, contents.getLength(), size);
+        }
+
+        if (size < contents.getLength()) {
+            contents = contents.slice(0, size);
         }
 
         long serializedPageId = BitConverter.readLong(contents, contents.getLength() - PAGE_ID_LENGTH);
@@ -127,17 +165,30 @@ abstract class BTreeListPage {
                 : new LeafPage(pagePointer, parentPageId, contents);
     }
 
+    /**
+     * Creates a new {@link BTreeSetPage} buffer with the given args.
+     *
+     * @param itemCount    The number of items in the page.
+     * @param contentsSize The total size of the items in the page.
+     * @param pageId       The page Id.
+     * @return The buffer.
+     */
     private ArrayView newContents(int itemCount, int contentsSize, long pageId) {
         byte[] contents = new byte[HEADER_FOOTER_LENGTH + itemCount * ITEM_OFFSET_LENGTH + contentsSize];
         contents[0] = CURRENT_VERSION;
         contents[1] = getFlags();
+        BitConverter.writeInt(contents, TOTAL_SIZE_OFFSET, contents.length);
         BitConverter.writeInt(contents, COUNT_OFFSET, itemCount);
         BitConverter.writeLong(contents, contents.length - PAGE_ID_LENGTH, pageId);
         return new ByteArraySegment(contents);
     }
 
-
-    private ArrayView loadContents(ArrayView contents) {
+    /**
+     * Loads the given buffer into this page, replacing what it already contained.
+     *
+     * @param contents The new contents.
+     */
+    private void loadContents(ArrayView contents) {
         // Version, Flags and PageId are already validated in parse(Long, Long, ArrayView).
         int itemCount = BitConverter.readInt(contents, COUNT_OFFSET);
         if (itemCount < 0) {
@@ -145,7 +196,7 @@ abstract class BTreeListPage {
         }
 
         this.itemCount = itemCount;
-        return contents;
+        this.data = contents;
     }
 
     private byte getFlags() {
@@ -175,12 +226,17 @@ abstract class BTreeListPage {
     abstract boolean isIndexPage();
 
     /**
+     * Invoked by {@link #split} immediately after creating a new split page, allowing the spl
+     */
+    abstract void splitComplete();
+
+    /**
      * Gets the size of this page's serialization, in bytes.
      *
      * @return The number of bytes in this page.
      */
     int size() {
-        return this.contents.getLength();
+        return this.data.getLength();
     }
 
     /**
@@ -208,7 +264,41 @@ abstract class BTreeListPage {
                 "position must be non-negative and smaller than the item count (%s). Given %s.", this.itemCount, position);
         int offset = getOffset(position);
         int length = getOffset(position + 1) - offset - getValueLength();
-        return this.contents.slice(offset, length);
+        return this.data.slice(offset, length);
+    }
+
+    /**
+     * Sets the item at the given position.
+     *
+     * @param position The position to set the item at.
+     * @param newItem  The new item. The new item must be shorter than or equal to in length to the current item at that
+     *                 position.
+     */
+    private void setItemAt(int position, ArrayView newItem) {
+        Preconditions.checkArgument(position >= 0 && position < this.itemCount,
+                "position must be non-negative and smaller than the item count (%s). Given %s.", this.itemCount, position);
+        int offset = getOffset(position);
+        int length = getOffset(position + 1) - offset - getValueLength();
+        int delta = newItem.getLength() - length;
+        Preconditions.checkArgument(delta <= 0, "Cannot replace an item (%s) with a bigger one (%s).", length, newItem.getLength());
+
+        // Copy new item data.
+        copyData(newItem, this.data.slice(offset, length));
+
+        if (delta != 0) {
+            // Update remaining offsets with delta
+            for (int pos = position + 1; pos < this.itemCount; pos++) {
+                setOffset(this.data, pos, getOffset(pos) + delta);
+            }
+
+            // Shift the remainder of the array down.
+            byte[] array = this.data.array();
+            int arrayOffset = this.data.arrayOffset();
+            for (int index = offset + length; index < this.data.getLength(); index++) {
+                array[arrayOffset + index + delta] = array[arrayOffset + index];
+            }
+            this.data = this.data.slice(0, this.data.getLength() + delta);
+        }
     }
 
     /**
@@ -251,18 +341,36 @@ abstract class BTreeListPage {
 
     //region Updates
 
+    /**
+     * Updates the {@link BTreeSetPage} with the given items.
+     *
+     * @param updates        A list of {@link UpdateItem} to process.
+     * @param values         A list of values to associate with the new items. The values will be matched by index to
+     *                       their updates. This parameter is not required for removals or leaf pages.
+     * @param serializeValue A Function that will serialize a value to a sequence of bytes. This parameter is not required
+     *                       for removals or leaf pages.
+     * @param <T>            Type for values.
+     */
     private <T> void update(List<UpdateItem> updates, List<T> values, SerializeValue<T> serializeValue) {
         assert updates.size() > 0;
         val updateInfo = preProcessUpdate(updates, values);
         assert getValueLength() == 0 || updateInfo.inserts.isEmpty() || (values.size() == updates.size() && serializeValue != null);
-        this.contents = applyUpdates(updateInfo, serializeValue);
+        this.data = applyUpdates(updateInfo, serializeValue);
         this.itemCount = updateInfo.newCount;
         assert this.getContentSize() == updateInfo.newContentSize;
     }
 
+    /**
+     * Pre-processes updates. Segregates into insertions and removals and excludes item updates.
+     *
+     * @param updates The updates to pre-process
+     * @param values  The values to associate with the updates.
+     * @param <T>     Type for values.
+     * @return An {@link UpdateInfo} containing all insertions and removals.
+     */
     private <T> UpdateInfo<T> preProcessUpdate(List<UpdateItem> updates, List<T> values) {
         Preconditions.checkArgument(updates.get(0).getItem().getLength() > 0, "No empty items allowed.");
-        val removedPositions = new HashSet<Integer>(); // Positions in the BTreeListPage.
+        val removedPositions = new HashSet<Integer>(); // Positions in the BTreeSetPage.
         val inserts = new ArrayList<InsertInfo<T>>(); // Indices in updates.
         int sizeDelta = 0;
 
@@ -301,11 +409,21 @@ abstract class BTreeListPage {
         return new UpdateInfo<>(removedPositions, inserts, newCount, newContentSize);
     }
 
+    /**
+     * Applies the given updates to this {@link BTreeSetPage} and returns a buffer with the changes. Does not alter the
+     * current {@link BTreeSetPage}.
+     *
+     * @param updates        The {@link UpdateInfo} to apply.
+     * @param serializeValue A Function to serialize values for insertions. This is not required for removals or leaf pages.
+     * @param <T>            Type for values.
+     * @return A new buffer that contains the updates. This buffer is constructed from the data in the current {@link BTreeSetPage},
+     * to which all updates are applied.
+     */
     private <T> ArrayView applyUpdates(UpdateInfo<T> updates, SerializeValue<T> serializeValue) {
-        val newContent = newContents(updates.newCount, updates.newContentSize, this.pagePointer.getPageId());
+        val newData = newContents(updates.newCount, updates.newContentSize, this.pagePointer.getPageId());
         if (updates.newCount == 0) {
             // Nothing more to do.
-            return newContent;
+            return newData;
         }
 
         // We begin with the first position.
@@ -321,7 +439,7 @@ abstract class BTreeListPage {
             while (insertIndex < updates.inserts.size()
                     && COMPARATOR.compare(sourceItem, updates.inserts.get(insertIndex).item) > 0) {
                 InsertInfo<T> insert = updates.inserts.get(insertIndex);
-                insert(insert, newContent, targetPos, targetOffset, serializeValue);
+                insert(insert, newData, targetPos, targetOffset, serializeValue);
 
                 targetOffset += insert.item.getLength() + getValueLength();
                 insertIndex++;
@@ -331,11 +449,11 @@ abstract class BTreeListPage {
             if (!updates.removedPositions.contains(sourcePos)) {
                 // Then add this one (if not deleted).
                 // Record it's offset.
-                setOffset(newContent, targetPos, targetOffset);
+                setOffset(newData, targetPos, targetOffset);
 
                 // Copy it from the source to target.
-                ArrayView sourceSlice = this.contents.slice(getOffset(sourcePos), sourceItem.getLength() + getValueLength());
-                ArrayView targetSlice = newContent.slice(targetOffset, sourceSlice.getLength());
+                ArrayView sourceSlice = this.data.slice(getOffset(sourcePos), sourceItem.getLength() + getValueLength());
+                ArrayView targetSlice = newData.slice(targetOffset, sourceSlice.getLength());
                 copyData(sourceSlice, targetSlice);
 
                 targetOffset += targetSlice.getLength();
@@ -346,40 +464,53 @@ abstract class BTreeListPage {
         // Don't forget to add remaining insertions.
         while (insertIndex < updates.inserts.size()) {
             InsertInfo<T> insert = updates.inserts.get(insertIndex);
-            insert(insert, newContent, targetPos, targetOffset, serializeValue);
+            insert(insert, newData, targetPos, targetOffset, serializeValue);
 
             targetOffset += insert.item.getLength() + getValueLength();
             insertIndex++;
             targetPos++;
         }
 
-        return newContent;
+        return newData;
     }
 
-    private <T> void insert(InsertInfo<T> insert, ArrayView newContent, int targetPos, int targetOffset, SerializeValue<T> serializeValue) {
+    /**
+     * Inserts an item.
+     *
+     * @param insert         The item to insert.
+     * @param dataBuffer     The buffer to insert into.
+     * @param targetPos      Position to insert at.
+     * @param targetOffset   Index to insert at.
+     * @param serializeValue A function to serialize values.
+     * @param <T>            Type for values.
+     */
+    private <T> void insert(InsertInfo<T> insert, ArrayView dataBuffer, int targetPos, int targetOffset, SerializeValue<T> serializeValue) {
         // Record the Item's offset.
-        setOffset(newContent, targetPos, targetOffset);
+        setOffset(dataBuffer, targetPos, targetOffset);
 
         // Insert Item.
-        copyData(insert.item, newContent.slice(targetOffset, insert.item.getLength()));
+        copyData(insert.item, dataBuffer.slice(targetOffset, insert.item.getLength()));
 
         // Insert value (if any).
         if (insert.value != null) {
             serializeValue.accept(
-                    newContent.slice(targetOffset + insert.item.getLength(), getValueLength()), 0, insert.value);
+                    dataBuffer.slice(targetOffset + insert.item.getLength(), getValueLength()), 0, insert.value);
         }
     }
 
     //endregion
 
+    //region Splitting
+
     /**
      * Splits this page in multiple pages (if necessary), where each page's serialization will not exceed the given page size.
      * If no split is necessary, returns null.
      *
-     * @param getNewPageId
-     * @return
+     * @param getNewPageId A Supplier that, when invoked, will return a new, unique page id.
+     * @return A List of {@link BTreeSetPage} of the same type as this one. If null, then no split is necessary. If non-null,
+     * then the current page
      */
-    List<BTreeListPage> split(int maxPageSize, @NotNull Supplier<Long> getNewPageId) {
+    List<BTreeSetPage> split(int maxPageSize, @NonNull Supplier<Long> getNewPageId) {
         if (size() <= maxPageSize) {
             // No split necessary.
             return null;
@@ -398,7 +529,7 @@ abstract class BTreeListPage {
 
         // Calculate a threshold for each new page. Once we exceed this we can add items to the next page.
         int splitThreshold = Math.min(maxContentLength, adjustedContentLength / splitCount);
-        val result = new ArrayList<BTreeListPage>();
+        val result = new ArrayList<BTreeSetPage>();
         int sourcePos = 0;
         int currentPageSouceIndex = getOffset(sourcePos);
         while (sourcePos < itemCount) {
@@ -433,16 +564,18 @@ abstract class BTreeListPage {
             assert newContentSize <= maxContentLength;
 
             // Create the new page and add it to the result.
-            result.add(createSplitPage(new PagePointer(firstKey, getNewPageId.get()), currentPageSouceIndex, newContentSize, newOffsets));
+            // First page in split will replace this one, so we need to set the correct page pointer.
+            PagePointer pagePointer = result.isEmpty()
+                    ? new PagePointer(this.pagePointer.getKey() == null ? firstKey : this.pagePointer.getKey(), this.pagePointer.getPageId())
+                    : new PagePointer(firstKey, getNewPageId.get());
+            result.add(createSplitPage(pagePointer, currentPageSouceIndex, newContentSize, newOffsets));
             currentPageSouceIndex = itemSourceIndex;
-
-            // TODO: when splitting Index Pages: PageInfo.Key == FirstKey of each page; FirstKey == MinKey for each page.
         }
 
         return result;
     }
 
-    private BTreeListPage createSplitPage(PagePointer pointer, int fromIndex, int length, List<Integer> relativeOffsets) {
+    private BTreeSetPage createSplitPage(PagePointer pointer, int fromIndex, int length, List<Integer> relativeOffsets) {
         // Adjust offsets to the new page (they will be shifted over to the beginning).
         val offsetsLength = ITEM_OFFSET_LENGTH * relativeOffsets.size(); // Number of bytes occupied by the offsets part.
         val offsetAdjustment = ITEM_OFFSETS_OFFSET + offsetsLength;
@@ -458,40 +591,31 @@ abstract class BTreeListPage {
         }
 
         // Copy over data.
-        val sourceSlice = this.contents.slice(fromIndex, actualContentLength);
+        val sourceSlice = this.data.slice(fromIndex, actualContentLength);
         val targetSlice = newPageContents.slice(relativeOffsets.get(0), actualContentLength);
         copyData(sourceSlice, targetSlice);
-        return BTreeListPage.parse(pointer, this.parentPageId, newPageContents);
+        BTreeSetPage result = BTreeSetPage.parse(pointer, this.parentPageId, newPageContents);
+        result.splitComplete();
+        return result;
     }
+
+    //endregion
 
     //region Helpers
-
-    /**
-     * Gets the first item in this page, or null if empty.
-     *
-     * @return The first item.
-     */
-    private ArrayView getFirstItem() {
-        if (this.itemCount == 0) {
-            return null;
-        }
-
-        return getItemAt(0);
-    }
 
     private ArrayView getValueAt(int position) {
         Preconditions.checkArgument(position >= 0 && position < this.itemCount,
                 "position must be non-negative and smaller than the item count (%s). Given %s.", this.itemCount, position);
         int offset = getOffset(position + 1) - getValueLength();
-        return this.contents.slice(offset, getValueLength());
+        return this.data.slice(offset, getValueLength());
     }
 
     private int getOffset(int position) {
         assert position >= 0 && position <= this.itemCount;
         if (position == this.itemCount) {
-            return this.contents.getLength() - PAGE_ID_LENGTH;
+            return this.data.getLength() - PAGE_ID_LENGTH;
         } else {
-            return BitConverter.readInt(this.contents, ITEM_OFFSETS_OFFSET + position * ITEM_OFFSET_LENGTH);
+            return BitConverter.readInt(this.data, ITEM_OFFSETS_OFFSET + position * ITEM_OFFSET_LENGTH);
         }
     }
 
@@ -507,7 +631,10 @@ abstract class BTreeListPage {
 
     //region IndexPage
 
-    static class IndexPage extends BTreeListPage {
+    /**
+     * {@link BTreeSetPage} that contains pointers to other {@link BTreeSetPage}s.
+     */
+    static class IndexPage extends BTreeSetPage {
         IndexPage(PagePointer pagePointer, long parentPageId) {
             super(pagePointer, parentPageId);
         }
@@ -526,12 +653,18 @@ abstract class BTreeListPage {
             return true;
         }
 
+        @Override
+        void splitComplete() {
+            Preconditions.checkState(getItemCount() > 0, "Index Page split resulted in empty page.");
+            super.setItemAt(0, new ByteArraySegment(COMPARATOR.getMinValue()));
+        }
+
         /**
-         * Adds the given {@link BTreeListPage} as a child.
+         * Adds the given {@link BTreeSetPage} as a child.
          *
          * @param pages A list of {@link PagePointer} instances, sorted by {@link PagePointer#getKey()}.
          */
-        void addChildren(@NotNull List<PagePointer> pages) {
+        void addChildren(@NonNull List<PagePointer> pages) {
             val updates = new ArrayList<UpdateItem>();
             val values = new ArrayList<Long>();
             pages.forEach(p -> {
@@ -547,7 +680,7 @@ abstract class BTreeListPage {
          *
          * @param pages A list of {@link PagePointer} instances, sorted by {@link PagePointer#getKey()}.
          */
-        void removeChildren(@NotNull List<PagePointer> pages) {
+        void removeChildren(@NonNull List<PagePointer> pages) {
             val updates = new ArrayList<UpdateItem>();
             pages.forEach(p -> {
                 updates.add(new UpdateItem(p.getKey(), true));
@@ -556,6 +689,16 @@ abstract class BTreeListPage {
             super.update(updates, null, null);
         }
 
+        /**
+         * Gets a {@link PagePointer} for a child page that meets the following conditions:
+         * - The {@link PagePointer#getKey()} is smaller than or equal to 'forItem' (using {@link #COMPARATOR}.
+         * - The {@link PagePointer} immediately succeeding this one (if any) will have its {@link PagePointer#getKey()}
+         * larger than 'forItem' (using {@link #COMPARATOR}.
+         *
+         * @param forItem  The item to get the {@link PagePointer} for.
+         * @param startPos The first position (in this page) to search at.
+         * @return A {@link PagePointer}, or null if this page is empty or 'forItem' is smaller than the first {@link PagePointer#getKey()}.
+         */
         PagePointer getChildPage(@NonNull ArrayView forItem, int startPos) {
             val searchResult = search(forItem, startPos);
             int position = searchResult.getPosition();
@@ -579,7 +722,10 @@ abstract class BTreeListPage {
 
     //region LeafPage
 
-    static class LeafPage extends BTreeListPage {
+    /**
+     * {@link BTreeSetPage} that contains items from the {@link BTreeSet}.
+     */
+    static class LeafPage extends BTreeSetPage {
         LeafPage(PagePointer pagePointer, long parentPageId) {
             super(pagePointer, parentPageId);
         }
@@ -598,6 +744,11 @@ abstract class BTreeListPage {
             return false;
         }
 
+        @Override
+        void splitComplete() {
+            Preconditions.checkState(getItemCount() > 0, "Leaf Page split resulted in empty page.");
+        }
+
         /**
          * Applies the given {@link UpdateItem}s to this page.
          *
@@ -612,15 +763,34 @@ abstract class BTreeListPage {
 
     //region Helper Classes
 
+    /**
+     * Pointer to a {@link BTreeSetPage}.
+     */
     @Data
     static class PagePointer {
+        /**
+         * A routing key that represents the low bound for any item in the page pointed to by this.
+         */
         private final ArrayView key;
+        /**
+         * The Id of the page pointed to by this.
+         */
         private final long pageId;
     }
 
+    /**
+     * An item to be updated.
+     */
     @Data
     static class UpdateItem implements Comparable<UpdateItem> {
+        /**
+         * The item.
+         */
+        @NonNull
         private final ArrayView item;
+        /**
+         * True if this item is to be removed, false if it is to be inserted.
+         */
         private final boolean removal;
 
         @Override
@@ -632,11 +802,11 @@ abstract class BTreeListPage {
     @RequiredArgsConstructor
     private static class UpdateInfo<T> {
         /**
-         * Positions removed from the BTreeListPage.
+         * Positions removed from the BTreeSetPage.
          */
         final Collection<Integer> removedPositions;
         /**
-         * List of Index-to-Position mappings. Indices are in the UpdateList, Positions are from the BTreeListPage.
+         * List of Index-to-Position mappings. Indices are in the UpdateList, Positions are from the BTreeSetPage.
          */
         final List<InsertInfo<T>> inserts;
         final int newCount;
@@ -651,7 +821,7 @@ abstract class BTreeListPage {
     }
 
     @FunctionalInterface
-    interface SerializeValue<T> {
+    private interface SerializeValue<T> {
         void accept(ArrayView target, int offset, T value);
     }
 

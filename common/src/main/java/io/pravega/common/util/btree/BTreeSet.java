@@ -26,31 +26,44 @@ import lombok.NonNull;
 import lombok.val;
 
 /**
- * A B+Tree-backed List.
+ * A B+Tree-backed Set.
  */
 @NotThreadSafe
-public class BTreeList {
-    private final ByteArrayComparator COMPARATOR = new ByteArrayComparator();
+public class BTreeSet {
+    static final ByteArrayComparator COMPARATOR = new ByteArrayComparator();
     private final ReadPage read;
     private final UpdatePages update;
 
-    public BTreeList(int maxPageSize, @NonNull ReadPage readPage, @NonNull UpdatePages updatePages) {
+    public BTreeSet(int maxPageSize, @NonNull ReadPage readPage, @NonNull UpdatePages updatePages) {
         this.read = readPage;
         this.update = updatePages;
     }
 
+    /**
+     * Atomically inserts the items in 'toInsert' into the {@link BTreeSet} and removes the items in 'toRemove'
+     * from the {@link BTreeSet}.
+     *
+     * @param toInsert      (Optional). A Collection of {@link ArrayView} instances representing the items to insert.
+     *                      If an item is already present, it will not be reinserted (updates are idempotent).
+     * @param toRemove      (Optional). A Collection of {@link ArrayView} instances representing the items to remove.
+     * @param getNextPageId A Supplier that, when invoked, will return a unique number representing the Id of the next
+     *                      {@link BTreeSet} page that has to be generated.
+     * @param timeout       Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate that the updates have been applied
+     * successfully. If the operation failed, the Future will be completed with the appropriate exception.
+     */
     public CompletableFuture<Void> update(@Nullable Collection<ArrayView> toInsert, @Nullable Collection<ArrayView> toRemove,
                                           @NonNull Supplier<Long> getNextPageId, @NonNull Duration timeout) {
-        val updates = new ArrayList<BTreeListPage.UpdateItem>();
+        val updates = new ArrayList<BTreeSetPage.UpdateItem>();
         if (toInsert != null) {
-            toInsert.forEach(i -> updates.add(new BTreeListPage.UpdateItem(i, false)));
+            toInsert.forEach(i -> updates.add(new BTreeSetPage.UpdateItem(i, false)));
         }
 
         if (toRemove != null) {
-            toRemove.forEach(i -> updates.add(new BTreeListPage.UpdateItem(i, true)));
+            toRemove.forEach(i -> updates.add(new BTreeSetPage.UpdateItem(i, true)));
         }
 
-        updates.sort(BTreeListPage.UpdateItem::compareTo);
+        updates.sort(BTreeSetPage.UpdateItem::compareTo);
         if (updates.size() == 0) {
             // Nothing to do.
             return CompletableFuture.completedFuture(null);
@@ -63,11 +76,24 @@ public class BTreeList {
         return null;
     }
 
-    public AsyncIterator<List<ArrayView>> iterator(@NonNull ArrayView first, boolean firstInclusive,
-                                                   @NonNull ArrayView last, boolean lastInclusive, @NonNull Duration fetchTimeout) {
+    /**
+     * Returns an {@link AsyncIterator} that will iterate through all the items in this {@link BTreeSet} within the
+     * specified bounds. All iterated items will be returned in lexicographic order (smallest to largest).
+     * See {@link ByteArrayComparator} for ordering details.
+     *
+     * @param firstItem          An {@link ArrayView} representing the lower bound of the iteration.
+     * @param firstItemInclusive If true, firstItem will be included in the iteration (if it exists in the {@link BTreeSet}),
+     *                           otherwise it will not.
+     * @param lastItem           An {@link ArrayView} representing the upper bound of the iteration.
+     * @param lastItemInclusive  If true, lastKey will be included in the iteration (if it exists in the {@link BTreeSet})),
+     *                           otherwise it will not.
+     * @param fetchTimeout       Timeout for each invocation of {@link AsyncIterator#getNext}.
+     * @return A new {@link AsyncIterator} instance.
+     */
+    public AsyncIterator<List<ArrayView>> iterator(@NonNull ArrayView firstItem, boolean firstItemInclusive,
+                                                   @NonNull ArrayView lastItem, boolean lastItemInclusive, @NonNull Duration fetchTimeout) {
         return null;
     }
-
 
     private void split() {
         // TODO implement
@@ -76,10 +102,6 @@ public class BTreeList {
         // Delete Node: if (in parent) DeletedNode.Key==MinKey, set the next sibling's Key as MinKey.
         // Delete node: we cannot use BTreeListPage.GetInfo as that will provide wrong key; we must keep track of the Key
         // as we search down the tree. Tricky stuff.
-//        private ArrayView generateMinKey() {
-//            return new ByteArraySegment(new byte[]{ByteArrayComparator.MIN_VALUE});
-//        }
-
     }
 
     private static class UpdateResult {

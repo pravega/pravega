@@ -13,7 +13,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The result of a {@link BTreePage} or {@link BTreeListPage} Search.
+ * The result of a {@link BTreePage} or {@link BTreeSetPage} Search.
  */
 @Getter
 @RequiredArgsConstructor

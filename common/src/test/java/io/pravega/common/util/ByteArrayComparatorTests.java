@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,12 +34,23 @@ public class ByteArrayComparatorTests {
     }
 
     /**
-     * Tests comparing ByteArraySegments.
+     * Tests comparing equal-length {@link ArrayView} instances.
      */
     @Test
-    public void testCompareByteArraySegment() {
+    public void testCompareArrayView() {
         val sortedData = generateSortedData().stream().map(ByteArraySegment::new).collect(Collectors.toList());
         test(sortedData, new ByteArrayComparator()::compare);
+    }
+
+    /**
+     * Tests comparing different-length {@link ArrayView} instances
+     */
+    @Test
+    public void testCompareArrayViewVariableSize() {
+        val c = new ByteArrayComparator();
+        val sortedData = generateSortedVariableData().stream().map(ByteArraySegment::new).collect(Collectors.toList());
+        sortedData.add(0, new ByteArraySegment(c.getMinValue()));
+        test(sortedData, c::compare);
     }
 
     private ArrayList<byte[]> generateSortedData() {
@@ -50,6 +62,23 @@ public class ByteArrayComparatorTests {
             sortedData.add(data);
         }
         return sortedData;
+    }
+
+    private List<byte[]> generateSortedVariableData() {
+        // We use String sort to mimic our comparison, then parse the string putting each digit into its own byte array index.
+        return LongStream.range(0, COUNT)
+                .mapToObj(Long::toString)
+                .sorted()
+                .map(this::parseDigits)
+                .collect(Collectors.toList());
+    }
+
+    private byte[] parseDigits(String digits) {
+        byte[] result = new byte[digits.length()];
+        for (int i = 0; i < digits.length(); i++) {
+            result[i] = Byte.parseByte(digits.substring(i, i + 1));
+        }
+        return result;
     }
 
     private <T> void test(List<T> sortedData, BiFunction<T, T, Integer> comparator) {
