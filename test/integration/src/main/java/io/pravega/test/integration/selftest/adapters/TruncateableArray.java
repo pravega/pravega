@@ -132,7 +132,7 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
-    public BufferView slice(int offset, int length) {
+    public ArrayView slice(int offset, int length) {
         throw new UnsupportedOperationException("slice() not supported.");
     }
 
