@@ -41,12 +41,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNameFromHeader;
 
 /**
  * A layer on top of a general SyncStorage implementation that allows rolling Segments on a size-based policy and truncating
@@ -525,7 +523,7 @@ public class RollingStorage implements SyncStorage {
     @Override
     public Iterator<SegmentProperties> listSegments() {
         return new RollingStorageSegmentIterator(this, this.baseStorage.listSegments(),
-                    props -> StreamSegmentNameUtils.isHeaderSegment(props.getName()));
+                    props -> NameUtils.isHeaderSegment(props.getName()));
     }
 
     public static class RollingStorageSegmentIterator implements Iterator<SegmentProperties> {
@@ -559,9 +557,10 @@ public class RollingStorage implements SyncStorage {
         public SegmentProperties next() {
             if (null != current) {
                 try {
-                    val handle = instance.openHandle(getSegmentNameFromHeader(current.getName()), true);
+                    String segmentName = NameUtils.getSegmentNameFromHeader(current.getName());
+                    val handle = instance.openHandle(segmentName, true);
                     return StreamSegmentInformation.builder()
-                            .name(getSegmentNameFromHeader(current.getName()))
+                            .name(segmentName)
                             .length(handle.length())
                             .sealed(handle.isSealed()).build();
                 } catch (StreamSegmentException e) {

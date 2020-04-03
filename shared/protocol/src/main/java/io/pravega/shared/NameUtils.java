@@ -191,7 +191,15 @@ public final class NameUtils {
         Preconditions.checkArgument(!segmentName.endsWith(HEADER_SUFFIX), "segmentName is already a segment header name");
         return segmentName + HEADER_SUFFIX;
     }
-
+    /**
+     * Checks whether given name is a Header Segment.
+     *
+     * @param segmentName The name of the segment.
+     * @return true if the name is Header Segment. False otherwise
+     */
+    public static boolean isHeaderSegment(String segmentName) {
+        return segmentName.endsWith(HEADER_SUFFIX);
+    }
     /**
      * Gets the name of the Segment name from its Header Segment Name.
      *
