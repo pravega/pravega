@@ -100,7 +100,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             .with(WriterConfig.ERROR_SLEEP_MILLIS, 0L)
             .build();
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(3000);
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
