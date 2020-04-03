@@ -48,4 +48,15 @@ public interface ArrayView extends BufferView {
      * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
      */
     void copyTo(byte[] target, int targetOffset, int length);
+
+    /**
+     * Creates a new {@link ArrayView} that represents a sub-range of this {@link ArrayView} instance. The new instance
+     * will share the same backing array as this one, so a change to one will be reflected in the other.
+     *
+     * @param offset The starting offset to begin the slice at.
+     * @param length The sliced length.
+     * @return A new {@link ArrayView}.
+     */
+    @Override
+    ArrayView slice(int offset, int length);
 }

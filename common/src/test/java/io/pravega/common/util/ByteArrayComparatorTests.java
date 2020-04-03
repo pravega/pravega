@@ -7,10 +7,8 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util.btree;
+package io.pravega.common.util;
 
-import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.ByteArraySegment;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
