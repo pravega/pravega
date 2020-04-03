@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.impl;
+package io.pravega.client.control.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -23,6 +23,7 @@ import io.grpc.netty.NegotiationType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.NoSuchScopeException;
@@ -32,6 +33,16 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
+import io.pravega.client.stream.impl.Credentials;
+import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
+import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -486,8 +497,8 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Long> sealedSegments,
-                                                  final Map<Double, Double> newKeyRanges,
-                                                  final ScheduledExecutorService executor) {
+                                                   final Map<Double, Double> newKeyRanges,
+                                                   final ScheduledExecutorService executor) {
         Exceptions.checkNotClosed(closed.get(), this);
         CancellableRequest<Boolean> cancellableRequest = new CancellableRequest<>();
         final long requestId = requestIdGenerator.get();
@@ -1148,6 +1159,35 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "getOrRefreshDelegationTokenFor", traceId);
         });
     }
+
+    //region KeyValueTables
+
+    @Override
+    public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        throw new UnsupportedOperationException("createKeyValueTable not implemented.");
+    }
+
+    @Override
+    public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
+        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
+        throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
+        throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");
+    }
+
+    //endregion
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.
     private static final class RPCAsyncCallback<T> implements StreamObserver<T> {

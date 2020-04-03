@@ -10,16 +10,17 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.impl.CancellableRequest;
-import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.ControllerFailureException;
-import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.control.impl.CancellableRequest;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerFailureException;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
@@ -27,6 +28,8 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
@@ -438,4 +441,33 @@ public class LocalController implements Controller {
     public CompletableFuture<Void> removeWriter(String writerId, Stream stream) {
         return Futures.toVoid(controller.removeWriter(stream.getScope(), stream.getStreamName(), writerId));
     }
+
+    //region KeyValueTables
+
+    @Override
+    public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        throw new UnsupportedOperationException("createKeyValueTable not implemented.");
+    }
+
+    @Override
+    public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
+        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
+        throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
+    }
+
+    @Override
+    public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
+        throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");
+    }
+
+    //endregion
 }

@@ -52,22 +52,14 @@ import java.util.concurrent.CompletableFuture;
 @Beta
 public interface TableStore {
     /**
-     * Gets a value indicating the maximum length of any Table Entry Key supported by this TableStore implementation.
-     *
-     * @return The maximum length of any key, in bytes.
+     * Gets a value indicating the maximum length of any Table Entry Key supported by the TableStore.
      */
-    default int maximumKeyLength() {
-        return 8192;
-    }
+    int MAXIMUM_KEY_LENGTH = 8192;
 
     /**
-     * Gets a value indicating the maximum length of any Table Entry Value supported by this TableStore Implementation.
-     *
-     * @return The maximum length of any value, in bytes.
+     * Gets a value indicating the maximum length of any Table Entry Value supported by the TableStore.
      */
-    default int maximumValueLength() {
-        return 1040384; // 1MB - maximumKeyLength();
-    }
+    int MAXIMUM_VALUE_LENGTH = 1024 * 1024 - MAXIMUM_KEY_LENGTH;
 
     /**
      * Creates a new Segment and marks it as a Table Segment. This will be a non-sorted Table Segment.
@@ -161,8 +153,8 @@ public interface TableStore {
      * the future will be failed with the causing exception. Notable exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.</li>
-     * <li>{@link TableKeyTooLongException} If {@link TableEntry#key} exceeds {@link #maximumKeyLength()}.</li>
-     * <li>{@link TableValueTooLongException} If {@link TableEntry#value} exceeds {@link #maximumValueLength()}.</li>
+     * <li>{@link TableKeyTooLongException} If {@link TableEntry#key} exceeds {@link #MAXIMUM_KEY_LENGTH}.</li>
+     * <li>{@link TableValueTooLongException} If {@link TableEntry#value} exceeds {@link #MAXIMUM_VALUE_LENGTH}.</li>
      * <li>{@link ConditionalTableUpdateException} If {@link TableEntry#key} {@link TableKey#hasVersion() hasVersion() } is true and
      * {@link TableEntry#key} {@link TableKey#version} does not match the Table Entry's Key current Table Version. </li>
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment. </li>
@@ -183,7 +175,7 @@ public interface TableStore {
      * the future will be failed with the causing exception. Notable exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link TableKeyTooLongException} If {@link TableKey#key} exceeds {@link #maximumKeyLength()}.
+     * <li>{@link TableKeyTooLongException} If {@link TableKey#key} exceeds {@link #MAXIMUM_KEY_LENGTH}.
      * <li>{@link ConditionalTableUpdateException} If {@link TableKey#hasVersion()} is true and {@link TableKey#version}
      * does not match the Table Entry's Key current Table Version.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
@@ -202,7 +194,7 @@ public interface TableStore {
      * the future will be failed with the causing exception. Notable exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link TableKeyTooLongException} If any of the items in "keys" exceeds {@link #maximumKeyLength()}.
+     * <li>{@link TableKeyTooLongException} If any of the items in "keys" exceeds {@link #MAXIMUM_KEY_LENGTH}.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
      */

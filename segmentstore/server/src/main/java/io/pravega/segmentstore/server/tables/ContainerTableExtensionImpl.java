@@ -327,7 +327,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, @NonNull IteratorArgs args,
                                                                               @NonNull GetBucketReader<T> createBucketReader) {
-        //TODO: wire up SortedKeyIndex here. this.keyIndex.getSortedKeyIndex()
+        // TODO: this should be implemented with https://github.com/pravega/pravega/issues/4656.
         Preconditions.checkArgument(args.getPrefixFilter() == null, "Prefix Iterator not supported.");
         UUID fromHash;
         try {

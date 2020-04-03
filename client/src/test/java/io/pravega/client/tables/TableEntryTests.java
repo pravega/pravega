@@ -21,7 +21,7 @@ public class TableEntryTests {
     public void testConstructor() {
         String keyContents = "KeyContents";
         long valueContents = 1234L;
-        val k = new TableKey<>(keyContents, KeyVersion.NOT_EXISTS);
+        val k = new TableKey<>(keyContents, Version.NOT_EXISTS);
         val e = new TableEntry<>(k, valueContents);
         Assert.assertSame(k, e.getKey());
         Assert.assertEquals(valueContents, (long) e.getValue());

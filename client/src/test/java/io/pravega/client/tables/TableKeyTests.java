@@ -20,8 +20,8 @@ public class TableKeyTests {
     @Test
     public void testConstructor() {
         String keyContents = "KeyContents";
-        val k = new TableKey<>(keyContents, KeyVersion.NOT_EXISTS);
+        val k = new TableKey<>(keyContents, Version.NOT_EXISTS);
         Assert.assertSame(keyContents, k.getKey());
-        Assert.assertSame(KeyVersion.NOT_EXISTS, k.getVersion());
+        Assert.assertSame(Version.NOT_EXISTS, k.getVersion());
     }
 }

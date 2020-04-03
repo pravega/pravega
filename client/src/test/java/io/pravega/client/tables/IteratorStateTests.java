@@ -24,6 +24,7 @@ public class IteratorStateTests {
         Assert.assertTrue(IteratorStateImpl.EMPTY.isEmpty());
         Assert.assertEquals(0, IteratorStateImpl.EMPTY.toBytes().remaining());
         Assert.assertSame(IteratorStateImpl.EMPTY, IteratorState.fromBytes(null));
+        Assert.assertSame(IteratorStateImpl.EMPTY, IteratorStateImpl.fromBytes((ByteBuf) null));
     }
 
     @Test
@@ -32,5 +33,19 @@ public class IteratorStateTests {
         IteratorState s = IteratorStateImpl.fromBytes(buf);
         Assert.assertEquals(buf, Unpooled.wrappedBuffer(s.toBytes()));
         Assert.assertEquals(s.toBytes(), IteratorState.fromBytes(s.toBytes()).toBytes());
+        Assert.assertEquals(s.toBytes(), IteratorStateImpl.fromBytes(Unpooled.wrappedBuffer(s.toBytes())).toBytes());
+    }
+
+    @Test
+    public void testCopyOf() {
+        Assert.assertSame(IteratorStateImpl.EMPTY, IteratorStateImpl.copyOf(IteratorStateImpl.EMPTY));
+        ByteBuf buf = Unpooled.wrappedBuffer(new byte[123]);
+        IteratorState s = IteratorStateImpl.fromBytes(buf);
+        IteratorState s2 = IteratorStateImpl.copyOf(s);
+        Assert.assertEquals(s.toBytes(), s2.toBytes());
+
+        // This way we verify that the two are really pointing to different buffers.
+        buf.release();
+        Assert.assertEquals(s2.toBytes(), IteratorState.fromBytes(s2.toBytes()).toBytes());
     }
 }

@@ -18,7 +18,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;

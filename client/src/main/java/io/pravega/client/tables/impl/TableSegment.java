@@ -9,14 +9,14 @@
  */
 package io.pravega.client.tables.impl;
 
+import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.common.util.AsyncIterator;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -37,7 +37,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * A note about {@link ByteBuf}s. All the methods defined in this interface make use of {@link ByteBuf} either directly
  * or via {@link TableSegmentKey}/{@link TableSegmentEntry}. It is expected that no implementation of the {@link TableSegment}
- * interface will either retain ({@link ByteBuf#retain()) or release ({@link ByteBuf#release()}) these buffers during
+ * interface will either retain ({@link ByteBuf#retain()}) or release ({@link ByteBuf#release()}) these buffers during
  * execution. The lifecycle of these buffers should be maintained externally by the calling code, using the following
  * guidelines:
  * * For methods that accept externally-provided {@link ByteBuf}s, the calling code should call {@link ByteBuf#retain()}
@@ -48,6 +48,18 @@ import java.util.concurrent.CompletableFuture;
  * call.
  */
 public interface TableSegment extends AutoCloseable {
+    /**
+     * The maximum length of a Table Segment Key.
+     * Synchronized with io.pravega.segmentstore.contracts.tables.TableStore.MAXIMUM_KEY_LENGTH.
+     */
+    int MAXIMUM_KEY_LENGTH = 8192;
+
+    /**
+     * The maximum length of a Table Segment Value.
+     * Synchronized with io.pravega.segmentstore.contracts.tables.TableStore.MAXIMUM_VALUE_LENGTH().
+     */
+    int MAXIMUM_VALUE_LENGTH = 1024 * 1024 - MAXIMUM_KEY_LENGTH;
+
     /**
      * Inserts a new or updates an existing Table Entry into this Table Segment.
      *
@@ -62,26 +74,27 @@ public interface TableSegment extends AutoCloseable {
      * </ul>
      */
     default CompletableFuture<TableSegmentKeyVersion> put(TableSegmentEntry entry) {
-        return put(Collections.singletonList(entry)).thenApply(result -> result.get(0));
+        return put(Iterators.singletonIterator(entry)).thenApply(result -> result.get(0));
     }
 
     /**
      * Inserts new or updates existing Table Entries into this Table Segment.
      * All changes are performed atomically (either all or none will be accepted).
      *
-     * @param entries A List of entries to insert or update. If for at least one such entry,
+     * @param entries An Iterator containing the entries to insert or update. If for at least one such entry,
      *                {@link TableEntry#getKey()}{@link TableKey#getVersion()} indicates a conditional update, this will
      *                perform an atomic Conditional Update conditioned on the server-side version for each such entry
      *                matching the provided one.
      *                See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will contain a List of {@link TableSegmentKeyVersion} instances
-     * which represent the versions for the inserted/updated keys. The size of this list will be the same as entries.size()
-     * and the versions will be in the same order as the entries. Notable exceptions:
+     * which represent the versions for the inserted/updated keys. The returned list will contain the same number of
+     * elements as are remaining in the entries iterator and the resulting versions will be in the same order.
+     * Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Update and the condition was not satisfied.
      * </ul>
      */
-    CompletableFuture<List<TableSegmentKeyVersion>> put(List<TableSegmentEntry> entries);
+    CompletableFuture<List<TableSegmentKeyVersion>> put(Iterator<TableSegmentEntry> entries);
 
     /**
      * Removes the given key from this Table Segment.
@@ -95,23 +108,23 @@ public interface TableSegment extends AutoCloseable {
      * </ul>
      */
     default CompletableFuture<Void> remove(TableSegmentKey key) {
-        return remove(Collections.singleton(key));
+        return remove(Iterators.singletonIterator(key));
     }
 
     /**
      * Removes one or more keys from this Table Segment.
      * All removals are performed atomically (either all keys or no key will be removed).
      *
-     * @param keys A Collection of keys to remove. If for at least one such key, {@link TableKey#getVersion()} indicates
-     *             a conditional update, this will perform an atomic removal conditioned on the server-side version
-     *             matching the provided one.
+     * @param keys An Iterator containing the keys to remove. If for at least one such key, {@link TableKey#getVersion()}
+     *             indicates a conditional update, this will perform an atomic removal conditioned on the server-side
+     *             version matching the provided one.
      *             See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will indicate that the keys have been removed. Notable exceptions:
      * <ul>
      * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
      * </ul>
      */
-    CompletableFuture<Void> remove(Collection<TableSegmentKey> keys);
+    CompletableFuture<Void> remove(Iterator<TableSegmentKey> keys);
 
     /**
      * Gets the latest value for the given Key.
@@ -121,18 +134,19 @@ public interface TableSegment extends AutoCloseable {
      * will be completed with a null value.
      */
     default CompletableFuture<TableSegmentEntry> get(ByteBuf key) {
-        return get(Collections.singletonList(key)).thenApply(result -> result.get(0));
+        return get(Iterators.singletonIterator(key)).thenApply(result -> result.get(0));
     }
 
     /**
      * Gets the latest values for the given Keys.
      *
-     * @param keys A List of {@link ByteBuf} instances representing the Keys to get values for.
+     * @param keys An Iterator of {@link ByteBuf} instances representing the Keys to get values for.
      * @return A CompletableFuture that, when completed, will contain a List of {@link TableSegmentEntry} instances for
-     * the requested keys. The size of the list will be the same as keys.size() and the results will be in the same order
-     * as the requested keys. Any keys which do not have a value will have a null entry at their index.
+     * the requested keys. The returned list will contain the same number of elements as are remaining in the keys iterator
+     * and the results will be in the same order as the requested keys. Any keys which do not have a value will have a
+     * null entry at their index.
      */
-    CompletableFuture<List<TableSegmentEntry>> get(List<ByteBuf> keys);
+    CompletableFuture<List<TableSegmentEntry>> get(Iterator<ByteBuf> keys);
 
     /**
      * Creates a new Iterator over all the Keys in the Table Segment.
@@ -149,6 +163,13 @@ public interface TableSegment extends AutoCloseable {
      * @return An {@link AsyncIterator} that can be used to iterate over all the Entries in this Table Segment.
      */
     AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(IteratorArgs args);
+
+    /**
+     * Gets a value indicating the internal Id of the Table Segment, as assigned by the Controller.
+     *
+     * @return The Table Segment Id.
+     */
+    long getSegmentId();
 
     @Override
     void close();

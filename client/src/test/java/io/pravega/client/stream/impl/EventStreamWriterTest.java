@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.collect.ImmutableMap;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;

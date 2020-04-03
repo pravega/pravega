@@ -17,6 +17,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.security.auth.DelegationTokenProvider;

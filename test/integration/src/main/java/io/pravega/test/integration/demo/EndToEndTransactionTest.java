@@ -14,7 +14,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.controller.util.Config;
