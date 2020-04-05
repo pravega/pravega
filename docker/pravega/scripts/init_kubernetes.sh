@@ -45,29 +45,34 @@ init_kubernetes() {
 
         local ns=${POD_NAMESPACE}
         local podname=${POD_NAME}
+        if [ -z "${SERVICE_NAME}" ]; then
+          local servicename=${podname}
+        else
+          local servicename=${SERVICE_NAME}"-""${podname: -1}"
+        fi
         export PUBLISHED_ADDRESS=""
         export PUBLISHED_PORT=""
 	
-	export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".metadata.annotations[\"external-dns.alpha.kubernetes.io/hostname\"]" )
+	export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${servicename}" ".metadata.annotations[\"external-dns.alpha.kubernetes.io/hostname\"]" )
 
         if [[ -n ${PUBLISHED_ADDRESS} && "${PUBLISHED_ADDRESS:${#PUBLISHED_ADDRESS}-1}" == "." ]];
         then
           export PUBLISHED_ADDRESS=${PUBLISHED_ADDRESS::-1}
         fi
 
-        service_type=$( k8 "${ns}" "services" "${podname}" ".spec.type" )
+        service_type=$( k8 "${ns}" "services" "${servicename}" ".spec.type" )
         if [ "${service_type}" == "LoadBalancer" ]; then
             while [ -z ${PUBLISHED_ADDRESS} ] || [ -z ${PUBLISHED_PORT} ]
             do
                 if [ -z ${PUBLISHED_ADDRESS} ]; then
 		        echo "Trying to obtain LoadBalancer external endpoint..."
 		        sleep 10
-                	export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].ip" )
+                	export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${servicename}" ".status.loadBalancer.ingress[0].ip" )
                 	if [ -z "${PUBLISHED_ADDRESS}" ]; then
-                    		export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].hostname" )
+                  	        export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${servicename}" ".status.loadBalancer.ingress[0].hostname" )
                 	fi
 		fi
-                export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].port" )
+                export PUBLISHED_PORT=$( k8 "${ns}" "services" "${servicename}" ".spec.ports[].port" )
             done
         elif [ "${service_type}" == "NodePort" ]; then
             nodename=$( k8 "${ns}" "pods" "${podname}" ".spec.nodeName" )
