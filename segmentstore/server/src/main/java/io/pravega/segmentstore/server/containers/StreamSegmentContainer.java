@@ -101,7 +101,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final ContainerAttributeIndex attributeIndex;
     private final Writer writer;
     private final Storage storage;
-    private final MetadataStore metadataStore;
+    protected final MetadataStore metadataStore;
     private final ScheduledExecutorService executor;
     private final MetadataCleaner metadataCleaner;
     private final AtomicBoolean closed;

@@ -18,14 +18,9 @@ import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
-import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.*;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.server.ContainerHandle;
-import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.SegmentContainerExtension;
-import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -252,6 +247,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         @Override
         public SegmentContainer createStreamSegmentContainer(int containerId) {
             return new TestContainer(containerId, this.startException, this.startReleaseSignal);
+        }
+
+        @Override
+        public DebugSegmentContainer createDebugStreamSegmentContainer(int containerId) {
+            return null;
         }
     }
 

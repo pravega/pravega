@@ -10,12 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.segmentstore.server.OperationLogFactory;
-import io.pravega.segmentstore.server.ReadIndexFactory;
-import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentContainerExtension;
-import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.server.*;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
 import java.util.concurrent.ScheduledExecutorService;
@@ -63,6 +58,11 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
     @Override
     public SegmentContainer createStreamSegmentContainer(int containerId) {
         return new StreamSegmentContainer(containerId, config, this.operationLogFactory, this.readIndexFactory,
+                this.attributeIndexFactory, this.writerFactory, this.storageFactory, this.createExtensions, this.executor);
+    }
+    @Override
+    public DebugSegmentContainer createDebugStreamSegmentContainer(int containerId) {
+        return new DebugStreamSegmentContainer(containerId, config, this.operationLogFactory, this.readIndexFactory,
                 this.attributeIndexFactory, this.writerFactory, this.storageFactory, this.createExtensions, this.executor);
     }
 }
