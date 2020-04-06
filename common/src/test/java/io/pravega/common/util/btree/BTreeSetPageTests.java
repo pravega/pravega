@@ -33,7 +33,7 @@ import org.junit.Test;
 public class BTreeSetPageTests {
     private static final int DEFAULT_PAGE_ID = 2;
     private static final int DEFAULT_PARENT_PAGE_ID = 1;
-    private static final BTreeSetPage.PagePointer DEFAULT_PAGE_INFO = new BTreeSetPage.PagePointer(null, DEFAULT_PAGE_ID);
+    private static final BTreeSetPage.PagePointer DEFAULT_PAGE_INFO = new BTreeSetPage.PagePointer(null, DEFAULT_PAGE_ID, DEFAULT_PARENT_PAGE_ID);
     private static final int MAX_ITEM_LENGTH = 4096;
     private static final ByteArrayComparator COMPARATOR = new ByteArrayComparator();
     private final Random random = new Random(0);
@@ -44,7 +44,7 @@ public class BTreeSetPageTests {
     @Test
     public void testLeafPageInsert() {
         val count = 3000;
-        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID);
+        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO);
         int updateCount = 0;
         int batchSize = 1;
         val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
@@ -75,7 +75,7 @@ public class BTreeSetPageTests {
     @Test
     public void testLeafPageDelete() {
         val count = 2000;
-        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID);
+        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO);
 
         // Bulk-update the page.
         val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
@@ -113,7 +113,7 @@ public class BTreeSetPageTests {
     @Test
     public void testLeafPageUpdateDelete() {
         val iterationCount = 200;
-        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID);
+        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO);
         int iterationId = 0;
         int batchSize = 1;
         val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
@@ -165,10 +165,10 @@ public class BTreeSetPageTests {
         val itemCount = childPageCount * itemsPerPage;
         val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR::compare).collect(Collectors.toList());
         val allPointers = IntStream.range(0, itemCount).filter(i -> i % itemsPerPage == 0)
-                .mapToObj(i -> new BTreeSetPage.PagePointer(allItems.get(i), i))
+                .mapToObj(i -> new BTreeSetPage.PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
 
-        val page = new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID);
+        val page = new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO);
         Assert.assertNull(page.getChildPage(newItem(), 0));
 
         int updateCount = 0;
@@ -201,11 +201,11 @@ public class BTreeSetPageTests {
         val itemCount = childPageCount * itemsPerPage;
         val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR::compare).collect(Collectors.toList());
         val allPointers = IntStream.range(0, itemCount).filter(i -> i % itemsPerPage == 0)
-                .mapToObj(i -> new BTreeSetPage.PagePointer(allItems.get(i), i))
+                .mapToObj(i -> new BTreeSetPage.PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
 
         // Create a new page and add all items to it.
-        val page = new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID);
+        val page = new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO);
         page.addChildren(allPointers);
         check(page, allPointers, allItems);
 
@@ -231,12 +231,12 @@ public class BTreeSetPageTests {
     }
 
     /**
-     * Tests the ability to split a Leaf Page.
+     * Tests the ability to split a Non-Root Leaf Page.
      */
     @Test
     public void testLeafPageSplit() {
         val itemCount = 5000;
-        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID);
+        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO);
 
         // Bulk-update the page.
         val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
@@ -250,8 +250,9 @@ public class BTreeSetPageTests {
         while (maxPageSize > MAX_ITEM_LENGTH) {
             val splitResult = page.split(maxPageSize, nextPageId::getAndIncrement);
             boolean requiresSplit = maxPageSize < page.size();
+            Assert.assertEquals(requiresSplit, page.requiresSplit(maxPageSize));
             if (requiresSplit) {
-                verifyLeafPageSplit(splitResult, expectedItems, maxPageSize);
+                verifyLeafPageSplit(splitResult, expectedItems, maxPageSize, Collections.singletonList(page.getPagePointer().getParentPageId()));
             } else {
                 Assert.assertNull("Not expecting a split.", splitResult);
             }
@@ -261,12 +262,12 @@ public class BTreeSetPageTests {
     }
 
     /**
-     * Tests the ability to split a Leaf Page recursively.
+     * Tests the ability to split a Root Leaf Page recursively.
      */
     @Test
     public void testLeafPageSplitRecursive() {
         val itemCount = 5000;
-        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID);
+        val page = new BTreeSetPage.LeafPage(BTreeSetPage.PagePointer.root());
 
         // Bulk-update the page.
         val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
@@ -277,26 +278,30 @@ public class BTreeSetPageTests {
 
         val nextPageId = new AtomicLong(1000);
         int maxPageSize = page.size() / 2;
-        List<BTreeSetPage> splitResult = new ArrayList<>();
-        splitResult.add(page);
+        List<BTreeSetPage> currentPages = new ArrayList<>();
+        currentPages.add(page);
         while (maxPageSize > MAX_ITEM_LENGTH) {
-            val newSplitResult = new ArrayList<BTreeSetPage>();
-            for (val s : splitResult) {
+            val splitResult = new ArrayList<BTreeSetPage>();
+            for (val s : currentPages) {
                 val sr = s.split(maxPageSize, nextPageId::getAndIncrement);
                 if (sr == null) {
-                    newSplitResult.add(s);
+                    splitResult.add(s);
                 } else {
-                    newSplitResult.addAll(sr);
+                    splitResult.addAll(sr);
                 }
             }
 
-            splitResult = newSplitResult;
-            verifyLeafPageSplit(splitResult, expectedItems, maxPageSize);
+            // Generate the expected set of parent ids, whether we are splitting the root or a non-root node.
+            val expectedParentIds = currentPages.size() == 1
+                    ? Collections.singletonList(page.getPagePointer().getPageId())
+                    : currentPages.stream().map(p -> p.getPagePointer().getParentPageId()).distinct().collect(Collectors.toList());
+            verifyLeafPageSplit(splitResult, expectedItems, maxPageSize, expectedParentIds);
+            currentPages = splitResult;
             maxPageSize /= 2;
         }
     }
 
-    private void verifyLeafPageSplit(List<BTreeSetPage> splitResult, TreeSet<ArrayView> expectedItems, int maxPageSize) {
+    private void verifyLeafPageSplit(List<BTreeSetPage> splitResult, TreeSet<ArrayView> expectedItems, int maxPageSize, List<Long> parentPageIds) {
         // Verify counts match.
         val splitItemCount = splitResult.stream().mapToInt(BTreeSetPage::getItemCount).sum();
         Assert.assertEquals(expectedItems.size(), splitItemCount);
@@ -304,13 +309,19 @@ public class BTreeSetPageTests {
         // We will iterate through all split page's items in order and compare them against our expected order.
         val expectedItemIterator = expectedItems.iterator();
         val pageIds = new HashSet<Long>();
+        int parentPageIndex = 0;
         for (val s : splitResult) {
             AssertExtensions.assertGreaterThan("Not expecting any empty split pages.", 0, s.size());
             AssertExtensions.assertLessThanOrEqual("Split page too large.", maxPageSize, s.size());
 
             // Verify page pointers are correct.
             Assert.assertTrue("Duplicate Page Id.", pageIds.add(s.getPagePointer().getPageId()));
-            Assert.assertEquals("Unexpected Parent Page id.", DEFAULT_PARENT_PAGE_ID, s.getParentPageId());
+            if (s.getPagePointer().getParentPageId() != parentPageIds.get(parentPageIndex)) {
+                // We may have moved on to the next parent page.
+                parentPageIndex++;
+                Assert.assertEquals("Unexpected Parent Page id.", (long) parentPageIds.get(parentPageIndex), s.getPagePointer().getParentPageId());
+            }
+
             Assert.assertEquals("Unexpected Pointer Key.", 0, COMPARATOR.compare(s.getPagePointer().getKey(), s.getItemAt(0)));
 
             // Verify items are in order.
@@ -326,7 +337,7 @@ public class BTreeSetPageTests {
     }
 
     /**
-     * Tests the ability to split an Index Page.
+     * Tests the ability to split a Non-Root Index Page.
      */
     @Test
     public void testIndexPageSplit() {
@@ -335,11 +346,11 @@ public class BTreeSetPageTests {
         val itemCount = childPageCount * itemsPerPage;
         val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR::compare).collect(Collectors.toList());
         val allPointers = IntStream.range(0, itemCount).filter(i -> i % itemsPerPage == 0)
-                .mapToObj(i -> new BTreeSetPage.PagePointer(allItems.get(i), i))
+                .mapToObj(i -> new BTreeSetPage.PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
 
         // Create a new page and add all items to it.
-        val page = new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID);
+        val page = new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO);
         page.addChildren(allPointers);
 
         // Check single-level splits.
@@ -348,8 +359,9 @@ public class BTreeSetPageTests {
         while (maxPageSize > MAX_ITEM_LENGTH) {
             val splitResult = page.split(maxPageSize, nextPageId::getAndIncrement);
             boolean requiresSplit = maxPageSize < page.size();
+            Assert.assertEquals(requiresSplit, page.requiresSplit(maxPageSize));
             if (requiresSplit) {
-                verifyIndexPageSplit(splitResult, allPointers, maxPageSize);
+                verifyIndexPageSplit(splitResult, allPointers, maxPageSize, Collections.singletonList(page.getPagePointer().getParentPageId()));
             } else {
                 Assert.assertNull("Not expecting a split.", splitResult);
             }
@@ -359,7 +371,7 @@ public class BTreeSetPageTests {
     }
 
     /**
-     * Tests the ability to split an Index Page recursively.
+     * Tests the ability to split a Root Index Page recursively.
      */
     @Test
     public void testIndexPageSplitRecursive() {
@@ -368,36 +380,40 @@ public class BTreeSetPageTests {
         val itemCount = childPageCount * itemsPerPage;
         val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR::compare).collect(Collectors.toList());
         val allPointers = IntStream.range(0, itemCount).filter(i -> i % itemsPerPage == 0)
-                .mapToObj(i -> new BTreeSetPage.PagePointer(allItems.get(i), i))
+                .mapToObj(i -> new BTreeSetPage.PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
 
         // Create a new page and add all items to it.
-        val page = new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID);
+        val page = new BTreeSetPage.IndexPage(BTreeSetPage.PagePointer.root());
         page.addChildren(allPointers);
 
         // Check single-level splits.
         val nextPageId = new AtomicLong(1000);
         int maxPageSize = page.size() / 2;
-        List<BTreeSetPage> splitResult = new ArrayList<>();
-        splitResult.add(page);
+        List<BTreeSetPage> currentPages = new ArrayList<>();
+        currentPages.add(page);
         while (maxPageSize > MAX_ITEM_LENGTH) {
-            val newSplitResult = new ArrayList<BTreeSetPage>();
-            for (val s : splitResult) {
+            val splitResult = new ArrayList<BTreeSetPage>();
+            for (val s : currentPages) {
                 val sr = s.split(maxPageSize, nextPageId::getAndIncrement);
                 if (sr == null) {
-                    newSplitResult.add(s);
+                    splitResult.add(s);
                 } else {
-                    newSplitResult.addAll(sr);
+                    splitResult.addAll(sr);
                 }
             }
 
-            splitResult = newSplitResult;
-            verifyIndexPageSplit(splitResult, allPointers, maxPageSize);
+            // Generate the expected set of parent ids, whether we are splitting the root or a non-root node.
+            val expectedParentIds = currentPages.size() == 1
+                    ? Collections.singletonList(page.getPagePointer().getPageId())
+                    : currentPages.stream().map(p -> p.getPagePointer().getParentPageId()).distinct().collect(Collectors.toList());
+            verifyIndexPageSplit(splitResult, allPointers, maxPageSize, expectedParentIds);
+            currentPages = splitResult;
             maxPageSize /= 2;
         }
     }
 
-    private void verifyIndexPageSplit(List<BTreeSetPage> splitResult, List<BTreeSetPage.PagePointer> allPointers, int maxPageSize) {
+    private void verifyIndexPageSplit(List<BTreeSetPage> splitResult, List<BTreeSetPage.PagePointer> allPointers, int maxPageSize, List<Long> parentPageIds) {
         // Verify counts match.
         val splitItemCount = splitResult.stream().mapToInt(BTreeSetPage::getItemCount).sum();
         Assert.assertEquals(allPointers.size(), splitItemCount);
@@ -405,13 +421,18 @@ public class BTreeSetPageTests {
         // We will iterate through all split page's items in order and compare them against our expected order.
         val expectedPointerIterator = allPointers.iterator();
         val pageIds = new HashSet<Long>();
+        int parentPageIndex = 0;
         for (val s : splitResult) {
             AssertExtensions.assertGreaterThan("Not expecting any empty split pages.", 0, s.size());
             AssertExtensions.assertLessThanOrEqual("Split page too large.", maxPageSize, s.size());
 
             // Verify page pointers are correct.
             Assert.assertTrue("Duplicate Page Id.", pageIds.add(s.getPagePointer().getPageId()));
-            Assert.assertEquals("Unexpected Parent Page id.", DEFAULT_PARENT_PAGE_ID, s.getParentPageId());
+            if (s.getPagePointer().getParentPageId() != parentPageIds.get(parentPageIndex)) {
+                // We may have moved on to the next parent page.
+                parentPageIndex++;
+                Assert.assertEquals("Unexpected Parent Page id.", (long) parentPageIds.get(parentPageIndex), s.getPagePointer().getParentPageId());
+            }
 
             // Verify items are in order.
             BTreeSetPage.IndexPage splitPage = (BTreeSetPage.IndexPage) s;
@@ -442,7 +463,7 @@ public class BTreeSetPageTests {
     @Test
     public void testBadSerialization() {
         val count = 10;
-        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID);
+        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO);
         val updateBatch = createUpdateBatch(count);
         updateBatch.sort(BTreeSetPage.UpdateItem::compareTo);
         page.update(updateBatch);
@@ -452,20 +473,20 @@ public class BTreeSetPageTests {
         badVersion[0] = 123;
         AssertExtensions.assertThrows(
                 "Unsupported version was allowed.",
-                () -> BTreeSetPage.parse(page.getPagePointer(), DEFAULT_PARENT_PAGE_ID, new ByteArraySegment(badVersion)),
+                () -> BTreeSetPage.parse(page.getPagePointer(), new ByteArraySegment(badVersion)),
                 ex -> ex instanceof IllegalDataFormatException);
 
         // Page Id mismatch.
         AssertExtensions.assertThrows(
                 "Invalid Page Id was allowed.",
-                () -> BTreeSetPage.parse(new BTreeSetPage.PagePointer(null, 1234), DEFAULT_PARENT_PAGE_ID, page.getData()),
+                () -> BTreeSetPage.parse(new BTreeSetPage.PagePointer(null, 1234, DEFAULT_PARENT_PAGE_ID), page.getData()),
                 ex -> ex instanceof IllegalDataFormatException);
 
         // Bad size
         val badSize = page.getData().getCopy();
         AssertExtensions.assertThrows(
                 "Invalid Size was allowed.",
-                () -> BTreeSetPage.parse(page.getPagePointer(), DEFAULT_PARENT_PAGE_ID, new ByteArraySegment(badSize, 0, badSize.length - 1)),
+                () -> BTreeSetPage.parse(page.getPagePointer(), new ByteArraySegment(badSize, 0, badSize.length - 1)),
                 ex -> ex instanceof IllegalDataFormatException);
     }
 
@@ -475,7 +496,7 @@ public class BTreeSetPageTests {
     @Test
     public void testLeafPageParse() {
         val count = 1000;
-        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID);
+        val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO);
         val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
         val updateBatch = createUpdateBatch(count);
         updateBatch.forEach(i -> expectedItems.add(i.getItem()));
@@ -487,9 +508,8 @@ public class BTreeSetPageTests {
         page.getData().copyTo(newBuffer, 0, page.getData().getLength());
         page.getData().copyTo(newBuffer, page.getData().getLength(), page.getData().getLength());
 
-        val page2 = (BTreeSetPage.LeafPage) BTreeSetPage.parse(page.getPagePointer(), page.getParentPageId(), new ByteArraySegment(newBuffer));
+        val page2 = (BTreeSetPage.LeafPage) BTreeSetPage.parse(page.getPagePointer(), new ByteArraySegment(newBuffer));
         Assert.assertSame(page.getPagePointer(), page2.getPagePointer());
-        Assert.assertEquals(page.getParentPageId(), page2.getParentPageId());
         check(page2, expectedItems);
     }
 
@@ -502,16 +522,15 @@ public class BTreeSetPageTests {
         val allPointers = IntStream.range(0, itemCount)
                 .mapToObj(i -> newItem())
                 .sorted(COMPARATOR::compare)
-                .map(key -> new BTreeSetPage.PagePointer(key, random.nextLong()))
+                .map(key -> new BTreeSetPage.PagePointer(key, random.nextLong(), DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
 
         // Create a new page and add all items to it.
-        val page = new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID);
+        val page = new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO);
         page.addChildren(allPointers);
 
-        val page2 = (BTreeSetPage.IndexPage) BTreeSetPage.parse(page.getPagePointer(), page.getParentPageId(), page.getData());
+        val page2 = (BTreeSetPage.IndexPage) BTreeSetPage.parse(page.getPagePointer(), page.getData());
         Assert.assertSame(page.getPagePointer(), page2.getPagePointer());
-        Assert.assertEquals(page.getParentPageId(), page2.getParentPageId());
         check(page2, allPointers, allPointers.stream().map(BTreeSetPage.PagePointer::getKey).collect(Collectors.toList()));
     }
 
@@ -520,8 +539,10 @@ public class BTreeSetPageTests {
      */
     @Test
     public void testEmptyPage() {
-        testEmptyPage(new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID));
-        testEmptyPage(new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID));
+        testEmptyPage(new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO));
+        testEmptyPage(new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO));
+        testEmptyPage(BTreeSetPage.emptyLeafRoot());
+        testEmptyPage(BTreeSetPage.emptyIndexRoot());
     }
 
     private void testEmptyPage(BTreeSetPage page) {
@@ -529,7 +550,7 @@ public class BTreeSetPageTests {
         Assert.assertEquals(0, page.getContentSize());
         Assert.assertEquals(BTreeSetPage.HEADER_FOOTER_LENGTH, page.size());
 
-        val page2 = BTreeSetPage.parse(DEFAULT_PAGE_INFO, DEFAULT_PARENT_PAGE_ID, page.getData());
+        val page2 = BTreeSetPage.parse(page.getPagePointer(), page.getData());
         assertPageEquals(page, page2);
     }
 

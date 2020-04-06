@@ -21,6 +21,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Supplier;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
@@ -30,6 +31,7 @@ import lombok.val;
 /**
  * Represents a Page (Node) within a {@link BTreeSet}. Pages can be of type {@link IndexPage} or {@link LeafPage}.
  */
+@NotThreadSafe
 abstract class BTreeSetPage {
     //region Serialization format
 
@@ -90,11 +92,11 @@ abstract class BTreeSetPage {
     @Getter
     private final PagePointer pagePointer;
     @Getter
-    private final long parentPageId;
-    @Getter
     private ArrayView data;
     @Getter
     private int itemCount;
+    @Getter
+    private boolean modified;
 
     //endregion
 
@@ -103,39 +105,36 @@ abstract class BTreeSetPage {
     /**
      * Creates a new, empty {@link BTreeSetPage}.
      *
-     * @param pagePointer  {@link PagePointer} to the page.
-     * @param parentPageId Id of the parent Page.
+     * @param pagePointer {@link PagePointer} to the page.
      */
-    private BTreeSetPage(@NonNull PagePointer pagePointer, long parentPageId) {
+    private BTreeSetPage(@NonNull PagePointer pagePointer) {
         this.pagePointer = pagePointer;
-        this.parentPageId = parentPageId;
         this.data = newContents(0, 0, this.pagePointer.getPageId());
         this.itemCount = 0;
+        this.modified = false;
     }
 
     /**
      * Creates a new instance of a {@link BTreeSetPage} from an existing serialization.
      *
-     * @param pagePointer  {@link PagePointer} to the page.
-     * @param parentPageId Id of the parent Page.
-     * @param data         The contents of a {@link BTreeSetPage} to wrap.
+     * @param pagePointer {@link PagePointer} to the page.
+     * @param data        The contents of a {@link BTreeSetPage} to wrap.
      */
-    private BTreeSetPage(@NonNull PagePointer pagePointer, long parentPageId, @NonNull ArrayView data) {
+    private BTreeSetPage(@NonNull PagePointer pagePointer, @NonNull ArrayView data) {
         this.pagePointer = pagePointer;
-        this.parentPageId = parentPageId;
         loadContents(data);
+        this.modified = false;
     }
 
     /**
      * Creates a new instance of a {@link BTreeSetPage} from an existing serialization.
      *
-     * @param pagePointer  {@link PagePointer} to the page.
-     * @param parentPageId Id of the parent Page.
-     * @param contents     The contents of the {@link BTreeSetPage} to wrap.
+     * @param pagePointer {@link PagePointer} to the page.
+     * @param contents    The contents of the {@link BTreeSetPage} to wrap.
      * @return A {@link IndexPage} or {@link LeafPage}, depending on what the serialization indicates.
      * @throws IllegalDataFormatException If the serialization is invalid.
      */
-    static BTreeSetPage parse(PagePointer pagePointer, long parentPageId, @NonNull ArrayView contents) {
+    static BTreeSetPage parse(PagePointer pagePointer, @NonNull ArrayView contents) {
         byte version = contents.get(0);
         if (version != CURRENT_VERSION) {
             throw new IllegalDataFormatException("Unsupported version. PageId=%s, Expected=%s, Actual=%s.",
@@ -161,8 +160,28 @@ abstract class BTreeSetPage {
         byte flags = contents.get(1);
         boolean isIndex = (flags & FLAG_INDEX_PAGE) == FLAG_INDEX_PAGE;
         return isIndex
-                ? new IndexPage(pagePointer, parentPageId, contents)
-                : new LeafPage(pagePointer, parentPageId, contents);
+                ? new IndexPage(pagePointer, contents)
+                : new LeafPage(pagePointer, contents);
+    }
+
+    /**
+     * Creates a new instance of the {@link BTreeSetPage.LeafPage} with an empty contents and {@link #getPagePointer()}
+     * configured as a Root Page.
+     *
+     * @return A new {@link BTreeSetPage.LeafPage}.
+     */
+    static BTreeSetPage.LeafPage emptyLeafRoot() {
+        return new BTreeSetPage.LeafPage(PagePointer.root());
+    }
+
+    /**
+     * Creates a new instance of the {@link BTreeSetPage.IndexPage} with an empty contents and {@link #getPagePointer()}
+     * configured as a Root Page.
+     *
+     * @return A new {@link BTreeSetPage.IndexPage}.
+     */
+    static BTreeSetPage.IndexPage emptyIndexRoot() {
+        return new BTreeSetPage.IndexPage(PagePointer.root());
     }
 
     /**
@@ -246,6 +265,10 @@ abstract class BTreeSetPage {
      */
     int getContentSize() {
         return size() - HEADER_FOOTER_LENGTH - this.itemCount * ITEM_OFFSET_LENGTH;
+    }
+
+    private void markModified() {
+        this.modified = true;
     }
 
     @Override
@@ -358,6 +381,7 @@ abstract class BTreeSetPage {
         this.data = applyUpdates(updateInfo, serializeValue);
         this.itemCount = updateInfo.newCount;
         assert this.getContentSize() == updateInfo.newContentSize;
+        markModified();
     }
 
     /**
@@ -503,6 +527,16 @@ abstract class BTreeSetPage {
     //region Splitting
 
     /**
+     * Gets a value indicating whether this page exceeds the given maximum size and may require a split.
+     *
+     * @param maxPageSize The max page size to compare against.
+     * @return True if a split is required, false otherwise.
+     */
+    boolean requiresSplit(int maxPageSize) {
+        return size() > maxPageSize;
+    }
+
+    /**
      * Splits this page in multiple pages (if necessary), where each page's serialization will not exceed the given page size.
      * If no split is necessary, returns null.
      *
@@ -511,7 +545,7 @@ abstract class BTreeSetPage {
      * then the current page
      */
     List<BTreeSetPage> split(int maxPageSize, @NonNull Supplier<Long> getNewPageId) {
-        if (size() <= maxPageSize) {
+        if (!requiresSplit(maxPageSize)) {
             // No split necessary.
             return null;
         }
@@ -530,6 +564,7 @@ abstract class BTreeSetPage {
         // Calculate a threshold for each new page. Once we exceed this we can add items to the next page.
         int splitThreshold = Math.min(maxContentLength, adjustedContentLength / splitCount);
         val result = new ArrayList<BTreeSetPage>();
+
         int sourcePos = 0;
         int currentPageSouceIndex = getOffset(sourcePos);
         while (sourcePos < itemCount) {
@@ -565,14 +600,36 @@ abstract class BTreeSetPage {
 
             // Create the new page and add it to the result.
             // First page in split will replace this one, so we need to set the correct page pointer.
-            PagePointer pagePointer = result.isEmpty()
-                    ? new PagePointer(this.pagePointer.getKey() == null ? firstKey : this.pagePointer.getKey(), this.pagePointer.getPageId())
-                    : new PagePointer(firstKey, getNewPageId.get());
+            val pagePointer = getSplitPagePointer(firstKey, getNewPageId, result.isEmpty());
             result.add(createSplitPage(pagePointer, currentPageSouceIndex, newContentSize, newOffsets));
             currentPageSouceIndex = itemSourceIndex;
         }
 
         return result;
+    }
+
+    private PagePointer getSplitPagePointer(ArrayView firstKey, Supplier<Long> getNewPageId, boolean isFirstItem) {
+        if (isFirstItem) {
+            firstKey = this.pagePointer.getKey() == null ? firstKey : this.pagePointer.getKey();
+        }
+
+        long parentId;
+        long pageId;
+        if (this.pagePointer.hasParent()) {
+            // If we don't split the root, all new pages will branch out from this page's parent.
+            parentId = this.pagePointer.getParentPageId();
+
+            // ... and the first page in the split will replace this page (so preserve its id).
+            pageId = isFirstItem ? this.pagePointer.getPageId() : getNewPageId.get();
+        } else {
+            // If we split the root, all new items will have the root as parent, and the root Id never changes.
+            parentId = PagePointer.ROOT_PAGE_ID;
+
+            // .. and all new pages get new ids.
+            pageId = getNewPageId.get();
+        }
+
+        return new PagePointer(firstKey, pageId, parentId);
     }
 
     private BTreeSetPage createSplitPage(PagePointer pointer, int fromIndex, int length, List<Integer> relativeOffsets) {
@@ -594,8 +651,9 @@ abstract class BTreeSetPage {
         val sourceSlice = this.data.slice(fromIndex, actualContentLength);
         val targetSlice = newPageContents.slice(relativeOffsets.get(0), actualContentLength);
         copyData(sourceSlice, targetSlice);
-        BTreeSetPage result = BTreeSetPage.parse(pointer, this.parentPageId, newPageContents);
+        BTreeSetPage result = BTreeSetPage.parse(pointer, newPageContents);
         result.splitComplete();
+        result.markModified();
         return result;
     }
 
@@ -635,12 +693,12 @@ abstract class BTreeSetPage {
      * {@link BTreeSetPage} that contains pointers to other {@link BTreeSetPage}s.
      */
     static class IndexPage extends BTreeSetPage {
-        IndexPage(PagePointer pagePointer, long parentPageId) {
-            super(pagePointer, parentPageId);
+        IndexPage(PagePointer pagePointer) {
+            super(pagePointer);
         }
 
-        IndexPage(PagePointer pagePointer, long parentPageId, ArrayView contents) {
-            super(pagePointer, parentPageId, contents);
+        IndexPage(PagePointer pagePointer, ArrayView contents) {
+            super(pagePointer, contents);
         }
 
         @Override
@@ -710,7 +768,7 @@ abstract class BTreeSetPage {
                 // Found something.
                 val serializedValue = super.getValueAt(position);
                 val pageId = BitConverter.readLong(serializedValue, 0);
-                return new PagePointer(getItemAt(position), pageId);
+                return new PagePointer(getItemAt(position), pageId, getPagePointer().getPageId());
             }
 
             // Page is either empty or the sought item is less than the first item.
@@ -726,12 +784,12 @@ abstract class BTreeSetPage {
      * {@link BTreeSetPage} that contains items from the {@link BTreeSet}.
      */
     static class LeafPage extends BTreeSetPage {
-        LeafPage(PagePointer pagePointer, long parentPageId) {
-            super(pagePointer, parentPageId);
+        LeafPage(PagePointer pagePointer) {
+            super(pagePointer);
         }
 
-        LeafPage(PagePointer pagePointer, long parentPageId, ArrayView contents) {
-            super(pagePointer, parentPageId, contents);
+        LeafPage(PagePointer pagePointer, ArrayView contents) {
+            super(pagePointer, contents);
         }
 
         @Override
@@ -768,6 +826,8 @@ abstract class BTreeSetPage {
      */
     @Data
     static class PagePointer {
+        private static final long NO_PAGE_ID = Long.MIN_VALUE;
+        private static final long ROOT_PAGE_ID = 0L;
         /**
          * A routing key that represents the low bound for any item in the page pointed to by this.
          */
@@ -776,6 +836,28 @@ abstract class BTreeSetPage {
          * The Id of the page pointed to by this.
          */
         private final long pageId;
+        /**
+         * The id of this page's parent.
+         */
+        private final long parentPageId;
+
+        /**
+         * Creates a {@link PagePointer} to the root.
+         *
+         * @return A Root {@link PagePointer}.
+         */
+        static PagePointer root() {
+            return new PagePointer(null, ROOT_PAGE_ID, NO_PAGE_ID);
+        }
+
+        /**
+         * Gets a value indicating whether this page has a parent or not.
+         *
+         * @return True if has parent (non-root), false if no parent (root).
+         */
+        boolean hasParent() {
+            return this.parentPageId != NO_PAGE_ID;
+        }
     }
 
     /**

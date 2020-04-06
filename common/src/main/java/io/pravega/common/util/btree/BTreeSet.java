@@ -10,34 +10,50 @@
 package io.pravega.common.util.btree;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArrayComparator;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
  * A B+Tree-backed Set.
  */
 @NotThreadSafe
+@RequiredArgsConstructor
 public class BTreeSet {
     static final ByteArrayComparator COMPARATOR = new ByteArrayComparator();
+    private final int maxPageSize;
+    private final int maxItemSize;
+    @NonNull
     private final ReadPage read;
-    private final UpdatePages update;
+    @NonNull
+    private final BTreeSet.PersistPages update;
+    @NonNull
+    private final Executor executor;
 
-    public BTreeSet(int maxPageSize, @NonNull ReadPage readPage, @NonNull UpdatePages updatePages) {
-        this.read = readPage;
-        this.update = updatePages;
-    }
+    //region Updates
 
     /**
      * Atomically inserts the items in 'toInsert' into the {@link BTreeSet} and removes the items in 'toRemove'
@@ -54,27 +70,165 @@ public class BTreeSet {
      */
     public CompletableFuture<Void> update(@Nullable Collection<ArrayView> toInsert, @Nullable Collection<ArrayView> toRemove,
                                           @NonNull Supplier<Long> getNextPageId, @NonNull Duration timeout) {
+        TimeoutTimer timer = new TimeoutTimer(timeout);
         val updates = new ArrayList<BTreeSetPage.UpdateItem>();
-        if (toInsert != null) {
-            toInsert.forEach(i -> updates.add(new BTreeSetPage.UpdateItem(i, false)));
-        }
-
-        if (toRemove != null) {
-            toRemove.forEach(i -> updates.add(new BTreeSetPage.UpdateItem(i, true)));
-        }
-
+        collectUpdates(toInsert, false, updates);
+        collectUpdates(toRemove, true, updates);
         updates.sort(BTreeSetPage.UpdateItem::compareTo);
-        if (updates.size() == 0) {
+        if (updates.isEmpty()) {
             // Nothing to do.
             return CompletableFuture.completedFuture(null);
         }
 
         // The updates are sorted, so any empty items will be placed first.
         Preconditions.checkArgument(updates.get(0).getItem().getLength() > 0, "No empty items allowed.");
-        // TODO: verify that items do not exceed some predefined limit.
-
-        return null;
+        return applyUpdates(updates.iterator(), timer)
+                .thenApply(pageCollection -> processModifiedPages(pageCollection, getNextPageId))
+                .thenComposeAsync(pageCollection -> writePages(pageCollection, timer), this.executor);
     }
+
+    private void collectUpdates(Collection<ArrayView> items, boolean isRemoval, List<BTreeSetPage.UpdateItem> updates) {
+        if (items == null) {
+            return;
+        }
+
+        for (val i : items) {
+            Preconditions.checkArgument(i.getLength() <= this.maxItemSize,
+                    "Item exceeds maximum allowed length (%s).", this.maxItemSize);
+            updates.add(new BTreeSetPage.UpdateItem(i, isRemoval));
+        }
+    }
+
+    private CompletableFuture<PageCollection> applyUpdates(Iterator<BTreeSetPage.UpdateItem> items, TimeoutTimer timer) {
+        val pageCollection = new PageCollection();
+        val lastPage = new AtomicReference<BTreeSetPage.LeafPage>(null);
+        val lastPageUpdates = new ArrayList<BTreeSetPage.UpdateItem>();
+        return Futures.loop(
+                items::hasNext,
+                () -> {
+                    // Locate the page where the update is to be executed. Do not apply it yet as it is more efficient
+                    // to bulk-apply multiple at once. Collect all updates for each Page, and only apply them once we have
+                    // "moved on" to another page.
+                    val next = items.next();
+                    return locatePage(next.getItem(), pageCollection, timer)
+                            .thenAccept(page -> {
+                                val last = lastPage.get();
+                                if (page != last) {
+                                    // This key goes to a different page than the one we were looking at.
+                                    if (last != null) {
+                                        // Commit the outstanding updates.
+                                        last.update(lastPageUpdates);
+                                    }
+
+                                    // Update the pointers.
+                                    lastPage.set(page);
+                                    lastPageUpdates.clear();
+                                }
+
+                                // Record the current update.
+                                lastPageUpdates.add(next);
+                            });
+                },
+                this.executor)
+                .thenApplyAsync(v -> {
+                    // We need not forget to apply the last batch of updates from the last page.
+                    if (lastPage.get() != null) {
+                        lastPage.get().update(lastPageUpdates);
+                    }
+                    return pageCollection;
+                }, this.executor);
+    }
+
+    private PageCollection processModifiedPages(PageCollection pageCollection, Supplier<Long> getNewPageId) {
+        // Perform splits.
+        List<BTreeSetPage> candidates = pageCollection.getLeafPages();
+        while (!candidates.isEmpty()) {
+            val next = new ArrayList<BTreeSetPage>();
+            val deletionsByParent = new HashMap<Long, ArrayList<BTreeSetPage.PagePointer>>();
+            val insertionsByParent = new HashMap<Long, ArrayList<BTreeSetPage.PagePointer>>();
+            for (BTreeSetPage p : candidates) {
+                if (p.getItemCount() == 0) {
+                    // Delete the page if it's empty, but only if it's not the root page.
+                    if (p.getPagePointer().hasParent()) {
+                        pageCollection.pageDeleted(p);
+                        deletionsByParent.computeIfAbsent(p.getPagePointer().getParentPageId(), pid -> new ArrayList<>()).add(p.getPagePointer());
+                    }
+                } else if (p.requiresSplit(this.maxPageSize)) {
+                    val splits = p.split(this.maxPageSize, getNewPageId);
+                    assert splits != null && splits.size() > 0;
+                    Preconditions.checkArgument(splits.get(0).getPagePointer() == p.getPagePointer(),
+                            "First split result (%s) not current page (%s).", splits.get(0).getPagePointer(), p.getPagePointer());
+                    if (!p.getPagePointer().hasParent()) {
+                        // If we split the root, the new pages will already point to the root; we must create a blank
+                        // index root page, which will be updated in the next step.
+                        pageCollection.pageUpdated(BTreeSetPage.emptyIndexRoot());
+                    }
+
+                    val parentPointers = insertionsByParent.computeIfAbsent(p.getPagePointer().getParentPageId(), pid -> new ArrayList<>());
+                    splits.forEach(splitPage -> {
+                        pageCollection.pageUpdated(splitPage);
+                        parentPointers.add(splitPage.getPagePointer());
+                    });
+                }
+            }
+
+            deletionsByParent.forEach((parentId, toDelete) -> {
+                val parent = (BTreeSetPage.IndexPage) pageCollection.get(parentId);
+                parent.removeChildren(toDelete);
+                next.add(parent);
+            });
+
+            insertionsByParent.forEach((parentId, toInsert) -> {
+                val parent = (BTreeSetPage.IndexPage) pageCollection.get(parentId);
+                parent.addChildren(toInsert);
+                next.add(parent);
+            });
+
+            candidates = next;
+        }
+        return pageCollection;
+    }
+
+    private CompletableFuture<Void> writePages(@NonNull PageCollection pageCollection, TimeoutTimer timer) {
+        // Order the pages from bottom up. The upstream code may have limitations in how much it can update atomically,
+        // so it may commit this in multiple non-atomic operations. If the process is interrupted mid-way then we want
+        // to ensure that parent pages aren't updated before leaf pages (which would cause index corruptions - i.e., by
+        // pointing to inexistent pages).
+        val processedPageIds = new HashSet<Long>();
+
+        // First collect updates.
+        val toWrite = new ArrayList<Map.Entry<Long, ArrayView>>();
+        collectWriteCandidates(pageCollection.getLeafPages(), toWrite, processedPageIds, pageCollection);
+
+        // Then collect deletions, making sure we also consider all their parents (which should be modified/deleted as well).
+        val candidates = pageCollection.deletedPageIds.values().stream()
+                .map(pageCollection::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        collectWriteCandidates(candidates, toWrite, processedPageIds, pageCollection);
+        return this.update.apply(toWrite, pageCollection.deletedPageIds.keySet(), timer.getRemaining());
+    }
+
+    private void collectWriteCandidates(List<BTreeSetPage> candidates, List<Map.Entry<Long, ArrayView>> toWrite,
+                                        Set<Long> processedIds, PageCollection pageCollection) {
+        while (!candidates.isEmpty()) {
+            val next = new ArrayList<BTreeSetPage>();
+            candidates.stream()
+                    .filter(p -> p.isModified() && !processedIds.contains(p.getPagePointer().getPageId()))
+                    .forEach(p -> {
+                        toWrite.add(new AbstractMap.SimpleImmutableEntry<>(p.getPagePointer().getPageId(), p.getData()));
+                        val parent = pageCollection.get(p.getPagePointer().getParentPageId());
+                        assert parent != null;
+                        next.add(parent);
+                        processedIds.add(p.getPagePointer().getPageId());
+                    });
+            candidates = next;
+        }
+    }
+
+    //endregion
+
+    //region Queries
 
     /**
      * Returns an {@link AsyncIterator} that will iterate through all the items in this {@link BTreeSet} within the
@@ -95,21 +249,101 @@ public class BTreeSet {
         return null;
     }
 
-    private void split() {
-        // TODO implement
-        // TODO Index pages first keys:
-        // Split Root Data node -> new node is Index; first child page has Key==MinKey
-        // Delete Node: if (in parent) DeletedNode.Key==MinKey, set the next sibling's Key as MinKey.
-        // Delete node: we cannot use BTreeListPage.GetInfo as that will provide wrong key; we must keep track of the Key
-        // as we search down the tree. Tricky stuff.
-    }
-
-    private static class UpdateResult {
-
+    /**
+     * Locates the {@link BTreeSetPage.LeafPage} that contains or should contain the given Item.
+     *
+     * @param item           An {@link ArrayView} that represents the Item to look up the Leaf Page for.
+     * @param pageCollection A {@link PageCollection} that contains already looked-up pages. Any newly looked up pages
+     *                       will be inserted in this instance as well.
+     * @param timer          Timer for the operation.
+     * @return A CompletableFuture with a {@link BTreeSetPage.LeafPage} for the sought page.
+     */
+    private CompletableFuture<BTreeSetPage.LeafPage> locatePage(ArrayView item, PageCollection pageCollection, TimeoutTimer timer) {
+        val pagePointer = new AtomicReference<>(BTreeSetPage.PagePointer.root());
+        val result = new CompletableFuture<BTreeSetPage.LeafPage>();
+        val loop = Futures.loop(
+                () -> !result.isDone(),
+                () -> fetchPage(pagePointer.get(), pageCollection, timer.getRemaining())
+                        .thenAccept(page -> {
+                            if (page.isIndexPage()) {
+                                pagePointer.set(((BTreeSetPage.IndexPage) page).getChildPage(item, 0));
+                            } else {
+                                // We are done.
+                                result.complete((BTreeSetPage.LeafPage) page);
+                            }
+                        }),
+                this.executor);
+        Futures.exceptionListener(loop, result::completeExceptionally);
+        return result;
     }
 
     /**
-     * Defines a method that, when invoked, reads the contents of a single BTreeList Page from the external data source.
+     * Loads up a single Page.
+     *
+     * @param pagePointer    A {@link BTreeSetPage.PagePointer} indicating the Page to load.
+     * @param pageCollection A {@link PageCollection} that contains already looked up pages. If the sought page is already
+     *                       loaded it will be served from here; otherwise it will be added here afterwards.
+     * @param timeout        Timeout for the operation.
+     * @return A CompletableFuture containing a {@link BTreeSetPage} for the sought page.
+     */
+    private CompletableFuture<BTreeSetPage> fetchPage(BTreeSetPage.PagePointer pagePointer,
+                                                      PageCollection pageCollection, Duration timeout) {
+        BTreeSetPage fromCache = pageCollection.get(pagePointer.getPageId());
+        if (fromCache != null) {
+            return CompletableFuture.completedFuture(fromCache);
+        }
+
+        return this.read.apply(pagePointer.getPageId(), timeout)
+                .thenApply(data -> {
+                    BTreeSetPage page;
+                    if (data == null) {
+                        // The only acceptable case when there's no data for a page is an empty BTreeSet (and when we ask
+                        // for the root.
+                        Preconditions.checkArgument(!pagePointer.hasParent(), "Missing page contents for %s.", pagePointer);
+                        page = BTreeSetPage.emptyLeafRoot();
+                    } else {
+                        page = BTreeSetPage.parse(pagePointer, data);
+                    }
+
+                    pageCollection.pageLoaded(page);
+                    return page;
+                });
+    }
+
+
+    //endregion
+
+    //region Helper classes
+
+    private static class PageCollection {
+        private final HashMap<Long, BTreeSetPage> pages = new HashMap<>();
+        private final HashMap<Long, Long> deletedPageIds = new HashMap<>();
+
+        synchronized BTreeSetPage get(long pageId) {
+            return pages.getOrDefault(pageId, null);
+        }
+
+        synchronized void pageLoaded(BTreeSetPage page) {
+            this.pages.put(page.getPagePointer().getPageId(), page);
+        }
+
+        synchronized void pageUpdated(BTreeSetPage page) {
+            assert !this.deletedPageIds.containsKey(page.getPagePointer().getPageId());
+            this.pages.put(page.getPagePointer().getPageId(), page);
+        }
+
+        synchronized void pageDeleted(BTreeSetPage page) {
+            this.deletedPageIds.put(page.getPagePointer().getPageId(), page.getPagePointer().getParentPageId());
+            this.pages.remove(page.getPagePointer().getPageId());
+        }
+
+        synchronized List<BTreeSetPage> getLeafPages() {
+            return this.pages.values().stream().filter(p -> !p.isIndexPage()).collect(Collectors.toList());
+        }
+    }
+
+    /**
+     * Defines a method that, when invoked, reads the contents of a single {@link BTreeSetPage} from the external data source.
      */
     @FunctionalInterface
     public interface ReadPage {
@@ -125,19 +359,24 @@ public class BTreeSet {
     }
 
     /**
-     * Defines a method that, when invoked, writes the contents of BTreeList Page to the external data source.
+     * Defines a method that, when invoked, writes the contents of a set of {@link BTreeSetPage} instances to the external
+     * data source and removes others.
      */
     @FunctionalInterface
-    public interface UpdatePages {
+    public interface PersistPages {
         /**
          * Persists the contents of multiple, contiguous Pages to an external data source.
          *
-         * @param updatedPages   A Map of Page Id to BTreeList Pages to write.
-         * @param removedPageIds A Collection of Page Ids to remove.
-         * @param timeout        Timeout for the operation.
+         * @param toUpdate A List of Page Id to Page contents to write. The order should be such that if the list
+         *                 has to be broken down in non-atomic commits and commits are executed in order, then if
+         *                 only some commits are persisted, the state of the {@link BTreeSet} will be preserved upon
+         *                 reload.
+         * @param toDelete A Collection of Page Ids to remove.
+         * @param timeout  Timeout for the operation.
          * @return A CompletableFuture that, when completed, will indicate that the operation completed.
          */
-        CompletableFuture<Void> apply(Map<Long, ArrayView> updatedPages, Collection<Long> removedPageIds, Duration timeout);
+        CompletableFuture<Void> apply(List<Map.Entry<Long, ArrayView>> toUpdate, Collection<Long> toDelete, Duration timeout);
     }
 
+    //endregion
 }
