@@ -45,6 +45,7 @@ init_kubernetes() {
 
         local ns=${POD_NAMESPACE}
         local podname=${POD_NAME}
+        # SERVICE_NAME is set by pravega-operator when external access is enabled from version 0.5.0 onwards
         if [ -z "${SERVICE_NAME}" ]; then
           local servicename=${podname}
         else
