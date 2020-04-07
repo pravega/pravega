@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,8 +106,8 @@ public class RESTAuthHelper {
         if (isAuthEnabled()) {
             String credentials = parseCredentials(authHeader);
             if (!pravegaAuthManager.authenticateAndAuthorize(resource, credentials, permission)) {
-                throw new AuthException(
-                        String.format("Failed to authenticate or authorize for resource [%s]", resource),
+                throw new AuthorizationException(
+                        String.format("Failed to authorize for resource [%s]", resource),
                         Response.Status.FORBIDDEN.getStatusCode());
             }
         }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,12 +13,14 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -130,7 +132,17 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
-    public void copyTo(OutputStream target) throws IOException {
+    public BufferView slice(int offset, int length) {
+        throw new UnsupportedOperationException("slice() not supported.");
+    }
+
+    @Override
+    public void copyTo(OutputStream target) {
+        throw new UnsupportedOperationException("copyTo() not supported.");
+    }
+
+    @Override
+    public int copyTo(ByteBuffer byteBuffer) {
         throw new UnsupportedOperationException("copyTo() not supported.");
     }
 

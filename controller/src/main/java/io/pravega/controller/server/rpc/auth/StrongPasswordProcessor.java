@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ public class StrongPasswordProcessor {
      * @throws NoSuchAlgorithmException encryption exceptions.
      * @throws InvalidKeySpecException encryption exceptions.
      */
-    public boolean checkPassword(String password, String encryptedPassword)
+    public boolean checkPassword(char[] password, String encryptedPassword)
             throws NoSuchAlgorithmException, InvalidKeySpecException {
         String storedPassword = new String(fromHex(encryptedPassword));
         String[] parts = storedPassword.split(":");
@@ -56,7 +56,7 @@ public class StrongPasswordProcessor {
         byte[] salt = fromHex(parts[1]);
         byte[] hash = fromHex(parts[2]);
 
-        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, iterations, keyLength);
+        PBEKeySpec spec = new PBEKeySpec(password, salt, iterations, keyLength);
         SecretKeyFactory skf = SecretKeyFactory.getInstance(keyAlgorythm);
         byte[] testHash = skf.generateSecret(spec).getEncoded();
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -472,6 +472,30 @@ public class FuturesTests {
                 loopFuture::join,
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Unexpected value accumulated until loop was interrupted.", 3, accumulator.get());
+    }
+
+    @Test
+    public void testHandleCompose() {
+        // When applied to a CompletableFuture that completes normally.
+        val successfulFuture = new CompletableFuture<Integer>();
+        val f1 = Futures.<Integer, String>handleCompose(successfulFuture, (r, ex) -> CompletableFuture.completedFuture("2"));
+        successfulFuture.complete(1);
+        Assert.assertEquals("Unexpected completion value for successful future.", "2", f1.join());
+
+        // When applied to a CompletableFuture that completes exceptionally.
+        val failedFuture = new CompletableFuture<Integer>();
+        val f2 = Futures.<Integer, Integer>handleCompose(failedFuture, (r, ex) -> CompletableFuture.completedFuture(2));
+        failedFuture.completeExceptionally(new IntentionalException());
+        Assert.assertEquals("Unexpected completion value for failed future that handled the exception.", 2, (int) f2.join());
+
+        // When applied to a CompletableFuture that completes exceptionally and the handler also throws.
+        val f3 = Futures.<Integer, Integer>handleCompose(failedFuture, (r, ex) -> {
+            throw new IntentionalException();
+        });
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Unexpected completion for failed future whose handler also threw an exception.",
+                () -> f3,
+                ex -> ex instanceof IntentionalException);
     }
 
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {

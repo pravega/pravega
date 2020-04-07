@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ public class MetricsConfig {
     //region Config Names
     public final static Property<Boolean> ENABLE_STATISTICS = Property.named("enableStatistics", true);
     public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCacheSize", 10000000L);
-    public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCacheEvictionDurationMinutes", 30);
+    public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCacheEvictionDurationMinutes", 3);
     public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("outputFrequencySeconds", 60);
     public final static Property<String> METRICS_PREFIX = Property.named("metricsPrefix", "pravega");
     public final static Property<String> STATSD_HOST = Property.named("statsDHost", "localhost");
@@ -107,7 +107,7 @@ public class MetricsConfig {
      * The password of user account accessing InfluxDB.
      */
     @Getter
-    private final String influxDBPassword;
+    private final char[] influxDBPassword;
 
     /**
      * The retention policy of InfluxDB, e.g. "2h", "52w".
@@ -147,7 +147,7 @@ public class MetricsConfig {
         this.influxDBUri = properties.get(INFLUXDB_URI);
         this.influxDBName = properties.get(INFLUXDB_NAME);
         this.influxDBUserName = properties.get(INFLUXDB_USERNAME);
-        this.influxDBPassword = properties.get(INFLUXDB_PASSWORD);
+        this.influxDBPassword = properties.get(INFLUXDB_PASSWORD).toCharArray();
         this.influxDBRetention = properties.get(INFLUXDB_RETENTION_POLICY);
         this.enableInfluxDBReporter = properties.getBoolean(ENABLE_INFLUXDB_REPORTER);
         this.enableStatsDReporter = properties.getBoolean(ENABLE_STATSD_REPORTER);

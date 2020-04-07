@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -581,6 +581,37 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected result from thirdCall.", thirdResult, thirdCall.join());
         val expectedOrder = Arrays.asList(1, 2, 3);
         AssertExtensions.assertListEquals("", expectedOrder, invocationOrder, Integer::equals);
+    }
+
+    /**
+     * Tests the following scenario, which is typical of how the Controller bootstraps its metadata in the Segment Store:
+     * 0. Metadata segment does not currently exist.
+     * 1. Metadata segment is queried (StreamSegmentNotExists is returned).
+     * 2. Metadata segment is immediately created.
+     * 3. Metadata segment is queried again (in which case it should be returned normally).
+     */
+    @Test
+    public void testCreateSegmentAfterFailedAssignment() {
+        final String segmentName = "Segment";
+
+        @Cleanup
+        TestContext context = createTestContext();
+
+        // 1. Query for an inexistent segment, and pass a completion callback that is not yet completed.
+        val f1 = new CompletableFuture<Void>();
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expecting assignment to be rejected.",
+                () -> context.getMetadataStore().getOrAssignSegmentId(segmentName, TIMEOUT, id -> f1),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // 2. Create the segment.
+        context.getMetadataStore().createSegment(segmentName, null, TIMEOUT).join();
+
+        // 3. Issue the second assignment. This should not fail.
+        context.getMetadataStore().getOrAssignSegmentId(segmentName, TIMEOUT).join();
+
+        // Finally, complete the first callback - this should have no effect on anything above.
+        f1.complete(null);
     }
 
     /**

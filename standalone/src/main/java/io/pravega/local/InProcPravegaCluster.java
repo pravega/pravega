@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -354,7 +354,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .trustStorePasswordPath(keyPasswordFile)
                 .build();
 
-        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
+        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withPravegaTablesClient(zkClientConfig);
 
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(true)
@@ -397,7 +397,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         }
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
-                .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
+                .threadPoolSize(Runtime.getRuntime().availableProcessors())
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
                 .controllerClusterListenerEnabled(false)

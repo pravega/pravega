@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ public class StartWriter {
                                                                                             .transactionTimeoutTime(60000)
                                                                                             .build());
         @Cleanup
-        TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter(StartLocalService.STREAM_NAME,
+        TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter("writer", StartLocalService.STREAM_NAME,
                                                                                                         new JavaSerializer<>(),
                                                                                                         EventWriterConfig.builder()
                                                                                                                          .transactionTimeoutTime(60000)

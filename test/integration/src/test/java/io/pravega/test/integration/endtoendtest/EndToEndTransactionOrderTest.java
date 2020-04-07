@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,6 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.test.integration.utils.IntegerSerializer;
@@ -102,7 +101,6 @@ public class EndToEndTransactionOrderTest {
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
         controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
 
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
@@ -112,6 +110,8 @@ public class EndToEndTransactionOrderTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
+
+        controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
 
         autoScaleMonitor = new AutoScaleMonitor(store,
                 internalCF,
@@ -173,9 +173,9 @@ public class EndToEndTransactionOrderTest {
 
         controller.scaleStream(s, Collections.singletonList(0L), map, executor).getFuture().get();
 
-        controller.scaleStream(s, Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(1, 1)), map, executor).getFuture().get();
+        controller.scaleStream(s, Collections.singletonList(NameUtils.computeSegmentId(1, 1)), map, executor).getFuture().get();
 
-        controller.scaleStream(s, Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(2, 2)), map, executor).getFuture().get();
+        controller.scaleStream(s, Collections.singletonList(NameUtils.computeSegmentId(2, 2)), map, executor).getFuture().get();
 
         // stop writers
         done.set(true);
@@ -224,7 +224,7 @@ public class EndToEndTransactionOrderTest {
         EventWriterConfig writerConfig = EventWriterConfig.builder()
                                                           .transactionTimeoutTime(30000)
                                                           .build();
-        TransactionalEventStreamWriter<Integer> test = clientFactory.createTransactionalEventWriter("test", new IntegerSerializer(), writerConfig);
+        TransactionalEventStreamWriter<Integer> test = clientFactory.createTransactionalEventWriter(writerId, "test", new IntegerSerializer(), writerConfig);
         List<UUID> list = new LinkedList<>();
         writersList.put(writerId, list);
 

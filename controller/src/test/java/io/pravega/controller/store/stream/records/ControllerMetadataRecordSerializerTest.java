@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -196,8 +196,22 @@ public class ControllerMetadataRecordSerializerTest {
         serialized = record.toBytes();
         deserialized = StreamConfigurationRecord.fromBytes(serialized);
         assertEquals(record, deserialized);
+
+        StreamConfiguration allWithTime = StreamConfiguration.builder()
+                                                             .scalingPolicy(ScalingPolicy.fixed(1))
+                                                             .retentionPolicy(RetentionPolicy.bySizeBytes(1L))
+                                                             .timestampAggregationTimeout(1000L)
+                                                             .build();
+
+        record = StreamConfigurationRecord.builder()
+                                          .streamConfiguration(allWithTime)
+                                          .streamName("a")
+                                          .scope("a")
+                                          .updating(true)
+                                          .build();
+        serialized = record.toBytes();
+        deserialized = StreamConfigurationRecord.fromBytes(serialized);
+        assertEquals(record, deserialized);
     }
-
-
 }
 

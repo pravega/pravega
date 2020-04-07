@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ public class IntermittentCnxnFailureTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, segmentHelperMock, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
 
-        controllerService = new ControllerService(streamStore, streamMetadataTasks,
+        controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
 
         controllerService.createScope(SCOPE).get();

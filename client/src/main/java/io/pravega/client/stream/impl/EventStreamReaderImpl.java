@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,6 +11,8 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchEventException;
@@ -29,7 +31,10 @@ import io.pravega.client.stream.ReaderNotInReaderGroupException;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.TimeWindow;
 import io.pravega.client.stream.TruncatedDataException;
+import io.pravega.client.stream.impl.SegmentWithRange.Range;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -41,6 +46,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -50,9 +57,11 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END_OF_SEGMENT_REACHED;
 
-
 @Slf4j
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
+
+    // Base waiting time for a reader on an idle segment waiting for new data to be read.
+    private static final long BASE_READER_WAITING_TIME_MS = ReaderGroupStateManager.TIME_UNIT.toMillis();
 
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
@@ -60,22 +69,29 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private final Orderer orderer;
     private final ReaderConfig config;
+   
+    private final ImmutableMap<Stream, WatermarkReaderImpl> waterMarkReaders;
     @GuardedBy("readers")
     private boolean closed;
     @GuardedBy("readers")
     private final List<EventSegmentReader> readers = new ArrayList<>();
     @GuardedBy("readers")
-    private final Map<Segment, Long> sealedSegments = new HashMap<>();
+    private final Map<Segment, Range> ranges = new HashMap<>();
+    @GuardedBy("readers")
+    private final Map<SegmentWithRange, Long> sealedSegments = new HashMap<>();
     @GuardedBy("readers")
     private Sequence lastRead;
     @GuardedBy("readers")
     private String atCheckpoint;
     private final ReaderGroupStateManager groupState;
     private final Supplier<Long> clock;
+    private final Controller controller;
+    private final Semaphore segmentsWithData;
 
     EventStreamReaderImpl(SegmentInputStreamFactory inputStreamFactory,
             SegmentMetadataClientFactory metadataClientFactory, Serializer<Type> deserializer,
-            ReaderGroupStateManager groupState, Orderer orderer, Supplier<Long> clock, ReaderConfig config) {
+            ReaderGroupStateManager groupState, Orderer orderer, Supplier<Long> clock, ReaderConfig config, 
+            ImmutableMap<Stream, WatermarkReaderImpl> waterMarkReaders, Controller controller) {
         this.deserializer = deserializer;
         this.inputStreamFactory = inputStreamFactory;
         this.metadataClientFactory = metadataClientFactory;
@@ -83,15 +99,18 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         this.orderer = orderer;
         this.clock = clock;
         this.config = config;
+        this.waterMarkReaders = waterMarkReaders;
         this.closed = false;
+        this.controller = controller;
+        this.segmentsWithData = new Semaphore(0);
     }
 
     @Override
-    public EventRead<Type> readNextEvent(long timeout) throws ReinitializationRequiredException, TruncatedDataException {
+    public EventRead<Type> readNextEvent(long timeoutMillis) throws ReinitializationRequiredException, TruncatedDataException {
         synchronized (readers) {
             Preconditions.checkState(!closed, "Reader is closed");
             try {
-                return readNextEventInternal(timeout);
+                return readNextEventInternal(timeoutMillis);
             } catch (ReaderNotInReaderGroupException e) {
                 close();
                 throw new ReinitializationRequiredException(e);
@@ -99,8 +118,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         }
     }
     
-    private EventRead<Type> readNextEventInternal(long timeout) throws ReaderNotInReaderGroupException, TruncatedDataException {
-        long waitTime = Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis());
+    private EventRead<Type> readNextEventInternal(long timeoutMillis) throws ReaderNotInReaderGroupException, TruncatedDataException {
+        long firstByteTimeoutMillis = Math.min(timeoutMillis, BASE_READER_WAITING_TIME_MS);
         Timer timer = new Timer();
         Segment segment = null;
         long offset = -1;
@@ -112,13 +131,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             }
             EventSegmentReader segmentReader = orderer.nextSegment(readers);
             if (segmentReader == null) {
-                Exceptions.handleInterrupted(() -> Thread.sleep(waitTime));
+                blockFor(firstByteTimeoutMillis);
+                segmentsWithData.drainPermits();
                 buffer = null;
             } else {
                 segment = segmentReader.getSegmentId();
                 offset = segmentReader.getOffset();
                 try {
-                    buffer = segmentReader.read(waitTime);
+                    buffer = segmentReader.read(firstByteTimeoutMillis);
                 } catch (EndOfSegmentException e) {
                     boolean isSegmentSealed = e.getErrorType().equals(END_OF_SEGMENT_REACHED);
                     handleEndOfSegment(segmentReader, isSegmentSealed);
@@ -128,28 +148,33 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     buffer = null;
                 }
             }
-        } while (buffer == null && timer.getElapsedMillis() < timeout);
+        } while (buffer == null && timer.getElapsedMillis() < timeoutMillis);
 
         if (buffer == null) {
+            log.debug("Empty event returned for reader {} ", groupState.getReaderId());
             return createEmptyEvent(null);
         } 
         lastRead = Sequence.create(segment.getSegmentId(), offset);
         int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
-        return new EventReadImpl<>(lastRead,
-                deserializer.deserialize(buffer),
-                getPosition(),
-                new EventPointerImpl(segment, offset, length),
-                null);
+        return new EventReadImpl<>(deserializer.deserialize(buffer), getPosition(),
+                                   new EventPointerImpl(segment, offset, length), null);
     }
 
+    private void blockFor(long timeoutMs) {
+        Exceptions.handleInterrupted(() -> {
+            @SuppressWarnings("unused")
+            boolean acquired = segmentsWithData.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS);
+        });
+    }
+    
     private EventRead<Type> createEmptyEvent(String checkpoint) {
-        return new EventReadImpl<>(lastRead, null, getPosition(), null, checkpoint);
+        return new EventReadImpl<>(null, getPosition(), null, checkpoint);
     }
 
     private PositionInternal getPosition() {
-        Map<Segment, Long> positions = readers.stream()
-                .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
-        positions.putAll(sealedSegments);
+        Map<SegmentWithRange, Long> positions = readers.stream()
+                .collect(Collectors.toMap(e -> new SegmentWithRange(e.getSegmentId(), ranges.get(e.getSegmentId())), e -> e.getOffset()));
+        sealedSegments.forEach((key, value) -> positions.put(key, -1L));
         return new PositionImpl(positions);
     }
 
@@ -171,47 +196,52 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
      */
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
+        PositionInternal position = getPosition();
         if (atCheckpoint != null) {
-            groupState.checkpoint(atCheckpoint, getPosition());
+            groupState.checkpoint(atCheckpoint, position);
             log.info("Reader {} completed checkpoint {}", groupState.getReaderId(), atCheckpoint);
-            releaseSegmentsIfNeeded();
+            releaseSegmentsIfNeeded(position);
         }
         String checkpoint = groupState.getCheckpoint();
-        if (checkpoint != null) {
+        while (checkpoint != null) {
             log.info("{} at checkpoint {}", this, checkpoint);
             if (groupState.isCheckpointSilent(checkpoint)) {
                 // Checkpoint the reader immediately with the current position. Checkpoint Event is not generated.
-                groupState.checkpoint(checkpoint, getPosition());
+                groupState.checkpoint(checkpoint, position);
                 if (atCheckpoint != null) {
                     //In case the silent checkpoint held up releasing segments
-                    releaseSegmentsIfNeeded();
+                    releaseSegmentsIfNeeded(position);
                     atCheckpoint = null;
                 }
-                return null;
+                checkpoint = groupState.getCheckpoint();
             } else {
                 atCheckpoint = checkpoint;
                 return atCheckpoint;
             }
-        } else {
-            atCheckpoint = null;
-            acquireSegmentsIfNeeded();
-            return null;
         }
+        atCheckpoint = null;
+        if (acquireSegmentsIfNeeded(position) || groupState.updateLagIfNeeded(getLag(), position)) {
+            waterMarkReaders.forEach((stream, reader) -> {
+                reader.advanceTo(groupState.getLastReadpositions(stream));
+            });
+        }
+        return null;
     }
 
     /**
      * Releases segments. This must not be invoked except immediately after a checkpoint.
      */
     @GuardedBy("readers")
-    private void releaseSegmentsIfNeeded() throws ReaderNotInReaderGroupException {
+    private void releaseSegmentsIfNeeded(PositionInternal position) throws ReaderNotInReaderGroupException {
         releaseSealedSegments();
         Segment segment = groupState.findSegmentToReleaseIfRequired();
         if (segment != null) {
             log.info("{} releasing segment {}", this, segment);
             EventSegmentReader reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
             if (reader != null) {
-                if (groupState.releaseSegment(segment, reader.getOffset(), getLag())) {
+                if (groupState.releaseSegment(segment, reader.getOffset(), getLag(), position)) {
                     readers.remove(reader);
+                    ranges.remove(reader.getSegmentId());
                     reader.close();
                 }
             }
@@ -222,8 +252,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
      * Releases all sealed segments, unless there is a checkpoint pending for this reader.
      */
     private void releaseSealedSegments() throws ReaderNotInReaderGroupException {
-        for (Iterator<Entry<Segment, Long>> iterator = sealedSegments.entrySet().iterator(); iterator.hasNext();) {
-            Segment oldSegment = iterator.next().getKey();
+        for (Iterator<Entry<SegmentWithRange, Long>> iterator = sealedSegments.entrySet().iterator(); iterator.hasNext();) {
+            SegmentWithRange oldSegment = iterator.next().getKey();
             if (groupState.handleEndOfSegment(oldSegment)) {
                 iterator.remove();
             } else {
@@ -233,21 +263,27 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @GuardedBy("readers")
-    private void acquireSegmentsIfNeeded() throws ReaderNotInReaderGroupException {
-        Map<Segment, Long> newSegments = groupState.acquireNewSegmentsIfNeeded(getLag());
+    private boolean acquireSegmentsIfNeeded(PositionInternal position) throws ReaderNotInReaderGroupException {
+        Map<SegmentWithRange, Long> newSegments = groupState.acquireNewSegmentsIfNeeded(getLag(), position);
         if (!newSegments.isEmpty()) {
             log.info("{} acquiring segments {}", this, newSegments);
-            for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
-                long endOffset = groupState.getEndOffsetForSegment(newSegment.getKey());
+            for (Entry<SegmentWithRange, Long> newSegment : newSegments.entrySet()) {
+                long endOffset = groupState.getEndOffsetForSegment(newSegment.getKey().getSegment());
                 if (newSegment.getValue() < 0 || (newSegment.getValue() == endOffset && endOffset != Long.MAX_VALUE)) {
                     sealedSegments.put(newSegment.getKey(), newSegment.getValue());
                 } else {
-                    final EventSegmentReader in = inputStreamFactory.createEventReaderForSegment(newSegment.getKey(), endOffset);
+                    Segment segment = newSegment.getKey().getSegment();
+
+                    final EventSegmentReader in = inputStreamFactory.createEventReaderForSegment(segment, segmentsWithData, endOffset);
                     in.setOffset(newSegment.getValue());
                     readers.add(in);
+                    ranges.put(segment, newSegment.getKey().getRange());
                 }
             }
+            segmentsWithData.release();
+            return true;
         }
+        return false;
     }
 
     //TODO: This is broken until https://github.com/pravega/pravega/issues/191 is implemented.
@@ -260,19 +296,21 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     
     @GuardedBy("readers")
     private void handleEndOfSegment(EventSegmentReader oldSegment, boolean segmentSealed) {
+            Segment segmentId = oldSegment.getSegmentId();
         log.info("{} encountered end of segment {} ", this, oldSegment.getSegmentId());
         readers.remove(oldSegment);
+        Range range = ranges.remove(segmentId);
         oldSegment.close();
-        sealedSegments.put(oldSegment.getSegmentId(), segmentSealed ? -1L : oldSegment.getOffset());
+        sealedSegments.put(new SegmentWithRange(segmentId, range), segmentSealed ? -1L : oldSegment.getOffset());
     }
     
     private void handleSegmentTruncated(EventSegmentReader segmentReader) throws TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
-        String delegationToken = groupState.getOrRefreshDelegationTokenFor(segmentId);
 
         @Cleanup
-        SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId, delegationToken);
+        SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId,
+                DelegationTokenProviderFactory.create(controller, segmentId));
         try {
             long startingOffset = metadataClient.getSegmentInfo().getStartingOffset();
             segmentReader.setOffset(startingOffset);
@@ -290,6 +328,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @Override
     public void close() {
         closeAt(getPosition());
+        for (WatermarkReaderImpl reader : waterMarkReaders.values()) {
+            reader.close();
+        }           
     }
 
     @Override
@@ -303,6 +344,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     reader.close();
                 }
                 readers.clear();
+                ranges.clear();
                 groupState.close();
             }
         }
@@ -337,6 +379,19 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @Override
     public String toString() {
         return "EventStreamReaderImpl( id=" + groupState.getReaderId() + ")";
+    }
+
+    @Override
+    public TimeWindow getCurrentTimeWindow(Stream stream) {
+        if (getConfig().isDisableTimeWindows()) {
+            return new TimeWindow(null, null);
+        }
+        WatermarkReaderImpl tracker = waterMarkReaders.get(stream);
+        if (tracker == null) {
+            throw new IllegalArgumentException("Reader is not subscribed to stream: " + stream);
+        } else {
+            return tracker.getTimeWindow();
+        }
     }
     
 }

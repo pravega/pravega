@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -270,5 +271,13 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public void close() throws IOException {
         
+    }
+    
+    @VisibleForTesting
+    void addStreamObjToScope(String scopeName, String streamName) {
+        InMemoryStream stream = (InMemoryStream) getStream(scopeName, streamName, null);
+
+        streams.put(scopedStreamName(scopeName, streamName), stream);
+        scopes.get(scopeName).addStreamToScope(streamName).join();
     }
 }

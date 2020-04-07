@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -273,6 +273,7 @@ public class ZKScope implements Scope {
             return SERIALIZER.deserialize(Base64.getDecoder().decode(token));
         }
 
+        @Override
         @SneakyThrows
         public String toString() {
             return Base64.getEncoder().encodeToString(SERIALIZER.serialize(this).getCopy());

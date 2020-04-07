@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,12 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.TimeWindow;
 import io.pravega.client.stream.impl.EventReadImpl;
-import lombok.SneakyThrows;
-
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import lombok.SneakyThrows;
 
 /**
  * Mock EventStreamReader.
@@ -34,9 +35,9 @@ public class EventStreamReaderMock<T> implements EventStreamReader<T> {
 
     @Override
     @SneakyThrows(value = InterruptedException.class)
-    public EventRead<T> readNextEvent(long timeout) throws ReinitializationRequiredException {
-        T event = queue.poll(timeout, TimeUnit.MILLISECONDS);
-        return new EventReadImpl<>(null, event, null, null, null);
+    public EventRead<T> readNextEvent(long timeoutMillis) throws ReinitializationRequiredException {
+        T event = queue.poll(timeoutMillis, TimeUnit.MILLISECONDS);
+        return new EventReadImpl<>(event, null, null, null);
     }
 
     @Override
@@ -51,6 +52,11 @@ public class EventStreamReaderMock<T> implements EventStreamReader<T> {
 
     @Override
     public void close() {
+    }
+
+    @Override
+    public TimeWindow getCurrentTimeWindow(Stream stream) {
+        return null;
     }
 
     @Override

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,7 +52,9 @@ public class CommandDecoder extends ByteToMessageDecoder {
         }
         WireCommandType type = readType(is);
         int length = readLength(is, readableBytes);
+        int readIndex = in.readerIndex();
         WireCommand command = type.readFrom(is, length);
+        in.readerIndex(readIndex + length);
         return command;
     }
 

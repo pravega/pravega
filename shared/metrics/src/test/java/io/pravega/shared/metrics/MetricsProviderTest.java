@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -166,6 +166,10 @@ public class MetricsProviderTest {
             assertEquals(3 * sum, (long) MetricRegistryUtils.getMeter("dynamicMeter", "container", "2").totalAmount());
         }
 
+        dynamicLogger.freezeMeter("dynamicMeter", "container", "1");
+        dynamicLogger.freezeMeter("dynamicMeter", "container", "2");
+        assertEquals(null, MetricRegistryUtils.getMeter("dynamicMeter", "container", "1"));
+        assertEquals(null, MetricRegistryUtils.getMeter("dynamicMeter", "container", "2"));
     }
 
     /**

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,5 +40,10 @@ public class NullDynamicLogger implements DynamicLogger {
     @Override
     public void recordMeterEvents(String name, long number, String... tags) {
         // nop
+    }
+
+    @Override
+    public void freezeMeter(String name, String... tags) {
+        // no-op
     }
 }

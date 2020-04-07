@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,8 @@
  */
 package io.pravega.client.state.impl;
 
+import com.google.common.annotations.VisibleForTesting;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
@@ -16,10 +18,12 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.PendingEvent;
@@ -28,21 +32,27 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.RequiredArgsConstructor;
+
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.segment.impl.SegmentAttribute.NULL_VALUE;
 import static io.pravega.client.segment.impl.SegmentAttribute.RevisionStreamClientMark;
 
-@RequiredArgsConstructor
 @Slf4j
 public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> {
 
+    private static final long READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(30);
+    @Getter
+    @VisibleForTesting
+    private final long readTimeout;
     private final Segment segment;
     @GuardedBy("lock")
     private final EventSegmentReader in;
@@ -51,10 +61,25 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @GuardedBy("lock")
     private final ConditionalOutputStream conditional;
     @GuardedBy("lock")
+    @VisibleForTesting
+    @Getter
     private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
 
     private final Object lock = new Object();
+
+    public RevisionedStreamClientImpl(Segment segment, EventSegmentReader in, SegmentOutputStreamFactory outFactory,
+                                      ConditionalOutputStream conditional, SegmentMetadataClient meta,
+                                      Serializer<T> serializer, EventWriterConfig config, DelegationTokenProvider tokenProvider ) {
+        this.readTimeout = READ_TIMEOUT_MS;
+        this.segment = segment;
+        this.in = in;
+        this.conditional = conditional;
+        this.meta = meta;
+        this.serializer = serializer;
+        this.out = outFactory.createOutputStreamForSegment(segment, s -> handleSegmentSealed(), config, tokenProvider);
+    }
+
 
     @Override
     public Revision writeConditionally(Revision latestRevision, T value) {
@@ -148,7 +173,13 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 log.trace("Iterator reading entry at {}", offset.get());
                 in.setOffset(offset.get());
                 try {
-                    data = in.read();
+                    do {
+                        data = in.read(getReadTimeout());
+                        if (data == null) {
+                            log.warn("Timeout while attempting to read offset:{} on segment:{} where the endOffset is {}", offset, segment, endOffset);
+                            in.setOffset(offset.get(), true);
+                        }
+                    } while (data == null);
                 } catch (EndOfSegmentException e) {
                     throw new IllegalStateException("SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
                 } catch (SegmentTruncatedException e) {
@@ -202,5 +233,14 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             meta.close();
             in.close();
         }
+    }
+
+    @VisibleForTesting
+    void handleSegmentSealed() {
+        log.debug("Complete all unacked events with SegmentSealedException for segment {}", segment);
+        List<PendingEvent> r = out.getUnackedEventsOnSeal();
+        r.stream()
+         .filter(pendingEvent -> pendingEvent.getAckFuture() != null)
+         .forEach(pendingEvent -> pendingEvent.getAckFuture().completeExceptionally(new SegmentSealedException(segment.toString())));
     }
 }

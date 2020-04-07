@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).build())
-                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "nautilus/pravega:" + PRAVEGA_VERSION)
+                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + IMAGE_PREFIX + PRAVEGA_IMAGE_NAME + PRAVEGA_VERSION)
                         .hostname(serviceName)
                         .labels(labels)
                         .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(SEGMENTSTORE_PORT)).build())

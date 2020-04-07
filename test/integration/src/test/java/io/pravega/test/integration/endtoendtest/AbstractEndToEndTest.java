@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -34,7 +34,8 @@ import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-
+import org.junit.Rule;
+import org.junit.rules.Timeout;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,6 +52,9 @@ public class AbstractEndToEndTest extends ThreadPooledTestSuite {
     protected static final String SCOPE = "testScope";
     protected static final String STREAM = "testStream1";
 
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(60);
+    
     protected final int controllerPort = TestUtils.getAvailableListenPort();
     protected final String serviceHost = "localhost";
     protected final URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
@@ -139,7 +143,7 @@ public class AbstractEndToEndTest extends ThreadPooledTestSuite {
     }
 
     protected Segment getSegment(int segmentNumber, int epoch) {
-        return new Segment(SCOPE, STREAM, StreamSegmentNameUtils.computeSegmentId(segmentNumber, epoch));
+        return new Segment(SCOPE, STREAM, NameUtils.computeSegmentId(segmentNumber, epoch));
     }
 
     protected void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {

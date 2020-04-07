@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -32,6 +31,8 @@ import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
@@ -82,6 +83,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -105,10 +107,10 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.mock;
 
 /**
  * Tests for StreamTransactionMetadataTasks.
@@ -127,6 +129,7 @@ public class StreamTransactionMetadataTasksTest {
     private TestingServer zkServer;
 
     private StreamMetadataStore streamStore;
+    private BucketStore bucketStore;
     private HostControllerStore hostStore;
     private SegmentHelper segmentHelperMock;
     private StreamMetadataTasks streamMetadataTasks;
@@ -169,11 +172,15 @@ public class StreamTransactionMetadataTasksTest {
         streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
+
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore();
+
         connectionFactory = Mockito.mock(ConnectionFactory.class);
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
-        BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
     }
 
     @After
@@ -184,6 +191,8 @@ public class StreamTransactionMetadataTasksTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
@@ -218,7 +227,7 @@ public class StreamTransactionMetadataTasksTest {
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         // Create ControllerService.
-        consumer = new ControllerService(streamStore, streamMetadataTasks, txnTasks,
+        consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -258,7 +267,7 @@ public class StreamTransactionMetadataTasksTest {
 
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
-        consumer = new ControllerService(streamStore, streamMetadataTasks, txnTasks,
+        consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
 
         // Create test scope and stream.
@@ -296,12 +305,12 @@ public class StreamTransactionMetadataTasksTest {
 
         // Change state of one txn to COMMITTING.
         TxnStatus txnStatus2 = streamStore.sealTransaction(SCOPE, STREAM, tx2.getId(), true, Optional.empty(),
-                null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
+                "", Long.MIN_VALUE, null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
         Assert.assertEquals(TxnStatus.COMMITTING, txnStatus2);
 
         // Change state of another txn to ABORTING.
         TxnStatus txnStatus3 = streamStore.sealTransaction(SCOPE, STREAM, tx3.getId(), false, Optional.empty(),
-                null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
+                "", Long.MIN_VALUE, null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
         Assert.assertEquals(TxnStatus.ABORTING, txnStatus3);
 
         // Create transaction tasks for sweeping txns from failedHost.
@@ -345,7 +354,7 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, executor, processedCommitEvents), executor));
+                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, bucketStore, executor, processedCommitEvents), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
                 () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
 
@@ -384,7 +393,7 @@ public class StreamTransactionMetadataTasksTest {
                 GrpcAuthHelper.getDisabledAuthHelper());
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
-        consumer = new ControllerService(streamStore, streamMetadataTasks, txnTasks,
+        consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -426,7 +435,7 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, executor, processedCommitEvents), executor));
+                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, bucketStore, executor, processedCommitEvents), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
                 () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
 
@@ -459,7 +468,7 @@ public class StreamTransactionMetadataTasksTest {
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         // Create ControllerService.
-        consumer = new ControllerService(streamStore, streamMetadataTasks, txnTasks,
+        consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -582,17 +591,40 @@ public class StreamTransactionMetadataTasksTest {
         streamStoreMock.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis(), null, executor).join();
         streamStoreMock.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
 
-        // Verify Ping transaction on committed transaction.
+        // Verify Ping transaction on committing transaction.
         Pair<VersionedTransactionData, List<StreamSegmentRecord>> txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, null).join();
         UUID txnId = txn.getKey().getId();
         txnTasks.commitTxn(SCOPE, STREAM, txnId, null).join();
         assertEquals(PingTxnStatus.Status.COMMITTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
 
-        // Verify Ping transaction on an aborted transaction.
+        // complete commit of transaction. 
+        streamStoreMock.startCommitTransactions(SCOPE, STREAM, null, executor).join();
+        val record = streamStoreMock.getVersionedCommittingTransactionsRecord(SCOPE, STREAM, null, executor).join();
+        streamStoreMock.completeCommitTransactions(SCOPE, STREAM, record, null, executor).join();
+
+        // verify that transaction is removed from active txn
+        AssertExtensions.assertFutureThrows("Fetching Active Txn record should throw DNF",
+                streamStoreMock.getTransactionData(SCOPE, STREAM, txnId, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        assertEquals(PingTxnStatus.Status.COMMITTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
+
+        // Verify Ping transaction on an aborting transaction.
         txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, null).join();
         txnId = txn.getKey().getId();
         txnTasks.abortTxn(SCOPE, STREAM, txnId, null, null).join();
         assertEquals(PingTxnStatus.Status.ABORTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
+
+        // now complete abort so that the transaction is removed from active txn and added to completed txn.
+        streamStoreMock.abortTransaction(SCOPE, STREAM, txnId, null, executor).join();
+        AssertExtensions.assertFutureThrows("Fetching Active Txn record should throw DNF", 
+                streamStoreMock.getTransactionData(SCOPE, STREAM, txnId, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        assertEquals(PingTxnStatus.Status.ABORTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
+
+        // try with a non existent transaction id 
+        assertEquals(PingTxnStatus.Status.UNKNOWN, 
+                txnTasks.pingTxn(SCOPE, STREAM, UUID.randomUUID(), 10000L, null).join().getStatus());
     }
     
     @Test(timeout = 10000)
@@ -719,16 +751,6 @@ public class StreamTransactionMetadataTasksTest {
         }
 
         @Override
-        public Transaction<T> beginTxn() {
-            return null;
-        }
-
-        @Override
-        public Transaction<T> getTxn(UUID transactionId) {
-            return null;
-        }
-
-        @Override
         public EventWriterConfig getConfig() {
             return null;
         }
@@ -741,6 +763,11 @@ public class StreamTransactionMetadataTasksTest {
         @Override
         public void close() {
 
+        }
+
+        @Override
+        public void noteTime(long timestamp) {
+    
         }
     }
 
@@ -774,7 +801,7 @@ public class StreamTransactionMetadataTasksTest {
                 .supplier(factory)
                 .build();
 
-        system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore());
+        system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore(), executor);
     }
 
     public static class RegularBookKeeperLogTests extends StreamTransactionMetadataTasksTest {

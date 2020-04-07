@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,7 +9,10 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
+import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -78,6 +81,34 @@ public class FutureReadResultEntryCollectionTests {
         }
 
         AssertExtensions.assertListEquals("Unexpected result from close().", entries, result, Object::equals);
+    }
+
+    /**
+     * Tests the ability to auto-unregister pending reads when they are completed externally.
+     */
+    @Test
+    public void testAutoUnregister() {
+        @Cleanup
+        FutureReadResultEntryCollection c = new FutureReadResultEntryCollection();
+        List<FutureReadResultEntry> entries = generateEntries();
+        entries.forEach(c::add);
+
+        Assert.assertEquals("Unexpected number of entries registered.", entries.size(), c.size());
+        for (FutureReadResultEntry e : entries) {
+            Assert.assertFalse("StorageReadResultEntry is completed.", e.getContent().isDone());
+        }
+
+        for (int i = 0; i < entries.size(); i++) {
+            if (i % 2 == 0) {
+                entries.get(i).complete(new ReadResultEntryContents(new ByteArrayInputStream(new byte[1]), 1));
+            } else {
+                entries.get(i).fail(new IntentionalException());
+            }
+        }
+
+        Assert.assertEquals("Unexpected number of entries after being completed externally.", 0, c.size());
+        val closeResult = c.close();
+        Assert.assertEquals("Not expecting any items to be returned from close().", 0, closeResult.size());
     }
 
     private List<FutureReadResultEntry> generateEntries() {

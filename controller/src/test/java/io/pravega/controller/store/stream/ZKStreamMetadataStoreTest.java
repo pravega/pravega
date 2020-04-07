@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,9 +10,11 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.client.stream.StreamConfiguration;
@@ -58,7 +60,10 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
         store = new ZKStreamMetadataStore(cli, executor, Duration.ofSeconds(1));
-        bucketStore = StreamStoreFactory.createZKBucketStore(1, cli, executor);
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
+                BucketStore.ServiceType.WatermarkingService, 1);
+
+        bucketStore = StreamStoreFactory.createZKBucketStore(map, cli, executor);
     }
 
     @Override
@@ -229,6 +234,12 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
+        // set minimum number of segments to 1 so that we can also test scale downs
+        configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        store.startUpdateConfiguration(scope, stream, configuration, null, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = store.getConfigurationRecord(scope, stream, null, executor).join();
+        store.completeUpdateConfiguration(scope, stream, configRecord, null, executor).join();
+
         List<ScaleMetadata> scaleIncidents = store.getScaleMetadata(scope, stream, 0, Long.MAX_VALUE, null, executor).get();
         assertTrue(scaleIncidents.size() == 1);
         assertTrue(scaleIncidents.get(0).getSegments().size() == 3);
@@ -278,8 +289,8 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
         SimpleEntry<Long, Long> simpleEntrySplitsMerges = findSplitsAndMerges(scope, stream);
 
-        assertEquals("Number of splits ", new Long(0), simpleEntrySplitsMerges.getKey());
-        assertEquals("Number of merges", new Long(0), simpleEntrySplitsMerges.getValue());
+        assertEquals("Number of splits ", 0L, simpleEntrySplitsMerges.getKey().longValue());
+        assertEquals("Number of merges", 0L, simpleEntrySplitsMerges.getValue().longValue());
 
         // Case: Only splits, S0 split into S2, S3, S4 and S1 split into S5, S6,
         //  total splits = 2, total merges = 3
@@ -298,8 +309,8 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertEquals(scaleRecords.get(1).getMerges(), 0L);
         assertEquals(scaleRecords.size(), 2);
         SimpleEntry<Long, Long> simpleEntrySplitsMerges1 = findSplitsAndMerges(scope, stream);
-        assertEquals("Number of splits ", new Long(2), simpleEntrySplitsMerges1.getKey());
-        assertEquals("Number of merges", new Long(0), simpleEntrySplitsMerges1.getValue());
+        assertEquals("Number of splits ", 2L, simpleEntrySplitsMerges1.getKey().longValue());
+        assertEquals("Number of merges", 0L, simpleEntrySplitsMerges1.getValue().longValue());
 
         // Case: Splits and merges both, S2 and S3 merged to S7,  S4 and S5 merged to S8,  S6 split to S9 and S10
         // total splits = 3, total merges = 2
@@ -317,8 +328,8 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertEquals(scaleRecords.get(2).getMerges(), 2L);
 
         SimpleEntry<Long, Long> simpleEntrySplitsMerges2 = findSplitsAndMerges(scope, stream);
-        assertEquals("Number of splits ", new Long(3), simpleEntrySplitsMerges2.getKey());
-        assertEquals("Number of merges", new Long(2), simpleEntrySplitsMerges2.getValue());
+        assertEquals("Number of splits ", 3L, simpleEntrySplitsMerges2.getKey().longValue());
+        assertEquals("Number of merges", 2L, simpleEntrySplitsMerges2.getValue().longValue());
 
         // Case: Only merges , S7 and S8 merged to S11,  S9 and S10 merged to S12
         // total splits = 3, total merges = 4
@@ -334,8 +345,8 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertEquals(scaleRecords.get(3).getMerges(), 2L);
 
         SimpleEntry<Long, Long> simpleEntrySplitsMerges3 = findSplitsAndMerges(scope, stream);
-        assertEquals("Number of splits ", new Long(3), simpleEntrySplitsMerges3.getKey());
-        assertEquals("Number of merges", new Long(4), simpleEntrySplitsMerges3.getValue());
+        assertEquals("Number of splits ", 3, simpleEntrySplitsMerges3.getKey().longValue());
+        assertEquals("Number of merges", 4, simpleEntrySplitsMerges3.getValue().longValue());
     }
 
     @Test
@@ -407,7 +418,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
         return store.createTransaction(scope, stream, txnId, 100, 100, null, executor)
              .thenCompose(x -> store.setState(scope, stream, State.COMMITTING_TXN, null, executor))
-             .thenCompose(x -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(), null, executor))
+             .thenCompose(x -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(), "", Long.MIN_VALUE, null, executor))
              .thenCompose(x -> ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, txnId, null, executor));
     }
 

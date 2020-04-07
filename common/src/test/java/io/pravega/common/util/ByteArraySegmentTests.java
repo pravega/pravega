@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import org.junit.Assert;
@@ -89,10 +90,10 @@ public class ByteArraySegmentTests {
     }
 
     /**
-     * Tests the functionality of copyTo.
+     * Tests the functionality of copyTo(array).
      */
     @Test
-    public void testCopyTo() {
+    public void testCopyToArray() {
         final byte[] sourceBuffer = createFormattedBuffer();
         final int targetOffset = 10;
         final byte[] targetBuffer = new byte[sourceBuffer.length + targetOffset];
@@ -102,6 +103,26 @@ public class ByteArraySegmentTests {
 
         // Copy second part.
         source.copyTo(targetBuffer, targetOffset, copyLength);
+        for (int i = 0; i < targetBuffer.length; i++) {
+            int expectedValue = i < targetOffset || i >= targetOffset + copyLength ? 0 : i - targetOffset;
+            Assert.assertEquals("Unexpected value after copyFrom (second half) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
+        }
+    }
+
+    /**
+     * Tests the functionality of copyTo(array).
+     */
+    @Test
+    public void testCopyToByteBuffer() {
+        final byte[] sourceBuffer = createFormattedBuffer();
+        final int targetOffset = 10;
+        final byte[] targetBuffer = new byte[sourceBuffer.length + targetOffset];
+        final int copyLength = sourceBuffer.length - 7;
+
+        ByteArraySegment source = new ByteArraySegment(sourceBuffer);
+
+        // Copy second part.
+        source.copyTo(ByteBuffer.wrap(targetBuffer, targetOffset, copyLength));
         for (int i = 0; i < targetBuffer.length; i++) {
             int expectedValue = i < targetOffset || i >= targetOffset + copyLength ? 0 : i - targetOffset;
             Assert.assertEquals("Unexpected value after copyFrom (second half) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
@@ -180,7 +201,7 @@ public class ByteArraySegmentTests {
      * Tests the ability for the ByteArraySegment to create sub-segments.
      */
     @Test
-    public void testSubSegment() {
+    public void testSlice() {
         final byte[] buffer = createFormattedBuffer();
         ByteArraySegment segment = new ByteArraySegment(buffer);
 
@@ -193,17 +214,17 @@ public class ByteArraySegmentTests {
 
             // Check correctness.
             for (int i = 0; i < segment.getLength(); i++) {
-                Assert.assertEquals(String.format("Unexpected value at offset %d for subsegment (O=%d, L=%d), iteration %d.", i, startOffset, segment.getLength(), iteration), buffer[i + startOffset], segment.get(i));
+                Assert.assertEquals(String.format("Unexpected value at offset %d for slice (O=%d, L=%d), iteration %d.", i, startOffset, segment.getLength(), iteration), buffer[i + startOffset], segment.get(i));
             }
 
-            // Pick a new size and create a new subsegment.
+            // Pick a new size and create a new slice.
             if (iteration % 2 == 0) {
                 // Upper half for even iterations.
                 startOffset = startOffset + segment.getLength() / 2;
-                segment = segment.subSegment(segment.getLength() / 2, segment.getLength() - segment.getLength() / 2);
+                segment = segment.slice(segment.getLength() / 2, segment.getLength() - segment.getLength() / 2);
             } else {
                 // Lower half for odd iterations.
-                segment = segment.subSegment(0, segment.getLength() / 2);
+                segment = segment.slice(0, segment.getLength() / 2);
             }
         }
     }
@@ -230,8 +251,8 @@ public class ByteArraySegmentTests {
             Assert.assertEquals("One of the 'mutator' methods modified the buffer at index " + i, i, buffer[i]);
         }
 
-        // Check that a subsegment is also read-only.
-        Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment.", segment.subSegment(0, 1).isReadOnly());
+        // Check that a sub-segment is also read-only.
+        Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment.", segment.slice(0, 1).isReadOnly());
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment (when attempting to create a non-read-only segment).", segment.subSegment(0, 1, false).isReadOnly());
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment.", new ByteArraySegment(buffer).subSegment(0, 1, true).isReadOnly());
     }

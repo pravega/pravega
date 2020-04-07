@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@ import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -92,8 +93,10 @@ class RecoveryProcessor {
         try {
             recoveredItemCount = recoverAllOperations(metadataUpdater);
             this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
+            long timeElapsed = timer.getElapsedMillis();
             log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}, Time = {}ms.", this.traceObjectId,
-                    this.metadata.getContainerEpoch(), recoveredItemCount, timer.getElapsedMillis());
+                    this.metadata.getContainerEpoch(), recoveredItemCount, timeElapsed);
+            SegmentStoreMetrics.recoveryCompleted(timeElapsed, this.metadata.getContainerId());
             successfulRecovery = true;
         } finally {
             // We must exit recovery mode when done, regardless of outcome.

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,10 @@ import java.util.HashMap;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
+
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -35,6 +39,7 @@ import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static io.pravega.test.common.AssertExtensions.assertSuppliedFutureThrows;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
+import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
 /**
  * Base class for testing any implementation of the Storage interface.
  */
@@ -46,6 +51,10 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     protected static final int APPENDS_PER_SEGMENT = 10;
     protected static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final int SEGMENT_COUNT = 4;
+
+    @Getter(AccessLevel.PROTECTED)
+    @Setter(AccessLevel.PROTECTED)
+    private boolean isTestingSystemSegment = false;
 
     @Override
     protected int getThreadPoolSize() {
@@ -61,7 +70,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testCreate() {
-        String segmentName = "foo_open";
+        String segmentName = createSegmentName("foo_open");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
             createSegment(segmentName, s);
@@ -82,7 +91,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testDelete() {
-        String segmentName = "foo_open";
+        String segmentName = createSegmentName("foo_open");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
             createSegment(segmentName, s);
@@ -101,7 +110,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testOpen() {
-        String segmentName = "foo_open";
+        String segmentName = createSegmentName("foo_open");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
 
@@ -123,7 +132,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testWrite() throws Exception {
-        String segmentName = "foo_write";
+        String segmentName = createSegmentName("foo_write");
         int appendCount = 10;
 
         try (Storage s = createStorage()) {
@@ -179,7 +188,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testRead() throws Exception {
-        final String context = "Read";
+        final String context = createSegmentName("Read");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
 
@@ -247,7 +256,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testSeal() throws Exception {
-        final String context = "Seal";
+        final String context = createSegmentName("Seal");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
 
@@ -297,77 +306,81 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testConcat() throws Exception {
-        final String context = "Concat";
+        final String context = createSegmentName("Concat");
         try (Storage s = createStorage()) {
-            s.initialize(DEFAULT_EPOCH);
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
-
-            // Check invalid segment name.
-            val firstSegmentName = getSegmentName(0, context);
-            val firstSegmentHandle = s.openWrite(firstSegmentName).join();
-            val sealedSegmentName = "SealedSegment";
-            createSegment(sealedSegmentName, s);
-            val sealedSegmentHandle = s.openWrite(sealedSegmentName).join();
-            s.write(sealedSegmentHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT).join();
-            s.seal(sealedSegmentHandle, TIMEOUT).join();
-            AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName,
-                    TIMEOUT).join().getLength());
-            assertSuppliedFutureThrows("concat() did not throw for non-existent target segment name.",
-                    () -> s.concat(createInexistentSegmentHandle(s, false), 0, sealedSegmentName, TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
-
-            assertSuppliedFutureThrows("concat() did not throw for invalid source StreamSegment name.",
-                    () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), "foo2", TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
-
-            ArrayList<String> concatOrder = new ArrayList<>();
-            concatOrder.add(firstSegmentName);
-            for (String sourceSegment : appendData.keySet()) {
-                if (sourceSegment.equals(firstSegmentName)) {
-                    // FirstSegment is where we'll be concatenating to.
-                    continue;
-                }
-
-                assertSuppliedFutureThrows("Concat allowed when source segment is not sealed.",
-                        () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT),
-                        ex -> ex instanceof IllegalStateException);
-
-                // Seal the source segment and then re-try the concat
-                val sourceWriteHandle = s.openWrite(sourceSegment).join();
-                s.seal(sourceWriteHandle, TIMEOUT).join();
-                SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
-                SegmentProperties sourceProps = s.getStreamSegmentInfo(sourceSegment, TIMEOUT).join();
-
-                s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT).join();
-                concatOrder.add(sourceSegment);
-                SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
-                Assert.assertFalse("concat() did not delete source segment", s.exists(sourceSegment, TIMEOUT).join());
-
-                // Only check lengths here; we'll check the contents at the end.
-                Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.",
-                        preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());
-                firstSegmentLength.set(postConcatTargetProps.getLength());
-            }
-
-            // Check the contents of the first StreamSegment. We already validated that the length is correct.
-            SegmentProperties segmentProperties = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
-            byte[] readBuffer = new byte[(int) segmentProperties.getLength()];
-
-            // Read the entire StreamSegment.
-            int bytesRead = s.read(firstSegmentHandle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
-            Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
-
-            // Check, concat-by-concat, that the final data is correct.
-            int offset = 0;
-            for (String segmentName : concatOrder) {
-                byte[] concatData = appendData.get(segmentName).toByteArray();
-                AssertExtensions.assertArrayEquals("Unexpected concat data.", concatData, 0, readBuffer, offset,
-                        concatData.length);
-                offset += concatData.length;
-            }
-
-            Assert.assertEquals("Concat included more bytes than expected.", offset, readBuffer.length);
+            testConcat(context, s);
         }
+    }
+
+    protected void testConcat(String context, Storage s) throws Exception {
+        s.initialize(DEFAULT_EPOCH);
+        HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
+
+        // Check invalid segment name.
+        val firstSegmentName = getSegmentName(0, context);
+        val firstSegmentHandle = s.openWrite(firstSegmentName).join();
+        val sealedSegmentName = createSegmentName("SealedSegment");
+        createSegment(sealedSegmentName, s);
+        val sealedSegmentHandle = s.openWrite(sealedSegmentName).join();
+        s.write(sealedSegmentHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT).join();
+        s.seal(sealedSegmentHandle, TIMEOUT).join();
+        AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName,
+                TIMEOUT).join().getLength());
+        assertSuppliedFutureThrows("concat() did not throw for non-existent target segment name.",
+                () -> s.concat(createInexistentSegmentHandle(s, false), 0, sealedSegmentName, TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        assertSuppliedFutureThrows("concat() did not throw for invalid source StreamSegment name.",
+                () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), "foo2", TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        ArrayList<String> concatOrder = new ArrayList<>();
+        concatOrder.add(firstSegmentName);
+        for (String sourceSegment : appendData.keySet()) {
+            if (sourceSegment.equals(firstSegmentName)) {
+                // FirstSegment is where we'll be concatenating to.
+                continue;
+            }
+
+            assertSuppliedFutureThrows("Concat allowed when source segment is not sealed.",
+                    () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT),
+                    ex -> ex instanceof IllegalStateException);
+
+            // Seal the source segment and then re-try the concat
+            val sourceWriteHandle = s.openWrite(sourceSegment).join();
+            s.seal(sourceWriteHandle, TIMEOUT).join();
+            SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
+            SegmentProperties sourceProps = s.getStreamSegmentInfo(sourceSegment, TIMEOUT).join();
+
+            s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT).join();
+            concatOrder.add(sourceSegment);
+            SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
+            Assert.assertFalse("concat() did not delete source segment", s.exists(sourceSegment, TIMEOUT).join());
+
+            // Only check lengths here; we'll check the contents at the end.
+            Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.",
+                    preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());
+            firstSegmentLength.set(postConcatTargetProps.getLength());
+        }
+
+        // Check the contents of the first StreamSegment. We already validated that the length is correct.
+        SegmentProperties segmentProperties = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
+        byte[] readBuffer = new byte[(int) segmentProperties.getLength()];
+
+        // Read the entire StreamSegment.
+        int bytesRead = s.read(firstSegmentHandle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+        Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
+
+        // Check, concat-by-concat, that the final data is correct.
+        int offset = 0;
+        for (String segmentName : concatOrder) {
+            byte[] concatData = appendData.get(segmentName).toByteArray();
+            AssertExtensions.assertArrayEquals("Unexpected concat data.", concatData, 0, readBuffer, offset,
+                    concatData.length);
+            offset += concatData.length;
+        }
+
+        Assert.assertEquals("Concat included more bytes than expected.", offset, readBuffer.length);
     }
 
     /**
@@ -397,8 +410,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
                 byte[] writeData = String.format(APPEND_FORMAT, segmentName, j).getBytes();
 
-                // Append some garbage at the end to make sure we only write as much as instructed, and not the whole InputStream.
-                val dataStream = new SequenceInputStream(new ByteArrayInputStream(writeData), new ByteArrayInputStream(extraData));
+                val dataStream = new ByteArrayInputStream(writeData);
                 s.write(writeHandle, offset, dataStream, writeData.length, TIMEOUT).join();
                 writeStream.write(writeData);
                 offset += writeData.length;
@@ -484,7 +496,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     protected SegmentHandle createInexistentSegmentHandle(Storage s, boolean readOnly) {
         Random rnd = RandomFactory.create();
-        String segmentName = "Inexistent_" + MathHelpers.abs(rnd.nextInt());
+        String segmentName = (isTestingSystemSegment() ? INTERNAL_NAME_PREFIX : "") + "Inexistent_" + MathHelpers.abs(rnd.nextInt());
         createSegment(segmentName, s);
         return (readOnly ? s.openRead(segmentName) : s.openWrite(segmentName))
                 .thenCompose(handle -> s.openWrite(segmentName)
@@ -495,6 +507,14 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     protected void createSegment(String name, Storage s) {
         s.create(name, null).join();
+    }
+
+    protected String createSegmentName(String originName) {
+        if (isTestingSystemSegment()) {
+            return INTERNAL_NAME_PREFIX + originName;
+        } else {
+            return originName;
+        }
     }
 
     //endregion

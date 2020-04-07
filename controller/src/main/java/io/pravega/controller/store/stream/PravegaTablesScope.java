@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.netty.buffer.Unpooled;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -30,7 +32,7 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SEPARATOR;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedTableName;
+import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 /**
  * Pravega Tables based scope metadata.
@@ -62,18 +64,29 @@ public class PravegaTablesScope implements Scope {
         // If scopes table does not exist, we create the scopes table (idempotent)
         // followed by creating a new entry for this scope with a new unique id.
         // We then retrive id from the store (in case someone concurrently created the entry or entry already existed.
-        // This unique id is used to create scope specific table with unique id
-        return Futures.exceptionallyComposeExpecting(storeHelper.addNewEntry(
+        // This unique id is used to create scope specific table with unique id.
+        // If scope entry exists in Scopes table, create the streamsInScope table before throwing DataExists exception
+        return Futures.handleCompose(Futures.exceptionallyComposeExpecting(storeHelper.addNewEntry(
                 SCOPES_TABLE, scopeName, newId()),
                 DATA_NOT_FOUND_PREDICATE,
                 () -> storeHelper.createTable(SCOPES_TABLE)
                                  .thenCompose(v -> {
                                      log.debug("table created {}", SCOPES_TABLE);
                                      return storeHelper.addNewEntryIfAbsent(SCOPES_TABLE, scopeName, newId());
-                                 }))
-                      .thenCompose(v -> getStreamsInScopeTableName())
-                      .thenCompose(tableName -> storeHelper.createTable(tableName)
-                                                           .thenAccept(v -> log.debug("table created {}", tableName)));
+                                 })), (r, e) -> {
+            if (e == null || Exceptions.unwrap(e) instanceof StoreException.DataExistsException) {
+                return getStreamsInScopeTableName()
+                        .thenCompose(tableName -> storeHelper.createTable(tableName)
+                                                             .thenAccept(v -> {
+                                                                 log.debug("table created {}", tableName);
+                                                                 if (e != null) {
+                                                                     throw new CompletionException(e);
+                                                                 }
+                                                             }));
+            } else {
+                throw new CompletionException(e);
+            }
+        });
     }
 
     private byte[] newId() {

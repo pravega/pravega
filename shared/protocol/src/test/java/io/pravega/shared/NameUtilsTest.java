@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.util.concurrent.TimeUnit;
+
+import static org.junit.Assert.assertTrue;
 
 public class NameUtilsTest {
 
@@ -78,5 +80,13 @@ public class NameUtilsTest {
     public void testInternalReaderGroupName() {
         Assert.assertTrue(NameUtils.getStreamForReaderGroup("readergroup1").startsWith(
                 NameUtils.READER_GROUP_STREAM_PREFIX));
+    }
+
+    @Test
+    public void testMarkSegmentName() {
+        String myStream = "myStream";
+        String name = NameUtils.getMarkStreamForStream(myStream);
+        assertTrue(name.endsWith(myStream));
+        assertTrue(name.startsWith(NameUtils.getMARK_PREFIX()));
     }
 }

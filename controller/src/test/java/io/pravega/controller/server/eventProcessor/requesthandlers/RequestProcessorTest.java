@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -208,12 +208,12 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         });
 
         // 1. start test event1 processing on processor 1. Don't let this complete.
-        CompletableFuture<Void> processing11 = requestProcessor1.process(event11);
+        CompletableFuture<Void> processing11 = requestProcessor1.process(event11, () -> false);
         // wait to ensure it is started.
         started1.join();
 
         // 2. start test event2 processing on processor 2. Make this fail with OperationNotAllowed and verify that it gets postponed.
-        AssertExtensions.assertFutureThrows("Fail first processing with operation not allowed", requestProcessor2.process(event21),
+        AssertExtensions.assertFutureThrows("Fail first processing with operation not allowed", requestProcessor2.process(event21, () -> false),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         // also verify that store has set the processor name of processor 2.
         String waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
@@ -228,17 +228,17 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         processing11.join();
 
         // 4. submit another processing for processor1. this should get postponed too but processor name should not change.
-        AssertExtensions.assertFutureThrows("This should fail and event should be reposted", requestProcessor1.process(event12),
+        AssertExtensions.assertFutureThrows("This should fail and event should be reposted", requestProcessor1.process(event12, () -> false),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         TestEvent1 taken1 = requestProcessor1.queue.take();
         assertEquals(taken1, event12);
 
         // 5. now try processing event on processor 2. this should start successfully.
-        CompletableFuture<Void> processing22 = requestProcessor2.process(event22);
+        CompletableFuture<Void> processing22 = requestProcessor2.process(event22, () -> false);
         started2.join();
         // 6. try to start a new processing on processor 1 while processing on `2` is ongoing. This should fail but should not be able
         // to change the processor name.
-        AssertExtensions.assertFutureThrows("This should fail without even starting", requestProcessor1.process(event12),
+        AssertExtensions.assertFutureThrows("This should fail without even starting", requestProcessor1.process(event12, () -> false),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
@@ -276,12 +276,12 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         TestEvent2 event2 = new TestEvent2(scope, stream, () -> Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "Failing processing")));
 
         // 1. start test event1 processing on processor 1. Don't let this complete.
-        CompletableFuture<Void> processing11 = requestProcessor1.process(event1);
+        CompletableFuture<Void> processing11 = requestProcessor1.process(event1, () -> false);
         // wait to ensure it is started.
         started1.join();
 
         // 2. start test event2 processing on processor 2. Make this fail with OperationNotAllowed and verify that it gets postponed.
-        AssertExtensions.assertFutureThrows("Fail first processing with operation not allowed", requestProcessor2.process(event2),
+        AssertExtensions.assertFutureThrows("Fail first processing with operation not allowed", requestProcessor2.process(event2, () -> false),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         // also verify that store has set the processor name of processor 2.
         String waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
@@ -300,7 +300,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         // 4. re submit processing for processor1. this should get be picked while we ignore started.
         event1 = new TestEvent1(scope, stream, () -> CompletableFuture.completedFuture(null));
 
-        requestProcessor1.process(event1).join();
+        requestProcessor1.process(event1, () -> false).join();
         assertTrue(requestProcessor1.queue.isEmpty());
 
         // 5. verify that wait processor name is still set to processor 2
@@ -310,7 +310,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         // 6. now set ignore started to false. The processing of event 1 should be disallowed because of started
         requestProcessor1.ignoreStarted = false;
         // we should get operation not allowed exception
-        AssertExtensions.assertFutureThrows("", requestProcessor1.process(event1), 
+        AssertExtensions.assertFutureThrows("", requestProcessor1.process(event1, () -> false), 
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         // event should be posted back
         assertEquals(requestProcessor1.queue.take(), event1);
@@ -326,7 +326,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         FailingEvent event1 = new FailingEvent("scope", "stream", 
                 Futures.failedFuture(new RuntimeException("hasStarted")), CompletableFuture.completedFuture(null));
 
-        AssertExtensions.assertFutureThrows("exception should be thrown after has started", processor.process(event1),
+        AssertExtensions.assertFutureThrows("exception should be thrown after has started", processor.process(event1, () -> false),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException && Exceptions.unwrap(e).getMessage().equals("hasStarted"));
 
         verify(processor, times(1)).hasTaskStarted(event1);
@@ -336,7 +336,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         FailingEvent event2 = new FailingEvent("scope", "stream", 
                 CompletableFuture.completedFuture(true), Futures.failedFuture(new RuntimeException("execute")));
 
-        AssertExtensions.assertFutureThrows("exception should be thrown after execute", processor.process(event2),
+        AssertExtensions.assertFutureThrows("exception should be thrown after execute", processor.process(event2, () -> false),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException && Exceptions.unwrap(e).getMessage().equals("execute"));
         verify(processor, times(1)).writeBack(event2);
         verify(processor, times(1)).hasTaskStarted(event2);

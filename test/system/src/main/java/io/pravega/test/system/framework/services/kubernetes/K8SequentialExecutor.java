@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,19 +10,19 @@
 package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.models.V1ContainerStatus;
-import io.kubernetes.client.models.V1ObjectMetaBuilder;
-import io.kubernetes.client.models.V1PersistentVolumeClaimVolumeSourceBuilder;
-import io.kubernetes.client.models.V1Pod;
-import io.kubernetes.client.models.V1PodBuilder;
-import io.kubernetes.client.models.V1ServiceAccount;
-import io.kubernetes.client.models.V1ServiceAccountBuilder;
-import io.kubernetes.client.models.V1VolumeBuilder;
-import io.kubernetes.client.models.V1VolumeMountBuilder;
-import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
-import io.kubernetes.client.models.V1beta1ClusterRoleBindingBuilder;
-import io.kubernetes.client.models.V1beta1RoleRefBuilder;
-import io.kubernetes.client.models.V1beta1SubjectBuilder;
+import io.kubernetes.client.openapi.models.V1ContainerStatus;
+import io.kubernetes.client.openapi.models.V1ObjectMetaBuilder;
+import io.kubernetes.client.openapi.models.V1PersistentVolumeClaimVolumeSourceBuilder;
+import io.kubernetes.client.openapi.models.V1Pod;
+import io.kubernetes.client.openapi.models.V1PodBuilder;
+import io.kubernetes.client.openapi.models.V1ServiceAccount;
+import io.kubernetes.client.openapi.models.V1ServiceAccountBuilder;
+import io.kubernetes.client.openapi.models.V1VolumeBuilder;
+import io.kubernetes.client.openapi.models.V1VolumeMountBuilder;
+import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBinding;
+import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBindingBuilder;
+import io.kubernetes.client.openapi.models.V1beta1RoleRefBuilder;
+import io.kubernetes.client.openapi.models.V1beta1SubjectBuilder;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestExecutor;
 import io.pravega.test.system.framework.TestFrameworkException;
@@ -46,6 +46,7 @@ public class K8SequentialExecutor implements TestExecutor {
     private static final String NAMESPACE = "default"; // KUBERNETES namespace where the tests run.
     private static final String SERVICE_ACCOUNT = "test-framework"; //Service Account used by the test pod.
     private static final String TEST_POD_IMAGE = System.getProperty("testPodImage", "openjdk:8u181-jre-alpine");
+    private static final String LOG_LEVEL = System.getProperty("logLevel", "DEBUG");
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
@@ -120,7 +121,8 @@ public class K8SequentialExecutor implements TestExecutor {
                 .withImage(TEST_POD_IMAGE)
                 .withImagePullPolicy("IfNotPresent")
                 .withCommand("/bin/sh")
-                .withArgs("-c", "java -DexecType=KUBERNETES -DsecurityEnabled=" + Utils.AUTH_ENABLED + " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "
+                .withArgs("-c", "java -DexecType=KUBERNETES -DsecurityEnabled=" + Utils.AUTH_ENABLED + " -Dlog.level=" + LOG_LEVEL
+                                  + " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "
                                   + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
                 .withVolumeMounts(new V1VolumeMountBuilder().withMountPath("/data").withName("task-pv-storage").build())
                 .endContainer()

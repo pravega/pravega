@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,13 @@ public abstract class PositionInternal implements Position {
      * @return the read offset for each segment in the ownedSegments set
      */
     abstract Map<Segment, Long> getOwnedSegmentsWithOffsets();
+    
+    /**
+     * Completely read segments have offset of -1.
+     *
+     * @return the read offset for each segmentWithRange in the ownedSegments set
+     */
+    abstract Map<SegmentWithRange, Long> getOwnedSegmentRangesWithOffsets();
 
     /**
      * Gets the set of completely read segments.

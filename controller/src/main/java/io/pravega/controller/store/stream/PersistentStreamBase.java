@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -37,8 +38,8 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
-
+import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.shared.NameUtils;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -67,8 +68,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
+import static io.pravega.shared.NameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.getSegmentNumber;
 import static java.util.stream.Collectors.groupingBy;
 
 @Slf4j
@@ -333,7 +334,7 @@ public abstract class PersistentStreamBase implements Stream {
         // extract epoch from segment id.
         // fetch epoch record for the said epoch
         // extract segment record from it.
-        int epoch = StreamSegmentNameUtils.getEpoch(segmentId);
+        int epoch = NameUtils.getEpoch(segmentId);
         return getEpochRecord(epoch)
                 .thenApply(epochRecord -> {
                     Optional<StreamSegmentRecord> segmentRecord = epochRecord.getSegments().stream()
@@ -393,7 +394,8 @@ public abstract class PersistentStreamBase implements Stream {
                 segment -> targetSegmentsList.stream().filter(target -> target.overlaps(segment)).count() > 1 ).count();
     }
 
-    private CompletableFuture<Integer> getSegmentSealedEpoch(long segmentId) {
+    @Override
+    public CompletableFuture<Integer> getSegmentSealedEpoch(long segmentId) {
         return getSegmentSealedRecordData(segmentId).handle((x, e) -> {
             if (e != null) {
                 if (Exceptions.unwrap(e) instanceof DataNotFoundException) {
@@ -611,8 +613,8 @@ public abstract class PersistentStreamBase implements Stream {
     CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> computeStreamCutSpan(Map<Long, Long> streamCut) {
         long mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
         long oldest = streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
-        int epochLow = StreamSegmentNameUtils.getEpoch(oldest);
-        int epochHigh = StreamSegmentNameUtils.getEpoch(mostRecent);
+        int epochLow = NameUtils.getEpoch(oldest);
+        int epochHigh = NameUtils.getEpoch(mostRecent);
 
         return fetchEpochs(epochLow, epochHigh, true).thenApply(epochs ->  {
             List<Long> toFind = new ArrayList<>(streamCut.keySet());
@@ -636,7 +638,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut) {
-        Map<Integer, List<Long>> groupByEpoch = streamCut.keySet().stream().collect(groupingBy(StreamSegmentNameUtils::getEpoch));
+        Map<Integer, List<Long>> groupByEpoch = streamCut.keySet().stream().collect(groupingBy(NameUtils::getEpoch));
 
         CompletableFuture<List<List<Map.Entry<Double, Double>>>> segmentRangesByEpoch = Futures.allOfWithResults(groupByEpoch.entrySet().stream().map(epochGroup -> {
             return getEpochRecord(epochGroup.getKey())
@@ -688,7 +690,8 @@ public abstract class PersistentStreamBase implements Stream {
             } else {
                 return CompletableFuture.completedFuture(existing);
             }
-        }).thenCompose(record -> getActiveEpochRecord(true).thenCompose(currentEpoch -> {
+        }).thenCompose(record -> getActiveEpochRecord(true).thenCompose(currentEpoch -> 
+                getConfiguration().thenCompose(config -> {
             if (!record.getObject().equals(EpochTransitionRecord.EMPTY)) {
                 // verify that it's the same as the supplied input (--> segments to be sealed
                 // and new ranges are identical). else throw scale conflict exception
@@ -711,6 +714,12 @@ public abstract class PersistentStreamBase implements Stream {
                     throw new EpochTransitionOperationExceptions.InputInvalidException();
                 }
 
+                int numberOfSegmentsPostScale = currentEpoch.getSegments().size() - segmentsToSeal.size() + newRanges.size();
+                if (numberOfSegmentsPostScale < config.getScalingPolicy().getMinNumSegments()) {
+                    log.warn("Scale cannot be performed as Min Segment Count will not hold {} {}", segmentsToSeal, newRanges);
+                    throw new EpochTransitionOperationExceptions.PreConditionFailureException();
+                }
+                
                 EpochTransitionRecord epochTransition = RecordHelper.computeEpochTransition(
                         currentEpoch, segmentsToSeal, newRanges, scaleTimestamp);
 
@@ -721,7 +730,7 @@ public abstract class PersistentStreamBase implements Stream {
                             return new VersionedMetadata<>(epochTransition, version);
                         });
             }
-        }));
+        })));
     }
 
     private CompletableFuture<Void> verifyNotSealed() {
@@ -1010,7 +1019,7 @@ public abstract class PersistentStreamBase implements Stream {
                                                 .build();
         return verifyNotSealed().thenCompose(v -> createNewTransaction(epoch, txnId, record)
                 .thenApply(version -> new VersionedTransactionData(epoch, txnId, version,
-                        TxnStatus.OPEN, current, maxExecTimestamp, "", Long.MIN_VALUE, Long.MIN_VALUE)));
+                        TxnStatus.OPEN, current, maxExecTimestamp, "", Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of())));
     }
 
     @Override
@@ -1026,13 +1035,14 @@ public abstract class PersistentStreamBase implements Stream {
         final String writerId = txnData.getWriterId();
         final long commitTime = txnData.getCommitTime();
         final long position = txnData.getPosition();
+        final ImmutableMap<Long, Long> commitOffsets = txnData.getCommitOffsets();
         final ActiveTxnRecord newData = new ActiveTxnRecord(creationTime, System.currentTimeMillis() + lease,
-                maxExecutionExpiryTime, status, writerId, commitTime, position);
+                maxExecutionExpiryTime, status, writerId, commitTime, position, commitOffsets);
         final VersionedMetadata<ActiveTxnRecord> data = new VersionedMetadata<>(newData, version);
 
         return updateActiveTx(epoch, txnId, data)
                 .thenApply(updatedVersion -> new VersionedTransactionData(epoch, txnId, updatedVersion, status, creationTime, 
-                        maxExecutionExpiryTime, writerId, commitTime, position));
+                        maxExecutionExpiryTime, writerId, commitTime, position, commitOffsets));
     }
 
     @Override
@@ -1044,7 +1054,7 @@ public abstract class PersistentStreamBase implements Stream {
                     return new VersionedTransactionData(epoch, txId, data.getVersion(),
                             activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
                             activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(), 
-                            activeTxnRecord.getCommitTime(), activeTxnRecord.getCommitOrder());
+                            activeTxnRecord.getCommitTime(), activeTxnRecord.getCommitOrder(), activeTxnRecord.getCommitOffsets());
                 });
     }
 
@@ -1080,9 +1090,10 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId, final boolean commit,
-                                                                              final Optional<Version> version) {
+                                                                              final Optional<Version> version,                                                                               
+                                                                              final String writerId, final long timestamp) {
         int epoch = RecordHelper.getTransactionEpoch(txId);
-        return sealActiveTxn(epoch, txId, commit, version)
+        return sealActiveTxn(epoch, txId, commit, version, writerId, timestamp)
                 .exceptionally(ex -> new SimpleEntry<>(handleDataNotFoundException(ex), null))
                 .thenCompose(pair -> {
                     if (pair.getKey() == TxnStatus.UNKNOWN) {
@@ -1101,19 +1112,22 @@ public abstract class PersistentStreamBase implements Stream {
      * @param txId    transaction identifier.
      * @param commit  boolean indicating whether to commit or abort the transaction.
      * @param version optional expected version of transaction node to validate before updating it.
+     * @param writerId writer Id
+     * @param timestamp commit timestamp supplied by writer
      * @return        a pair containing transaction status and its epoch.
      */
     private CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealActiveTxn(final int epoch,
                                                                              final UUID txId,
                                                                              final boolean commit,
-                                                                             final Optional<Version> version) {
+                                                                             final Optional<Version> version, 
+                                                                             final String writerId, final long timestamp) {
         return getActiveTx(epoch, txId).thenCompose(data -> {
             ActiveTxnRecord txnRecord = data.getObject();
             Version dataVersion = version.orElseGet(data::getVersion);
             TxnStatus status = txnRecord.getTxnStatus();
             switch (status) {
                 case OPEN:
-                    return sealActiveTx(epoch, txId, commit, txnRecord, dataVersion).thenApply(y ->
+                    return sealActiveTx(epoch, txId, commit, txnRecord, dataVersion, writerId, timestamp).thenApply(y ->
                             new SimpleEntry<>(commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING, epoch));
                 case COMMITTING:
                 case COMMITTED:
@@ -1142,7 +1156,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     private CompletableFuture<Version> sealActiveTx(final int epoch, final UUID txId, final boolean commit,
                                                     final ActiveTxnRecord previous,
-                                                    final Version version) {
+                                                    final Version version, final String writerId, final long timestamp) {
         CompletableFuture<ActiveTxnRecord> future;
         if (commit) {
             // if request is for commit --> add a new entry to orderer. 
@@ -1154,8 +1168,8 @@ public abstract class PersistentStreamBase implements Stream {
                                     previous.getLeaseExpiryTime(),
                                     previous.getMaxExecutionExpiryTime(),
                                     TxnStatus.COMMITTING,
-                                    "",
-                                    Long.MIN_VALUE,
+                                    writerId,
+                                    timestamp,
                                     position);
                         });
             } else {
@@ -1171,6 +1185,82 @@ public abstract class PersistentStreamBase implements Stream {
             final VersionedMetadata<ActiveTxnRecord> data = new VersionedMetadata<>(updated, version);
             return updateActiveTx(epoch, txId, data);  
         });
+    }
+
+    @Override
+    public CompletableFuture<Void> recordCommitOffsets(final UUID txnId, final Map<Long, Long> commitOffsets) {
+        // The transaction may already have been committed and its record removed and this could be an idempotent run. 
+        // So this method will ignore any data not found exceptions that are thrown while trying to retrieve active 
+        // transaction record. 
+        // This method updates the commit offsets if they are empty. Otherwise it ignores them. 
+        int epoch = RecordHelper.getTransactionEpoch(txnId);
+        return Futures.exceptionallyExpecting(getActiveTx(epoch, txnId)
+                .thenCompose(txnRecord -> {
+                    ActiveTxnRecord activeTxnRecord = txnRecord.getObject();
+                    Preconditions.checkArgument(activeTxnRecord.getTxnStatus().equals(TxnStatus.COMMITTING));
+                    if (activeTxnRecord.getCommitOffsets().isEmpty()) {
+                        ActiveTxnRecord updated = new ActiveTxnRecord(activeTxnRecord.getTxCreationTimestamp(),
+                                activeTxnRecord.getLeaseExpiryTime(),
+                                activeTxnRecord.getMaxExecutionExpiryTime(),
+                                TxnStatus.COMMITTING,
+                                activeTxnRecord.getWriterId(),
+                                activeTxnRecord.getCommitTime(),
+                                activeTxnRecord.getCommitOrder(),
+                                ImmutableMap.copyOf(commitOffsets));
+                        return Futures.toVoid(updateActiveTx(epoch, txnId, new VersionedMetadata<>(updated, txnRecord.getVersion())));
+                    } else {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                }), DATA_NOT_FOUND_PREDICATE, null);
+    }
+
+    /**
+     * This method takes the list of transactions in the committing transactions record, and tries to report marks
+     * for writers for these transactions, if the information about writer is present in the record. The information 
+     * about writer and commit time is optionally provided by the client. A client not interested in watermarking may not 
+     * report writer id and time during commit request. Similarly older clients will not report writer id and time either.  
+     * WriterId, commit time and commit offsets are recorded in ActiveTxnRecord for each transaction. 
+     * For transactions where above fields are present, a mark is recorded for them. 
+     * This method will ignore any INVALID_TIME or INVALID_POSITION related failures in noting marks for writers.
+     * This is because those will typically arise from idempotent commit case where this and a transaction with higher 
+     * position and time may already have been committed and the overall mark for the writer may already have progressed.
+     * 
+     * @param committingTransactionsRecord Committing transaction record
+     * @return A completableFuture, which when completed will have marks reported for all transactions in the committing 
+     * transaction record for which a writer with time and position information is available. 
+     */
+    CompletableFuture<Void> generateMarksForTransactions(CommittingTransactionsRecord committingTransactionsRecord) {
+        val getTransactionsFuture = Futures.allOfWithResults(committingTransactionsRecord.getTransactionsToCommit().stream().map(txId -> {
+            int epoch = RecordHelper.getTransactionEpoch(txId);
+            // Ignore data not found exceptions. DataNotFound Exceptions can be thrown because transaction record no longer 
+            // exists and this is an idempotent case. DataNotFound can also be thrown because writer's mark was deleted 
+            // as we attempted to update an existing record. Note: Delete can be triggered by writer explicitly calling
+            // removeWriter api. 
+            return Futures.exceptionallyExpecting(getActiveTx(epoch, txId), DATA_NOT_FOUND_PREDICATE, null);
+        }).collect(Collectors.toList()));
+        
+        return getTransactionsFuture
+                .thenCompose(txnRecords -> {
+                    // Filter transactions for which either writer id is not present of time/position is not reported
+                    // Then group transactions by writer ids
+                    val groupedByWriters = txnRecords.stream().filter(x ->
+                            x != null && !Strings.isNullOrEmpty(x.getObject().getWriterId()) &&
+                                    x.getObject().getCommitTime() >= 0L && !x.getObject().getCommitOffsets().isEmpty())
+                                                     .collect(Collectors.groupingBy(x -> x.getObject().getWriterId()));
+
+                    // For each writerId we will take the transaction with the time and position pair (which is to take
+                    // max of all transactions for the said writer). 
+                    // Note: if multiple transactions from same writer have same time, we will take any one arbitrarily and
+                    // use its position for watermarks. Other positions and times would be ignored. 
+                    val noteTimeFutures = groupedByWriters.entrySet().stream().map(groupEntry -> {
+                        ActiveTxnRecord latest = groupEntry.getValue().stream().max(Comparator.comparingLong(x -> x.getObject().getCommitTime()))
+                                                           .get().getObject();
+                        return Futures.exceptionallyExpecting(
+                                noteWriterMark(latest.getWriterId(), latest.getCommitTime(), latest.getCommitOffsets()),
+                                DATA_NOT_FOUND_PREDICATE, null);
+                    }).collect(Collectors.toList());
+                    return Futures.allOf(noteTimeFutures);
+                });
     }
 
     @VisibleForTesting
@@ -1369,7 +1459,7 @@ public abstract class PersistentStreamBase implements Stream {
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record) {
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // if honoured and is based on the order in the list.
-        CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
+        CompletableFuture<Void> future = generateMarksForTransactions(record.getObject());
         for (UUID txnId : record.getObject().getTransactionsToCommit()) {
             log.debug("Committing transaction {} on stream {}/{}", txnId, scope, name);
             // commit transaction in segment store
@@ -1420,6 +1510,115 @@ public abstract class PersistentStreamBase implements Stream {
                 });
     }
 
+    @Override
+    public CompletableFuture<WriterTimestampResponse> noteWriterMark(String writer, long timestamp, Map<Long, Long> position) {
+        // Remember: a writer position is not a stream cut.  
+        // For sanity check we will check that the request advances the time and position.
+        // if time is not advanced --> respond with invalid time.
+        // if position is not advanced --> respond with invalid position
+        ImmutableMap<Long, Long> newPosition = ImmutableMap.copyOf(position);
+        return Futures.exceptionallyExpecting(getWriterMarkRecord(writer), DATA_NOT_FOUND_PREDICATE, null) 
+                .thenCompose(record -> {
+                    if (record == null) {
+                        // Attempt to create a new record. It is possible that while we are attempting to create the record, 
+                        // a concurrent request could have created it. 
+                        // For example: a writer sends a request to one controller instance to note a writer mark and the 
+                        // connection drops before it receives a confirmation. It could then send the request to noteTime to a different controller 
+                        // instance. So two controller instances could attempt concurrent creation of mark for the said writer.
+                        // In this case, we may have found mark to be non existent when we did a get but it may have been created 
+                        // when we attempt to create it. So immediately after attempting a create, if we get DataExists, 
+                        // we will translate it to writeConflict and let the caller deal with it.
+                        return createWriterMarkRecord(writer, timestamp, newPosition)
+                                .exceptionally(e -> {
+                                    if (Exceptions.unwrap(e) instanceof StoreException.DataExistsException) {
+                                        throw StoreException.create(StoreException.Type.WRITE_CONFLICT, "writer mark exists");
+                                    }
+                                    throw new CompletionException(e);
+                                })
+                                .thenApply(v -> WriterTimestampResponse.SUCCESS);
+                    } else {
+                        // sanity check and update
+                        if (record.getObject().getTimestamp() > timestamp) {
+                            // existing time is already ahead of new time
+                            return CompletableFuture.completedFuture(WriterTimestampResponse.INVALID_TIME);
+                        }
+                        if (!compareWriterPositions(record.getObject().getPosition(), newPosition)) {
+                            // existing position is already ahead of new position
+                            return CompletableFuture.completedFuture(WriterTimestampResponse.INVALID_POSITION);
+                        }
+                        
+                        // its a valid mark, update it
+                        return updateWriterMarkRecord(writer, timestamp, newPosition, true, record.getVersion())
+                                .thenApply(v -> WriterTimestampResponse.SUCCESS);
+                    }
+                });
+    }
+
+    @Override
+    public CompletableFuture<Void> shutdownWriter(String writer) {
+        return getWriterMarkRecord(writer)
+               .thenCompose(record -> updateWriterMarkRecord(writer, record.getObject().getTimestamp(), record.getObject().getPosition(), 
+                       false, record.getVersion()));
+    }
+
+    @Override
+    public CompletableFuture<Void> removeWriter(String writer, WriterMark writerMark) {
+        return Futures.exceptionallyExpecting(getWriterMarkRecord(writer), DATA_NOT_FOUND_PREDICATE, null)
+                      .thenCompose(record -> {
+                          if (record == null) {
+                              // do nothing
+                              return CompletableFuture.completedFuture(null);
+                          } else {
+                              if (writerMark.equals(record.getObject())) {
+                                  return removeWriterRecord(writer, record.getVersion());
+                              } else {
+                                  throw StoreException.create(StoreException.Type.WRITE_CONFLICT, 
+                                          "Writer mark supplied for removal doesn't match stored writer mark");
+                              }
+                          }
+                      });
+    }
+
+    /**
+     * Compares two given positions and returns true if position 2 is ahead of position 1. 
+     * 
+     * Note: This is not absolutely correct implementation because that would be a very costly computation. 
+     * This method simply checks if position 2 has a higher max segment number than position 1. 
+     * If those are equal, then it simply checks the offsets in each segment in position 2 to be ahead of same segment in 
+     * position 1. 
+     * It doesn't deal with complex cases where in a position 1 there could be both predecessor and successor while position 2 
+     * only contains successor. There can be many such complex checks which will require looking up ranges of segments involved
+     * which we will avoid in this method. 
+     * 
+     * @param position1 position 1 
+     * @param position2 position 2
+     * @return return true if position 2 is ahead of/or equal to position 1. false otherwise. 
+     */
+    @VisibleForTesting
+    boolean compareWriterPositions(Map<Long, Long> position1, Map<Long, Long> position2) {
+        long maxInPos2 = position2.keySet().stream().filter(position1::containsKey).max(Long::compare).orElse(Long.MIN_VALUE);
+        long maxInPos1 = position1.keySet().stream().filter(position2::containsKey).max(Long::compare).orElse(Long.MIN_VALUE);
+        
+        boolean compareMaxes = maxInPos2 >= maxInPos1;
+        
+        if (compareMaxes) {
+            return position2.entrySet().stream()
+                            .filter(x -> position1.containsKey(x.getKey()))
+                            .allMatch(x -> {
+                                // for all segments that are present in both, position 2 should have 
+                                // greater than eq offsets
+                                return x.getValue() >= position1.get(x.getKey());
+                            });
+        } 
+        
+        return false;
+    }
+
+    @Override
+    public CompletableFuture<WriterMark> getWriterMark(String writer) {
+        return getWriterMarkRecord(writer).thenApply(VersionedMetadata::getObject);
+    }
+    
     protected CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpochHelper(
             ZkOrderedStore txnCommitOrderer, Executor executor) {
         // get all transactions that have been added to commit orderer.
@@ -1465,40 +1664,51 @@ public abstract class PersistentStreamBase implements Stream {
                                                                ConcurrentSkipListSet<Long> toPurge,
                                                                ConcurrentHashMap<UUID, ActiveTxnRecord> transactionsMap) {
         int epoch = nextEpoch.getKey();
-        List<Map.Entry<Long, String>> txnIds = nextEpoch.getValue();
+        List<Long> orders = new ArrayList<>();
+        List<String> txnIds = new ArrayList<>();
+        nextEpoch.getValue().forEach(x -> {
+            orders.add(x.getKey());
+            txnIds.add(x.getValue());
+        });
 
-        return Futures.allOf(txnIds.stream().map(txnIdOrder -> {
-            UUID txnId = UUID.fromString(txnIdOrder.getValue());
-            long order = txnIdOrder.getKey();
+        return getTransactionRecords(epoch, txnIds).thenAccept(txns -> {
+            for (int i = 0; i < txns.size(); i++) {
+                ActiveTxnRecord txnRecord = txns.get(i);
+                UUID txnId = UUID.fromString(txnIds.get(i));
+                long order = orders.get(i);
+                switch (txnRecord.getTxnStatus()) {
+                    case COMMITTING:
+                        if (txnRecord.getCommitOrder() == order) {
+                            // if entry matches record's position then include it
+                            transactionsMap.put(txnId, txnRecord);
+                        } else {
+                            log.debug("duplicate txn {} at position {}. removing {}", txnId, txnRecord.getCommitOrder(), order);
+                            toPurge.add(order);
+                        }
+                        break;
+                    case OPEN:  // do nothing
+                        // since we first add reference to transaction order followed by updating transaction
+                        // metadata record, which may or may not have happened. So we will ignore all open 
+                        // transactions for which references are found. 
+                        break;
+                    case COMMITTED:
+                    case ABORTING:
+                    case ABORTED:
+                    case UNKNOWN:
+                        // Aborting, aborted, unknown and committed 
+                        log.debug("stale txn {} with status. removing {}", txnId, txnRecord.getTxnStatus(), order);
+                        toPurge.add(order);
+                        break;
+                }
+            }
+        });
+    }
+
+    CompletableFuture<List<ActiveTxnRecord>> getTransactionRecords(int epoch, List<String> txnIds) {
+        return Futures.allOfWithResults(txnIds.stream().map(txnIdStr -> {
+            UUID txnId = UUID.fromString(txnIdStr);
             return Futures.exceptionallyExpecting(getActiveTx(epoch, txnId).thenApply(VersionedMetadata::getObject),
-                    ZKStreamMetadataStore.DATA_NOT_FOUND_PREDICATE, ActiveTxnRecord.EMPTY)
-                          .thenAccept(txnRecord -> {
-                              switch (txnRecord.getTxnStatus()) {
-                                  case COMMITTING:
-                                      if (txnRecord.getCommitOrder() == order) {
-                                          // if entry matches record's position then include it
-                                          transactionsMap.put(txnId, txnRecord);
-                                      } else {
-                                          log.debug("duplicate txn {} at position {}. removing {}", txnId, txnRecord.getCommitOrder(), order);
-                                          toPurge.add(order);
-                                      }
-                                      break;
-                                  case OPEN:  // do nothing
-                                      // since we first add reference to transaction order followed by updating transaction
-                                      // metadata record, which may or may not have happened. So we will ignore all open 
-                                      // transactions for which references are found. 
-                                      break;
-                                  case COMMITTED:
-                                  case ABORTING:
-                                  case ABORTED:
-                                  case UNKNOWN:
-                                      // Aborting, aborted, unknown and committed 
-                                      log.debug("stale txn {} with status. removing {}", txnId, txnRecord.getTxnStatus(), order);
-                                      toPurge.add(order);
-                                      break;
-                              }
-                          });
-
+                    ZKStreamMetadataStore.DATA_NOT_FOUND_PREDICATE, ActiveTxnRecord.EMPTY);
         }).collect(Collectors.toList()));
     }
 
@@ -1535,8 +1745,8 @@ public abstract class PersistentStreamBase implements Stream {
         return createSealedSegmentSizesMapShardDataIfAbsent(shardNumber, shard);
     }
 
-    @VisibleForTesting
-    CompletableFuture<SealedSegmentsMapShard> getSealedSegmentSizeMapShard(int shard) {
+    @Override
+    public CompletableFuture<SealedSegmentsMapShard> getSealedSegmentSizeMapShard(int shard) {
         return getSealedSegmentSizesMapShardData(shard)
                 .handle((r, e) -> {
                     if (e != null) {
@@ -1569,7 +1779,7 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     private int getShardNumber(long segmentId) {
-        return StreamSegmentNameUtils.getEpoch(segmentId) / shardSize.get();
+        return NameUtils.getEpoch(segmentId) / shardSize.get();
     }
 
     private ImmutableMap<StreamSegmentRecord, Integer> convertToSpan(EpochRecord epochRecord) {
@@ -1653,7 +1863,7 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     private StreamSegmentRecord newSegmentRecord(long segmentId, long time, Double low, Double high) {
-        return newSegmentRecord(StreamSegmentNameUtils.getEpoch(segmentId), StreamSegmentNameUtils.getSegmentNumber(segmentId),
+        return newSegmentRecord(NameUtils.getEpoch(segmentId), NameUtils.getSegmentNumber(segmentId),
                 time, low, high);
     }
 
@@ -1707,6 +1917,11 @@ public abstract class PersistentStreamBase implements Stream {
                 });
     }
 
+    @Override
+    public CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunk(int chunkNumber) {
+        return getHistoryTimeSeriesChunk(chunkNumber, true);
+    }
+    
     private CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunk(int chunkNumber, boolean ignoreCached) {
         return getHistoryTimeSeriesChunkData(chunkNumber, ignoreCached)
                 .thenCompose(x -> {
@@ -1874,6 +2089,49 @@ public abstract class PersistentStreamBase implements Stream {
     abstract CompletableFuture<String> getWaitingRequestNode();
 
     abstract CompletableFuture<Void> deleteWaitingRequestNode();
+    // endregion
+
+    // region watermarking
+    /**
+     * Method to create new writer mark record. 
+     * @param writer writer id
+     * @param timestamp timestamp
+     * @param position position
+     * @return CompletableFuture which when completed will have writer mark created.  
+     * Implementation should throw DataExistsException if data exists.
+     */
+    abstract CompletableFuture<Void> createWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position);
+
+    /**
+     * Method to get writer mark record. 
+     * @param writer writer id
+     * @return CompletableFuture which when completed will contain writer's last reported mark.  
+     */
+    abstract CompletableFuture<VersionedMetadata<WriterMark>> getWriterMarkRecord(String writer);
+
+    /**
+     * Method to update existing writer mark record. 
+     * 
+     * @param writer writer id
+     * @param timestamp timestamp
+     * @param position position
+     * @param isAlive whether writer is shutdown or not
+     * @param version version of last record
+     * @return CompletableFuture which when completed will have writer mark updated. 
+     * @throws DataNotFoundException if while attempting to update a writer mark, its previous mark was removed by 
+     * watermarking workflow.
+     */
+    abstract CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, boolean isAlive, Version version);
+
+    /**
+     * Method to delete existing writer mark record conditionally. 
+     * 
+     * @param writer writer id
+     * @param version version of last record
+     * @return CompletableFuture which when completed will have writer mark deleted.
+     * Can throw Write Conflict if delete version mismatches.
+     */
+    abstract CompletableFuture<Void> removeWriterRecord(String writer, Version version);
     // endregion
     // endregion
 }

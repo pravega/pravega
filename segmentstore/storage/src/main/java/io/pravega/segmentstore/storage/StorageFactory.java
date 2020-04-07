@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,4 +17,12 @@ public interface StorageFactory {
      * Creates a new instance of a Storage adapter.
      */
     Storage createStorageAdapter();
+
+    /**
+     * Expose the underlying SyncStorage implementation to provide testing flexibility.
+     * @return a new instance of a SyncStorage implementation, without adapter.
+     */
+    default SyncStorage createSyncStorage() {
+        throw new UnsupportedOperationException("By default the underlying SyncStorage implementation is encapsulated.");
+    }
 }

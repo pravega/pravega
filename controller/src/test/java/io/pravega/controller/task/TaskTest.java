@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -233,12 +233,13 @@ public abstract class TaskTest {
         TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
 
         // Create stream test.
+        // this will create 2 new streams -> stream + mark stream
         completePartialTask(mockStreamTasks.createStream(SCOPE, stream, configuration1, System.currentTimeMillis()),
                 deadHost, sweeper);
         Assert.assertEquals(initialSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
 
         Map<String, StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
-        assertEquals(3, streams.size());
+        assertEquals(4, streams.size());
         assertEquals(configuration1, streams.get(stream));
     }
 

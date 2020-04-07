@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -187,7 +187,7 @@ public final class Retry {
                     Exceptions.handleInterrupted(() -> Thread.sleep(sleepFor));
 
                     delay = Math.min(params.maxDelay, params.multiplier * delay);
-                    log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
+                    log.debug("Retrying command {} Retry #{}, timestamp={}", r.toString(), attemptNumber, Instant.now());
                 }
             }
             throw new RetriesExhaustedException(last);
@@ -218,7 +218,7 @@ public final class Retry {
                                             params.initialMillis :
                                             Math.min(params.maxDelay, params.multiplier * delay.get()));
                                     attemptNumber.incrementAndGet();
-                                    log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
+                                    log.debug("Retrying command {} Retry #{}, timestamp={}", task.toString(), attemptNumber, Instant.now());
                                 }
                                 return null;
                             }),
@@ -249,7 +249,7 @@ public final class Retry {
                                             params.initialMillis :
                                             Math.min(params.maxDelay, params.multiplier * delay.get()));
                                     attemptNumber.incrementAndGet();
-                                    log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
+                                    log.debug("Retrying command {} Retry #{}, timestamp={}", r.toString(), attemptNumber, Instant.now());
                                 }
 
                                 return null;

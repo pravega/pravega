@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -33,13 +34,16 @@ import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.val;
 
 /**
  * Client-based adapter that targets an in-process Client with a Mock Controller and Mock StreamSegmentStore.
@@ -132,10 +136,12 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
     private static class MockStreamSegmentStore implements StreamSegmentStore {
         private final Set<String> segments = Collections.synchronizedSet(new HashSet<>());
+        private final Map<String, Map<UUID, Long>> attrributes = new ConcurrentHashMap<>();
 
         @Override
         public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
             if (this.segments.add(streamSegmentName)) {
+                this.attrributes.put(streamSegmentName, new ConcurrentHashMap<>());
                 return CompletableFuture.completedFuture(null);
             } else {
                 return Futures.failedFuture(new StreamSegmentExistsException(streamSegmentName));
@@ -143,8 +149,12 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Void> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             if (this.segments.contains(streamSegmentName)) {
+                if (attributeUpdates != null) {
+                    val segmentAttributes = this.attrributes.get(streamSegmentName);
+                    attributeUpdates.forEach(au -> segmentAttributes.put(au.getAttributeId(), au.getValue()));
+                }
                 return CompletableFuture.completedFuture(null);
             } else {
                 return Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
@@ -152,14 +162,15 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Void> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             return append(streamSegmentName, data, attributeUpdates, timeout);
         }
 
         @Override
         public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             if (this.segments.contains(streamSegmentName)) {
-                return CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(streamSegmentName).build());
+                return CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(streamSegmentName)
+                        .attributes(this.attrributes.get(streamSegmentName)).build());
             } else {
                 return Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
             }
@@ -167,12 +178,23 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
         @Override
         public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-            throw new UnsupportedOperationException("updateAttributes");
+            val segmentAttributes = this.attrributes.get(streamSegmentName);
+            if (attributeUpdates != null) {
+                attributeUpdates.forEach(au -> segmentAttributes.put(au.getAttributeId(), au.getValue()));
+                return CompletableFuture.completedFuture(null);
+            } else {
+                return Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
+            }
         }
 
         @Override
         public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
-            throw new UnsupportedOperationException("getAttributes");
+            val segmentAttributes = this.attrributes.get(streamSegmentName);
+            if (segmentAttributes != null) {
+                return CompletableFuture.completedFuture(new HashMap<>(segmentAttributes));
+            } else {
+                return Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
+            }
         }
 
         @Override
@@ -181,7 +203,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> mergeStreamSegment(String target, String source, Duration timeout) {
+        public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String target, String source, Duration timeout) {
             throw new UnsupportedOperationException("mergeStreamSegment");
         }
 

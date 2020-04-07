@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,12 +25,15 @@ import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.RetentionSet;
+import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -155,10 +158,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                 final OperationContext context,
                                                 final Executor executor) {
         Stream s = getStream(scope, name, context);
-        return s.getActiveSegments()
-                .thenApply(activeSegments -> activeSegments.stream().map(StreamSegmentRecord::getSegmentNumber)
+        return Futures.exceptionallyExpecting(s.getActiveEpoch(true)
+                .thenApply(epoch -> epoch.getSegments().stream().map(StreamSegmentRecord::getSegmentNumber)
                                                                     .reduce(Integer::max).get())
-                .thenCompose(lastActiveSegment -> recordLastStreamSegment(scope, name, lastActiveSegment, context, executor))
+                .thenCompose(lastActiveSegment -> recordLastStreamSegment(scope, name, lastActiveSegment, context, executor)),
+                DATA_NOT_FOUND_PREDICATE, null)
                 .thenCompose(v -> withCompletion(s.delete(), executor))
                 .thenAccept(v -> cache.invalidate(new ImmutablePair<>(scope, name)));
     }
@@ -212,8 +216,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             if (ex == null) {
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
             }
-            if (ex instanceof StoreException.DataExistsException ||
-                    ex.getCause() instanceof StoreException.DataExistsException) {
+            if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
             } else {
                 log.debug("Create scope failed due to ", ex);
@@ -593,10 +596,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                               final UUID txId,
                                                                               final boolean commit,
                                                                               final Optional<Version> version,
+                                                                              final String writerId,
+                                                                              final long timestamp,
                                                                               final OperationContext context,
                                                                               final Executor executor) {
         return withCompletion(getStream(scopeName, streamName, context)
-                .sealTransaction(txId, commit, version), executor);
+                .sealTransaction(txId, commit, version, writerId, timestamp), executor);
     }
 
     @Override
@@ -736,6 +741,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Void> recordCommitOffsets(String scope, String stream, UUID txnId, Map<Long, Long> commitOffsets, 
+                                                       OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).recordCommitOffsets(txnId, commitOffsets), executor);
+    }
+
+    @Override
     public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, VersionedMetadata<CommittingTransactionsRecord> record,
                                                               OperationContext context, ScheduledExecutorService executor) {
         Stream streamObj = getStream(scope, stream, context);
@@ -761,6 +772,53 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName,
                                                                      OperationContext context, ScheduledExecutorService executor) {
         return withCompletion(getStream(scope, stream, context).deleteWaitingRequestConditionally(processorName), executor);
+    }
+
+    @Override
+    public CompletableFuture<WriterTimestampResponse> noteWriterMark(String scope, String stream, String writer,
+                                                                     long timestamp, Map<Long, Long> position,
+                                                                     OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, stream, context).noteWriterMark(writer, timestamp, position), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> shutdownWriter(String scope, String stream, String writer,
+                                                       OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, stream, context).shutdownWriter(writer), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeWriter(String scope, String stream, String writer, WriterMark writerMark,
+                                                OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, stream, context).removeWriter(writer, writerMark), executor);
+    }
+
+    @Override
+    public CompletableFuture<WriterMark> getWriterMark(String scope, String stream, String writer,
+                                                       OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, stream, context).getWriterMark(writer), executor);
+    }
+
+    @Override
+    public CompletableFuture<Map<String, WriterMark>> getAllWriterMarks(String scope, String stream,
+                                                                        OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, stream, context).getAllWriterMarks(), executor);
+    }
+
+
+    @Override
+    public CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunk(String scope, String streamName, int chunkNumber, OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, streamName, context).getHistoryTimeSeriesChunk(chunkNumber), executor);
+    }
+
+    @Override
+    public CompletableFuture<SealedSegmentsMapShard> getSealedSegmentSizeMapShard(String scope, String streamName, int shardNumber, OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, streamName, context).getSealedSegmentSizeMapShard(shardNumber), executor);
+    }
+
+    @Override
+    public CompletableFuture<Integer> getSegmentSealedEpoch(String scope, String streamName, long segmentId, OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, streamName, context).getSegmentSealedEpoch(segmentId), executor);
     }
 
     protected Stream getStream(String scope, final String name, OperationContext context) {

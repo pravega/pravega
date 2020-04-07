@@ -12,6 +12,7 @@ package io.pravega.common.util;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 /**
  * Defines a generic read-only view of a readable memory buffer with a known length.
@@ -42,6 +43,25 @@ public interface BufferView {
     InputStream getReader();
 
     /**
+     * Creates an InputStream that can be used to read the contents of this {@link BufferView}.
+     *
+     * @param offset The starting offset of the section to read.
+     * @param length The length of the section to read.
+     * @return The InputStream.
+     */
+    InputStream getReader(int offset, int length);
+
+    /**
+     * Creates a new {@link BufferView} that represents a sub-range of this {@link BufferView} instance. The new instance
+     * will share the same backing buffer as this one, so a change to one will be reflected in the other.
+     *
+     * @param offset The starting offset to begin the slice at.
+     * @param length The sliced length.
+     * @return A new {@link BufferView}.
+     */
+    BufferView slice(int offset, int length);
+
+    /**
      * Returns a copy of the contents of this {@link BufferView}.
      *
      * @return A byte array with the same length as this ArrayView, containing a copy of the data within it.
@@ -49,16 +69,26 @@ public interface BufferView {
     byte[] getCopy();
 
     /**
-     * Copies the contents of this {@link BufferView} to the given {@link OutputStream} using a 4KB copy buffer.
+     * Copies the contents of this {@link BufferView} to the given {@link OutputStream}.
      *
      * @param target The {@link OutputStream} to write to.
-     * @throws IOException If an exception occurred.
+     * @throws IOException If an exception occurred while writing to the target {@link OutputStream}.
      */
     void copyTo(OutputStream target) throws IOException;
 
     /**
+     * Copies the contents of this {@link BufferView} to the given {@link ByteBuffer}.
+     *
+     * @param byteBuffer The {@link ByteBuffer} to copy to. This buffer must have sufficient capacity to allow the entire
+     *                   contents of the {@link BufferView} to be written. If less needs to be copied, consider using
+     *                   {@link BufferView#slice} to select a sub-range of this {@link BufferView}.
+     * @return The number of bytes copied.
+     */
+    int copyTo(ByteBuffer byteBuffer);
+
+    /**
      * When implemented in a derived class, notifies any wrapped buffer that this {@link BufferView} has a need for it.
-     * Use {@link #release()} to do the opposite. See the main documentation on this interface for recommentations on how
+     * Use {@link #release()} to do the opposite. See the main documentation on this interface for recommendations on how
      * to use these to methods. Also refer to the implementing class' documentation for any additional details.
      */
     default void retain() {

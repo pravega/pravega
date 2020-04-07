@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,6 +12,8 @@ package io.pravega.client.stream.impl;
 import com.google.common.collect.ImmutableList;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -19,6 +21,7 @@ import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventWriterConfig;
 
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.shared.NameUtils;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,18 +31,15 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.computeSegmentId;
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static java.util.Collections.singletonList;
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -54,7 +54,8 @@ public class SegmentSelectorTest {
     public void testUsesAllSegments() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
         addNewSegment(segments, 0, 0.0, 0.25);
         addNewSegment(segments, 1, 0.25, 0.5);
@@ -70,7 +71,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = selector.getSegmentForEvent("" + i);
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
+            counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -85,7 +86,8 @@ public class SegmentSelectorTest {
     public void testNullRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
         addNewSegment(segments, 0, 0.0, 0.25);
         addNewSegment(segments, 1, 0.25, 0.5);
@@ -101,7 +103,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 100; i++) {
             Segment segment = selector.getSegmentForEvent(null);
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
+            counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -112,7 +114,8 @@ public class SegmentSelectorTest {
     public void testSameRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
         addNewSegment(segments, 0, 0.0, 0.25);
         addNewSegment(segments, 1, 0.25, 0.5);
@@ -128,7 +131,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = selector.getSegmentForEvent("Foo");
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
+            counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         assertArrayEquals(new int[] { 20, 0, 0, 0 }, counts);
     }
@@ -146,13 +149,14 @@ public class SegmentSelectorTest {
                 .thenReturn(ImmutableList.of(PendingEvent.withHeader("0", ByteBuffer.wrap("e".getBytes()), writerFuture)));
 
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), any(DelegationTokenProvider.class)))
                 .thenReturn(s0Writer);
-        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), any(DelegationTokenProvider.class)))
                 .thenReturn(s1Writer);
 
         Controller controller = Mockito.mock(Controller.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
         addNewSegment(segments, 0, 0.0, 0.5);
         addNewSegment(segments, 1, 0.5, 1.0);
@@ -190,13 +194,14 @@ public class SegmentSelectorTest {
                 .thenReturn(ImmutableList.of(PendingEvent.withHeader("0", ByteBuffer.wrap("e".getBytes()), writerFuture)));
 
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), any(DelegationTokenProvider.class)))
                 .thenReturn(s0Writer);
-        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), any(DelegationTokenProvider.class)))
                 .thenReturn(s1Writer);
 
         Controller controller = Mockito.mock(Controller.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
         addNewSegment(segments, 0, 0.0, 0.5);
         addNewSegment(segments, 1, 0.5, 1.0);
@@ -247,11 +252,11 @@ public class SegmentSelectorTest {
         Controller controller = Mockito.mock(Controller.class);
 
         when(s0Writer.getUnackedEventsOnSeal()).thenReturn(ImmutableList.of(pendingEvent));
-        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), any(DelegationTokenProvider.class)))
                 .thenReturn(s0Writer);
-        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), any(DelegationTokenProvider.class)))
                 .thenReturn(s1Writer);
-        when(factory.createOutputStreamForSegment(eq(segment2), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment2), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), any(DelegationTokenProvider.class)))
                 .thenReturn(s2Writer);
         // get current segments returns segment 0
         when(controller.getCurrentSegments(scope, streamName))
@@ -263,25 +268,26 @@ public class SegmentSelectorTest {
                     return result;
                 });
 
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         //trigger refresh
         selector.refreshSegmentEventWriters(segmentSealedCallback);
         // only segment 0 writer is present.
-        assertEquals(singletonList(s0Writer), selector.getWriters());
+        assertEquals(s0Writer, selector.getWriters().values().stream().findAny().get());
 
         // trigger a referesh of writers due to segment 0 being sealed.
         List<PendingEvent> pendingEvents = selector.refreshSegmentEventWritersUponSealed(segment0, segmentSealedCallback);
         // one pending event is returned by segment0
         assertEquals(singletonList(pendingEvent), pendingEvents);
         // the current number of writers is 3, it includes the writer to segment 0.
-        List<SegmentOutputStream> writers = selector.getWriters();
+        Map<Segment, SegmentOutputStream> writers = selector.getWriters();
         assertEquals(3, writers.size());
-        assertTrue(writers.contains(s0Writer));
-        assertTrue(writers.contains(s1Writer));
-        assertTrue(writers.contains(s2Writer));
+        assertTrue(writers.values().contains(s0Writer));
+        assertTrue(writers.values().contains(s1Writer));
+        assertTrue(writers.values().contains(s2Writer));
         // remove segment 0, this is done post resending the pending events.
         selector.removeSegmentWriter(segment0);
-        assertFalse(selector.getWriters().contains(s0Writer));
+        assertFalse(selector.getWriters().values().contains(s0Writer));
     }
 
 }

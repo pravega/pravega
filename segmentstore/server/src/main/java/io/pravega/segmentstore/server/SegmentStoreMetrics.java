@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +12,9 @@ package io.pravega.segmentstore.server;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
+import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.shared.MetricsNames;
+import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
@@ -44,17 +46,12 @@ public final class SegmentStoreMetrics {
     /**
      * CacheManager metrics.
      */
-    public final static class CacheManager implements AutoCloseable {
-        private final OpStatsLogger generationSpread = STATS_LOGGER.createStats(MetricsNames.CACHE_GENERATION_SPREAD);
-
-        public void report(long totalBytes, int generationSpread) {
-            DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_TOTAL_SIZE_BYTES, totalBytes);
-            this.generationSpread.reportSuccessValue(generationSpread);
-        }
-
-        @Override
-        public void close()  {
-            this.generationSpread.close();
+    public final static class CacheManager {
+        public void report(CacheState snapshot, int generationSpread) {
+            DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_STORED_SIZE_BYTES, snapshot.getStoredBytes());
+            DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_USED_SIZE_BYTES, snapshot.getUsedBytes());
+            DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_ALLOC_SIZE_BYTES, snapshot.getAllocatedBytes());
+            DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_GENERATION_SPREAD, generationSpread);
         }
     }
 
@@ -260,7 +257,7 @@ public final class SegmentStoreMetrics {
     /**
      * StreamSegmentContainer Metrics.
      */
-    public final static class Container {
+    public final static class Container implements AutoCloseable {
         private final String[] containerTag;
 
         public Container(int containerId) {
@@ -284,7 +281,7 @@ public final class SegmentStoreMetrics {
         }
 
         public void updateAttributes() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_GET_ATTRIBUTES_COUNT, 1, containerTag);
+            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_UPDATE_ATTRIBUTES_COUNT, 1, containerTag);
         }
 
         public void getAttributes() {
@@ -310,6 +307,104 @@ public final class SegmentStoreMetrics {
         public void truncate() {
             DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_TRUNCATE_COUNT, 1, containerTag);
         }
+
+        @Override
+        public void close() {
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_CREATE_SEGMENT_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_DELETE_SEGMENT_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_MERGE_SEGMENT_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_APPEND_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_APPEND_OFFSET_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_UPDATE_ATTRIBUTES_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_GET_ATTRIBUTES_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_READ_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_GET_INFO_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_SEAL_COUNT, containerTag);
+            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_TRUNCATE_COUNT, containerTag);
+        }
+    }
+
+    //endregion
+
+    //region StorageWriter
+
+    /**
+     * StorageWriter metrics.
+     */
+    public final static class StorageWriter implements AutoCloseable {
+        /**
+         * Time elapsed for flushing all processors.
+         */
+        private final OpStatsLogger flushElapsed;
+        /**
+         * Time elapsed for an iteration.
+         */
+        private final OpStatsLogger iterationElapsed;
+        /**
+         * Number of bytes flushed to Storage.
+         */
+        private final Counter flushedBytes;
+        /**
+         * Number of bytes merged in Storage.
+         */
+        private final Counter mergedBytes;
+        /**
+         * Number of attributes flushed to Storage.
+         */
+        private final Counter flushedAttributes;
+        /**
+         * Number of operations read from DurableLog.
+         */
+        private final Counter readCount;
+
+        public StorageWriter(int containerId) {
+            String[] containerTag = containerTag(containerId);
+            this.flushElapsed = STATS_LOGGER.createStats(MetricsNames.STORAGE_WRITER_FLUSH_ELAPSED, containerTag);
+            this.iterationElapsed = STATS_LOGGER.createStats(MetricsNames.STORAGE_WRITER_ITERATION_ELAPSED, containerTag);
+            this.readCount = STATS_LOGGER.createCounter(MetricsNames.STORAGE_WRITER_READ_COUNT, containerTag);
+            this.flushedBytes = STATS_LOGGER.createCounter(MetricsNames.STORAGE_WRITER_FLUSHED_BYTES, containerTag);
+            this.mergedBytes = STATS_LOGGER.createCounter(MetricsNames.STORAGE_WRITER_MERGED_BYTES, containerTag);
+            this.flushedAttributes = STATS_LOGGER.createCounter(MetricsNames.STORAGE_WRITER_FLUSHED_ATTRIBUTES, containerTag);
+        }
+
+        @Override
+        public void close() {
+            this.readCount.close();
+            this.flushElapsed.close();
+            this.iterationElapsed.close();
+            this.flushedBytes.close();
+            this.mergedBytes.close();
+            this.flushedAttributes.close();
+        }
+
+        public void readComplete(int operationCount) {
+            this.readCount.add(operationCount);
+        }
+
+        public void flushComplete(long flushedBytes, long mergedBytes, int flushedAttributes, Duration elapsed) {
+            this.flushedBytes.add(flushedBytes);
+            this.mergedBytes.add(mergedBytes);
+            this.flushedAttributes.add(flushedAttributes);
+            this.flushElapsed.reportSuccessEvent(elapsed);
+        }
+
+        public void iterationComplete(Duration elapsed) {
+            this.iterationElapsed.reportSuccessEvent(elapsed);
+        }
+    }
+
+    //endregion
+
+    //region RecoveryProcessor
+
+    /**
+     * Reports the time taken for a container recovery.
+     *
+     * @param duration Time taken for a Segment Store instance to perform the recovery of containers.
+     * @param containerId Container id related to the recovery process.
+     */
+    public static void recoveryCompleted(long duration, int containerId) {
+        DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CONTAINER_RECOVERY_TIME, duration, containerTag(containerId));
     }
 
     //endregion

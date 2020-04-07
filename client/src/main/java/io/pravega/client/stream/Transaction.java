@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,6 +80,15 @@ public interface Transaction<Type> {
      * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
     void commit() throws TxnFailedException;
+    
+    /**
+     * Commits the transaction similar to {@link #commit()}, but also notes an associated timestamp.
+     * Similar to {@link EventStreamWriter#noteTime(long)}.
+     * 
+     * @param timestamp A timestamp associated with this transaction.
+     * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
+     */
+    void commit(long timestamp) throws TxnFailedException;
 
     /**
      * Drops the transaction, causing all events written to it to be deleted.

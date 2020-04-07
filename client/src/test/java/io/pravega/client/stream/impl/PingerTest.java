@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,10 +9,13 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.InlineExecutor;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -34,6 +37,7 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -43,7 +47,6 @@ import static org.mockito.Mockito.when;
 @Slf4j
 public class PingerTest {
 
-    private static final double PING_INTERVAL_FACTOR = 0.5;
     private EventWriterConfig config;
     private Stream stream;
     @Mock
@@ -77,12 +80,11 @@ public class PingerTest {
     public void startTxnKeepAlive() throws Exception {
         final UUID txnID = UUID.randomUUID();
         @Cleanup
-        Pinger pinger = new Pinger(config, stream, controller, executor);
+        Pinger pinger = new Pinger(config.getTransactionTimeoutTime(), stream, controller, executor);
 
         pinger.startPing(txnID);
-        long expectedKeepAliveInterval = (long) (PING_INTERVAL_FACTOR * config.getTransactionTimeoutTime());
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
-                eq(expectedKeepAliveInterval), eq(TimeUnit.MILLISECONDS));
+                longThat(i -> i <= config.getTransactionTimeoutTime()), eq(TimeUnit.MILLISECONDS));
         verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID), eq(config.getTransactionTimeoutTime()));
     }
 
@@ -93,11 +95,11 @@ public class PingerTest {
                                                                      .transactionTimeoutTime(SECONDS.toMillis(10))
                                                                      .build();
         @Cleanup
-        Pinger pinger = new Pinger(smallTxnLeaseTime, stream, controller, executor);
+        Pinger pinger = new Pinger(smallTxnLeaseTime.getTransactionTimeoutTime(), stream, controller, executor);
         pinger.startPing(txnID);
 
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
-                eq(SECONDS.toMillis(10)), eq(TimeUnit.MILLISECONDS));
+                longThat(l -> l > 0 && l <= 10000), eq(TimeUnit.MILLISECONDS));
         verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID),
                 eq(smallTxnLeaseTime.getTransactionTimeoutTime()));
     }
@@ -111,12 +113,11 @@ public class PingerTest {
         when(controller.pingTransaction(eq(stream), eq(txnID), anyLong())).thenReturn(failedFuture);
 
         @Cleanup
-        Pinger pinger = new Pinger(config, stream, controller, executor);
+        Pinger pinger = new Pinger(config.getTransactionTimeoutTime(), stream, controller, executor);
         pinger.startPing(txnID);
 
-        long expectedKeepAliveInterval = (long) (PING_INTERVAL_FACTOR * config.getTransactionTimeoutTime());
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
-                eq(expectedKeepAliveInterval), eq(TimeUnit.MILLISECONDS));
+                                                       longThat(l -> l > 0 && l <= 10000), eq(TimeUnit.MILLISECONDS));
         verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID), eq(config.getTransactionTimeoutTime()));
     }
 
@@ -125,23 +126,23 @@ public class PingerTest {
         final UUID txnID1 = UUID.randomUUID();
         final UUID txnID2 = UUID.randomUUID();
         @Cleanup
-        Pinger pinger = new Pinger(config, stream, controller, executor);
+        Pinger pinger = new Pinger(config.getTransactionTimeoutTime(), stream, controller, executor);
 
         pinger.startPing(txnID1);
         pinger.startPing(txnID2);
-        long expectedKeepAliveInterval = (long) (PING_INTERVAL_FACTOR * config.getTransactionTimeoutTime());
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
-                eq(expectedKeepAliveInterval), eq(TimeUnit.MILLISECONDS));
+                                                       longThat(l -> l > 0 && l <= 10000), eq(TimeUnit.MILLISECONDS));
     }
 
     @Test
     public void testPingWithStatus() {
 
-        config = EventWriterConfig.builder().transactionTimeoutTime(500).build();
+        long transactionTimeoutTime = 500;
         final UUID txnID1 = UUID.randomUUID();
         final UUID txnID2 = UUID.randomUUID();
         final UUID txnID3 = UUID.randomUUID();
         final UUID txnID4 = UUID.randomUUID();
+        final UUID txnID5 = UUID.randomUUID();
 
         @Cleanup("shutdown")
         InlineExecutor pingExecutor = new InlineExecutor();
@@ -157,18 +158,23 @@ public class PingerTest {
         failedPingFuture.completeExceptionally(new RuntimeException("error"));
         when(controller.pingTransaction(any(Stream.class), eq(txnID4), anyLong()))
                 .thenReturn(failedPingFuture);
+        when(controller.pingTransaction(eq(stream), eq(txnID5), anyLong()))
+                .thenReturn(Futures.failedFuture(new StatusRuntimeException(Status.NOT_FOUND)));
+
         @Cleanup
-        Pinger pinger = new Pinger(config, stream, controller, pingExecutor);
+        Pinger pinger = new Pinger(transactionTimeoutTime, stream, controller, pingExecutor);
 
         pinger.startPing(txnID1);
         pinger.startPing(txnID2);
         pinger.startPing(txnID3);
         pinger.startPing(txnID4);
+        pinger.startPing(txnID5);
 
-        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID1), eq(config.getTransactionTimeoutTime()));
-        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID2), eq(config.getTransactionTimeoutTime()));
-        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID3), eq(config.getTransactionTimeoutTime()));
-        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID4), eq(config.getTransactionTimeoutTime()));
-        assertEquals(2, pinger.getCompletedTxns().size());
+        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID1), eq(transactionTimeoutTime));
+        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID2), eq(transactionTimeoutTime));
+        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID3), eq(transactionTimeoutTime));
+        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID4), eq(transactionTimeoutTime));
+        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID5), eq(transactionTimeoutTime));
+        assertEquals(3, pinger.getCompletedTxns().size());
     }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,9 +39,9 @@ import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifi
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
-import io.pravega.segmentstore.server.security.TLSConfigChangeFileConsumer;
-import io.pravega.segmentstore.server.security.TLSConfigChangeEventConsumer;
-import io.pravega.segmentstore.server.security.TLSHelper;
+import io.pravega.segmentstore.server.host.security.TLSConfigChangeFileConsumer;
+import io.pravega.segmentstore.server.host.security.TLSConfigChangeEventConsumer;
+import io.pravega.segmentstore.server.host.security.TLSHelper;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
@@ -54,6 +54,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 /**
@@ -68,6 +69,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private final StreamSegmentStore store;
     private final TableStore tableStore;
     private final DelegationTokenVerifier tokenVerifier;
+    private final ConnectionTracker connectionTracker;
 
     private Channel serverChannel;
     private EventLoopGroup bossGroup;
@@ -146,6 +148,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
             this.tokenVerifier = new PassingTokenVerifier();
         }
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
+        this.connectionTracker = new ConnectionTracker();
     }
 
     //endregion
@@ -190,7 +193,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
                  ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
                  p.addLast(new ExceptionLoggingHandler(ch.remoteAddress().toString()),
-                         new CommandEncoder(null),
+                         new CommandEncoder(null, NO_OP_METRIC_NOTIFIER),
                          new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                          new CommandDecoder(),
                          new AppendDecoder(),
@@ -198,6 +201,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
+                         connectionTracker,
                          new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError),
                          statsRecorder,
                          tokenVerifier,

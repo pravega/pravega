@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,13 +9,15 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.CompositeArrayView;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
+import io.pravega.segmentstore.storage.WriteSettings;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -156,8 +158,10 @@ public class DebugLogWrapper implements AutoCloseable {
         }
 
         @Override
-        public int getMaxAppendLength() {
-            return BookKeeperConfig.MAX_APPEND_LENGTH;
+        public WriteSettings getWriteSettings() {
+            return new WriteSettings(BookKeeperConfig.MAX_APPEND_LENGTH,
+                    Duration.ofMillis(BookKeeperConfig.BK_WRITE_TIMEOUT.getDefaultValue()),
+                    BookKeeperConfig.MAX_OUTSTANDING_BYTES.getDefaultValue());
         }
 
         @Override
@@ -168,6 +172,11 @@ public class DebugLogWrapper implements AutoCloseable {
         @Override
         public QueueStats getQueueStatistics() {
             return null;
+        }
+
+        @Override
+        public void registerQueueStateChangeListener(ThrottleSourceListener listener) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -186,7 +195,7 @@ public class DebugLogWrapper implements AutoCloseable {
         }
 
         @Override
-        public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
+        public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
             throw new UnsupportedOperationException();
         }
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,22 @@ public final class BitConverter {
         target[offset] = (byte) (value >>> 8 & 255);
         target[offset + 1] = (byte) (value & 255);
         return Short.BYTES;
+    }
+
+    /**
+     * Writes the given 32-bit Integer to the given {@link CompositeArrayView} at the given offset.
+     *
+     * @param target The {@link CompositeArrayView} to write to.
+     * @param offset The offset within the {@link CompositeArrayView} to write at.
+     * @param value  The value to write.
+     * @return The number of bytes written.
+     */
+    public static int writeInt(CompositeArrayView target, int offset, int value) {
+        target.set(offset, (byte) (value >>> 24));
+        target.set(offset + 1, (byte) (value >>> 16));
+        target.set(offset + 2, (byte) (value >>> 8));
+        target.set(offset + 3, (byte) value);
+        return Integer.BYTES;
     }
 
     /**

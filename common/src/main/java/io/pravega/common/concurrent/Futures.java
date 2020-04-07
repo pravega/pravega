@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -358,6 +359,22 @@ public final class Futures {
     public static <T, E extends Exception> CompletableFuture<Void> toVoidExpecting(CompletableFuture<T> future,
                                                                                    T expectedValue, Supplier<E> exceptionConstructor) {
         return future.thenApply(value -> expect(value, expectedValue, exceptionConstructor));
+    }
+
+    /**
+     * Same as CompletableFuture.handle(), except that it allows returning a CompletableFuture instead of a single value.
+     *
+     * @param future  The original CompletableFuture to attach a handle callback.
+     * @param handler A BiFunction that consumes a Throwable or successful result 
+     *                and returns a CompletableFuture of the same type as the original one.
+     *                This Function will be invoked after the original Future completes both successfully and exceptionally.
+     * @param <T>     Type of the value of the original Future.
+     * @param <U>     Type of the value of the returned Future.
+     * @return A new CompletableFuture that will handle the result/exception and return a new future or throw the exception. 
+     */
+    public static <T, U> CompletableFuture<U> handleCompose(CompletableFuture<T> future, 
+                                                         BiFunction<T, Throwable, CompletableFuture<U>> handler) {
+        return future.handle(handler).thenCompose(f -> f);
     }
 
     @SneakyThrows

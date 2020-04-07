@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,8 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -18,31 +20,25 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.Transaction.Status;
-import io.pravega.client.stream.TransactionalEventStreamWriter;
-import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.common.util.Retry;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-
-import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 /**
  * This class takes in events, finds out which segment they belong to and then calls write on the appropriate segment.
@@ -52,7 +48,7 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
  */
 @Slf4j
 @ToString(of = { "stream", "closed" })
-public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, TransactionalEventStreamWriter<Type> {
+public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     /**
      * These two locks are used to enforce the following behavior:
@@ -70,8 +66,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
     private final Object writeSealLock = new Object();
 
     private final Stream stream;
+    private final String writerId;
     private final Serializer<Type> serializer;
-    private final SegmentOutputStreamFactory outputStreamFactory;
     private final Controller controller;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventWriterConfig config;
@@ -80,21 +76,27 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
     private final ConcurrentLinkedQueue<Segment> sealedSegmentQueue = new ConcurrentLinkedQueue<>();
     private final ExecutorService retransmitPool;
     private final Pinger pinger;
+    private final DelegationTokenProvider tokenProvider;
     
-    EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
+    EventStreamWriterImpl(Stream stream, String writerId, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
                           Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool,
                           ScheduledExecutorService internalExecutor) {
+        this.writerId = writerId;
         this.stream = Preconditions.checkNotNull(stream);
         this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
-        this.outputStreamFactory = Preconditions.checkNotNull(outputStreamFactory);
-        this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config);
+        this.tokenProvider = DelegationTokenProviderFactory.create(this.controller, this.stream.getScope(), this.stream.getStreamName());
+        this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config, tokenProvider);
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
         this.retransmitPool = Preconditions.checkNotNull(retransmitPool);
-        this.pinger = new Pinger(config, stream, controller, internalExecutor);
+        this.pinger = new Pinger(config.getTransactionTimeoutTime(), stream, controller, internalExecutor);
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         assert failedEvents.isEmpty() : "There should not be any events to have failed";
+        if (config.isAutomaticallyNoteTime()) {
+            //See: https://github.com/pravega/pravega/issues/4218
+            internalExecutor.scheduleWithFixedDelay(() -> noteTimeInternal(System.currentTimeMillis()), 5, 5, TimeUnit.SECONDS);
+        }
     }
 
     @Override
@@ -163,7 +165,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
                               * inflight that will need to be resent to the new segment when the write lock
                               * is released. (To preserve order)
                               */
-                             for (SegmentOutputStream writer : selector.getWriters()) {
+                             for (SegmentOutputStream writer : selector.getWriters().values()) {
                                  try {
                                      writer.write(PendingEvent.withoutHeader(null, ByteBufferUtils.EMPTY, null));
                                      writer.flush();
@@ -206,154 +208,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         }
     }
 
-    private static class TransactionImpl<Type> implements Transaction<Type> {
-
-        private final Map<Segment, SegmentTransaction<Type>> inner;
-        private final UUID txId;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
-        private final Controller controller;
-        private final Stream stream;
-        private final Pinger pinger;
-        private StreamSegments segments;
-
-        TransactionImpl(UUID txId, Map<Segment, SegmentTransaction<Type>> transactions, StreamSegments segments,
-                Controller controller, Stream stream, Pinger pinger) {
-            this.txId = txId;
-            this.inner = transactions;
-            this.segments = segments;
-            this.controller = controller;
-            this.stream = stream;
-            this.pinger = pinger;
-        }
-        
-        /**
-         * Create closed transaction
-         */
-        TransactionImpl(UUID txId, Controller controller, Stream stream) {
-            this.txId = txId;
-            this.inner = null;
-            this.segments = null;
-            this.controller = controller;
-            this.stream = stream;
-            this.pinger = null;
-            this.closed.set(true);
-        }
-
-        /**
-         * Uses the transactionId to generate the routing key so that we only need to use one segment.
-         */
-        @Override
-        public void writeEvent(Type event) throws TxnFailedException {
-            writeEvent(txId.toString(), event);
-        }
-        
-        @Override
-        public void writeEvent(String routingKey, Type event) throws TxnFailedException {
-            Preconditions.checkNotNull(event);
-            throwIfClosed();
-            Segment s = segments.getSegmentForKey(routingKey);
-            SegmentTransaction<Type> transaction = inner.get(s);
-            transaction.writeEvent(event);
-        }
-
-        @Override
-        public void commit() throws TxnFailedException {
-            throwIfClosed();
-            for (SegmentTransaction<Type> tx : inner.values()) {
-                tx.close();
-            }
-            getAndHandleExceptions(controller.commitTransaction(stream, txId), TxnFailedException::new);
-            pinger.stopPing(txId);
-            closed.set(true);
-        }
-
-        @Override
-        public void abort() {
-            if (!closed.get()) {
-                for (SegmentTransaction<Type> tx : inner.values()) {
-                    try {
-                        tx.close();
-                    } catch (TxnFailedException e) {
-                        log.debug("Got exception while writing to transaction on abort: {}", e.getMessage());
-                    }
-                }
-                pinger.stopPing(txId);
-                getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
-                closed.set(true);
-            }
-        }
-
-        @Override
-        public Status checkStatus() {
-            return getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
-        }
-
-        @Override
-        public void flush() throws TxnFailedException {
-            throwIfClosed();
-            for (SegmentTransaction<Type> tx : inner.values()) {
-                tx.flush();
-            }
-        }
-
-        @Override
-        public UUID getTxnId() {
-            return txId;
-        }
-        
-        private void throwIfClosed() throws TxnFailedException {
-            if (closed.get()) {
-                throw new TxnFailedException();
-            }
-        }
-
-    }
-
-    /**
-     * Moved to {@link TransactionalEventStreamWriterImpl}.
-     * @deprecated Moved to {@link TransactionalEventStreamWriterImpl}
-     */
-    @Override
-    @Deprecated
-    public Transaction<Type> beginTxn() {
-        TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime()),
-                RuntimeException::new);
-        UUID txnId = txnSegments.getTxnId();
-        Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        for (Segment s : txnSegments.getSteamSegments().getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId,
-                    config, txnSegments.getSteamSegments().getDelegationToken());
-            SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
-            transactions.put(s, impl);
-        }
-        pinger.startPing(txnId);
-        return new TransactionImpl<Type>(txnId, transactions, txnSegments.getSteamSegments(), controller, stream, pinger);
-    }
-    
-    /**
-     * Moved to {@link TransactionalEventStreamWriterImpl}.
-     * @deprecated Moved to {@link TransactionalEventStreamWriterImpl}
-     */
-    @Override
-    @Deprecated
-    public Transaction<Type> getTxn(UUID txId) {
-        StreamSegments segments = getAndHandleExceptions(
-                controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);
-        Status status = getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
-        if (status != Status.OPEN) {
-            return new TransactionImpl<>(txId, controller, stream);
-        }
-        
-        Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        for (Segment s : segments.getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config, segments.getDelegationToken());
-            SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
-            transactions.put(s, impl);
-        }
-        return new TransactionImpl<Type>(txId, transactions, segments, controller, stream, pinger);
-        
-    }
-
     @Override
     public void flush() {
         Preconditions.checkState(!closed.get());
@@ -361,7 +215,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
             boolean success = false;
             while (!success) {
                 success = true;
-                for (SegmentOutputStream writer : selector.getWriters()) {
+                for (SegmentOutputStream writer : selector.getWriters().values()) {
                     try {
                         writer.flush();
                     } catch (SegmentSealedException e) {
@@ -386,7 +240,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
             boolean success = false;
             while (!success) {
                 success = true;
-                for (SegmentOutputStream writer : selector.getWriters()) {
+                for (SegmentOutputStream writer : selector.getWriters().values()) {
                     try {
                         writer.close();
                     } catch (SegmentSealedException e) {
@@ -405,4 +259,19 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         return config;
     }
 
+    @Override
+    public void noteTime(long timestamp) {
+        Preconditions.checkState(!config.isAutomaticallyNoteTime(), "To note time, automatic noting of time should be disabled.");
+        noteTimeInternal(timestamp);
+    }
+
+    private void noteTimeInternal(long timestamp) {
+        Map<Segment, Long> offsets = selector.getWriters()
+                                             .entrySet()
+                                             .stream()
+                                             .collect(Collectors.toMap(e -> e.getKey(),
+                                                                       e -> e.getValue().getLastObservedWriteOffset()));
+        WriterPosition position = new WriterPosition(offsets);
+        controller.noteTimestampFromWriter(writerId, stream, timestamp, position);
+    }
 }

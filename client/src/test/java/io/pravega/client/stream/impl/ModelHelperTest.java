@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,13 +43,6 @@ public class ModelHelperTest {
         return new Segment("scope", streamName, number);
     }
 
-    private static PositionInternal createPosition() {
-        Map<Segment, Long> ownedLogs = new HashMap<>();
-        ownedLogs.put(createSegmentId("stream", 1), 1L);
-        ownedLogs.put(createSegmentId("stream", 2), 2L);
-        return new PositionImpl(ownedLogs);
-    }
-
     @Test(expected = NullPointerException.class)
     public void decodeSegmentIdNullTest() {
         ModelHelper.decode((Segment) null);
@@ -76,6 +69,15 @@ public class ModelHelperTest {
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
         assertEquals(2L, segment.getSegmentId());
+    }
+    
+    @Test
+    public void encodeSegmentWithRange() {
+        SegmentWithRange segment = ModelHelper.encode(createSegmentRange(.25, .75));
+        assertEquals("testStream", segment.getSegment().getStreamName());
+        assertEquals("testScope", segment.getSegment().getScope());
+        assertEquals(.25, segment.getRange().getLow(), 0.0);
+        assertEquals(.75, segment.getRange().getHigh(), 0.0);
     }
 
     @Test(expected = NullPointerException.class)

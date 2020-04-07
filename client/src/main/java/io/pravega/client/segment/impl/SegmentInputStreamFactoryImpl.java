@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,8 +11,12 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.common.MathHelpers;
 import io.pravega.common.concurrent.Futures;
+import java.util.concurrent.Semaphore;
 import lombok.RequiredArgsConstructor;
 
 @VisibleForTesting
@@ -28,22 +32,24 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     }
 
     @Override
-    public EventSegmentReader createEventReaderForSegment(Segment segment, long endOffset) {
-        return getEventSegmentReader(segment, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    public EventSegmentReader createEventReaderForSegment(Segment segment, Semaphore hasData, long endOffset) {
+        return getEventSegmentReader(segment, hasData, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
     public EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize) {
-        return getEventSegmentReader(segment, Long.MAX_VALUE, bufferSize);
+        return getEventSegmentReader(segment, null, Long.MAX_VALUE, bufferSize);
     }
 
-    private EventSegmentReader getEventSegmentReader(Segment segment, long endOffset, int bufferSize) {
+    private EventSegmentReader getEventSegmentReader(Segment segment, Semaphore hasData, long endOffset, int bufferSize) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
                                                                                                           segment.getStream()
                                                                                                                  .getStreamName()),
                                                                 RuntimeException::new);
-        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
-        async.getConnection();
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment,
+                DelegationTokenProviderFactory.create(delegationToken, controller, segment), hasData);
+        async.getConnection();                      //Sanity enforcement
+        bufferSize = MathHelpers.minMax(bufferSize, SegmentInputStreamImpl.MIN_BUFFER_SIZE, SegmentInputStreamImpl.MAX_BUFFER_SIZE);
         return getEventSegmentReader(async, 0, endOffset, bufferSize);
     }
 
@@ -59,8 +65,8 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken) {
-        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
+    public SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider) {
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, tokenProvider, null);
         async.getConnection();
         return new SegmentInputStreamImpl(async, 0);
     }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -62,6 +64,8 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         requestTracker = new RequestTracker(true);
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
 
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
@@ -76,14 +80,13 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
                 executorService);
-
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         Cluster mockCluster = mock(Cluster.class);
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
         controllerService = new ControllerServiceImpl(
-                new ControllerService(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                new ControllerService(streamStore, StreamStoreFactory.createInMemoryBucketStore(), streamMetadataTasks, streamTransactionMetadataTasks,
                                       SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster), GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
@@ -97,5 +100,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
             streamTransactionMetadataTasks.close();
         }
         streamStore.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
     }
 }

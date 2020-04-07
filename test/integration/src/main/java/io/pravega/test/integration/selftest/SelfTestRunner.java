@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.shared.metrics.MetricsConfig;
 import java.io.File;
@@ -40,6 +41,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Main entry point for Self Tester.
+ * See https://github.com/pravega/pravega/wiki/Local-Stress-Testing for more details.
  */
 public class SelfTestRunner {
     private static final long STARTUP_TIMEOUT_MILLIS = 60 * 1000;
@@ -128,8 +130,8 @@ public class SelfTestRunner {
                 .builder()
                 .include(ServiceConfig.builder()
                                       .with(ServiceConfig.THREAD_POOL_SIZE, 80)
-                                      .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 600)
-                                      .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 4 * 1024 * 1024 * 1024L)
+                                      .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 30)
+                                      .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 6 * 1024 * 1024 * 1024L)
                                       .with(ServiceConfig.CERT_FILE, "../config/cert.pem")
                                       .with(ServiceConfig.KEY_FILE, "../config/key.pem"))
                 .include(DurableLogConfig.builder()
@@ -138,6 +140,10 @@ public class SelfTestRunner {
                                          .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                 .include(ReadIndexConfig.builder()
                                         .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 128 * 1024))
+                .include(WriterConfig.builder()
+                        .with(WriterConfig.MAX_ITEMS_TO_READ_AT_ONCE, 10000)
+                        .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 64 * 1024 * 1024)
+                        .with(WriterConfig.MAX_FLUSH_SIZE_BYTES, 64 * 1024 * 1024))
                 .include(ContainerConfig.builder()
                                         .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS,
                                                 ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS)
@@ -146,7 +152,7 @@ public class SelfTestRunner {
                 .include(BookKeeperConfig.builder()
                                          .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, Integer.MAX_VALUE)
                                          .with(BookKeeperConfig.ZK_METADATA_PATH, "/pravega/selftest/segmentstore/containers")
-                                         .with(BookKeeperConfig.BK_LEDGER_PATH, TestConfig.BK_LEDGER_PATH));
+                        .with(BookKeeperConfig.BK_LEDGER_PATH, TestConfig.BK_ZK_LEDGER_PATH));
     }
 
     private static void setupLogging(TestConfig testConfig) {
@@ -183,6 +189,8 @@ public class SelfTestRunner {
         System.out.println("- Shortcuts:");
         Shortcuts.forEach(s -> System.out.println(String.format("\t-%s: %s", s.key, s.property.getName())));
         System.out.println("At least one shortcut or a reference to a config file is required for the test.");
+        System.out.println();
+        System.out.println("Full user manual: https://github.com/pravega/pravega/wiki/Local-Stress-Testing.");
     }
 
     //region Shortcuts
@@ -199,12 +207,15 @@ public class SelfTestRunner {
                     new Shortcut("o", TestConfig.OPERATION_COUNT),
                     new Shortcut("p", TestConfig.PRODUCER_COUNT),
                     new Shortcut("pp", TestConfig.PRODUCER_PARALLELISM),
+                    new Shortcut("wps", TestConfig.CLIENT_WRITERS_PER_STREAM),
                     new Shortcut("ws", TestConfig.MIN_APPEND_SIZE),
                     new Shortcut("ws", TestConfig.MAX_APPEND_SIZE),
                     new Shortcut("target", TestConfig.TEST_TYPE),
                     new Shortcut("cc", TestConfig.CONTROLLER_COUNT),
                     new Shortcut("ssc", TestConfig.SEGMENT_STORE_COUNT),
                     new Shortcut("bkc", TestConfig.BOOKIE_COUNT),
+                    new Shortcut("bkledgerdir", TestConfig.BOOKIE_LEDGERS_DIR),
+                    new Shortcut("storagedir", TestConfig.STORAGE_DIR),
                     new Shortcut("controller", TestConfig.CONTROLLER_HOST),
                     new Shortcut("controllerport", TestConfig.CONTROLLER_BASE_PORT),
                     new Shortcut("metrics", TestConfig.METRICS_ENABLED),

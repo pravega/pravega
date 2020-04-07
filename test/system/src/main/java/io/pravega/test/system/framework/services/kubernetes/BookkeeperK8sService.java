@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@ package io.pravega.test.system.framework.services.kubernetes;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
-
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
@@ -97,7 +96,8 @@ public class BookkeeperK8sService extends AbstractService {
                             log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
                                       currentControllerCount, currentSegmentStoreCount);
                             if (currentBookkeeperCount != newInstanceCount) {
-                                return deployPravegaUsingOperator(zkUri, currentControllerCount, currentSegmentStoreCount, newInstanceCount, properties)
+                                final Map<String, Object> patchedSpec = buildPatchedPravegaClusterSpec("replicas", newInstanceCount, "bookkeeper");
+                                return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, patchedSpec)
                                         .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount));
                             } else {
                                 return CompletableFuture.completedFuture(null);

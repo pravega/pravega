@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@ import com.google.common.base.Throwables;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.AuthorizationException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
@@ -60,6 +62,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Function;
@@ -352,8 +355,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void commitTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("commitTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+                request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(
                         request.getStreamInfo().getScope(),
@@ -361,47 +365,50 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId()),
+                        txnId, request.getWriterId(), request.getTimestamp()),
                 responseObserver);
     }
 
     @Override
     public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("abortTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+                request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults( () -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.abortTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId()),
+                        txnId),
                 responseObserver);
     }
 
     @Override
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+                request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                delegationToken  -> controllerService.pingTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId(),
+                        txnId,
                         request.getLease()),
                 responseObserver);
     }
 
     @Override
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+                request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId()),
+                        txnId),
                 responseObserver);
     }
 
@@ -498,7 +505,35 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 },
                 responseObserver);
     }
+    // region watermarking apis
+    
+    @Override
+    public void noteTimestampFromWriter(Controller.TimestampFromWriter request, StreamObserver<Controller.TimestampResponse> responseObserver) {
+        StreamInfo streamInfo = request.getPosition().getStreamInfo();
+        log.info("noteWriterMark called for stream {}/{}, writer={} time={}", streamInfo.getScope(),
+                streamInfo.getStream(), request.getWriter(), request.getTimestamp());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                AuthResourceRepresentation.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken  -> controllerService.noteTimestampFromWriter(streamInfo.getScope(),
+                        streamInfo.getStream(), request.getWriter(), request.getTimestamp(), request.getPosition().getCutMap()),
+                responseObserver);
+    }
 
+    @Override
+    public void removeWriter(Controller.RemoveWriterRequest request, StreamObserver<Controller.RemoveWriterResponse> responseObserver) {
+        StreamInfo streamInfo = request.getStream();
+        log.info("writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
+                streamInfo.getStream(), request.getWriter());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                AuthResourceRepresentation.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken  -> controllerService.removeWriter(streamInfo.getScope(),
+                        streamInfo.getStream(), request.getWriter()),
+                responseObserver);
+    }
+    // endregion
+    
     private void logIfEmpty(String delegationToken, String requestName, String scopeName, String streamName) {
         if (isAuthEnabled() && Strings.isNullOrEmpty(delegationToken)) {
             log.warn("Delegation token for request [{}] with scope [{}] and stream [{}], is: [{}]",
@@ -518,8 +553,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);
                             logError(requestTag, cause);
-                            String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
-                            streamObserver.onError(Status.INTERNAL
+                            String stackTrace = "controllerStackTrace=" + Throwables.getStackTraceAsString(ex);
+                            String errorDescription = replyWithStackTraceOnError ? stackTrace : cause.getMessage();
+                            streamObserver.onError(getStatusFromException(cause)
                                     .withCause(cause)
                                     .withDescription(errorDescription)
                                     .asRuntimeException());
@@ -529,18 +565,53 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         }
                         logAndUntrackRequestTag(requestTag);
                     });
+        } catch (AuthenticationException e) {
+            // Empty credentials when Auth is enabled may lead to this exception here. When credentials are present in
+            // the client call but are incorrect, the client is returned the same status from AuthInterceptor.
+            handleException(e, streamObserver, requestTag, Status.UNAUTHENTICATED, "Authentication failed");
+        } catch (AuthorizationException e) {
+            handleException(e, streamObserver, requestTag, Status.PERMISSION_DENIED, "Authorization failed");
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
-            logAndUntrackRequestTag(requestTag);
-            streamObserver.onError(Status.UNAUTHENTICATED
-                    .withDescription("Authentication failed")
-                    .asRuntimeException());
+            handleException(e, streamObserver, requestTag, Status.INTERNAL, "Internal exception occurred");
         }
     }
 
     private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
                                                           final StreamObserver<T> streamObserver) {
         authenticateExecuteAndProcessResults(authenticator, call, streamObserver, null);
+    }
+
+    private void handleException(Exception e, final StreamObserver streamObserver, RequestTag requestTag,
+                                 Status status, String message) {
+        log.error("Encountered {} in authenticateExecuteAndProcessResults", e.getClass().getSimpleName(), e);
+        logAndUntrackRequestTag(requestTag);
+        streamObserver.onError(status.withDescription(message).asRuntimeException());
+    }
+    
+    @SuppressWarnings("checkstyle:ReturnCount")
+    private Status getStatusFromException(Throwable cause) {
+        if (cause instanceof StoreException.DataExistsException) {
+            return Status.ALREADY_EXISTS;
+        }
+        if (cause instanceof StoreException.DataNotFoundException) {
+            return Status.NOT_FOUND;
+        }
+        if (cause instanceof StoreException.DataNotEmptyException) {
+            return Status.FAILED_PRECONDITION;
+        }
+        if (cause instanceof StoreException.WriteConflictException) {
+            return Status.FAILED_PRECONDITION;
+        }
+        if (cause instanceof StoreException.IllegalStateException) {
+            return Status.INTERNAL;
+        }
+        if (cause instanceof StoreException.OperationNotAllowedException) {
+            return Status.PERMISSION_DENIED;
+        }
+        if (cause instanceof StoreException.StoreConnectionException) {
+            return Status.INTERNAL;
+        }
+        return Status.UNKNOWN;
     }
 
     private void logAndUntrackRequestTag(RequestTag requestTag) {

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,7 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ByteStreamClientFactory;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
@@ -123,7 +123,7 @@ public class ByteClientTest extends AbstractSystemTest {
                                                                            .clientConfig(Utils.buildClientConfig(controllerURI)).build(),
                 connectionFactory.getInternalExecutor());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
+        EventStreamClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
         log.info("Invoking byteClientTest test with Controller URI: {}", controllerURI);
         @Cleanup
         ByteStreamClientFactory byteStreamClient = new ByteStreamClientImpl(SCOPE, controller, connectionFactory);

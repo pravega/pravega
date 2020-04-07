@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,6 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import java.util.Collections;
 import java.util.HashMap;
@@ -101,7 +100,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             EventWriterConfig writerConfig = EventWriterConfig.builder()
                                                               .transactionTimeoutTime(30000)
                                                               .build();
-            TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("test", new UTF8StringSerializer(), writerConfig);
+            TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer", "test", new UTF8StringSerializer(), writerConfig);
 
             // region Successful commit tests
             Transaction<String> txn1 = test.beginTxn();
@@ -147,7 +146,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
                     .throwingOn(RuntimeException.class)
                     .runAsync(() -> controller.getCurrentSegments("test", "test")
                             .thenAccept(streamSegments -> {
-                                if (streamSegments.getSegments().stream().anyMatch(x -> StreamSegmentNameUtils.getEpoch(x.getSegmentId()) > 5)) {
+                                if (streamSegments.getSegments().stream().anyMatch(x -> NameUtils.getEpoch(x.getSegmentId()) > 5)) {
                                     System.err.println("Success");
                                     log.info("Success");
                                     System.exit(0);

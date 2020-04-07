@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -37,8 +38,8 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.storage.CacheFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -759,7 +760,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private class TestContext implements AutoCloseable {
         final KeyHasher hasher;
         final MockSegmentContainer container;
-        final InMemoryCacheFactory cacheFactory;
+        final CacheStorage cacheStorage;
         final CacheManager cacheManager;
         final ContainerTableExtensionImpl ext;
         final Random random;
@@ -775,8 +776,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         TestContext(KeyHasher hasher, int maxCompactionSize) {
             this.hasher = hasher;
             this.container = new MockSegmentContainer(() -> new SegmentMock(createSegmentMetadata(), executorService()));
-            this.cacheFactory = new InMemoryCacheFactory();
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
             this.ext = createExtension(maxCompactionSize);
             this.random = new Random(0);
         }
@@ -785,8 +786,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         public void close() {
             this.ext.close();
             this.cacheManager.close();
-            this.cacheFactory.close();
             this.container.close();
+            this.cacheStorage.close();
         }
 
         ContainerTableExtensionImpl createExtension() {
@@ -794,7 +795,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         ContainerTableExtensionImpl createExtension(int maxCompactionSize) {
-            return new TestTableExtensionImpl(this.container, this.cacheFactory, this.cacheManager, this.hasher, executorService(), maxCompactionSize);
+            return new TestTableExtensionImpl(this.container, this.cacheManager, this.hasher, executorService(), maxCompactionSize);
         }
 
         UpdateableSegmentMetadata createSegmentMetadata() {
@@ -812,9 +813,9 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static class TestTableExtensionImpl extends ContainerTableExtensionImpl {
         private final int maxCompactionSize;
 
-        TestTableExtensionImpl(SegmentContainer segmentContainer, CacheFactory cacheFactory, CacheManager cacheManager,
+        TestTableExtensionImpl(SegmentContainer segmentContainer, CacheManager cacheManager,
                                KeyHasher hasher, ScheduledExecutorService executor, int maxCompactionSize) {
-            super(segmentContainer, cacheFactory, cacheManager, hasher, executor);
+            super(segmentContainer, cacheManager, hasher, executor);
             this.maxCompactionSize = maxCompactionSize;
         }
 
@@ -945,12 +946,12 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
         @Override
-        public CompletableFuture<Void> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
@@ -975,7 +976,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> mergeStreamSegment(String targetSegmentName, String sourceSegmentName, Duration timeout) {
+        public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetSegmentName, String sourceSegmentName, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 

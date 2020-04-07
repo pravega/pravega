@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.SimpleMovingAverage;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
@@ -19,7 +18,6 @@ import java.io.OutputStream;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 /**
  * An OutputStream that abstracts writing to Data Frames. Allows writing arbitrary bytes, and seamlessly transitions
@@ -36,7 +34,7 @@ class DataFrameOutputStream extends OutputStream {
     private boolean hasDataInCurrentFrame;
     @Getter
     private boolean closed;
-    private final BufferFactory bufferFactory;
+    private final int maxDataFrameSize;
 
     //endregion
 
@@ -54,7 +52,7 @@ class DataFrameOutputStream extends OutputStream {
         Exceptions.checkArgument(maxDataFrameSize > DataFrame.MIN_ENTRY_LENGTH_NEEDED, "maxDataFrameSize",
                 "Must be a at least %s.", DataFrame.MIN_ENTRY_LENGTH_NEEDED);
 
-        this.bufferFactory = new BufferFactory(maxDataFrameSize);
+        this.maxDataFrameSize = maxDataFrameSize;
         this.dataFrameCompleteCallback = Preconditions.checkNotNull(dataFrameCompleteCallback, "dataFrameCompleteCallback");
     }
 
@@ -133,7 +131,6 @@ class DataFrameOutputStream extends OutputStream {
         // Invoke the callback. At the end of this, the frame is committed so we can get rid of it.
         if (!this.currentFrame.isEmpty()) {
             // Only flush something if it's not empty.
-            this.bufferFactory.markUsed(this.currentFrame.getLength());
             this.dataFrameCompleteCallback.accept(this.currentFrame);
         }
 
@@ -207,18 +204,10 @@ class DataFrameOutputStream extends OutputStream {
         this.hasDataInCurrentFrame = false;
     }
 
-    /**
-     * Releases any buffers that may be lingering around and are no longer needed.
-     */
-    void releaseBuffer() {
-        Exceptions.checkNotClosed(this.closed, this);
-        this.bufferFactory.reset();
-    }
-
     private void createNewFrame() {
         Preconditions.checkState(this.currentFrame == null || this.currentFrame.isSealed(), "Cannot create a new frame if we currently have a non-sealed frame.");
 
-        this.currentFrame = new DataFrame(this.bufferFactory.next());
+        this.currentFrame = DataFrame.ofSize(this.maxDataFrameSize);
         this.hasDataInCurrentFrame = false;
     }
 
@@ -231,60 +220,5 @@ class DataFrameOutputStream extends OutputStream {
     }
 
     //endregion
-
-    /**
-     * Buffer Factory for use with DataFrames.
-     */
-    @RequiredArgsConstructor
-    @NotThreadSafe
-    private static class BufferFactory {
-        private static final int MIN_LENGTH = 1024; // Min amount of space remaining in the buffer when trying to reuse it.
-        private final SimpleMovingAverage lastBuffers = new SimpleMovingAverage(10);
-        private final int maxLength;
-        private byte[] current;
-        private int currentUsed;
-
-        /**
-         * Gets a ByteArraySegment that can be used as a DataFrame buffer, which wraps a physical buffer (byte array).
-         * Tries to reuse the last used physical buffer as much as possible if space allows, otherwise a new byte array
-         * will be allocated.
-         *
-         * @return The ByteArraySegment to use.
-         */
-        ByteArraySegment next() {
-            if (this.current == null) {
-                this.current = new byte[this.maxLength];
-                this.currentUsed = 0;
-            }
-
-            return new ByteArraySegment(this.current, this.currentUsed, this.current.length - this.currentUsed);
-        }
-
-        /**
-         * Indicates that the given number of bytes have been used in the given buffer.
-         *
-         * @param length The number of bytes used.
-         */
-        void markUsed(int length) {
-            this.currentUsed += length;
-            this.lastBuffers.add(length);
-            int minLength = (int) Math.max(MIN_LENGTH, this.lastBuffers.getAverage(0));
-
-            if (this.current != null && (this.current.length - this.currentUsed < minLength)) {
-                this.current = null;
-            }
-        }
-
-        /**
-         * Releases the current buffer (if any) and resets the stats. After this method is called, the first call to next()
-         * will allocate a new buffer.
-         */
-        void reset() {
-            this.current = null;
-            this.lastBuffers.reset();
-        }
-    }
-
-
 }
 

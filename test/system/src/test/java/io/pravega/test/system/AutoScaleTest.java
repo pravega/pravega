@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -201,7 +201,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         ControllerImpl controller = getController();
         final AtomicBoolean exit = new AtomicBoolean(false);
         ClientFactoryImpl clientFactory = getClientFactory();
-        startWritingIntoTxn(clientFactory.createTransactionalEventWriter(SCALE_UP_TXN_STREAM_NAME, new JavaSerializer<>(),
+        startWritingIntoTxn(clientFactory.createTransactionalEventWriter("writer", SCALE_UP_TXN_STREAM_NAME, new JavaSerializer<>(),
                 EventWriterConfig.builder().build()), exit);
 
         // overall wait for test to complete in 260 seconds (4.2 minutes) or scale up, whichever happens first.

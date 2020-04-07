@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ public class StrongPasswordProcessorTest {
         String encrypted = processor.encryptPassword("1111_aaaa");
         StrongPasswordProcessor secondProcessor = StrongPasswordProcessor.builder().iterations(5000).build();
 
-        secondProcessor.checkPassword("1111_aaaa", encrypted);
+        secondProcessor.checkPassword("1111_aaaa".toCharArray(), encrypted);
 
         StrongPasswordProcessor failingProcessor = StrongPasswordProcessor.builder().iterations(1000).build();
         Assert.assertTrue("Passwords with different iterations should not match",

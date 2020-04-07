@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ public class ZooKeeperBucketManager extends BucketManager {
 
     @Override
     protected int getBucketCount() {
-        return bucketStore.getBucketCount();
+        return bucketStore.getBucketCount(getServiceType());
     }
 
     @Override
@@ -100,14 +100,14 @@ public class ZooKeeperBucketManager extends BucketManager {
 
     @Override
     public CompletableFuture<Void> initializeBucket(int bucket) {
-        Preconditions.checkArgument(bucket < bucketStore.getBucketCount());
+        Preconditions.checkArgument(bucket < bucketStore.getBucketCount(getServiceType()));
         
         return bucketStore.createBucket(getServiceType(), bucket);
     }
 
     @Override
     public CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
-        Preconditions.checkArgument(bucket < bucketStore.getBucketCount());
+        Preconditions.checkArgument(bucket < bucketStore.getBucketCount(getServiceType()));
         return bucketStore.takeBucketOwnership(getServiceType(), bucket, processId);
     }
 }

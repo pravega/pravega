@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ public class BitConverterTests {
     @Test
     public void testInt() {
         test(BitConverter::writeInt, BitConverter::readInt, Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1);
+        testCompositeArray(BitConverter::writeInt, BitConverter::readInt, Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1);
     }
 
     /**
@@ -64,7 +65,7 @@ public class BitConverterTests {
     }
 
     @SafeVarargs
-    private final <T> void test(Write<T> write, Read<T> read, T... testValues) {
+    private final <T> void test(WriteArray<T> write, Read<T> read, T... testValues) {
         byte[] buffer = new byte[MAX_LENGTH];
         for (T value : testValues) {
             int length = write.apply(buffer, 0, value);
@@ -73,9 +74,25 @@ public class BitConverterTests {
         }
     }
 
+    @SafeVarargs
+    private final <T> void testCompositeArray(WriteCompositeArray<T> write, Read<T> read, T... testValues) {
+        byte[] buffer = new byte[MAX_LENGTH];
+        CompositeByteArraySegment c = new CompositeByteArraySegment(buffer);
+        for (T value : testValues) {
+            int length = write.apply(c, 0, value);
+            T readValue = read.apply(new ByteArraySegment(buffer, 0, length), 0);
+            Assert.assertEquals("Unexpected deserialized value.", value, readValue);
+        }
+    }
+
     @FunctionalInterface
-    interface Write<T> {
+    interface WriteArray<T> {
         int apply(byte[] target, int offset, T value);
+    }
+
+    @FunctionalInterface
+    interface WriteCompositeArray<T> {
+        int apply(CompositeArrayView target, int offset, T value);
     }
 
     @FunctionalInterface

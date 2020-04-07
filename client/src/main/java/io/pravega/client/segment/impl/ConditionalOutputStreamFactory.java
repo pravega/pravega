@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.EventWriterConfig;
 
 /**
@@ -22,10 +23,10 @@ public interface ConditionalOutputStreamFactory {
      * conditional clients in the same process space).
      *
      * @param segment The segment to create a conditional client for.
-     * @param delegationToken token to be passed on to segmentstore for validation.
+     * @param tokenProvider The {@link DelegationTokenProvider} instance to be used for obtaining a delegation token.
      * @param config output writer configuration.
      * @return New instance of ConditionalOutputStream for the provided segment.
      */
-    ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config);
+    ConditionalOutputStream createConditionalOutputStream(Segment segment, DelegationTokenProvider tokenProvider, EventWriterConfig config);
 
 }

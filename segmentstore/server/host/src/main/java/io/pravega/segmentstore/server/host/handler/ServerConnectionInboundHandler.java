@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +28,8 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ServerConnection {
-
-    private AtomicReference<RequestProcessor> processor = new AtomicReference<>();
-    private AtomicReference<Channel> channel = new AtomicReference<>();
+    private final AtomicReference<RequestProcessor> processor = new AtomicReference<>();
+    private final AtomicReference<Channel> channel = new AtomicReference<>();
 
     @Override
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
@@ -66,15 +65,11 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
         Channel c = getChannel();
         // Work around for https://github.com/netty/netty/issues/3246
         EventLoop eventLoop = c.eventLoop();
-        if (eventLoop.inEventLoop()) {
-            eventLoop.execute(() -> writeAndFlush(c, cmd));
-        } else {
-            writeAndFlush(c, cmd);
-        }
+        eventLoop.execute(() -> write(c, cmd));
     }
 
-    private static void writeAndFlush(Channel channel, WireCommand data) {
-        channel.writeAndFlush(data).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+    private static void write(Channel channel, WireCommand data) {
+        channel.write(data).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
     }  
     
     @Override
@@ -87,17 +82,19 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
         Channel ch = channel.get();
         if (ch != null) {
             // wait for all messages to be sent before closing the channel.
-            ch.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
+            ch.eventLoop().execute(() -> ch.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE));
         }
     }
 
     @Override
     public void pauseReading() {
+        log.debug("Pausing reading from connection {}", this);
         getChannel().config().setAutoRead(false);
     }
 
     @Override
     public void resumeReading() {
+        log.trace("Resuming reading from connection {}", this);
         getChannel().config().setAutoRead(true);
     }
 

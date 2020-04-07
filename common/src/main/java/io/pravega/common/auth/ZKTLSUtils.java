@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,26 @@ public class ZKTLSUtils {
         System.clearProperty("zookeeper.clientCnxnSocket");
         System.clearProperty("zookeeper.ssl.trustStore.location");
         System.clearProperty("zookeeper.ssl.trustStore.password");
+    }
+
+    public static void setSecureZKServerProperties(String keyStore, String keyStorePasswordPath, String trustStore,
+                                                   String trustStorePasswordPath) {
+        System.setProperty("zookeeper.serverCnxnFactory", "org.apache.zookeeper.server.NettyServerCnxnFactory");
+        System.setProperty("zookeeper.ssl.keyStore.location", keyStore);
+        System.setProperty("zookeeper.ssl.keyStore.password", JKSHelper.loadPasswordFrom(keyStorePasswordPath));
+        System.setProperty("zookeeper.ssl.trustStore.location", trustStore);
+        System.setProperty("zookeeper.ssl.trustStore.password", JKSHelper.loadPasswordFrom(trustStorePasswordPath));
+        // This is needed to allow ZooKeeperServer to use the auth provider.
+        System.setProperty("zookeeper.authProvider.x509", "org.apache.zookeeper.server.auth.X509AuthenticationProvider");
+    }
+
+    public static void unsetSecureZKServerProperties() {
+        System.clearProperty("zookeeper.serverCnxnFactory");
+        System.clearProperty("zookeeper.ssl.keyStore.location");
+        System.clearProperty("zookeeper.ssl.keyStore.password");
+        System.clearProperty("zookeeper.ssl.trustStore.location");
+        System.clearProperty("zookeeper.ssl.trustStore.password");
+        System.clearProperty("zookeeper.authProvider.x509");
     }
 
 }

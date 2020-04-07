@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -10,6 +10,7 @@ package io.pravega.test.integration.controller.server;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -30,8 +31,8 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -109,7 +110,7 @@ public class DebugStreamSegmentsTest {
         zkTestServer.close();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testOutOfSequence() throws Exception {
         // 1. Prepare
         createScope(SCOPE);
@@ -119,7 +120,8 @@ public class DebugStreamSegmentsTest {
         when(streamFactory.createOutputStreamForSegment(any(), any(), any(),
                                                         any())).thenReturn(mock(SegmentOutputStream.class));
         SegmentSelector selector = new SegmentSelector(Stream.of(SCOPE, STREAM), controllerWrapper.getController(),
-                                                       streamFactory, EventWriterConfig.builder().build());
+                                                       streamFactory, EventWriterConfig.builder().build(),
+                                                       DelegationTokenProviderFactory.createWithEmptyToken());
 
         // 2.Create clientFactory.
         @Cleanup
@@ -136,8 +138,8 @@ public class DebugStreamSegmentsTest {
             for (int key = 0; key < 100; key++) {
                 Segment segment = selector.getSegmentForEvent("key-" + key);
                 if (lastSegments[key] != null) {
-                    int lastEpoch = StreamSegmentNameUtils.getEpoch(lastSegments[key].getSegmentId());
-                    int thisEpoch = StreamSegmentNameUtils.getEpoch(segment.getSegmentId());
+                    int lastEpoch = NameUtils.getEpoch(lastSegments[key].getSegmentId());
+                    int thisEpoch = NameUtils.getEpoch(segment.getSegmentId());
                     assertTrue(thisEpoch >= lastEpoch);
                     if (thisEpoch == lastEpoch) {
                         assertEquals(lastSegments[key], segment);

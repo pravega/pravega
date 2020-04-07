@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
+
 /**
  * In-memory stream metadata store tests.
  */
@@ -17,7 +19,9 @@ public class InMemoryStreamMetadataStoreTest extends StreamMetadataStoreTest {
     @Override
     public void setupStore() throws Exception {
         store = StreamStoreFactory.createInMemoryStore(executor);
-        bucketStore = StreamStoreFactory.createInMemoryBucketStore(1);
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
+                BucketStore.ServiceType.WatermarkingService, 1);
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore(map);
     }
 
     @Override

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,6 @@ public class PasswordValidatorTool {
         String userPassword = args[1];
         String encryptedPassword = args[2];
         StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
-        System.out.println( passwordEncryptor.checkPassword(userPassword, encryptedPassword));
+        System.out.println( passwordEncryptor.checkPassword(userPassword.toCharArray(), encryptedPassword));
     }
 }

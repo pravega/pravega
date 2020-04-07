@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -95,6 +95,8 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                 log.info("Creating store client");
                 storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
 
+                starter = starterFactory.apply(serviceConfig, storeClient);
+
                 boolean hasZkConnection = serviceConfig.getStoreClientConfig().getStoreType().equals(StoreType.Zookeeper) ||
                         serviceConfig.isControllerClusterListenerEnabled();
 
@@ -110,12 +112,12 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                     client.getConnectionStateListenable().addListener((client1, newState) -> {
                         if (newState.equals(ConnectionState.LOST)) {
                             sessionExpiryFuture.complete(null);
+                            starter.notifySessionExpiration();
                         }
                     });
                 }
 
                 // Start controller services.
-                starter = starterFactory.apply(serviceConfig, storeClient);
                 log.info("Starting controller services");
                 notifyServiceStateChange(ServiceState.STARTING);
                 starter.startAsync();

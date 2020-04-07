@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,7 @@
  */
 package io.pravega.storage.filesystem;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.common.Exceptions;
@@ -196,6 +197,15 @@ public class FileSystemStorage implements SyncStorage {
     }
 
     //endregion
+    @VisibleForTesting
+    protected FileChannel getFileChannel(Path path, StandardOpenOption openOption) throws IOException {
+        return FileChannel.open(path, openOption);
+    }
+
+    @VisibleForTesting
+    protected long getFileSize(Path path) throws IOException {
+        return Files.size(path);
+    }
 
     //region private sync implementation
 
@@ -231,21 +241,22 @@ public class FileSystemStorage implements SyncStorage {
 
         Path path = Paths.get(config.getRoot(), handle.getSegmentName());
 
-        long fileSize = Files.size(path);
+        long fileSize = getFileSize(path);
         if (fileSize < offset) {
             throw new IllegalArgumentException(String.format("Reading at offset (%d) which is beyond the " +
                     "current size of segment (%d).", offset, fileSize));
         }
 
-        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
+        try (FileChannel channel = getFileChannel(path, StandardOpenOption.READ)) {
             int totalBytesRead = 0;
-
+            long readOffset = offset;
             do {
                 ByteBuffer readBuffer = ByteBuffer.wrap(buffer, bufferOffset, length);
-                int bytesRead = channel.read(readBuffer, offset);
+                int bytesRead = channel.read(readBuffer, readOffset);
                 bufferOffset += bytesRead;
                 totalBytesRead += bytesRead;
                 length -= bytesRead;
+                readOffset += bytesRead;
             } while (length != 0);
             FileSystemMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
             FileSystemMetrics.READ_BYTES.add(totalBytesRead);
@@ -304,7 +315,7 @@ public class FileSystemStorage implements SyncStorage {
         }
 
         long totalBytesWritten = 0;
-        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
+        try (FileChannel channel = getFileChannel(path, StandardOpenOption.WRITE)) {
             long fileSize = channel.size();
             if (fileSize != offset) {
                 throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
@@ -367,7 +378,7 @@ public class FileSystemStorage implements SyncStorage {
         Path sourcePath = Paths.get(config.getRoot(), sourceSegment);
         Path targetPath = Paths.get(config.getRoot(), targetHandle.getSegmentName());
 
-        long length = Files.size(sourcePath);
+        long length = getFileSize(sourcePath);
         try (FileChannel targetChannel = FileChannel.open(targetPath, StandardOpenOption.WRITE);
              RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
             if (isWritableFile(sourcePath)) {

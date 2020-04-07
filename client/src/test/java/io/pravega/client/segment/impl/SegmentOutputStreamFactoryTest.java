@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.Controller;
 import java.util.UUID;
@@ -20,7 +21,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.isTransactionSegment;
+import static io.pravega.shared.NameUtils.isTransactionSegment;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
@@ -49,7 +50,8 @@ public class SegmentOutputStreamFactoryTest {
     public void createOutputStreamForTransaction() {
         EventWriterConfig writerConfig = EventWriterConfig.builder().build();
 
-        SegmentOutputStreamImpl segWriter = (SegmentOutputStreamImpl) factory.createOutputStreamForTransaction(segment, txId, writerConfig, "");
+        SegmentOutputStreamImpl segWriter = (SegmentOutputStreamImpl) factory.createOutputStreamForTransaction(segment, txId, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         assertTrue(isTransactionSegment(segWriter.getSegmentName()));
         assertEquals(writerConfig.isEnableConnectionPooling(), segWriter.isUseConnectionPooling());
     }
@@ -57,7 +59,8 @@ public class SegmentOutputStreamFactoryTest {
     @Test
     public void createOutputStreamForSegment() {
         EventWriterConfig writerConfig = EventWriterConfig.builder().enableConnectionPooling(false).build();
-        SegmentOutputStreamImpl segWriter = (SegmentOutputStreamImpl) factory.createOutputStreamForSegment(segment, writerConfig, "");
+        SegmentOutputStreamImpl segWriter = (SegmentOutputStreamImpl) factory.createOutputStreamForSegment(segment, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals(segment.getScopedName(), segWriter.getSegmentName());
         assertEquals(writerConfig.isEnableConnectionPooling(), segWriter.isUseConnectionPooling());
     }
@@ -66,7 +69,7 @@ public class SegmentOutputStreamFactoryTest {
     public void createOutputStreamForSegmentAndconnect() {
         EventWriterConfig writerConfig = EventWriterConfig.builder().enableConnectionPooling(false).build();
         SegmentOutputStreamImpl segWriter = (SegmentOutputStreamImpl) factory.createOutputStreamForSegment(segment, s -> {
-        }, writerConfig, "");
+        }, writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals(segment.getScopedName(), segWriter.getSegmentName());
         assertEquals(writerConfig.isEnableConnectionPooling(), segWriter.isUseConnectionPooling());
     }

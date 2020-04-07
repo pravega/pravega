@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,17 +79,19 @@ public class PasswordAuthHandler implements AuthHandler {
     public Principal authenticate(String token) throws AuthException {
         String[] parts = parseToken(token);
         String userName = parts[0];
-        String password = parts[1];
+        char[] password = parts[1].toCharArray();
 
         try {
             if (userMap.containsKey(userName) && encryptor.checkPassword(password, userMap.get(userName).encryptedPassword)) {
                 return new UserPrincipal(userName);
             }
+            throw new AuthenticationException("User authentication exception");
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
             log.warn("Exception during password authentication", e);
             throw new AuthenticationException(e);
+        } finally {
+            Arrays.fill(password, '0'); // Zero out the password for security.
         }
-        throw new AuthenticationException("User authentication exception");
     }
 
     @Override

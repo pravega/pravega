@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,8 +30,7 @@ import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 
 public class WireCommandsTest {
@@ -137,8 +136,9 @@ public class WireCommandsTest {
     }
 
     @Test
-    public void testAuthTokenCheckFalied() throws IOException {
-        testCommand(new WireCommands.AuthTokenCheckFailed(l, ""));
+    public void testAuthTokenCheckFailed() throws IOException {
+        testCommand(new WireCommands.AuthTokenCheckFailed(l, "",
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
         AtomicReference<Boolean> authTokenCheckFailedCalled = new AtomicReference<>(false);
         ReplyProcessor rp = new FailingReplyProcessor() {
             @Override
@@ -157,8 +157,15 @@ public class WireCommandsTest {
             }
         };
 
-        new WireCommands.AuthTokenCheckFailed(0, "").process(rp);
+        new WireCommands.AuthTokenCheckFailed(0, "",
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED).process(rp);
         assertTrue("Process should call the corresponding API", authTokenCheckFailedCalled.get());
+
+        assertFalse(new WireCommands.AuthTokenCheckFailed(0, "",
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED).isTokenExpired());
+
+        assertTrue(new WireCommands.AuthTokenCheckFailed(0, "",
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED).isTokenExpired());
     }
 
     /*
@@ -180,6 +187,40 @@ public class WireCommandsTest {
             out.writeLong(eventNumber);
         }
     }
+    
+    @Data
+    public static final class DataAppendedV3 implements WireCommand {
+        final WireCommandType type = WireCommandType.DATA_APPENDED;
+        final UUID writerId;
+        final long eventNumber;
+        final long previousEventNumber;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeLong(previousEventNumber);
+        }
+    }
+    
+    @Data
+    public static final class DataAppendedV4 implements WireCommand {
+        final WireCommandType type = WireCommandType.DATA_APPENDED;
+        final long requestId;
+        final UUID writerId;
+        final long eventNumber;
+        final long previousEventNumber;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeLong(previousEventNumber);
+            out.writeLong(requestId);
+        }
+    }
 
     @Test
     public void testDataAppended() throws IOException {
@@ -187,11 +228,21 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         DataAppendedV2 commandV2 = new DataAppendedV2(uuid, l);
         commandV2.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(-1L, uuid, l, -1));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(-1L, uuid, l, -1, -1));
 
+        bout = new ByteArrayOutputStream();
+        DataAppendedV3 commandV3 = new DataAppendedV3(uuid, l, 2);
+        commandV3.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(-1L, uuid, l, 2L, -1));
+        
+        bout = new ByteArrayOutputStream();
+        DataAppendedV4 commandV4 = new DataAppendedV4(4, uuid, l, 3);
+        commandV4.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(4L, uuid, l, 3L, -1));
+        
         // Test that we are able to encode and decode the current response
         // to append data correctly.
-        testCommand(new WireCommands.DataAppended(l, uuid, l, Long.MIN_VALUE));
+        testCommand(new WireCommands.DataAppended(1, uuid, l, Long.MIN_VALUE, -l));
     }
 
     /*
@@ -525,7 +576,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSegmentsMerged() throws IOException {
-        testCommand(new WireCommands.SegmentsMerged(l, testString1, testString2));
+        testCommand(new WireCommands.SegmentsMerged(l, testString1, testString2, -l));
     }
 
     @Test

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -53,6 +54,7 @@ public class SegmentSelector {
     @GuardedBy("$lock")
     private final Map<Segment, SegmentOutputStream> writers = new HashMap<>();
     private final EventWriterConfig config;
+    private final DelegationTokenProvider tokenProvider;
 
     /**
      * Selects which segment an event should be written to.
@@ -93,7 +95,7 @@ public class SegmentSelector {
                 controller.getSuccessors(sealedSegment), t -> {
                     log.error("Error while fetching successors for segment: {}", sealedSegment, t);
                     // Remove all writers and fail all pending writes
-                    Exception e = (t instanceof RetriesExhaustedException) ? new ControllerFailureException(t) : new NoSuchSegmentException(sealedSegment.toString());
+                    Exception e = (t instanceof RetriesExhaustedException) ? new ControllerFailureException(t) : new NoSuchSegmentException(sealedSegment.toString(), t);
                     removeAllWriters().forEach(event -> event.getAckFuture().completeExceptionally(e));
                     return null;
                 });
@@ -132,7 +134,8 @@ public class SegmentSelector {
     private List<PendingEvent> updateSegments(StreamSegments newSteamSegments, Consumer<Segment>
             segmentSealedCallBack) {
         currentSegments = newSteamSegments;
-        createMissingWriters(segmentSealedCallBack, newSteamSegments.getDelegationToken());
+        createMissingWriters(segmentSealedCallBack);
+
         List<PendingEvent> toResend = new ArrayList<>();
         Iterator<Entry<Segment, SegmentOutputStream>> iter = writers.entrySet().iterator();
         while (iter.hasNext()) {
@@ -156,7 +159,7 @@ public class SegmentSelector {
     private List<PendingEvent> updateSegmentsUponSealed(StreamSegmentsWithPredecessors successors, Segment sealedSegment,
                                                         Consumer<Segment> segmentSealedCallback) {
         currentSegments = currentSegments.withReplacementRange(sealedSegment, successors);
-        createMissingWriters(segmentSealedCallback, currentSegments.getDelegationToken());
+        createMissingWriters(segmentSealedCallback);
         log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, currentSegments);
         return writers.get(sealedSegment).getUnackedEventsOnSeal();
     }
@@ -173,11 +176,13 @@ public class SegmentSelector {
         return pendingEvents;
     }
 
-    private void createMissingWriters(Consumer<Segment> segmentSealedCallBack, String delegationToken) {
+    private void createMissingWriters(Consumer<Segment> segmentSealedCallBack) {
+        tokenProvider.populateToken(currentSegments.getDelegationToken());
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
                 log.debug("Creating writer for segment {}", segment);
-                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config, delegationToken);
+                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
+                        segmentSealedCallBack, config, tokenProvider);
                 writers.put(segment, out);
             }
         }
@@ -192,8 +197,8 @@ public class SegmentSelector {
     }
 
     @Synchronized
-    public List<SegmentOutputStream> getWriters() {
-        return new ArrayList<>(writers.values());
+    public Map<Segment, SegmentOutputStream> getWriters() {
+        return new HashMap<>(writers);
     }
 
 }

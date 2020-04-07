@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,8 +9,10 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventStreamReader;
+import java.util.concurrent.Semaphore;
 
 /**
  * Creates {@link SegmentInputStream} for reading from existing segments.
@@ -25,10 +27,10 @@ public interface SegmentInputStreamFactory {
      * process space).
      *
      * @param segment The segment to create an input for.
-     * @param delegationToken The delegation used to connect to the server.
+     * @param tokenProvider The {@link DelegationTokenProvider} instance to be used for obtaining a delegation token.
      * @return New instance of SegmentInputStream for reading.
      */
-    SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken);
+    SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider);
     
     /**
      * Opens an existing segment for reading events. This operation will fail if the
@@ -47,10 +49,11 @@ public interface SegmentInputStreamFactory {
      * does not exist.
      *
      * @param segment The segment to create an input for.
+     * @param hasData A Semaphore that will have `release` called when data is available.
      * @param endOffset The offset up to which the segment can be read.
      * @return New instance of the EventSegmentReader for reading.
      */
-    EventSegmentReader createEventReaderForSegment(Segment segment, long endOffset);
+    EventSegmentReader createEventReaderForSegment(Segment segment, Semaphore hasData, long endOffset);
 
     /**
      * Opens an existing segment for reading. This operation will fail if the

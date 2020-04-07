@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,6 +82,7 @@ public class BatchClientAuthTest extends BatchClientTest {
         return ServiceBuilder.newInMemoryBuilder(configBuilder.build());
     }
 
+    @Override
     protected ControllerWrapper createControllerWrapper() {
         return new ControllerWrapper(zkTestServer.getConnectString(),
                 false, true,
@@ -114,7 +115,7 @@ public class BatchClientAuthTest extends BatchClientTest {
 
         AssertExtensions.assertThrows("Auth exception did not occur.",
                 () -> this.listAndReadSegmentsUsingBatchClient("testScope", "testBatchStream", config),
-                e -> hasAuthExceptionAsRootCause(e));
+                e -> hasAuthenticationExceptionAsRootCause(e));
     }
 
     @Test(timeout = 250000)
@@ -126,7 +127,7 @@ public class BatchClientAuthTest extends BatchClientTest {
 
         AssertExtensions.assertThrows("Auth exception did not occur.",
                 () -> this.listAndReadSegmentsUsingBatchClient("testScope", "testBatchStream", config),
-                e -> hasAuthExceptionAsRootCause(e));
+                e -> hasAuthenticationExceptionAsRootCause(e));
     }
 
     @Test(timeout = 250000)
@@ -142,7 +143,7 @@ public class BatchClientAuthTest extends BatchClientTest {
 
             AssertExtensions.assertThrows("Auth exception did not occur.",
                     () -> this.listAndReadSegmentsUsingBatchClient("testScope", "testBatchStream", config),
-                    e -> hasAuthExceptionAsRootCause(e));
+                    e -> hasAuthorizationExceptionAsRootCause(e));
             unsetClientAuthProperties();
         } finally {
             sequential.unlock();
@@ -182,7 +183,17 @@ public class BatchClientAuthTest extends BatchClientTest {
         System.clearProperty("pravega.client.auth.token");
     }
 
-    private boolean hasAuthExceptionAsRootCause(Throwable e) {
+    private boolean hasAuthorizationExceptionAsRootCause(Throwable e) {
+        Throwable innermostException = ExceptionUtils.getRootCause(e);
+
+        // Depending on an exception message for determining whether the given exception represents auth failure
+        // is not a good thing to do, but we have no other choice here because auth failures are represented as the
+        // overly general io.grpc.StatusRuntimeException.
+        return innermostException instanceof StatusRuntimeException &&
+                innermostException.getMessage().toUpperCase().contains("PERMISSION_DENIED");
+    }
+
+    private boolean hasAuthenticationExceptionAsRootCause(Throwable e) {
         Throwable innermostException = ExceptionUtils.getRootCause(e);
 
         // Depending on an exception message for determining whether the given exception represents auth failure

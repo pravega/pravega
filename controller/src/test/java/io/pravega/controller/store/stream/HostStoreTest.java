@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,7 +11,6 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.store.host.ZKHostStore;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientConfig;
@@ -23,6 +22,7 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.shared.NameUtils;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -123,7 +123,7 @@ public class HostStoreTest {
         Assert.assertEquals(controllerPort, hostObj.getPort());
         Assert.assertEquals(host, hostObj.getIpAddr());
 
-        hostObj = hostStore.getHostForTableSegment(StreamSegmentNameUtils.getQualifiedTableName("scope", "stream", "table", "id"));
+        hostObj = hostStore.getHostForTableSegment(NameUtils.getQualifiedTableName("scope", "stream", "table", "id"));
         Assert.assertEquals(controllerPort, hostObj.getPort());
         Assert.assertEquals(host, hostObj.getIpAddr());
     }

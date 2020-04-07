@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -121,7 +121,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
-        TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("test", new UTF8StringSerializer(),
+        TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer", "test", new UTF8StringSerializer(),
                 EventWriterConfig.builder().transactionTimeoutTime(10000).build());
         Transaction<String> transaction1 = test.beginTxn();
         transaction1.writeEvent("0", "txntest1");
@@ -173,7 +173,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         @Cleanup
-        TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter(STREAM, new UTF8StringSerializer(),
+        TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer", STREAM, new UTF8StringSerializer(),
                 EventWriterConfig.builder().transactionTimeoutTime(10000).build());
         Transaction<String> transaction = test.beginTxn();
         transaction.writeEvent("0", "txntest1");
@@ -209,10 +209,12 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         EventWriterConfig validConfig = EventWriterConfig.builder().transactionTimeoutTime(10000).build();
         assertNotNull(createTxn(clientFactory, validConfig, "test"));
 
-        EventWriterConfig lowTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(1000).build();
         AssertExtensions.assertThrows("low timeout period not honoured",
-                () -> createTxn(clientFactory, lowTimeoutConfig, "test"),
-                e -> Exceptions.unwrap(e.getCause()) instanceof IllegalArgumentException);
+                () -> {
+                    EventWriterConfig lowTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(1000).build();
+                    createTxn(clientFactory, lowTimeoutConfig, "test");
+                },
+                e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
 
         EventWriterConfig highTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(200 * 1000).build();
         AssertExtensions.assertThrows("high timeouot period not honoured",
@@ -222,7 +224,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
 
     private UUID createTxn(EventStreamClientFactory clientFactory, EventWriterConfig config, String streamName) {
         @Cleanup
-        TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter(streamName, new JavaSerializer<>(),
+        TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer", streamName, new JavaSerializer<>(),
                 config);
         return test.beginTxn().getTxnId();
     }

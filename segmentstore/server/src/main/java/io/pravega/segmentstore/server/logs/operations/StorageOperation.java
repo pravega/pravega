@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,8 +61,9 @@ public abstract class StorageOperation extends Operation implements SegmentOpera
     public abstract long getLength();
 
     /**
-     * Gets a value indicating the Offset within the StreamSegment of the last byte that this operation applies (i.e., ending offset).
-     * @return The Offset within the StreamSegment of the last byte that this operation applies.
+     * Gets a value indicating the Offset within the StreamSegment following the last byte that this operation applies 
+     * (i.e., the next write's offset).
+     * @return The Offset within the StreamSegment following the last byte that this operation applies.
      */
     public long getLastStreamSegmentOffset() {
         return getStreamSegmentOffset() + getLength();

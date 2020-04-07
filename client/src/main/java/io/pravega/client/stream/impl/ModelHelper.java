@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,10 +10,13 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
@@ -22,12 +25,12 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -39,6 +42,9 @@ import java.util.stream.Collectors;
 
 /**
  * Provides translation (encode/decode) between the Model classes and its gRPC representation.
+ * 
+ * NOTE: For some unknown reason all methods that encode data to go over the wire are called
+ * "decode" and all method that take the wire format an instantiate java objects are called "encode".
  */
 public final class ModelHelper {
 
@@ -196,6 +202,8 @@ public final class ModelHelper {
             case ABORTED:
                 result = Transaction.PingStatus.ABORTED;
                 break;
+            case UNKNOWN:
+                throw new StatusRuntimeException(Status.NOT_FOUND);
             default:
                 throw new PingFailedException("Ping transaction for " + logString + " failed with status " + status);
         }
@@ -221,7 +229,7 @@ public final class ModelHelper {
     public static Map<Long, Long> encode(Controller.StreamCut streamCut) {
         return streamCut.getCutMap();
     }
-
+    
     /**
      * Returns TxnId object instance for a given transaction with UUID.
      *
@@ -388,6 +396,21 @@ public final class ModelHelper {
                 .addAllSegments(segments)
                 .setDelegationToken(delegationToken)
                 .build();
+    }
+
+    /**
+     * Builds a stream cut, mapping the segments of a stream to their offsets from a writer position object.
+     * 
+     * @param stream The stream the cut is on.
+     * @param position The position object to take the offsets from.
+     * @return a StreamCut.
+     */
+    public static StreamCut createStreamCut(Stream stream, WriterPosition position) {
+        StreamCut.Builder builder = StreamCut.newBuilder().setStreamInfo(createStreamInfo(stream.getScope(), stream.getStreamName()));
+        for (Entry<Segment, Long> entry : position.getSegmentsWithOffsets().entrySet()) {
+            builder.putCut(entry.getKey().getSegmentId(), entry.getValue());
+        }
+        return builder.build();
     }
 
     public static final SuccessorResponse.Builder createSuccessorResponse(Map<SegmentRange, List<Long>> segments) {

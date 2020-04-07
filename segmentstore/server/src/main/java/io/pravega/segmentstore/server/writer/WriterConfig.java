@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,8 +13,8 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import java.time.Duration;
-
 import lombok.Getter;
 
 /**
@@ -25,6 +25,7 @@ public class WriterConfig {
 
     public static final Property<Integer> FLUSH_THRESHOLD_BYTES = Property.named("flushThresholdBytes", 4 * 1024 * 1024);
     public static final Property<Long> FLUSH_THRESHOLD_MILLIS = Property.named("flushThresholdMillis", 30 * 1000L);
+    public static final Property<Integer> FLUSH_ATTRIBUTES_THRESHOLD = Property.named("flushAttributesThreshold", 200);
     public static final Property<Integer> MAX_FLUSH_SIZE_BYTES = Property.named("maxFlushSizeBytes", FLUSH_THRESHOLD_BYTES.getDefaultValue());
     public static final Property<Integer> MAX_ITEMS_TO_READ_AT_ONCE = Property.named("maxItemsToReadAtOnce", 1000);
     public static final Property<Long> MIN_READ_TIMEOUT_MILLIS = Property.named("minReadTimeoutMillis", 2 * 1000L);
@@ -33,6 +34,7 @@ public class WriterConfig {
     public static final Property<Long> FLUSH_TIMEOUT_MILLIS = Property.named("flushTimeoutMillis", 60 * 1000L);
     public static final Property<Long> ACK_TIMEOUT_MILLIS = Property.named("ackTimeoutMillis", 15 * 1000L);
     public static final Property<Long> SHUTDOWN_TIMEOUT_MILLIS = Property.named("shutdownTimeoutMillis", 10 * 1000L);
+    public static final Property<Long> MAX_ROLLOVER_SIZE = Property.named("maxRolloverSizeBytes", SegmentRollingPolicy.NO_ROLLING.getMaxLength());
     private static final String COMPONENT_CODE = "writer";
 
     //endregion
@@ -50,6 +52,12 @@ public class WriterConfig {
      */
     @Getter
     private final Duration flushThresholdTime;
+
+    /**
+     * The minimum number of attributes that should accumulate before flushing them into the Attribute Index.
+     */
+    @Getter
+    private final int flushAttributesThreshold;
 
     /**
      * The maximum number of bytes that can be flushed with a single write operation.
@@ -99,6 +107,13 @@ public class WriterConfig {
     @Getter
     private final Duration shutdownTimeout;
 
+    /**
+     * The maximum Rolling Size (in bytes) for a Segment in Storage. This will preempt any value configured on the Segment
+     * via the Segment's Attributes (no rolling size may exceed this value).
+     */
+    @Getter
+    private final long maxRolloverSize;
+
     //endregion
 
     //region Constructor
@@ -115,6 +130,11 @@ public class WriterConfig {
         }
 
         this.flushThresholdTime = Duration.ofMillis(properties.getLong(FLUSH_THRESHOLD_MILLIS));
+        this.flushAttributesThreshold = properties.getInt(FLUSH_ATTRIBUTES_THRESHOLD);
+        if (this.flushAttributesThreshold < 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", FLUSH_THRESHOLD_BYTES));
+        }
+
         this.maxFlushSizeBytes = properties.getInt(MAX_FLUSH_SIZE_BYTES);
         this.maxItemsToReadAtOnce = properties.getInt(MAX_ITEMS_TO_READ_AT_ONCE);
         if (this.maxItemsToReadAtOnce <= 0) {
@@ -137,6 +157,7 @@ public class WriterConfig {
         this.flushTimeout = Duration.ofMillis(properties.getLong(FLUSH_TIMEOUT_MILLIS));
         this.ackTimeout = Duration.ofMillis(properties.getLong(ACK_TIMEOUT_MILLIS));
         this.shutdownTimeout = Duration.ofMillis(properties.getLong(SHUTDOWN_TIMEOUT_MILLIS));
+        this.maxRolloverSize = Math.max(0, properties.getLong(MAX_ROLLOVER_SIZE));
     }
 
     /**

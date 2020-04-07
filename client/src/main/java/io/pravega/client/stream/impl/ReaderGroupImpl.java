@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,9 +9,13 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
@@ -26,6 +30,7 @@ import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupMetrics;
+import io.pravega.client.stream.ReaderSegmentDistribution;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
@@ -177,30 +182,36 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return new CheckpointImpl(checkpointName, map);
     }
 
-    /**
-     * Used to reset a reset a reader group to a checkpoint. This should be removed in time.
-     * @deprecated Use {@link ReaderGroup#resetReaderGroup(ReaderGroupConfig)} to reset readers to a given Checkpoint.
-     */
-    @Override
-    @Deprecated
-    public void resetReadersToCheckpoint(Checkpoint checkpoint) {
-        synchronizer.updateState((state, updates) -> {
-            ReaderGroupConfig config = state.getConfig();
-            Map<Segment, Long> positions = new HashMap<>();
-            for (StreamCut cut : checkpoint.asImpl().getPositions().values()) {
-                positions.putAll(cut.asImpl().getPositions());
-            }
-            updates.add(new ReaderGroupStateInit(config, positions, getEndSegmentsForStreams(config)));
-        });
-    }
-
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
-        Map<Segment, Long> segments = getSegmentsForStreams(controller, config);
+        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }
 
-    public static Map<Segment, Long> getSegmentsForStreams(Controller controller, ReaderGroupConfig config) {
+    @Override
+    public ReaderSegmentDistribution getReaderSegmentDistribution() {
+        synchronizer.fetchUpdates();
+        // fetch current state and populate assigned and unassigned distribution from the state.
+        ReaderGroupState state = synchronizer.getState();
+        ImmutableMap.Builder<String, Integer> mapBuilder = ImmutableMap.builder();
+
+        state.getOnlineReaders().forEach(reader -> {
+            Map<SegmentWithRange, Long> assigned = state.getAssignedSegments(reader);
+            int size = assigned != null ? assigned.size() : 0;
+            mapBuilder.put(reader, size);
+        });
+
+        // add unassigned against empty string
+        int unassigned = state.getNumberOfUnassignedSegments();
+        ImmutableMap<String, Integer> readerDistribution = mapBuilder.build();
+        log.info("ReaderGroup {} has unassigned segments count = {} and segment distribution as {}", 
+                getGroupName(), unassigned, readerDistribution);
+        return ReaderSegmentDistribution
+                .builder().readerSegmentDistribution(readerDistribution).unassignedSegments(unassigned).build();
+    }
+
+    @VisibleForTesting
+    public static Map<SegmentWithRange, Long> getSegmentsForStreams(Controller controller, ReaderGroupConfig config) {
         Map<Stream, StreamCut> streamToStreamCuts = config.getStartingStreamCuts();
         final List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streamToStreamCuts.size());
         streamToStreamCuts.entrySet().forEach(e -> {
@@ -213,17 +224,18 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
             return listOfMaps.stream()
                              .flatMap(map -> map.entrySet().stream())
-                             .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
+                             .collect(Collectors.toMap(e -> new SegmentWithRange(e.getKey(), null), e -> e.getValue()));
+
         }), InvalidStreamException::new);
     }
 
     public static Map<Segment, Long> getEndSegmentsForStreams(ReaderGroupConfig config) {
-
-        final List<Map<Segment, Long>> listOfMaps = config.getEndingStreamCuts().entrySet().stream()
-                                                          .filter(e -> !e.getValue().equals(StreamCut.UNBOUNDED))
-                                                          .map(e -> e.getValue().asImpl().getPositions())
-                                                          .collect(Collectors.toList());
-
+        List<Map<Segment, Long>> listOfMaps = config.getEndingStreamCuts()
+                                                    .entrySet()
+                                                    .stream()
+                                                    .filter(e -> !e.getValue().equals(StreamCut.UNBOUNDED))
+                                                    .map(e -> e.getValue().asImpl().getPositions())
+                                                    .collect(Collectors.toList());
         return listOfMaps.stream()
                          .flatMap(map -> map.entrySet().stream())
                          .collect(Collectors.toMap(Entry::getKey,
@@ -248,11 +260,11 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             return getUnreadBytes(checkPointedPositions.get(), synchronizer.getState().getEndSegments(), metaFactory);
         } else {
             log.info("No checkpoints found, using the last known offset to compute unread bytes");
-            return getUnreadBytes(synchronizer.getState().getPositions(), synchronizer.getState().getEndSegments(), metaFactory);
+            return getUnreadBytesIgnoringRange(synchronizer.getState().getPositions(), synchronizer.getState().getEndSegments(), metaFactory);
         }
     }
 
-    private Long getUnreadBytes(Map<Stream, Map<Segment, Long>> positions, Map<Segment, Long> endSegments, SegmentMetadataClientFactory metaFactory) {
+    private long getUnreadBytes(Map<Stream, Map<Segment, Long>> positions, Map<Segment, Long> endSegments, SegmentMetadataClientFactory metaFactory) {
         log.debug("Compute unread bytes from position {}", positions);
         final List<CompletableFuture<Long>> futures = new ArrayList<>(positions.size());
         for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
@@ -265,6 +277,22 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                     .mapToLong(i -> i)
                     .sum();
         }), RuntimeException::new);
+    }
+    
+    private long getUnreadBytesIgnoringRange(Map<Stream, Map<SegmentWithRange, Long>> positions,
+                                             Map<Segment, Long> endSegments, SegmentMetadataClientFactory metaFactory) {
+        log.debug("Compute unread bytes from position {}", positions);
+        long totalLength = 0;
+        for (Entry<Stream, Map<SegmentWithRange, Long>> streamPosition : positions.entrySet()) {
+            StreamCut fromStreamCut = new StreamCutImpl(streamPosition.getKey(), dropRange(streamPosition.getValue()));
+            StreamCut toStreamCut = computeEndStreamCut(streamPosition.getKey(), endSegments);
+            totalLength += Futures.getAndHandleExceptions(getRemainingBytes(metaFactory, fromStreamCut, toStreamCut), RuntimeException::new).longValue();
+        }
+        return totalLength;
+    }
+    
+    private Map<Segment, Long> dropRange(Map<SegmentWithRange, Long> in) {
+        return in.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getSegment(), e -> e.getValue()));
     }
 
     private StreamCut computeEndStreamCut(Stream stream, Map<Segment, Long> endSegments) {
@@ -287,12 +315,17 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
         return unread.thenApply(unreadVal -> {
             long totalLength = 0;
+            DelegationTokenProvider tokenProvider = null;
             for (Segment s : unreadVal.getSegments()) {
                 if (endPositions.containsKey(s)) {
                     totalLength += endPositions.get(s);
                 } else {
+                    if (tokenProvider == null) {
+                        tokenProvider = DelegationTokenProviderFactory.create(
+                                unreadVal.getDelegationToken(), controller, s);
+                    }
                     @Cleanup
-                    SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, unreadVal.getDelegationToken());
+                    SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, tokenProvider);
                     totalLength += metadataClient.fetchCurrentSegmentLength();
                 }
             }
@@ -317,14 +350,15 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
+    @VisibleForTesting
     public Map<Stream, StreamCut> getStreamCuts() {
         synchronizer.fetchUpdates();
         ReaderGroupState state = synchronizer.getState();
-        Map<Stream, Map<Segment, Long>> positions = state.getPositions();
+        Map<Stream, Map<SegmentWithRange, Long>> positions = state.getPositions();
         HashMap<Stream, StreamCut> cuts = new HashMap<>();
 
-        for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
-            StreamCut position = new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue());
+        for (Entry<Stream, Map<SegmentWithRange, Long>> streamPosition : positions.entrySet()) {
+            StreamCut position = new StreamCutImpl(streamPosition.getKey(), dropRange(streamPosition.getValue()));
             cuts.put(streamPosition.getKey(), position);
         }
 

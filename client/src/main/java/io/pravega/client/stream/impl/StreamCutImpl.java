@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ToStringUtils;
+import io.pravega.shared.NameUtils;
 import java.io.IOException;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
@@ -32,8 +33,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -102,8 +101,8 @@ public class StreamCutImpl extends StreamCutInternal {
         List<Integer> epochs = new ArrayList<>();
         List<Long> offsets = new ArrayList<>();
         positions.forEach((segmentId, offset) -> {
-            segmentNumbers.add(StreamSegmentNameUtils.getSegmentNumber(segmentId.getSegmentId()));
-            epochs.add(StreamSegmentNameUtils.getEpoch(segmentId.getSegmentId()));
+            segmentNumbers.add(NameUtils.getSegmentNumber(segmentId.getSegmentId()));
+            epochs.add(NameUtils.getEpoch(segmentId.getSegmentId()));
             offsets.add(offset);
         });
 
@@ -132,7 +131,7 @@ public class StreamCutImpl extends StreamCutInternal {
 
         final Map<Segment, Long> positions = IntStream.range(0, segmentNumbers.size()).boxed()
                 .collect(Collectors.toMap(i ->  new Segment(stream.getScope(), stream.getStreamName(),
-                                                            StreamSegmentNameUtils.computeSegmentId(segmentNumbers.get(i), epochs.get(i))),
+                                                            NameUtils.computeSegmentId(segmentNumbers.get(i), epochs.get(i))),
                                           offsets::get));
         return new StreamCutImpl(stream, positions);
     }

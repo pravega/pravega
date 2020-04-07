@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,6 +13,8 @@ import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
@@ -28,8 +30,7 @@ import lombok.AllArgsConstructor;
 import lombok.NonNull;
 
 @AllArgsConstructor
-@SuppressWarnings("deprecation")
-public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega.client.byteStream.ByteStreamClient {
+public class ByteStreamClientImpl implements ByteStreamClientFactory {
     @NonNull
     private final String scope;
     @NonNull
@@ -62,8 +63,10 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega
                                                                                                           segment.getStream()
                                                                                                                  .getStreamName()),
                                                                 RuntimeException::new);
-        return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, delegationToken),
-                                        metaStreamFactory.createSegmentMetadataClient(segment, delegationToken));
+
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
+        return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, tokenProvider),
+                                        metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider));
     }
 
     @Override
@@ -73,11 +76,10 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega
         Segment segment = segments.getSegments().iterator().next();
         EventWriterConfig config = EventWriterConfig.builder().build();
         String delegationToken = segments.getDelegationToken();
-        return new BufferedByteStreamWriterImpl(new ByteStreamWriterImpl(outputStreamFactory.createOutputStreamForSegment(segment,
-                                                                                                                          config,
-                                                                                                                          delegationToken),
-                                                                         metaStreamFactory.createSegmentMetadataClient(segment,
-                                                                                                                       delegationToken)));
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
+        return new BufferedByteStreamWriterImpl(
+                new ByteStreamWriterImpl(outputStreamFactory.createOutputStreamForSegment(segment, config, tokenProvider),
+                metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider)));
     }
 
     @Override
@@ -85,5 +87,4 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega
         controller.close();
         connectionFactory.close();
     }
-
 }

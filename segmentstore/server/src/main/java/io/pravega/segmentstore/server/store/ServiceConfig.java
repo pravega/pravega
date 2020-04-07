@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ public class ServiceConfig {
     public static final Property<Integer> PUBLISHED_PORT = Property.named("publishedPort");
     public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
     public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("publishedIPAddress", "");
+    public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("parallelContainerStarts", 1);
     public static final Property<String> ZK_URL = Property.named("zkURL", "localhost:2181");
     public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
@@ -45,11 +46,11 @@ public class ServiceConfig {
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.HDFS);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
-    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
+    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 4L * 1024 * 1024 * 1024);
     public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cacheTargetUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION));
     public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cacheMaxUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION));
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
-    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 5);
+    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 1);
     public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
     public static final Property<String> INSTANCE_ID = Property.named("instanceId", "");
 
@@ -152,6 +153,12 @@ public class ServiceConfig {
      */
     @Getter
     private final String publishedIPAddress;
+
+    /**
+     * Number of segment containers that a Segment Store will start (and recover) in parallel.
+     */
+    @Getter
+    private final int parallelContainerStarts;
 
     /**
      * The Zookeeper URL.
@@ -302,6 +309,7 @@ public class ServiceConfig {
         } else {
             this.publishedIPAddress = publishedIPAddress;
         }
+        this.parallelContainerStarts = properties.getInt(PARALLEL_CONTAINER_STARTS);
         this.zkURL = properties.get(ZK_URL);
         this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
@@ -352,6 +360,7 @@ public class ServiceConfig {
                 .append(String.format("listeningIPAddress: %s, ", listeningIPAddress))
                 .append(String.format("publishedPort: %d, ", publishedPort))
                 .append(String.format("publishedIPAddress: %s, ", publishedIPAddress))
+                .append(String.format("parallelContainerStarts: %d, ", parallelContainerStarts))
                 .append(String.format("zkURL: %s, ", zkURL))
                 .append(String.format("zkRetrySleepMs: %d, ", zkRetrySleepMs))
                 .append(String.format("zkSessionTimeoutMs: %d, ", zkSessionTimeoutMs))

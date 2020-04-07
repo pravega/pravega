@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -261,7 +261,7 @@ class HDFSStorage implements SyncStorage {
     @Override
     public void unseal(SegmentHandle handle) throws StreamSegmentException {
         ensureInitializedAndNotClosed();
-        long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
+        long traceId = LoggerHelpers.traceEnter(log, "unseal", handle);
         try {
             FileStatus status = findStatusForSegment(handle.getSegmentName(), true);
             makeWrite(status);

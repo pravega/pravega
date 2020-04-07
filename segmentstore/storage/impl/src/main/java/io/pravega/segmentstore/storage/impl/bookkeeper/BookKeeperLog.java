@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.CompositeArrayView;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
@@ -28,11 +28,15 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.segmentstore.storage.WriteFailureException;
+import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.segmentstore.storage.WriteTooLongException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
@@ -98,7 +102,8 @@ class BookKeeperLog implements DurableDataLog {
     private final SequentialAsyncProcessor rolloverProcessor;
     private final BookKeeperMetrics.BookKeeperLog metrics;
     private final ScheduledFuture<?> metricReporter;
-
+    @GuardedBy("queueStateChangeListeners")
+    private final HashSet<ThrottleSourceListener> queueStateChangeListeners;
     //endregion
 
     //region Constructor
@@ -127,6 +132,7 @@ class BookKeeperLog implements DurableDataLog {
         this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, retry, this::handleRolloverFailure, this.executorService);
         this.metrics = new BookKeeperMetrics.BookKeeperLog(containerId);
         this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
+        this.queueStateChangeListeners = new HashSet<>();
     }
 
     private Retry.RetryAndThrowBase<? extends Exception> createRetryPolicy(int maxWriteAttempts, int writeTimeout) {
@@ -287,11 +293,11 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
+    public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
         ensurePreconditions();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "append", data.getLength());
-        if (data.getLength() > getMaxAppendLength()) {
-            return Futures.failedFuture(new WriteTooLongException(data.getLength(), getMaxAppendLength()));
+        if (data.getLength() > BookKeeperConfig.MAX_APPEND_LENGTH) {
+            return Futures.failedFuture(new WriteTooLongException(data.getLength(), BookKeeperConfig.MAX_APPEND_LENGTH));
         }
 
         Timer timer = new Timer();
@@ -330,8 +336,10 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     @Override
-    public int getMaxAppendLength() {
-        return BookKeeperConfig.MAX_APPEND_LENGTH;
+    public WriteSettings getWriteSettings() {
+        return new WriteSettings(BookKeeperConfig.MAX_APPEND_LENGTH,
+                Duration.ofMillis(this.config.getBkWriteTimeoutMillis()),
+                this.config.getMaxOutstandingBytes());
     }
 
     @Override
@@ -343,6 +351,18 @@ class BookKeeperLog implements DurableDataLog {
     @Override
     public QueueStats getQueueStatistics() {
         return this.writes.getStatistics();
+    }
+
+    @Override
+    public void registerQueueStateChangeListener(ThrottleSourceListener listener) {
+        if (listener.isClosed()) {
+            log.warn("{} Attempted to register a closed ThrottleSourceListener ({}).", this.traceObjectId, listener);
+            return;
+        }
+
+        synchronized (this.queueStateChangeListeners) {
+            this.queueStateChangeListeners.add(listener); // This is a Set, so we won't be adding the same listener twice.
+        }
     }
 
     //endregion
@@ -377,17 +397,23 @@ class BookKeeperLog implements DurableDataLog {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "processPendingWrites");
 
         // Clean up the write queue of all finished writes that are complete (successfully or failed for good)
-        val cs = this.writes.removeFinishedWrites();
-        if (cs == WriteQueue.CleanupStatus.WriteFailed) {
+        val cleanupResult = this.writes.removeFinishedWrites();
+        if (cleanupResult.getStatus() == WriteQueue.CleanupStatus.WriteFailed) {
             // We encountered a failed write. As such, we must close immediately and not process anything else.
             // Closing will automatically cancel all pending writes.
             close();
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, cs);
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, cleanupResult);
             return false;
-        } else if (cs == WriteQueue.CleanupStatus.QueueEmpty) {
-            // Queue is empty - nothing else to do.
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, cs);
-            return true;
+        } else {
+            if (cleanupResult.getRemovedCount() > 0) {
+                notifyQueueChangeListeners();
+            }
+
+            if (cleanupResult.getStatus() == WriteQueue.CleanupStatus.QueueEmpty) {
+                // Queue is empty - nothing else to do.
+                LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, cleanupResult);
+                return true;
+            }
         }
 
         // Get the writes to execute from the queue.
@@ -451,7 +477,7 @@ class BookKeeperLog implements DurableDataLog {
                 }
 
                 // Invoke the BookKeeper write.
-                w.getWriteLedger().ledger.asyncAddEntry(w.data.array(), w.data.arrayOffset(), w.data.getLength(), this::addCallback, w);
+                w.getWriteLedger().ledger.asyncAddEntry(w.getData().retain(), this::addCallback, w);
             } catch (Throwable ex) {
                 // Synchronous failure (or RetriesExhausted). Fail current write.
                 boolean isFinal = !isRetryable(ex);
@@ -592,7 +618,7 @@ class BookKeeperLog implements DurableDataLog {
     private void completeWrite(Write write) {
         Timer t = write.complete();
         if (t != null) {
-            this.metrics.bookKeeperWriteCompleted(write.data.getLength(), t.getElapsed());
+            this.metrics.bookKeeperWriteCompleted(write.getLength(), t.getElapsed());
         }
     }
 
@@ -695,6 +721,34 @@ class BookKeeperLog implements DurableDataLog {
 
         log.info("{}: Truncated up to {}.", this.traceObjectId, upToAddress);
         LoggerHelpers.traceLeave(log, this.traceObjectId, "tryTruncate", traceId, upToAddress);
+    }
+
+    private void notifyQueueChangeListeners() {
+        ArrayList<ThrottleSourceListener> toNotify = new ArrayList<>();
+        ArrayList<ThrottleSourceListener> toRemove = new ArrayList<>();
+        synchronized (this.queueStateChangeListeners) {
+            for (ThrottleSourceListener l : this.queueStateChangeListeners) {
+                if (l.isClosed()) {
+                    toRemove.add(l);
+                } else {
+                    toNotify.add(l);
+                }
+            }
+
+            this.queueStateChangeListeners.removeAll(toRemove);
+        }
+
+        for (ThrottleSourceListener l : toNotify) {
+            try {
+                l.notifyThrottleSourceChanged();
+            } catch (Throwable ex) {
+                if (Exceptions.mustRethrow(ex)) {
+                    throw ex;
+                }
+
+                log.error("{}: Error while notifying queue listener {}.", this.traceObjectId, l, ex);
+            }
+        }
     }
 
     //endregion

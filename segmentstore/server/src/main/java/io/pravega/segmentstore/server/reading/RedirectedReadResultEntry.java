@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -116,6 +116,11 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     @Override
     public CompletionConsumer getCompletionCallback() {
         return getActiveEntry().getCompletionCallback();
+    }
+
+    @Override
+    public void fail(Throwable ex) {
+        throw new UnsupportedOperationException("fail() not supported on " + this.getClass().getSimpleName());
     }
 
     //endregion

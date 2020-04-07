@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,6 +12,8 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import io.pravega.common.util.InvalidPropertyValueException;
 import io.pravega.test.common.AssertExtensions;
 import java.time.Duration;
+
+import org.apache.bookkeeper.client.BookKeeper;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -33,14 +35,39 @@ public class BookKeeperConfigTest {
         Assert.assertEquals(3, cfg.getBkEnsembleSize());
         Assert.assertEquals(2, cfg.getBkAckQuorumSize());
         Assert.assertEquals(3, cfg.getBkWriteQuorumSize());
-        Assert.assertEquals(5000, cfg.getBkWriteTimeoutMillis());
-        Assert.assertEquals(5000, cfg.getBkReadTimeoutMillis());
+        Assert.assertEquals(60000, cfg.getBkWriteTimeoutMillis());
+        Assert.assertEquals(30000, cfg.getBkReadTimeoutMillis());
+        Assert.assertEquals(64, cfg.getBkReadBatchSize());
+        Assert.assertEquals(256 * 1024 * 1024, cfg.getMaxOutstandingBytes());
         Assert.assertEquals(1024 * 1024 * 1024, cfg.getBkLedgerMaxSize());
         Assert.assertEquals(0, cfg.getBKPassword().length);
         Assert.assertEquals("", cfg.getBkLedgerPath());
         Assert.assertEquals(false, cfg.isTLSEnabled());
         Assert.assertEquals("config/client.truststore.jks", cfg.getTlsTrustStore());
         Assert.assertEquals("", cfg.getTlsTrustStorePasswordPath());
+        Assert.assertEquals(false, cfg.isEnforceMinNumRacksPerWriteQuorum());
+        Assert.assertEquals(2, cfg.getMinNumRacksPerWriteQuorum());
+        Assert.assertEquals("/opt/pravega/scripts/sample-bookkeeper-topology.sh", cfg.getNetworkTopologyFileName());
+        Assert.assertEquals(BookKeeper.DigestType.CRC32C, cfg.getDigestType());
+    }
+
+    @Test
+    public void testBadValues() {
+        AssertExtensions.assertThrows(
+                BookKeeperConfig.ZK_HIERARCHY_DEPTH.toString(),
+                () -> BookKeeperConfig.builder().with(BookKeeperConfig.ZK_HIERARCHY_DEPTH, -1).build(),
+                ex -> ex instanceof InvalidPropertyValueException);
+
+        AssertExtensions.assertThrows(
+                BookKeeperConfig.BK_WRITE_QUORUM_SIZE.toString(),
+                () -> BookKeeperConfig.builder().with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 2)
+                        .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 3).build(),
+                ex -> ex instanceof InvalidPropertyValueException);
+
+        AssertExtensions.assertThrows(
+                BookKeeperConfig.BK_READ_BATCH_SIZE.toString(),
+                () -> BookKeeperConfig.builder().with(BookKeeperConfig.BK_READ_BATCH_SIZE, -1).build(),
+                ex -> ex instanceof InvalidPropertyValueException);
     }
 
     @Test

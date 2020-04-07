@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -78,6 +78,24 @@ public class ZKStoreHelper {
         try {
             client.delete().inBackground(
                     callback(x -> result.complete(null), result::completeExceptionally, path), executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+        return result;
+    }
+
+    CompletableFuture<Void> deleteNode(final String path, final Version version) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            client.delete().withVersion(version.asIntVersion().getIntValue()).inBackground(
+                    callback(x -> result.complete(null),
+                            e -> {
+                                if (e instanceof StoreException.DataNotFoundException) { // deleted already
+                                    result.complete(null);
+                                } else {
+                                    result.completeExceptionally(e);
+                                }
+                            }, path), executor).forPath(path);
         } catch (Exception e) {
             result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }

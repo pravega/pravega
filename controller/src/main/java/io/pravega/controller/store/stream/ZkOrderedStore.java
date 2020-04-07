@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -107,8 +107,9 @@ class ZkOrderedStore {
                                                              // 2. seal latest collection
                                                              .thenCompose(v -> storeHelper.createZNodeIfNotExist(
                                                                      getCollectionSealedPath(scope, stream, latestcollectionNum)))
-                                                             // 3. call addEntity recursively
-                                                             .thenCompose(v -> addEntity(scope, stream, entity))
+                                                             // 3. create new collection and put the entity in
+                                                             .thenCompose(v -> storeHelper.createPersistentSequentialZNode(getEntitySequentialPath(scope, stream, latestcollectionNum + 1), entity.getBytes(Charsets.UTF_8)))
+                                                             .thenApply(newPositionPath -> Position.toLong(latestcollectionNum + 1, getPositionFromPath(newPositionPath)))
                                                              // 4. delete empty sealed collection path
                                                              .thenCompose(orderedPosition -> 
                                                                      tryDeleteSealedCollection(scope, stream, latestcollectionNum)

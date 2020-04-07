@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ import java.util.Random;
 public class DeleteSegmentOperationTests extends OperationTestsBase<DeleteSegmentOperation> {
     @Override
     protected DeleteSegmentOperation createOperation(Random random) {
-        DeleteSegmentOperation result = new DeleteSegmentOperation(random.nextInt(1000));
+        DeleteSegmentOperation result = new DeleteSegmentOperation(1 + random.nextInt(1000)); // segmentId must not be zero.
         result.setStreamSegmentOffset(random.nextInt(1000));
         return result;
     }

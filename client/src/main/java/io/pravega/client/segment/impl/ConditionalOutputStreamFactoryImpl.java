@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.util.Retry;
@@ -24,8 +25,8 @@ public class ConditionalOutputStreamFactoryImpl implements ConditionalOutputStre
     private final ConnectionFactory cf;
     
     @Override
-    public ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config) {
-        return new ConditionalOutputStreamImpl(UUID.randomUUID(), segment, controller, cf, delegationToken, getRetryFromConfig(config));
+    public ConditionalOutputStream createConditionalOutputStream(Segment segment, DelegationTokenProvider tokenProvider, EventWriterConfig config) {
+        return new ConditionalOutputStreamImpl(UUID.randomUUID(), segment, controller, cf, tokenProvider, getRetryFromConfig(config));
     }
 
     private RetryWithBackoff getRetryFromConfig(EventWriterConfig config) {

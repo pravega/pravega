@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.auth.JKSHelper;
 import io.pravega.common.auth.ZKTLSUtils;
@@ -24,8 +26,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -35,11 +35,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.utils.ZookeeperFactory;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooKeeper;
 
-import static org.apache.zookeeper.client.ZKClientConfig.SECURE_CLIENT;
-import static org.apache.zookeeper.client.ZKClientConfig.ZOOKEEPER_CLIENT_CNXN_SOCKET;
-import static org.apache.zookeeper.common.ZKConfig.SSL_TRUSTSTORE_LOCATION;
-import static org.apache.zookeeper.common.ZKConfig.SSL_TRUSTSTORE_PASSWD;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Starts the Pravega Service.
@@ -70,7 +71,6 @@ public final class ServiceStarter {
     private ServiceBuilder createServiceBuilder() {
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(this.builderConfig);
         attachDataLogFactory(builder);
-        attachRocksDB(builder);
         attachStorage(builder);
         attachZKSegmentManager(builder);
         return builder;
@@ -169,10 +169,6 @@ public final class ServiceStarter {
         });
     }
 
-    private void attachRocksDB(ServiceBuilder builder) {
-        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)));
-    }
-
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             StorageLoader loader = new StorageLoader();
@@ -187,25 +183,59 @@ public final class ServiceStarter {
                         this.zkClient,
                         new Host(this.serviceConfig.getPublishedIPAddress(),
                                 this.serviceConfig.getPublishedPort(), null),
+                        this.serviceConfig.getParallelContainerStarts(),
                         setup.getCoreExecutor()));
     }
 
-    private CuratorFramework createZKClient() {
+    @VisibleForTesting
+    public CuratorFramework createZKClient() {
         if (this.serviceConfig.isSecureZK()) {
-            System.setProperty(SECURE_CLIENT, Boolean.toString(this.serviceConfig.isSecureZK()));
-            System.setProperty(ZOOKEEPER_CLIENT_CNXN_SOCKET, "org.apache.zookeeper.ClientCnxnSocketNetty");
-            System.setProperty(SSL_TRUSTSTORE_LOCATION, this.serviceConfig.getZkTrustStore());
-            System.setProperty(SSL_TRUSTSTORE_PASSWD, JKSHelper.loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
+            ZKTLSUtils.setSecureZKClientProperties(this.serviceConfig.getZkTrustStore(),
+                    JKSHelper.loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
         }
         CuratorFramework zkClient = CuratorFrameworkFactory
                 .builder()
                 .connectString(this.serviceConfig.getZkURL())
                 .namespace("pravega/" + this.serviceConfig.getClusterName())
+                .zookeeperFactory(new ZKClientFactory())
                 .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()))
                 .sessionTimeoutMs(this.serviceConfig.getZkSessionTimeoutMs())
                 .build();
         zkClient.start();
         return zkClient;
+    }
+
+    /**
+     * This custom factory is used to ensure that Zookeeper clients in Curator are always created using the Zookeeper
+     * hostname, so it can be resolved to a new IP in the case of a Zookeeper instance restart.
+     */
+    @ThreadSafe
+    static class ZKClientFactory implements ZookeeperFactory {
+        @GuardedBy("this")
+        private ZooKeeper client;
+        @GuardedBy("this")
+        private String connectString;
+        @GuardedBy("this")
+        private int sessionTimeout;
+        @GuardedBy("this")
+        private boolean canBeReadOnly;
+
+        @Override
+        public ZooKeeper newZooKeeper(String connectString, int sessionTimeout, Watcher watcher, boolean canBeReadOnly) throws Exception {
+            Exceptions.checkNotNullOrEmpty(connectString, "connectString");
+            Preconditions.checkArgument(sessionTimeout > 0, "sessionTimeout should be a positive integer");
+            synchronized (this) {
+                if (client == null) {
+                    this.connectString = connectString;
+                    this.sessionTimeout = sessionTimeout;
+                    this.canBeReadOnly = canBeReadOnly;
+                }
+                log.info("Creating new Zookeeper client with arguments: {}, {}, {}.", this.connectString, this.sessionTimeout,
+                        this.canBeReadOnly);
+                this.client = new ZooKeeper(this.connectString, this.sessionTimeout, watcher, this.canBeReadOnly);
+                return this.client;
+            }
+        }
     }
 
     //endregion

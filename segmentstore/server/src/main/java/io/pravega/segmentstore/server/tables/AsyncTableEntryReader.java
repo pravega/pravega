@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -232,7 +232,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
             if (readData.getLength() >= EntrySerializer.HEADER_LENGTH + header.getKeyLength()) {
                 // We read enough information.
-                ArrayView keyData = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
+                ArrayView keyData = readData.slice(header.getKeyOffset(), header.getKeyLength());
                 if (header.isDeletion()) {
                     complete(TableKey.notExists(keyData));
                 } else {
@@ -283,7 +283,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
             if (!this.keyValidated) {
                 // Compare the sought key and the data we read, byte-by-byte.
-                ByteArraySegment keyData = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
+                ByteArraySegment keyData = readData.slice(header.getKeyOffset(), header.getKeyLength());
                 for (int i = 0; i < this.soughtKey.getLength(); i++) {
                     if (this.soughtKey.get(i) != keyData.get(i)) {
                         // Key mismatch; no point in continuing.
@@ -311,7 +311,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             if (header.getValueLength() == 0) {
                 valueData = new ByteArraySegment(new byte[0]);
             } else {
-                valueData = readData.subSegment(header.getValueOffset(), header.getValueLength());
+                valueData = readData.slice(header.getValueOffset(), header.getValueLength());
             }
 
             complete(TableEntry.versioned(getKeyData(this.soughtKey, readData, header), valueData, getKeyVersion()));
@@ -320,7 +320,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
         private ArrayView getKeyData(ArrayView soughtKey, ByteArraySegment readData, EntrySerializer.Header header) {
             if (soughtKey == null) {
-                soughtKey = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
+                soughtKey = readData.slice(header.getKeyOffset(), header.getKeyLength());
             }
 
             return soughtKey;

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,16 +10,21 @@
 package io.pravega.test.integration.controller.server;
 
 import com.google.common.base.Preconditions;
+import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Position;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderSegmentDistribution;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -49,8 +54,16 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.io.IOException;
+import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -81,6 +94,7 @@ public class EventProcessorTest {
     private ServiceBuilder serviceBuilder;
     private StreamSegmentStore store;
     private TableStore tableStore;
+    private ScheduledExecutorService executor;
     
     public static class TestEventProcessor extends EventProcessor<TestEvent> {
         long sum;
@@ -185,13 +199,15 @@ public class EventProcessorTest {
                 4);
         controllerWrapper.awaitRunning();
         controller = controllerWrapper.getController();
+        executor = Executors.newSingleThreadScheduledExecutor();
     }
 
     @After
     public void tearDown() throws Exception {
         controllerWrapper.close();
         server.close();
-        zkTestServer.stop();   
+        zkTestServer.stop();
+        executor.shutdownNow();
     }
     
     @Test(timeout = 60000)
@@ -262,8 +278,8 @@ public class EventProcessorTest {
                 .build();
         @Cleanup
         EventProcessorGroup<TestEvent> eventProcessorGroup =
-                system.createEventProcessorGroup(eventProcessorConfig, CheckpointStoreFactory.createInMemoryStore());
-
+                system.createEventProcessorGroup(eventProcessorConfig, CheckpointStoreFactory.createInMemoryStore(), executor);
+        
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
         log.info("SUCCESS: received expected sum = " + expectedSum);
@@ -334,7 +350,7 @@ public class EventProcessorTest {
                 .build();
         @Cleanup
         EventProcessorGroup<TestEvent> eventProcessorGroup =
-                system.createEventProcessorGroup(eventProcessorConfig, CheckpointStoreFactory.createInMemoryStore());
+                system.createEventProcessorGroup(eventProcessorConfig, CheckpointStoreFactory.createInMemoryStore(), executor);
 
         eventProcessorGroup.awaitRunning();
         // wait until both events are read
@@ -377,7 +393,7 @@ public class EventProcessorTest {
 
         @Cleanup
         EventProcessorGroup<TestEvent> eventProcessorGroup2 =
-                system.createEventProcessorGroup(eventProcessorConfig2, CheckpointStoreFactory.createInMemoryStore());
+                system.createEventProcessorGroup(eventProcessorConfig2, CheckpointStoreFactory.createInMemoryStore(), executor);
         eventProcessorGroup2.awaitRunning();
 
         // verify that both events are read again
@@ -389,11 +405,187 @@ public class EventProcessorTest {
         eventProcessorGroup2.awaitTerminated();
     }
 
+    @Test(timeout = 60000)
+    public void testEventProcessorRebalance() throws Exception {
+        final String scope = "scope";
+        final String streamName = "stream";
+        final String readerGroupName = "readerGroup";
+
+        controller.createScope(scope).join();
+
+        final StreamConfiguration config = StreamConfiguration.builder()
+                                                              .scalingPolicy(ScalingPolicy.fixed(4))
+                                                              .build();
+
+        controller.createStream(scope, streamName, config).join();
+
+        eventSerializer = new EventSerializer<>(new TestSerializer());
+
+        @Cleanup
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+
+        CheckpointConfig.CheckpointPeriod period =
+                CheckpointConfig.CheckpointPeriod.builder()
+                                                 .numEvents(1)
+                                                 .numSeconds(1)
+                                                 .build();
+
+        CheckpointConfig checkpointConfig =
+                CheckpointConfig.builder()
+                                .type(CheckpointConfig.Type.Periodic)
+                                .checkpointPeriod(period)
+                                .build();
+
+        EventProcessorGroupConfig eventProcessorGroupConfig =
+                EventProcessorGroupConfigImpl.builder()
+                                             .eventProcessorCount(1)
+                                             .readerGroupName(readerGroupName)
+                                             .streamName(streamName)
+                                             .checkpointConfig(checkpointConfig)
+                                             .build();
+
+        LinkedBlockingQueue<Integer> queue1 = new LinkedBlockingQueue<>();
+
+        EventProcessorConfig<TestEvent> eventProcessorConfig1 = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new TestEventProcessor2(queue1))
+                .serializer(eventSerializer)
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
+                .config(eventProcessorGroupConfig)
+                .minRebalanceIntervalMillis(Duration.ofMillis(100).toMillis())
+                .build();
+
+        // create a group and verify that all events can be written and read by readers in this group.
+        EventProcessorSystem system1 = new EventProcessorSystemImpl("Controller", "process1", scope,
+                new ClientFactoryImpl(scope, controller, connectionFactory),
+                new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory));
+
+        @Cleanup
+        EventProcessorGroup<TestEvent> eventProcessorGroup1 =
+                system1.createEventProcessorGroup(eventProcessorConfig1, CheckpointStoreFactory.createInMemoryStore(), executor);
+
+        eventProcessorGroup1.awaitRunning();
+
+        log.info("first event processor started");
+
+        @Cleanup
+        EventStreamWriter<TestEvent> writer = clientFactory.createEventWriter(streamName,
+                eventSerializer, EventWriterConfig.builder().build());
+
+        // write 10 events and read them back from the queue passed to first event processor's
+        List<Integer> input = IntStream.range(0, 10).boxed().collect(Collectors.toList());
+        ConcurrentSet<Integer> output = new ConcurrentSet<>();
+
+        for (int val : input) {
+            writer.writeEvent(new TestEvent(val));
+        }
+        writer.flush();
+
+        // now wait until all the entries are read back. 
+        for (int i = 0; i < 10; i++) {
+            // read 10 events back
+            Integer entry = queue1.take();
+            output.add(entry);
+        }
+        assertEquals(10, output.size());
+
+        log.info("first event processor read all the messages");
+
+        LinkedBlockingQueue<Integer> queue2 = new LinkedBlockingQueue<>();
+
+        EventProcessorConfig<TestEvent> eventProcessorConfig2 = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new TestEventProcessor2(queue2))
+                .serializer(eventSerializer)
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
+                .config(eventProcessorGroupConfig)
+                .minRebalanceIntervalMillis(Duration.ofMillis(100).toMillis())
+                .build();
+
+        // add another system and event processor group (effectively add a new set of readers to the readergroup) 
+        EventProcessorSystem system2 = new EventProcessorSystemImpl("Controller", "process2", scope,
+                new ClientFactoryImpl(scope, controller, connectionFactory),
+                new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory));
+
+        @Cleanup
+        EventProcessorGroup<TestEvent> eventProcessorGroup2 =
+                system2.createEventProcessorGroup(eventProcessorConfig2, CheckpointStoreFactory.createInMemoryStore(), executor);
+
+        eventProcessorGroup2.awaitRunning();
+
+        log.info("second event processor started");
+
+        AtomicInteger queue1EntriesFound = new AtomicInteger(0);
+        AtomicInteger queue2EntriesFound = new AtomicInteger(0);
+        ConcurrentSet<Integer> output2 = new ConcurrentSet<>();
+
+        // wait until rebalance may have happened. 
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory,
+                connectionFactory);
+
+        ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
+
+        AtomicBoolean allAssigned = new AtomicBoolean(false);
+        Futures.loop(() -> !allAssigned.get(), () -> Futures.delayedFuture(Duration.ofMillis(100), executor).thenAccept(v -> {
+            ReaderSegmentDistribution distribution = readerGroup.getReaderSegmentDistribution();
+            int numberOfReaders = distribution.getReaderSegmentDistribution().size();
+            allAssigned.set(numberOfReaders == 2 && distribution.getReaderSegmentDistribution().values().stream().noneMatch(x -> x == 0));
+        }), executor).join();
+
+        // write 10 new events
+        for (int val : input) {
+            writer.writeEvent(new TestEvent(val));
+        }
+        writer.flush();
+
+        // wait until at least one event is read from queue2 
+        CompletableFuture.allOf(CompletableFuture.runAsync(() -> {
+            while (queue1EntriesFound.get() + queue2EntriesFound.get() < 10) {
+                Integer entry = queue1.poll();
+                if (entry != null) {
+                    log.info("entry read from queue 1: {}", entry);
+                    queue1EntriesFound.incrementAndGet();
+                    output2.add(entry);
+                } else {
+                    Exceptions.handleInterrupted(() -> Thread.sleep(100));
+                }
+            }
+        }), CompletableFuture.runAsync(() -> {
+            while (queue1EntriesFound.get() + queue2EntriesFound.get() < 10) {
+                Integer entry = queue2.poll();
+                if (entry != null) {
+                    log.info("entry read from queue 2: {}", entry);
+                    queue2EntriesFound.incrementAndGet();
+                    output2.add(entry);
+                } else {
+                    Exceptions.handleInterrupted(() -> Thread.sleep(100));
+                }
+            }
+        })).join();
+
+        assertTrue(queue1EntriesFound.get() > 0);
+        assertTrue(queue2EntriesFound.get() > 0);
+        assertEquals(10, output2.size());
+    }
+
     private static class TestSerializer extends ControllerEventSerializer {
         @Override
         protected void declareSerializers(Builder builder) {
             super.declareSerializers(builder);
             builder.serializer(TestEvent.class, 127, new TestEvent.Serializer());
+        }
+    }
+
+    public static class TestEventProcessor2 extends EventProcessor<TestEvent> {
+        private final LinkedBlockingQueue<Integer> queue;
+        TestEventProcessor2(LinkedBlockingQueue<Integer> queue) {
+            this.queue = queue;
+        }
+
+        @Override
+        protected void process(TestEvent event, Position position) {
+            queue.add(event.number);
         }
     }
 }

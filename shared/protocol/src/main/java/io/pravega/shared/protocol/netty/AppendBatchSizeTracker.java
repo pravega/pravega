@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,6 +11,8 @@ package io.pravega.shared.protocol.netty;
 
 public interface AppendBatchSizeTracker {
 
+    static final int MAX_BATCH_SIZE = WireCommands.MAX_WIRECOMMAND_SIZE / 2;
+    
     /**
      * Records that an append has been sent.
      * 
@@ -21,10 +23,11 @@ public interface AppendBatchSizeTracker {
 
     /**
      * Records that one or more events have been acked.
-     * 
+     *
      * @param eventNumber the number of the last event
+     * @return The number of outstanding appends.
      */
-    void recordAck(long eventNumber);
+    long recordAck(long eventNumber);
 
     /**
      * Returns the size that should be used for the next append block.
