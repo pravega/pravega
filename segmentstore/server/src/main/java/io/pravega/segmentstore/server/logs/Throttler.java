@@ -145,7 +145,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
             // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
             // processing of operations) or if this is due to us not being able to ingest items quickly enough.
             log.warn("{}: Processing delay = {}.", this.traceObjectId, delay);
-        } else {
+        } else if (delay.getThrottlerName() != null) {
             log.debug("{}: Processing delay = {}.", this.traceObjectId, delay);
         }
 
@@ -168,7 +168,9 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
                     });
         } else {
             // The future won't be interrupted, so we can assume it will run till completion.
-            this.metrics.processingDelay(delay.getDurationMillis(), delay.getThrottlerName().toString());
+            if (delay.getThrottlerName() != null) {
+                this.metrics.processingDelay(delay.getDurationMillis(), delay.getThrottlerName().toString());
+            }
             return delayFuture;
         }
     }
