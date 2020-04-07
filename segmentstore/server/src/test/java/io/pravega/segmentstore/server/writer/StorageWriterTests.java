@@ -38,6 +38,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
+import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
@@ -227,6 +228,44 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         context.storage.setConcatAsyncErrorInjector(new ErrorInjector<>(count -> count % failConcatAsyncEvery == 0, exceptionSupplier));
 
         testWriter(context);
+    }
+
+    /**
+     * Tests the StorageWriter in a scenario where the DurableLog is left throwing DataLogWriterNotPrimaryException. In
+     * this case, we need to restart the StorageWriter and expect the container recovery to resolve the original issue.
+     */
+    @Test
+    public void testWithDataSourceNotPrimaryErrors() throws Exception {
+        final int failWriteSyncEvery = 4;
+        Predicate<Throwable> errorPredicate = ex -> ex instanceof DataLogWriterNotPrimaryException;
+
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+        Supplier<Exception> exceptionSupplier = () -> new DataLogWriterNotPrimaryException("Problem interacting with Zookeeper");
+
+        // Simulate DataLogWriterNotPrimaryException in DurableLog from a failed truncation (e.g., KeeperException.BadVersionException).
+        context.dataSource.setAckAsyncErrorInjector(new ErrorInjector<>(count -> count % failWriteSyncEvery == 0, exceptionSupplier));
+
+        // Start the writer.
+        context.writer.startAsync();
+
+        // Create a bunch of segments and Transactions.
+        ArrayList<Long> segmentIds = createSegments(context);
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
+        ArrayList<Long> transactionIds = new ArrayList<>();
+        transactionsBySegment.values().forEach(transactionIds::addAll);
+
+        // Append data.
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendDataBreadthFirst(segmentIds, segmentContents, context);
+        appendDataBreadthFirst(transactionIds, segmentContents, context);
+
+        // Wait for the Storage Writer to be shutdown.
+        ServiceListeners.awaitShutdown(context.writer, TIMEOUT, false);
+
+        // Ensure that the failure case is DataLogWriterNotPrimaryException.
+        Assert.assertTrue("Unexpected failure cause for DurableLog.",
+                errorPredicate.test(Exceptions.unwrap(context.writer.failureCause())));
     }
 
     /**
