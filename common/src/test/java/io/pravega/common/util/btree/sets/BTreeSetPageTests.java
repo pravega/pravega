@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util.btree;
+package io.pravega.common.util.btree.sets;
 
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArrayComparator;
@@ -33,7 +33,7 @@ import org.junit.Test;
 public class BTreeSetPageTests {
     private static final int DEFAULT_PAGE_ID = 2;
     private static final int DEFAULT_PARENT_PAGE_ID = 1;
-    private static final BTreeSetPage.PagePointer DEFAULT_PAGE_INFO = new BTreeSetPage.PagePointer(null, DEFAULT_PAGE_ID, DEFAULT_PARENT_PAGE_ID);
+    private static final PagePointer DEFAULT_PAGE_INFO = new PagePointer(null, DEFAULT_PAGE_ID, DEFAULT_PARENT_PAGE_ID);
     private static final int MAX_ITEM_LENGTH = 4096; // TODO: is this enforced?
     private static final ByteArrayComparator COMPARATOR = new ByteArrayComparator();
     private final Random random = new Random(0);
@@ -56,12 +56,12 @@ public class BTreeSetPageTests {
 
             // Add some random key that has already been inserted.
             if (insertedKeys.size() > 0) {
-                updateBatch.add(new BTreeSetPage.UpdateItem(insertedKeys.get(random.nextInt(insertedKeys.size())), false));
+                updateBatch.add(new UpdateItem(insertedKeys.get(random.nextInt(insertedKeys.size())), false));
             }
             updateBatch.forEach(i -> insertedKeys.add(i.getItem()));
 
             // Apply the update and verify it.
-            updateBatch.sort(BTreeSetPage.UpdateItem::compareTo);
+            updateBatch.sort(UpdateItem::compareTo);
             page.update(updateBatch);
             Assert.assertTrue(page.isModified());
             check(page, expectedItems);
@@ -83,7 +83,7 @@ public class BTreeSetPageTests {
         val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
         val updateBatch = createUpdateBatch(count);
         updateBatch.forEach(i -> expectedItems.add(i.getItem()));
-        updateBatch.sort(BTreeSetPage.UpdateItem::compareTo);
+        updateBatch.sort(UpdateItem::compareTo);
         page.update(updateBatch);
         Assert.assertTrue(page.isModified());
         check(page, expectedItems);
@@ -97,9 +97,9 @@ public class BTreeSetPageTests {
             // Generate a removal batch.
             batchSize = Math.min(batchSize, shuffledItems.size() - index);
             val removeBatch = shuffledItems.subList(index, index + batchSize)
-                    .stream().map(item -> new BTreeSetPage.UpdateItem(item, true)).collect(Collectors.toList());
+                    .stream().map(item -> new UpdateItem(item, true)).collect(Collectors.toList());
             removeBatch.forEach(u -> expectedItems.remove(u.getItem()));
-            removeBatch.sort(BTreeSetPage.UpdateItem::compareTo);
+            removeBatch.sort(UpdateItem::compareTo);
 
             // Apply it and verify the page.
             page.update(removeBatch);
@@ -133,15 +133,15 @@ public class BTreeSetPageTests {
             // Remove some existing keys.
             int actualRemovalCount = Math.min(removalCount, shuffledItems.size());
             for (int i = 0; i < actualRemovalCount; i++) {
-                updateBatch.add(new BTreeSetPage.UpdateItem(shuffledItems.get(i), true));
+                updateBatch.add(new UpdateItem(shuffledItems.get(i), true));
             }
 
             // Remove some extra (not present) keys.
             for (int i = actualRemovalCount; i < removalCount; i++) {
-                updateBatch.add(new BTreeSetPage.UpdateItem(newItem(), true));
+                updateBatch.add(new UpdateItem(newItem(), true));
             }
 
-            updateBatch.sort(BTreeSetPage.UpdateItem::compareTo);
+            updateBatch.sort(UpdateItem::compareTo);
             updateBatch.forEach(i -> {
                 if (i.isRemoval()) {
                     expectedItems.remove(i.getItem());
@@ -169,7 +169,7 @@ public class BTreeSetPageTests {
         val itemCount = childPageCount * itemsPerPage;
         val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR::compare).collect(Collectors.toList());
         val allPointers = IntStream.range(0, itemCount).filter(i -> i % itemsPerPage == 0)
-                .mapToObj(i -> new BTreeSetPage.PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
+                .mapToObj(i -> new PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
 
         val page = new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO);
@@ -178,7 +178,7 @@ public class BTreeSetPageTests {
 
         int updateCount = 0;
         int batchSize = 1;
-        val addedPointers = new ArrayList<BTreeSetPage.PagePointer>();
+        val addedPointers = new ArrayList<PagePointer>();
         while (updateCount < allPointers.size()) {
             // Generate an update batch.
             batchSize = Math.min(batchSize, allPointers.size() - updateCount);
@@ -207,7 +207,7 @@ public class BTreeSetPageTests {
         val itemCount = childPageCount * itemsPerPage;
         val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR::compare).collect(Collectors.toList());
         val allPointers = IntStream.range(0, itemCount).filter(i -> i % itemsPerPage == 0)
-                .mapToObj(i -> new BTreeSetPage.PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
+                .mapToObj(i -> new PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
 
         // Create a new page and add all items to it.
@@ -216,7 +216,7 @@ public class BTreeSetPageTests {
         Assert.assertTrue(page.isModified());
         check(page, allPointers, allItems);
 
-        List<BTreeSetPage.PagePointer> shuffledPointers = new ArrayList<>(allPointers);
+        List<PagePointer> shuffledPointers = new ArrayList<>(allPointers);
         Collections.shuffle(shuffledPointers);
         int batchSize = 1;
         while (!allPointers.isEmpty()) {
@@ -250,7 +250,7 @@ public class BTreeSetPageTests {
         val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
         val updateBatch = createUpdateBatch(itemCount);
         updateBatch.forEach(i -> expectedItems.add(i.getItem()));
-        updateBatch.sort(BTreeSetPage.UpdateItem::compareTo);
+        updateBatch.sort(UpdateItem::compareTo);
         page.update(updateBatch);
 
         val nextPageId = new AtomicLong(1000);
@@ -274,13 +274,13 @@ public class BTreeSetPageTests {
     @Test
     public void testLeafPageSplitRecursive() {
         val itemCount = 5000;
-        val page = new BTreeSetPage.LeafPage(BTreeSetPage.PagePointer.root());
+        val page = new BTreeSetPage.LeafPage(PagePointer.root());
 
         // Bulk-update the page.
         val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
         val updateBatch = createUpdateBatch(itemCount);
         updateBatch.forEach(i -> expectedItems.add(i.getItem()));
-        updateBatch.sort(BTreeSetPage.UpdateItem::compareTo);
+        updateBatch.sort(UpdateItem::compareTo);
         page.update(updateBatch);
 
         val nextPageId = new AtomicLong(1000);
@@ -354,7 +354,7 @@ public class BTreeSetPageTests {
         val itemCount = childPageCount * itemsPerPage;
         val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR::compare).collect(Collectors.toList());
         val allPointers = IntStream.range(0, itemCount).filter(i -> i % itemsPerPage == 0)
-                .mapToObj(i -> new BTreeSetPage.PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
+                .mapToObj(i -> new PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
 
         // Create a new page and add all items to it.
@@ -387,11 +387,11 @@ public class BTreeSetPageTests {
         val itemCount = childPageCount * itemsPerPage;
         val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR::compare).collect(Collectors.toList());
         val allPointers = IntStream.range(0, itemCount).filter(i -> i % itemsPerPage == 0)
-                .mapToObj(i -> new BTreeSetPage.PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
+                .mapToObj(i -> new PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
 
         // Create a new page and add all items to it.
-        val page = new BTreeSetPage.IndexPage(BTreeSetPage.PagePointer.root());
+        val page = new BTreeSetPage.IndexPage(PagePointer.root());
         page.addChildren(allPointers);
 
         // Check single-level splits.
@@ -420,7 +420,7 @@ public class BTreeSetPageTests {
         }
     }
 
-    private void verifyIndexPageSplit(List<BTreeSetPage> splitResult, List<BTreeSetPage.PagePointer> allPointers, int maxPageSize, List<Long> parentPageIds) {
+    private void verifyIndexPageSplit(List<BTreeSetPage> splitResult, List<PagePointer> allPointers, int maxPageSize, List<Long> parentPageIds) {
         // Verify counts match.
         val splitItemCount = splitResult.stream().mapToInt(BTreeSetPage::getItemCount).sum();
         Assert.assertEquals(allPointers.size(), splitItemCount);
@@ -473,7 +473,7 @@ public class BTreeSetPageTests {
         val count = 10;
         val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO);
         val updateBatch = createUpdateBatch(count);
-        updateBatch.sort(BTreeSetPage.UpdateItem::compareTo);
+        updateBatch.sort(UpdateItem::compareTo);
         page.update(updateBatch);
 
         // Unsupported version.
@@ -487,7 +487,7 @@ public class BTreeSetPageTests {
         // Page Id mismatch.
         AssertExtensions.assertThrows(
                 "Invalid Page Id was allowed.",
-                () -> BTreeSetPage.parse(new BTreeSetPage.PagePointer(null, 1234, DEFAULT_PARENT_PAGE_ID), page.getData()),
+                () -> BTreeSetPage.parse(new PagePointer(null, 1234, DEFAULT_PARENT_PAGE_ID), page.getData()),
                 ex -> ex instanceof IllegalDataFormatException);
 
         // Bad size
@@ -508,7 +508,7 @@ public class BTreeSetPageTests {
         val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
         val updateBatch = createUpdateBatch(count);
         updateBatch.forEach(i -> expectedItems.add(i.getItem()));
-        updateBatch.sort(BTreeSetPage.UpdateItem::compareTo);
+        updateBatch.sort(UpdateItem::compareTo);
         page.update(updateBatch);
 
         // In addition, we also want to verify that we can process a larger buffer and adjust it based on the encoded size.
@@ -530,7 +530,7 @@ public class BTreeSetPageTests {
         val allPointers = IntStream.range(0, itemCount)
                 .mapToObj(i -> newItem())
                 .sorted(COMPARATOR::compare)
-                .map(key -> new BTreeSetPage.PagePointer(key, random.nextLong(), DEFAULT_PARENT_PAGE_ID))
+                .map(key -> new PagePointer(key, random.nextLong(), DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
 
         // Create a new page and add all items to it.
@@ -539,7 +539,7 @@ public class BTreeSetPageTests {
 
         val page2 = (BTreeSetPage.IndexPage) BTreeSetPage.parse(page.getPagePointer(), page.getData());
         Assert.assertSame(page.getPagePointer(), page2.getPagePointer());
-        check(page2, allPointers, allPointers.stream().map(BTreeSetPage.PagePointer::getKey).collect(Collectors.toList()));
+        check(page2, allPointers, allPointers.stream().map(PagePointer::getKey).collect(Collectors.toList()));
     }
 
     /**
@@ -562,10 +562,10 @@ public class BTreeSetPageTests {
         assertPageEquals(page, page2);
     }
 
-    private List<BTreeSetPage.UpdateItem> createUpdateBatch(int batchSize) {
-        val updateBatch = new ArrayList<BTreeSetPage.UpdateItem>();
+    private List<UpdateItem> createUpdateBatch(int batchSize) {
+        val updateBatch = new ArrayList<UpdateItem>();
         for (int i = 0; i < batchSize; i++) {
-            updateBatch.add(new BTreeSetPage.UpdateItem(newItem(), false));
+            updateBatch.add(new UpdateItem(newItem(), false));
         }
 
         return updateBatch;
@@ -577,7 +577,7 @@ public class BTreeSetPageTests {
         return new ByteArraySegment(item);
     }
 
-    private void check(BTreeSetPage.IndexPage page, List<BTreeSetPage.PagePointer> pagePointers, List<ArrayView> allItems) {
+    private void check(BTreeSetPage.IndexPage page, List<PagePointer> pagePointers, List<ArrayView> allItems) {
         Assert.assertEquals(pagePointers.size(), page.getItemCount());
         int nextPageInfoIndex = 0;
         for (val item : allItems) {
@@ -599,11 +599,26 @@ public class BTreeSetPageTests {
 
     private void check(BTreeSetPage.LeafPage page, TreeSet<ArrayView> expectedItems) {
         Assert.assertEquals(expectedItems.size(), page.getItemCount());
+        List<ArrayView> allItems;
+        if (expectedItems.isEmpty()) {
+            AssertExtensions.assertThrows(
+                    "getItems worked when empty.",
+                    () -> page.getItems(0, page.getItemCount()),
+                    ex -> ex instanceof IllegalArgumentException);
+            allItems = Collections.emptyList();
+        } else {
+            allItems = page.getItems(0, page.getItemCount() - 1);
+            Assert.assertEquals(expectedItems.size(), allItems.size());
+        }
+
         int i = 0;
         for (val expected : expectedItems) {
             // First check using GeItemAt (since we know the position).
             val actual = page.getItemAt(i);
             Assert.assertEquals("Unexpected item at position " + i, 0, COMPARATOR.compare(expected, actual));
+
+            // Then validate the item from allItems.
+            Assert.assertEquals("Unexpected item (getAllItems) at position " + i, 0, COMPARATOR.compare(expected, allItems.get(i)));
 
             // Then check using search.
             val searchResult = page.search(expected, 0);
@@ -611,9 +626,22 @@ public class BTreeSetPageTests {
             Assert.assertEquals("Unexpected position from search().", i, searchResult.getPosition());
             i++;
         }
+
+        if (allItems.size() > 0) {
+            // Verify getItems with range searches.
+            int skip = Math.max(1, allItems.size() / 10); // This is called a lot; skip over some indices to save time.
+            for (int a = skip; a < allItems.size() / 2; a += skip) {
+                val subRange = page.getItems(a, allItems.size() - a - 1);
+                Assert.assertEquals(allItems.size() - 2 * a, subRange.size());
+                for (int j = 0; j < subRange.size(); j++) {
+                    Assert.assertEquals("Unexpected item (sub-range) at position " + (a + j),
+                            0, COMPARATOR.compare(allItems.get(a + j), subRange.get(j)));
+                }
+            }
+        }
     }
 
-    private void assertPointerEquals(BTreeSetPage.PagePointer p1, BTreeSetPage.PagePointer p2) {
+    private void assertPointerEquals(PagePointer p1, PagePointer p2) {
         Assert.assertEquals(p1.getPageId(), p2.getPageId());
         Assert.assertEquals(0, COMPARATOR.compare(p1.getKey(), p2.getKey()));
     }

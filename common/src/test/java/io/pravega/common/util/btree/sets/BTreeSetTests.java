@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util.btree;
+package io.pravega.common.util.btree.sets;
 
 import io.pravega.test.common.ThreadPooledTestSuite;
 
@@ -15,6 +15,7 @@ import io.pravega.test.common.ThreadPooledTestSuite;
  * Unit tests for the {@link BTreeSet} class.
  */
 public class BTreeSetTests extends ThreadPooledTestSuite {
+
 
     @Override
     protected int getThreadPoolSize() {

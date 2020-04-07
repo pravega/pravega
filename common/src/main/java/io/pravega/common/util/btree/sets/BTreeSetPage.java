@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util.btree;
+package io.pravega.common.util.btree.sets;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -16,13 +16,13 @@ import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
+import io.pravega.common.util.btree.SearchResult;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.NotThreadSafe;
-import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -322,6 +322,29 @@ abstract class BTreeSetPage {
             }
             this.data = this.data.slice(0, this.data.getLength() + delta);
         }
+    }
+
+    /**
+     * Gets an ordered list of {@link ArrayView}s representing the items between the two positions.
+     *
+     * @param firstPos The first position, inclusive.
+     * @param lastPos  The last position, inclusive.
+     * @return An ordered list of {@link ArrayView}s representing the items between the given positions.
+     */
+    List<ArrayView> getItems(int firstPos, int lastPos) {
+        Preconditions.checkArgument(firstPos <= lastPos, "firstPos must be smaller than or equal to lastPos.");
+        Preconditions.checkArgument(firstPos >= 0, "firstPos must be a non-negative integer.");
+        Preconditions.checkArgument(lastPos < this.itemCount, "lastPos must be less than %s.", this.itemCount);
+
+        val result = new ArrayList<ArrayView>();
+        int offset = getOffset(firstPos);
+        for (int pos = firstPos; pos <= lastPos; pos++) {
+            int nextOffset = getOffset(pos + 1);
+            result.add(this.data.slice(offset, nextOffset - offset - getValueLength()));
+            offset = nextOffset;
+        }
+
+        return result;
     }
 
     /**
@@ -810,66 +833,6 @@ abstract class BTreeSetPage {
     //endregion
 
     //region Helper Classes
-
-    /**
-     * Pointer to a {@link BTreeSetPage}.
-     */
-    @Data
-    static class PagePointer {
-        private static final long NO_PAGE_ID = Long.MIN_VALUE;
-        private static final long ROOT_PAGE_ID = 0L;
-        /**
-         * A routing key that represents the low bound for any item in the page pointed to by this.
-         */
-        private final ArrayView key;
-        /**
-         * The Id of the page pointed to by this.
-         */
-        private final long pageId;
-        /**
-         * The id of this page's parent.
-         */
-        private final long parentPageId;
-
-        /**
-         * Creates a {@link PagePointer} to the root.
-         *
-         * @return A Root {@link PagePointer}.
-         */
-        static PagePointer root() {
-            return new PagePointer(null, ROOT_PAGE_ID, NO_PAGE_ID);
-        }
-
-        /**
-         * Gets a value indicating whether this page has a parent or not.
-         *
-         * @return True if has parent (non-root), false if no parent (root).
-         */
-        boolean hasParent() {
-            return this.parentPageId != NO_PAGE_ID;
-        }
-    }
-
-    /**
-     * An item to be updated.
-     */
-    @Data
-    static class UpdateItem implements Comparable<UpdateItem> {
-        /**
-         * The item.
-         */
-        @NonNull
-        private final ArrayView item;
-        /**
-         * True if this item is to be removed, false if it is to be inserted.
-         */
-        private final boolean removal;
-
-        @Override
-        public int compareTo(UpdateItem other) {
-            return COMPARATOR.compare(this.item, other.item);
-        }
-    }
 
     @RequiredArgsConstructor
     private static class UpdateInfo<T> {

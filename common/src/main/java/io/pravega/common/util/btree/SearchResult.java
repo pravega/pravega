@@ -13,11 +13,11 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The result of a {@link BTreePage} or {@link BTreeSetPage} Search.
+ * The result of a BTreePage or sets.BTreeSetPage Search.
  */
 @Getter
 @RequiredArgsConstructor
-class SearchResult {
+public class SearchResult {
     /**
      * The resulting position.
      */
