@@ -47,7 +47,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     private static final int TIMEOUT_MILLIS = 10000;
     private static final int SHORT_TIMEOUT_MILLIS = 50;
     private SegmentStoreMetrics.OperationProcessor metrics;
-    private static int containerId = 1;
+    private int containerId = 1;
 
     @Override
     protected int getThreadPoolSize() {
@@ -272,8 +272,6 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testInterrutedMixedDelayMetrics() throws Exception {
-
-
         val cacheCalculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Cache);
         val batchingCalculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Batching);
         val durableDataLogCalculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.DurableDataLog);
@@ -286,7 +284,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         batchingCalculator.setDelayMillis(batchingDelay);
         durableDataLogCalculator.setDelayMillis(durableDataLogDelay);
 
-        Consumer<Integer> recordDelay = delayMillis -> {};
+        Consumer<Integer> recordDelay = delayMillis -> { };
         ArrayList<ThrottlerCalculator.Throttler> throttlers = new ArrayList<>(Arrays.asList(cacheCalculator, batchingCalculator, durableDataLogCalculator));
 
         @Cleanup
@@ -338,7 +336,6 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
                 throttlerActiveTime,
                 (int) getThrottlerMetric(ThrottlerCalculator.ThrottlerName.DurableDataLog)
         );
-
 
         // Force an interruption. The throttler should take the min of the left over delay from the previous throttler,
         // or the throttling delay originally assigned.
@@ -412,11 +409,11 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     }
 
     private static int min(int a, int b) {
-        return (a < b ? a : b);
+        return a < b ? a : b;
     }
 
     private static int max(int a, int b) {
-        return (a > b ? a : b);
+        return a > b ? a : b;
     }
 
     //region Helper Classes
