@@ -53,7 +53,7 @@ public class PositionImpl extends PositionInternal {
     }
     
     @Builder(builderClassName = "PositionBuilder")
-    private PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges) {
+    PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges) {
         this.ownedSegments = ownedSegments;
         if (segmentRanges == null) {
             this.segmentRanges = Collections.emptyMap();
@@ -118,13 +118,14 @@ public class PositionImpl extends PositionInternal {
 
         @Override
         protected byte getWriteVersion() {
-            return 0;
+            return 1;
         }
 
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00)
                       .revision(1, this::write01, this::read01);
+            version(1).revision(0, this::write10, this::read10);
         }
 
         private void read00(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
@@ -147,7 +148,20 @@ public class PositionImpl extends PositionInternal {
             Map<Segment, Range> map = position.segmentRanges;
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializer::writeRange);
         }
-        
+
+        private void read10(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
+            Map<Segment, Long> ownedSegments = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), RevisionDataInput::readCompactSignedLong);
+            builder.ownedSegments(ownedSegments);
+            read01(revisionDataInput, builder);
+        }
+
+        private void write10(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
+            Map<Segment, Long> map = position.getOwnedSegmentsWithOffsets();
+            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
+                    (out, offset) -> out.writeCompactSignedLong(offset));
+            write01(position, revisionDataOutput);
+        }
+
         private static void writeRange(RevisionDataOutput out, Range range) throws IOException {
             double low, high;
             if (range == null) {

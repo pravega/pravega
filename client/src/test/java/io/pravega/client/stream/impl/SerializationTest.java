@@ -26,6 +26,9 @@ import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.val;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -72,10 +75,81 @@ public class SerializationTest {
     public void testPosition() {
         PositionImpl pos = new PositionImpl(ImmutableMap.of(new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0, 1), 2L));
         ByteBuffer bytes = pos.toBytes();
-        Position pos2 = Position.fromBytes(bytes);
-        assertEquals(pos, pos2);
+        Position pos1 = Position.fromBytes(bytes);
+        assertEquals(pos, pos1);
     }
-    
+
+    @Test
+    public void testPositionNegative() {
+        PositionImpl pos = new PositionImpl(ImmutableMap.of(new SegmentWithRange(Segment.fromScopedName("foo/bar/0"), 0, 0.5), 2L,
+                new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0.5, 1), 1L));
+        ByteBuffer bytes = pos.toBytes();
+        Position pos1 = Position.fromBytes(bytes);
+        assertEquals(pos, pos1);
+    }
+
+    @Test
+    public void testPostionImplCompatabilityV0() throws Exception {
+        PositionImpl pos = new PositionImpl(ImmutableMap
+                .of(new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0, 1), 2L));
+
+        // Obtain version 0 serialized data
+        final byte[] bufV0 = new PositionSerializerV0().serialize(pos).array();
+        // deserialize it using current version 1 serialization and ensure compatibility.
+        assertEquals(pos, Position.fromBytes(ByteBuffer.wrap(bufV0)));
+    }
+
+    private static class PositionSerializerV0 extends VersionedSerializer.Direct<PositionImpl> {
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00)
+                      .revision(1, this::write01, this::read00);
+        }
+
+        private void write00(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
+            Map<Segment, Long> map = position.getOwnedSegmentsWithOffsets();
+            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
+                    (out, offset) -> out.writeCompactLong(offset));
+        }
+
+        private void write01(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
+            Map<Segment, SegmentWithRange.Range> map = position.getOwnedSegmentRangesWithOffsets().keySet().stream()
+                                                               .collect(Collectors
+                                                                       .toMap(SegmentWithRange::getSegment, SegmentWithRange::getRange));
+            revisionDataOutput
+                    .writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializerV0::writeRange);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, PositionImpl target) throws IOException {
+            //NOP
+        }
+
+        private static void writeRange(RevisionDataOutput out, SegmentWithRange.Range range) throws IOException {
+            double low, high;
+            if (range == null) {
+                low = -1;
+                high = -1;
+            } else {
+                low = range.getLow();
+                high = range.getHigh();
+            }
+            out.writeDouble(low);
+            out.writeDouble(high);
+        }
+
+        private static SegmentWithRange.Range readRange(RevisionDataInput in) throws IOException {
+            double low = in.readDouble();
+            double high = in.readDouble();
+            return (low < 0 || high < 0) ? null : new SegmentWithRange.Range(low, high);
+        }
+    }
+
     @Test
     public void testStreamCut() {
         StreamCutImpl cut = new StreamCutImpl(Stream.of("Foo/Bar"), ImmutableMap.of(Segment.fromScopedName("Foo/Bar/1"), 3L));
