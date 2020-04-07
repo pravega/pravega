@@ -34,7 +34,7 @@ public class BTreeSetPageTests {
     private static final int DEFAULT_PAGE_ID = 2;
     private static final int DEFAULT_PARENT_PAGE_ID = 1;
     private static final BTreeSetPage.PagePointer DEFAULT_PAGE_INFO = new BTreeSetPage.PagePointer(null, DEFAULT_PAGE_ID, DEFAULT_PARENT_PAGE_ID);
-    private static final int MAX_ITEM_LENGTH = 4096;
+    private static final int MAX_ITEM_LENGTH = 4096; // TODO: is this enforced?
     private static final ByteArrayComparator COMPARATOR = new ByteArrayComparator();
     private final Random random = new Random(0);
 
@@ -45,6 +45,7 @@ public class BTreeSetPageTests {
     public void testLeafPageInsert() {
         val count = 3000;
         val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO);
+        Assert.assertFalse(page.isModified());
         int updateCount = 0;
         int batchSize = 1;
         val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
@@ -62,6 +63,7 @@ public class BTreeSetPageTests {
             // Apply the update and verify it.
             updateBatch.sort(BTreeSetPage.UpdateItem::compareTo);
             page.update(updateBatch);
+            Assert.assertTrue(page.isModified());
             check(page, expectedItems);
 
             updateCount += batchSize;
@@ -83,6 +85,7 @@ public class BTreeSetPageTests {
         updateBatch.forEach(i -> expectedItems.add(i.getItem()));
         updateBatch.sort(BTreeSetPage.UpdateItem::compareTo);
         page.update(updateBatch);
+        Assert.assertTrue(page.isModified());
         check(page, expectedItems);
 
         // Start removing arbitrary items from the page.
@@ -100,6 +103,7 @@ public class BTreeSetPageTests {
 
             // Apply it and verify the page.
             page.update(removeBatch);
+            Assert.assertTrue(page.isModified());
             check(page, expectedItems);
 
             index += batchSize;
@@ -169,6 +173,7 @@ public class BTreeSetPageTests {
                 .collect(Collectors.toList());
 
         val page = new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO);
+        Assert.assertFalse(page.isModified());
         Assert.assertNull(page.getChildPage(newItem(), 0));
 
         int updateCount = 0;
@@ -181,6 +186,7 @@ public class BTreeSetPageTests {
 
             // Add it.
             page.addChildren(p);
+            Assert.assertTrue(page.isModified());
             addedPointers.addAll(p);
 
             // And verify it.
@@ -207,6 +213,7 @@ public class BTreeSetPageTests {
         // Create a new page and add all items to it.
         val page = new BTreeSetPage.IndexPage(DEFAULT_PAGE_INFO);
         page.addChildren(allPointers);
+        Assert.assertTrue(page.isModified());
         check(page, allPointers, allItems);
 
         List<BTreeSetPage.PagePointer> shuffledPointers = new ArrayList<>(allPointers);
@@ -220,6 +227,7 @@ public class BTreeSetPageTests {
 
             // Apply it
             page.removeChildren(batch);
+            Assert.assertTrue(page.isModified());
             shuffledPointers = shuffledPointers.subList(batchSize, shuffledPointers.size());
 
             // And verify it.
@@ -250,7 +258,6 @@ public class BTreeSetPageTests {
         while (maxPageSize > MAX_ITEM_LENGTH) {
             val splitResult = page.split(maxPageSize, nextPageId::getAndIncrement);
             boolean requiresSplit = maxPageSize < page.size();
-            Assert.assertEquals(requiresSplit, page.requiresSplit(maxPageSize));
             if (requiresSplit) {
                 verifyLeafPageSplit(splitResult, expectedItems, maxPageSize, Collections.singletonList(page.getPagePointer().getParentPageId()));
             } else {
@@ -313,6 +320,7 @@ public class BTreeSetPageTests {
         for (val s : splitResult) {
             AssertExtensions.assertGreaterThan("Not expecting any empty split pages.", 0, s.size());
             AssertExtensions.assertLessThanOrEqual("Split page too large.", maxPageSize, s.size());
+            Assert.assertTrue(s.isModified());
 
             // Verify page pointers are correct.
             Assert.assertTrue("Duplicate Page Id.", pageIds.add(s.getPagePointer().getPageId()));
@@ -359,7 +367,6 @@ public class BTreeSetPageTests {
         while (maxPageSize > MAX_ITEM_LENGTH) {
             val splitResult = page.split(maxPageSize, nextPageId::getAndIncrement);
             boolean requiresSplit = maxPageSize < page.size();
-            Assert.assertEquals(requiresSplit, page.requiresSplit(maxPageSize));
             if (requiresSplit) {
                 verifyIndexPageSplit(splitResult, allPointers, maxPageSize, Collections.singletonList(page.getPagePointer().getParentPageId()));
             } else {
@@ -425,6 +432,7 @@ public class BTreeSetPageTests {
         for (val s : splitResult) {
             AssertExtensions.assertGreaterThan("Not expecting any empty split pages.", 0, s.size());
             AssertExtensions.assertLessThanOrEqual("Split page too large.", maxPageSize, s.size());
+            Assert.assertTrue(s.isModified());
 
             // Verify page pointers are correct.
             Assert.assertTrue("Duplicate Page Id.", pageIds.add(s.getPagePointer().getPageId()));

@@ -527,16 +527,6 @@ abstract class BTreeSetPage {
     //region Splitting
 
     /**
-     * Gets a value indicating whether this page exceeds the given maximum size and may require a split.
-     *
-     * @param maxPageSize The max page size to compare against.
-     * @return True if a split is required, false otherwise.
-     */
-    boolean requiresSplit(int maxPageSize) {
-        return size() > maxPageSize;
-    }
-
-    /**
      * Splits this page in multiple pages (if necessary), where each page's serialization will not exceed the given page size.
      * If no split is necessary, returns null.
      *
@@ -545,7 +535,7 @@ abstract class BTreeSetPage {
      * then the current page
      */
     List<BTreeSetPage> split(int maxPageSize, @NonNull Supplier<Long> getNewPageId) {
-        if (!requiresSplit(maxPageSize)) {
+        if (size() <= maxPageSize) {
             // No split necessary.
             return null;
         }

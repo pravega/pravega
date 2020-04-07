@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -140,53 +141,54 @@ public class BTreeSet {
     }
 
     private PageCollection processModifiedPages(PageCollection pageCollection, Supplier<Long> getNewPageId) {
-        // Perform splits.
-        List<BTreeSetPage> candidates = pageCollection.getLeafPages();
+        Collection<BTreeSetPage> candidates = pageCollection.getLeafPages();
         while (!candidates.isEmpty()) {
-            val next = new ArrayList<BTreeSetPage>();
-            val deletionsByParent = new HashMap<Long, ArrayList<BTreeSetPage.PagePointer>>();
-            val insertionsByParent = new HashMap<Long, ArrayList<BTreeSetPage.PagePointer>>();
+            // Process each candidate and determine if it should be deleted or split into multiple pages.
+            val splitContext = new SplitContext(pageCollection);
             for (BTreeSetPage p : candidates) {
                 if (p.getItemCount() == 0) {
-                    // Delete the page if it's empty, but only if it's not the root page.
-                    if (p.getPagePointer().hasParent()) {
-                        pageCollection.pageDeleted(p);
-                        deletionsByParent.computeIfAbsent(p.getPagePointer().getParentPageId(), pid -> new ArrayList<>()).add(p.getPagePointer());
-                    }
-                } else if (p.requiresSplit(this.maxPageSize)) {
-                    val splits = p.split(this.maxPageSize, getNewPageId);
-                    assert splits != null && splits.size() > 0;
-                    Preconditions.checkArgument(splits.get(0).getPagePointer() == p.getPagePointer(),
-                            "First split result (%s) not current page (%s).", splits.get(0).getPagePointer(), p.getPagePointer());
-                    if (!p.getPagePointer().hasParent()) {
-                        // If we split the root, the new pages will already point to the root; we must create a blank
-                        // index root page, which will be updated in the next step.
-                        pageCollection.pageUpdated(BTreeSetPage.emptyIndexRoot());
-                    }
-
-                    val parentPointers = insertionsByParent.computeIfAbsent(p.getPagePointer().getParentPageId(), pid -> new ArrayList<>());
-                    splits.forEach(splitPage -> {
-                        pageCollection.pageUpdated(splitPage);
-                        parentPointers.add(splitPage.getPagePointer());
-                    });
+                    deletePage(p, splitContext);
+                } else {
+                    splitPageIfNecessary(p, getNewPageId, splitContext);
                 }
             }
 
-            deletionsByParent.forEach((parentId, toDelete) -> {
-                val parent = (BTreeSetPage.IndexPage) pageCollection.get(parentId);
-                parent.removeChildren(toDelete);
-                next.add(parent);
-            });
-
-            insertionsByParent.forEach((parentId, toInsert) -> {
-                val parent = (BTreeSetPage.IndexPage) pageCollection.get(parentId);
-                parent.addChildren(toInsert);
-                next.add(parent);
-            });
-
-            candidates = next;
+            // Update those pages' parents.
+            splitContext.forEachDeleted(BTreeSetPage.IndexPage::removeChildren);
+            splitContext.forEachInserted(BTreeSetPage.IndexPage::addChildren);
+            candidates = splitContext.getModifiedParents();
         }
+
         return pageCollection;
+    }
+
+    private void deletePage(BTreeSetPage p, SplitContext splitContext) {
+        // Delete the page if it's empty, but only if it's not the root page.
+        if (p.getPagePointer().hasParent()) {
+            splitContext.pageCollection.pageDeleted(p);
+            splitContext.deleted(p.getPagePointer());
+        }
+    }
+
+    private void splitPageIfNecessary(BTreeSetPage p, Supplier<Long> getNewPageId, SplitContext splitContext) {
+        val splits = p.split(this.maxPageSize, getNewPageId);
+        if(splits == null){
+            // No split necessary
+            return;
+        }
+
+        Preconditions.checkArgument(splits.get(0).getPagePointer() == p.getPagePointer(),
+                "First split result (%s) not current page (%s).", splits.get(0).getPagePointer(), p.getPagePointer());
+        if (!p.getPagePointer().hasParent()) {
+            // If we split the root, the new pages will already point to the root; we must create a blank
+            // index root page, which will be updated in the next step.
+            splitContext.pageCollection.pageUpdated(BTreeSetPage.emptyIndexRoot());
+        }
+
+        splits.forEach(splitPage -> {
+            splitContext.pageCollection.pageUpdated(splitPage);
+            splitContext.created(splitPage.getPagePointer());
+        });
     }
 
     private CompletableFuture<Void> writePages(@NonNull PageCollection pageCollection, TimeoutTimer timer) {
@@ -339,6 +341,42 @@ public class BTreeSet {
 
         synchronized List<BTreeSetPage> getLeafPages() {
             return this.pages.values().stream().filter(p -> !p.isIndexPage()).collect(Collectors.toList());
+        }
+    }
+
+    @RequiredArgsConstructor
+    private static class SplitContext {
+        private final PageCollection pageCollection;
+        private final Map<Long, BTreeSetPage> modifiedParents = new HashMap<>();
+        private final Map<Long, List<BTreeSetPage.PagePointer>> deletionsByParent = new HashMap<>();
+        private final Map<Long, List<BTreeSetPage.PagePointer>> insertionsByParent = new HashMap<>();
+
+        void deleted(BTreeSetPage.PagePointer pagePointer) {
+            this.deletionsByParent.computeIfAbsent(pagePointer.getParentPageId(), i -> new ArrayList<>()).add(pagePointer);
+        }
+
+        void created(BTreeSetPage.PagePointer pagePointer) {
+            this.insertionsByParent.computeIfAbsent(pagePointer.getParentPageId(), i -> new ArrayList<>()).add(pagePointer);
+        }
+
+        void forEachDeleted(BiConsumer<BTreeSetPage.IndexPage, List<BTreeSetPage.PagePointer>> c) {
+            forEachPage(this.deletionsByParent, c);
+        }
+
+        void forEachInserted(BiConsumer<BTreeSetPage.IndexPage, List<BTreeSetPage.PagePointer>> c) {
+            forEachPage(this.insertionsByParent, c);
+        }
+
+        private void forEachPage(Map<Long, List<BTreeSetPage.PagePointer>> pages, BiConsumer<BTreeSetPage.IndexPage, List<BTreeSetPage.PagePointer>> c) {
+            pages.forEach((parentId, pointers) -> {
+                val parent = (BTreeSetPage.IndexPage) this.pageCollection.get(parentId);
+                c.accept(parent, pointers);
+                this.modifiedParents.put(parentId, parent);
+            });
+        }
+
+        Collection<BTreeSetPage> getModifiedParents() {
+            return this.modifiedParents.values();
         }
     }
 
