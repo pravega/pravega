@@ -274,8 +274,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     sealedSegments.put(newSegment.getKey(), newSegment.getValue());
                 } else {
                     Segment segment = newSegment.getKey().getSegment();
-
-                    final EventSegmentReader in = inputStreamFactory.createEventReaderForSegment(segment, segmentsWithData, endOffset);
+                    EventSegmentReader in = inputStreamFactory.createEventReaderForSegment(segment, config.getBufferSize(),
+                                                                                           segmentsWithData, endOffset);
                     in.setOffset(newSegment.getValue());
                     readers.add(in);
                     ranges.put(segment, newSegment.getKey().getRange());

@@ -32,13 +32,13 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     }
 
     @Override
-    public EventSegmentReader createEventReaderForSegment(Segment segment, Semaphore hasData, long endOffset) {
-        return getEventSegmentReader(segment, hasData, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
-    }
-
-    @Override
     public EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize) {
         return getEventSegmentReader(segment, null, Long.MAX_VALUE, bufferSize);
+    }
+    
+    @Override
+    public EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize, Semaphore hasData, long endOffset) {
+        return getEventSegmentReader(segment, hasData, endOffset, bufferSize);
     }
 
     private EventSegmentReader getEventSegmentReader(Segment segment, Semaphore hasData, long endOffset, int bufferSize) {
