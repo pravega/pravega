@@ -162,7 +162,7 @@ public class PositionImpl extends PositionInternal {
             // serialize offset segment again as CompactSignedLong ensure serialization
             Map<Segment, Long> map = position.getOwnedSegmentsWithOffsets();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
-                    (out, offset) -> out.writeCompactSignedLong(offset));
+                    RevisionDataOutput::writeCompactSignedLong);
         }
 
         // This method is invoked only if the data is serialized with revision as 2.
