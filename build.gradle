@@ -327,6 +327,12 @@ project ('bindings') {
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        constraints {
+            compile ('com.nimbusds:nimbus-jose-jwt:7.9') {
+                because 'Transitive dependency brought in by Hadoop libraries have security vulnerabilities that ' +
+                        'can be addressed by the specified version'
+            }
+        }
 
         //For Extended S3
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
