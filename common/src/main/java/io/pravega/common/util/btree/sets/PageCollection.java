@@ -63,6 +63,11 @@ class PageCollection {
         this.pages.remove(page.getPagePointer().getPageId());
     }
 
+    /**
+     * Removes a {@link BTreeSetPage} from this {@link PageCollection}.
+     *
+     * @param page The page to remove.
+     */
     synchronized void remove(BTreeSetPage page) {
         this.deletedPageIds.remove(page.getPagePointer().getPageId());
         this.pages.remove(page.getPagePointer().getPageId());
@@ -75,6 +80,10 @@ class PageCollection {
      */
     synchronized Collection<BTreeSetPage> getLeafPages() {
         return this.pages.values().stream().filter(p -> !p.isIndexPage()).collect(Collectors.toList());
+    }
+
+    synchronized Collection<BTreeSetPage> getIndexPages() {
+        return this.pages.values().stream().filter(BTreeSetPage::isIndexPage).collect(Collectors.toList());
     }
 
     /**

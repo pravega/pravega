@@ -49,8 +49,18 @@ public class ByteArrayComparatorTests {
     public void testCompareArrayViewVariableSize() {
         val c = new ByteArrayComparator();
         val sortedData = generateSortedVariableData().stream().map(ByteArraySegment::new).collect(Collectors.toList());
-        sortedData.add(0, new ByteArraySegment(c.getMinValue()));
+        sortedData.add(0, new ByteArraySegment(new byte[0])); // Empty.
         test(sortedData, c::compare);
+        for (val s : sortedData) {
+            int compareResult = c.compare(new ByteArraySegment(c.getMinValue()), s);
+            if (compareResult == 0) {
+                // Only equal to itself.
+                Assert.assertTrue(s.getLength() == 1 && s.get(0) == ByteArrayComparator.MIN_VALUE);
+            } else if (compareResult > 0) {
+                // Only empty array is smaller than it.
+                Assert.assertEquals(0, s.getLength());
+            }
+        }
     }
 
     private ArrayList<byte[]> generateSortedData() {

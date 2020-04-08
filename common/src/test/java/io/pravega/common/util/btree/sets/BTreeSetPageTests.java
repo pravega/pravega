@@ -16,6 +16,7 @@ import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -34,8 +35,8 @@ public class BTreeSetPageTests {
     private static final int DEFAULT_PAGE_ID = 2;
     private static final int DEFAULT_PARENT_PAGE_ID = 1;
     private static final PagePointer DEFAULT_PAGE_INFO = new PagePointer(null, DEFAULT_PAGE_ID, DEFAULT_PARENT_PAGE_ID);
-    private static final int MAX_ITEM_LENGTH = 4096; // TODO: is this enforced?
-    private static final ByteArrayComparator COMPARATOR = new ByteArrayComparator();
+    private static final int MAX_ITEM_LENGTH = 4096;
+    private static final Comparator<ArrayView> COMPARATOR = BTreeSet.COMPARATOR;
     private final Random random = new Random(0);
 
     /**
@@ -48,7 +49,7 @@ public class BTreeSetPageTests {
         Assert.assertFalse(page.isModified());
         int updateCount = 0;
         int batchSize = 1;
-        val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
+        val expectedItems = new TreeSet<ArrayView>(COMPARATOR);
         val insertedKeys = new ArrayList<ArrayView>();
         while (updateCount < count) {
             val updateBatch = createUpdateBatch(batchSize);
@@ -80,7 +81,7 @@ public class BTreeSetPageTests {
         val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO);
 
         // Bulk-update the page.
-        val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
+        val expectedItems = new TreeSet<ArrayView>(COMPARATOR);
         val updateBatch = createUpdateBatch(count);
         updateBatch.forEach(i -> expectedItems.add(i.getItem()));
         updateBatch.sort(UpdateItem::compareTo);
@@ -120,7 +121,7 @@ public class BTreeSetPageTests {
         val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO);
         int iterationId = 0;
         int batchSize = 1;
-        val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
+        val expectedItems = new TreeSet<ArrayView>(COMPARATOR);
 
         while (iterationId < iterationCount) {
             int removalCount = random.nextInt(batchSize);
@@ -167,7 +168,7 @@ public class BTreeSetPageTests {
         val childPageCount = 1000;
         val itemsPerPage = 2;
         val itemCount = childPageCount * itemsPerPage;
-        val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR::compare).collect(Collectors.toList());
+        val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR).collect(Collectors.toList());
         val allPointers = IntStream.range(0, itemCount).filter(i -> i % itemsPerPage == 0)
                 .mapToObj(i -> new PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
@@ -205,7 +206,7 @@ public class BTreeSetPageTests {
         val childPageCount = 1000;
         val itemsPerPage = 2;
         val itemCount = childPageCount * itemsPerPage;
-        val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR::compare).collect(Collectors.toList());
+        val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR).collect(Collectors.toList());
         val allPointers = IntStream.range(0, itemCount).filter(i -> i % itemsPerPage == 0)
                 .mapToObj(i -> new PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
@@ -247,7 +248,7 @@ public class BTreeSetPageTests {
         val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO);
 
         // Bulk-update the page.
-        val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
+        val expectedItems = new TreeSet<ArrayView>(COMPARATOR);
         val updateBatch = createUpdateBatch(itemCount);
         updateBatch.forEach(i -> expectedItems.add(i.getItem()));
         updateBatch.sort(UpdateItem::compareTo);
@@ -277,7 +278,7 @@ public class BTreeSetPageTests {
         val page = new BTreeSetPage.LeafPage(PagePointer.root());
 
         // Bulk-update the page.
-        val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
+        val expectedItems = new TreeSet<ArrayView>(COMPARATOR);
         val updateBatch = createUpdateBatch(itemCount);
         updateBatch.forEach(i -> expectedItems.add(i.getItem()));
         updateBatch.sort(UpdateItem::compareTo);
@@ -339,6 +340,9 @@ public class BTreeSetPageTests {
                 val item = splitPage.getItemAt(i);
                 Assert.assertEquals(0, COMPARATOR.compare(expectedItem, item));
             }
+
+            // Verify that the split page is deserializable.
+            assertPageEquals(s, BTreeSetPage.parse(s.getPagePointer(), s.getData()));
         }
 
         Assert.assertFalse("Not all items were included in the splits.", expectedItemIterator.hasNext());
@@ -352,7 +356,7 @@ public class BTreeSetPageTests {
         val childPageCount = 5000;
         val itemsPerPage = 2;
         val itemCount = childPageCount * itemsPerPage;
-        val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR::compare).collect(Collectors.toList());
+        val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR).collect(Collectors.toList());
         val allPointers = IntStream.range(0, itemCount).filter(i -> i % itemsPerPage == 0)
                 .mapToObj(i -> new PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
@@ -385,7 +389,7 @@ public class BTreeSetPageTests {
         val childPageCount = 5000;
         val itemsPerPage = 2;
         val itemCount = childPageCount * itemsPerPage;
-        val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR::compare).collect(Collectors.toList());
+        val allItems = IntStream.range(0, itemCount).mapToObj(i -> newItem()).sorted(COMPARATOR).collect(Collectors.toList());
         val allPointers = IntStream.range(0, itemCount).filter(i -> i % itemsPerPage == 0)
                 .mapToObj(i -> new PagePointer(allItems.get(i), i, DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
@@ -453,13 +457,16 @@ public class BTreeSetPageTests {
                     Assert.assertEquals("Unexpected Pointer Key.", 0,
                             COMPARATOR.compare(s.getPagePointer().getKey(), expectedItem.getKey()));
                     Assert.assertEquals("First item must be COMPARATOR.MIN_KEY.", 0,
-                            COMPARATOR.compare(new ByteArraySegment(COMPARATOR.getMinValue()), item.getKey()));
+                            COMPARATOR.compare(new ByteArraySegment(ByteArrayComparator.getMinValue()), item.getKey()));
                     Assert.assertEquals("Unexpected PageId for first item.", 0,
                             expectedItem.getPageId(), item.getPageId());
                 } else {
                     assertPointerEquals(expectedItem, item);
                 }
             }
+
+            // Verify that the split page is deserializable.
+            assertPageEquals(s, BTreeSetPage.parse(s.getPagePointer(), s.getData()));
         }
 
         Assert.assertFalse("Not all items were included in the splits.", expectedPointerIterator.hasNext());
@@ -505,7 +512,7 @@ public class BTreeSetPageTests {
     public void testLeafPageParse() {
         val count = 1000;
         val page = new BTreeSetPage.LeafPage(DEFAULT_PAGE_INFO);
-        val expectedItems = new TreeSet<ArrayView>(COMPARATOR::compare);
+        val expectedItems = new TreeSet<ArrayView>(COMPARATOR);
         val updateBatch = createUpdateBatch(count);
         updateBatch.forEach(i -> expectedItems.add(i.getItem()));
         updateBatch.sort(UpdateItem::compareTo);
@@ -529,7 +536,7 @@ public class BTreeSetPageTests {
         val itemCount = 1000;
         val allPointers = IntStream.range(0, itemCount)
                 .mapToObj(i -> newItem())
-                .sorted(COMPARATOR::compare)
+                .sorted(COMPARATOR)
                 .map(key -> new PagePointer(key, random.nextLong(), DEFAULT_PARENT_PAGE_ID))
                 .collect(Collectors.toList());
 

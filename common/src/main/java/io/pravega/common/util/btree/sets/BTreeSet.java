@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util.btree.sets;
 
+import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
@@ -19,6 +20,7 @@ import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -31,26 +33,61 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
- * A B+Tree-backed Set.
+ * A B+Tree-backed Set. Stores all items in a B+Tree Structure using a {@link ByteArrayComparator} for ordering them.
+ *
+ * NOTE: This component is in {@link Beta}. There are no guarantees about data or API compatibility with future versions.
+ * Any component that is directly dependent on this one should either be in {@link Beta} as well.
  */
 @NotThreadSafe
-@RequiredArgsConstructor
+@Beta
+@Slf4j
 public class BTreeSet {
     //region Members
 
-    static final ByteArrayComparator COMPARATOR = new ByteArrayComparator();
+    static final Comparator<ArrayView> COMPARATOR = new ByteArrayComparator()::compare;
+    private static final Comparator<PagePointer> POINTER_COMPARATOR = PagePointer.getComparator(COMPARATOR);
+
     private final int maxPageSize;
     private final int maxItemSize;
     @NonNull
     private final ReadPage read;
     @NonNull
-    private final BTreeSet.PersistPages update;
+    private final PersistPages update;
     @NonNull
     private final Executor executor;
+    @NonNull
+    private final String traceLogId;
+
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the {@link BTreeSet} class.
+     *
+     * @param maxPageSize The maximum size, in bytes, of any page.
+     * @param maxItemSize The maximum size, in bytes, of any single item in the {@link BTreeSet}.
+     * @param read        A {@link ReadPage} function that can be used to fetch a single {@link BTreeSet} page from an
+     *                    external data source.
+     * @param update      A {@link PersistPages} function that can be used to store and delete multiple {@link BTreeSet}
+     *                    pages to/from an external data source.
+     * @param executor    Executor for async operations.
+     * @param traceLogId  Trace id for logging.
+     */
+    public BTreeSet(int maxPageSize, int maxItemSize, @NonNull ReadPage read, @NonNull PersistPages update,
+                    @NonNull Executor executor, String traceLogId) {
+        Preconditions.checkArgument(maxItemSize < maxPageSize / 2, "maxItemSize must be at most half of maxPageSize.");
+        this.maxItemSize = maxItemSize;
+        this.maxPageSize = maxPageSize;
+        this.read = read;
+        this.update = update;
+        this.executor = executor;
+        this.traceLogId = traceLogId == null ? "" : traceLogId;
+    }
 
     //endregion
 
@@ -58,7 +95,8 @@ public class BTreeSet {
 
     /**
      * Atomically inserts the items in 'toInsert' into the {@link BTreeSet} and removes the items in 'toRemove'
-     * from the {@link BTreeSet}.
+     * from the {@link BTreeSet}. No duplicates are allowed; the same item cannot exist multiple times in either 'toInsert'
+     * or 'toRemove' or in both of them.
      *
      * @param toInsert      (Optional). A Collection of {@link ArrayView} instances representing the items to insert.
      *                      If an item is already present, it will not be reinserted (updates are idempotent).
@@ -73,9 +111,10 @@ public class BTreeSet {
                                           @NonNull Supplier<Long> getNextPageId, @NonNull Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         val updates = new ArrayList<UpdateItem>();
-        collectUpdates(toInsert, false, updates);
-        collectUpdates(toRemove, true, updates);
+        int insertCount = collectUpdates(toInsert, false, updates);
+        int removeCount = collectUpdates(toRemove, true, updates);
         updates.sort(UpdateItem::compareTo);
+        log.debug("{}: Update (Insert={}, Remove={}).", this.traceLogId, insertCount, removeCount);
         if (updates.isEmpty()) {
             // Nothing to do.
             return CompletableFuture.completedFuture(null);
@@ -88,9 +127,9 @@ public class BTreeSet {
                 .thenComposeAsync(pageCollection -> writePages(pageCollection, timer), this.executor);
     }
 
-    private void collectUpdates(Collection<ArrayView> items, boolean isRemoval, List<UpdateItem> updates) {
+    private int collectUpdates(Collection<ArrayView> items, boolean isRemoval, List<UpdateItem> updates) {
         if (items == null) {
-            return;
+            return 0;
         }
 
         for (val i : items) {
@@ -98,6 +137,7 @@ public class BTreeSet {
                     "Item exceeds maximum allowed length (%s).", this.maxItemSize);
             updates.add(new UpdateItem(i, isRemoval));
         }
+        return items.size();
     }
 
     private CompletableFuture<PageCollection> applyUpdates(Iterator<UpdateItem> items, TimeoutTimer timer) {
@@ -144,51 +184,63 @@ public class BTreeSet {
         Collection<BTreeSetPage> candidates = pageCollection.getLeafPages();
         while (!candidates.isEmpty()) {
             // Process each candidate and determine if it should be deleted or split into multiple pages.
-            val splitContext = new SplitContext(pageCollection);
+            val tmc = new TreeModificationContext(pageCollection);
             for (BTreeSetPage p : candidates) {
                 if (p.getItemCount() == 0) {
-                    deletePage(p, splitContext);
+                    deletePage(p, tmc);
                 } else {
-                    splitPageIfNecessary(p, getNewPageId, splitContext);
+                    splitPageIfNecessary(p, getNewPageId, tmc);
                 }
             }
 
             // Update those pages' parents.
-            splitContext.forEachDeleted(BTreeSetPage.IndexPage::removeChildren);
-            splitContext.forEachInserted(BTreeSetPage.IndexPage::addChildren);
-            candidates = splitContext.getModifiedParents();
+            tmc.accept(BTreeSetPage.IndexPage::addChildren, BTreeSetPage.IndexPage::removeChildren, POINTER_COMPARATOR);
+            candidates = tmc.getModifiedParents();
         }
 
+        pageCollection.getIndexPages().forEach(p -> {
+            if (p.isModified()) {
+                p.seal();
+            }
+        });
         return pageCollection;
     }
 
-    private void deletePage(BTreeSetPage p, SplitContext splitContext) {
+    private void deletePage(BTreeSetPage p, TreeModificationContext context) {
         // Delete the page if it's empty, but only if it's not the root page.
         if (p.getPagePointer().hasParent()) {
-            splitContext.getPageCollection().pageDeleted(p);
-            splitContext.deleted(p.getPagePointer());
+            context.getPageCollection().pageDeleted(p);
+            context.deleted(p.getPagePointer());
+            log.debug("{}: Deleted empty page {}.", this.traceLogId, p.getPagePointer());
+        } else if (p.isIndexPage()) {
+            p = BTreeSetPage.emptyLeafRoot();
+            p.markModified();
+            context.getPageCollection().pageUpdated(p);
+            log.debug("{}: Replaced empty Index Root with empty Leaf Root.", this.traceLogId);
         }
     }
 
-    private void splitPageIfNecessary(BTreeSetPage p, Supplier<Long> getNewPageId, SplitContext splitContext) {
+    private void splitPageIfNecessary(BTreeSetPage p, Supplier<Long> getNewPageId, TreeModificationContext context) {
         val splits = p.split(this.maxPageSize, getNewPageId);
-        if(splits == null){
+        if (splits == null) {
             // No split necessary
             return;
         }
 
-        Preconditions.checkArgument(splits.get(0).getPagePointer() == p.getPagePointer(),
-                "First split result (%s) not current page (%s).", splits.get(0).getPagePointer(), p.getPagePointer());
-        if (!p.getPagePointer().hasParent()) {
+        if (p.getPagePointer().hasParent()) {
+            Preconditions.checkArgument(splits.get(0).getPagePointer().getPageId() == p.getPagePointer().getPageId(),
+                    "First split result (%s) not current page (%s).", splits.get(0).getPagePointer(), p.getPagePointer());
+        } else {
             // If we split the root, the new pages will already point to the root; we must create a blank
             // index root page, which will be updated in the next step.
-            splitContext.getPageCollection().pageUpdated(BTreeSetPage.emptyIndexRoot());
+            context.getPageCollection().pageUpdated(BTreeSetPage.emptyIndexRoot());
         }
 
         splits.forEach(splitPage -> {
-            splitContext.getPageCollection().pageUpdated(splitPage);
-            splitContext.created(splitPage.getPagePointer());
+            context.getPageCollection().pageUpdated(splitPage);
+            context.created(splitPage.getPagePointer());
         });
+        log.debug("{}: Page '{}' split into {}: {}.", this.traceLogId, p, splits.size(), splits);
     }
 
     private CompletableFuture<Void> writePages(@NonNull PageCollection pageCollection, TimeoutTimer timer) {
@@ -198,12 +250,16 @@ public class BTreeSet {
         // pointing to inexistent pages).
         val processedPageIds = new HashSet<Long>();
 
-        // First collect updates.
+        // First collect updates. Begin from the bottom (Leaf Pages).
         val toWrite = new ArrayList<Map.Entry<Long, ArrayView>>();
         collectWriteCandidates(pageCollection.getLeafPages(), toWrite, processedPageIds, pageCollection);
 
+        // Newly split pages may not be reachable from any modified Leaf Pages. Collect them too.
+        collectWriteCandidates(pageCollection.getIndexPages(), toWrite, processedPageIds, pageCollection);
+
         // Then collect deletions, making sure we also consider all their parents (which should be modified/deleted as well).
         collectWriteCandidates(pageCollection.getDeletedPagesParents(), toWrite, processedPageIds, pageCollection);
+        log.debug("{}: Persist (Updates={}, Deletions={}).", this.traceLogId, toWrite.size(), pageCollection.getDeletedPageIds().size());
         return this.update.apply(toWrite, pageCollection.getDeletedPageIds(), timer.getRemaining());
     }
 
@@ -216,9 +272,11 @@ public class BTreeSet {
                     .forEach(p -> {
                         toWrite.add(new AbstractMap.SimpleImmutableEntry<>(p.getPagePointer().getPageId(), p.getData()));
                         val parent = pageCollection.get(p.getPagePointer().getParentPageId());
-                        assert parent != null;
-                        next.add(parent);
+                        assert p.getPagePointer().hasParent() == (parent != null);
                         processedIds.add(p.getPagePointer().getPageId());
+                        if (parent != null) {
+                            next.add(parent);
+                        }
                     });
             candidates = next;
         }
@@ -233,17 +291,19 @@ public class BTreeSet {
      * specified bounds. All iterated items will be returned in lexicographic order (smallest to largest).
      * See {@link ByteArrayComparator} for ordering details.
      *
-     * @param firstItem          An {@link ArrayView} representing the lower bound of the iteration.
-     * @param firstItemInclusive If true, firstItem will be included in the iteration (if it exists in the {@link BTreeSet}),
-     *                           otherwise it will not.
-     * @param lastItem           An {@link ArrayView} representing the upper bound of the iteration.
-     * @param lastItemInclusive  If true, lastKey will be included in the iteration (if it exists in the {@link BTreeSet})),
-     *                           otherwise it will not.
+     * @param firstItem          An {@link ArrayView} indicating the first Item to iterate from. If null, the iteration
+     *                           will begin with the first item in the index.
+     * @param firstItemInclusive If true, firstIem will be included in the iteration (provided it exists), otherwise it
+     *                           will be excluded. This argument is ignored if firstItem is null.
+     * @param lastItem           An {@link ArrayView} indicating the last Item to iterate to. If null, the iteration will
+     *                           end with the last item in the index.
+     * @param lastItemInclusive  If true, lastItem will be included in the iteration (provided it exists), otherwise it
+     *                           will be excluded. This argument is ignored if lastItem is null.
      * @param fetchTimeout       Timeout for each invocation of {@link AsyncIterator#getNext}.
      * @return A new {@link AsyncIterator} instance.
      */
-    public AsyncIterator<List<ArrayView>> iterator(@NonNull ArrayView firstItem, boolean firstItemInclusive,
-                                                   @NonNull ArrayView lastItem, boolean lastItemInclusive, @NonNull Duration fetchTimeout) {
+    public AsyncIterator<List<ArrayView>> iterator(@Nullable ArrayView firstItem, boolean firstItemInclusive,
+                                                   @Nullable ArrayView lastItem, boolean lastItemInclusive, @NonNull Duration fetchTimeout) {
         return new ItemIterator(firstItem, firstItemInclusive, lastItem, lastItemInclusive, this::locatePage, fetchTimeout);
     }
 
@@ -299,8 +359,10 @@ public class BTreeSet {
                         // for the root.
                         Preconditions.checkArgument(!pagePointer.hasParent(), "Missing page contents for %s.", pagePointer);
                         page = BTreeSetPage.emptyLeafRoot();
+                        log.debug("{}: Initialized empty root.", this.traceLogId);
                     } else {
                         page = BTreeSetPage.parse(pagePointer, data);
+                        log.debug("{}: Loaded page {}.", this.traceLogId, page);
                     }
 
                     pageCollection.pageLoaded(page);

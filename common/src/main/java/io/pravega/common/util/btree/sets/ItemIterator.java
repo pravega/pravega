@@ -14,13 +14,16 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.ByteArraySegment;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.Nullable;
 import lombok.NonNull;
 import lombok.val;
 
@@ -30,7 +33,7 @@ import lombok.val;
 class ItemIterator implements AsyncIterator<List<ArrayView>> {
     //region Members
 
-    private static final ByteArrayComparator COMPARATOR = BTreeSet.COMPARATOR;
+    private static final Comparator<ArrayView> COMPARATOR = BTreeSet.COMPARATOR;
     private final ArrayView firstItem;
     private final boolean firstItemInclusive;
     private final ArrayView lastItem;
@@ -49,36 +52,52 @@ class ItemIterator implements AsyncIterator<List<ArrayView>> {
     /**
      * Creates a new instance of the {@link ItemIterator} class.
      *
-     * @param firstItem          An {@link ArrayView} indicating the first Item to iterate from.
+     * @param firstItem          An {@link ArrayView} indicating the first Item to iterate from. If null, the iteration
+     *                           will begin with the first item in the index.
      * @param firstItemInclusive If true, firstIem will be included in the iteration (provided it exists), otherwise it
-     *                           will be excluded.
-     * @param lastItem           An {@link ArrayView} indicating the last Item to iterate to.
+     *                           will be excluded. This argument is ignored if firstItem is null.
+     * @param lastItem           An {@link ArrayView} indicating the last Item to iterate to. If null, the iteration will
+     *                           end with the last item in the index.
      * @param lastItemInclusive  If true, lastItem will be included in the iteration (provided it exists), otherwise it
-     *                           will be excluded.
+     *                           will be excluded. This argument is ignored if lastItem is null.
      * @param locatePage         A Function that can be used to locate a specific {@link BTreeSetPage.LeafPage}.
      * @param fetchTimeout       Timeout for each invocation of locatePage.
      */
-    ItemIterator(@NonNull ArrayView firstItem, boolean firstItemInclusive, @NonNull ArrayView lastItem, boolean lastItemInclusive,
+    ItemIterator(@Nullable ArrayView firstItem, boolean firstItemInclusive, @Nullable ArrayView lastItem, boolean lastItemInclusive,
                  @NonNull LocatePage locatePage, @NonNull Duration fetchTimeout) {
-        // First, verify correctness.
-        int c = COMPARATOR.compare(firstItem, lastItem);
-        if (firstItemInclusive && lastItemInclusive) {
-            Preconditions.checkArgument(c <= 0, "firstKey must be smaller than or equal to lastKey.");
+        if (firstItem == null) {
+            // FirstItem is used to bootstrap the iterator, so if it's missing we need to replace it with our Min Value.
+            this.firstItem = new ByteArraySegment(ByteArrayComparator.getMinValue());
+            this.firstItemInclusive = true;
         } else {
-            Preconditions.checkArgument(c < 0, "firstKey must be smaller than lastKey.");
+            this.firstItem = firstItem;
+            this.firstItemInclusive = firstItemInclusive;
         }
 
-        // firstKey and firstKeyInclusive will change as we make progress in our iteration.
-        this.firstItem = firstItem;
-        this.firstItemInclusive = firstItemInclusive;
         this.lastItem = lastItem;
         this.lastItemInclusive = lastItemInclusive;
+        validateArgs();
+
         this.locatePage = locatePage;
         this.fetchTimeout = fetchTimeout;
         this.pageCollection = new PageCollection();
         this.lastPage = new AtomicReference<>(null);
         this.finished = new AtomicBoolean();
         this.processedPageCount = new AtomicInteger();
+    }
+
+    private void validateArgs() {
+        if (this.firstItem == null || this.lastItem == null) {
+            // We only need to validate if we have both of them.
+            return;
+        }
+
+        int c = COMPARATOR.compare(this.firstItem, this.lastItem);
+        if (this.firstItemInclusive && this.lastItemInclusive) {
+            Preconditions.checkArgument(c <= 0, "firstKey must be smaller than or equal to lastKey.");
+        } else {
+            Preconditions.checkArgument(c < 0, "firstKey must be smaller than lastKey.");
+        }
     }
 
     //endregion
@@ -181,11 +200,17 @@ class ItemIterator implements AsyncIterator<List<ArrayView>> {
             firstIndex = 0;
         }
 
-        // Adjust the last index if we were requested not to include the last Item.
-        val endPos = page.search(this.lastItem, 0);
-        int lastIndex = endPos.getPosition();
-        if (!endPos.isExactMatch() || endPos.isExactMatch() && !this.lastItemInclusive) {
-            lastIndex--;
+        int lastIndex;
+        if (this.lastItem == null) {
+            // Include all the items on this page if we do not have a last Item defined.
+            lastIndex = page.getItemCount() - 1;
+        } else {
+            // Adjust the last index if we were requested not to include the last Item.
+            val endPos = page.search(this.lastItem, 0);
+            lastIndex = endPos.getPosition();
+            if (!endPos.isExactMatch() || endPos.isExactMatch() && !this.lastItemInclusive) {
+                lastIndex--;
+            }
         }
 
         if (firstIndex > lastIndex) {

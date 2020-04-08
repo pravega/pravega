@@ -10,6 +10,7 @@
 package io.pravega.common.util.btree.sets;
 
 import io.pravega.common.util.ArrayView;
+import java.util.Comparator;
 import lombok.Data;
 
 /**
@@ -48,5 +49,20 @@ class PagePointer {
      */
     boolean hasParent() {
         return this.parentPageId != NO_PAGE_ID;
+    }
+
+    /**
+     * Gets a comparator for {@link PagePointer}s that orders based on {@link #getKey()}.
+     *
+     * @param keyComparator A {@link Comparator} that can be used to compare {@link #getKey()}.
+     * @return A Comparator.
+     */
+    static Comparator<PagePointer> getComparator(Comparator<ArrayView> keyComparator) {
+        return (p1, p2) -> keyComparator.compare(p1.getKey(), p2.getKey());
+    }
+
+    @Override
+    public String toString() {
+        return String.format("PageId=%s, ParentId=%s", this.pageId, this.parentPageId);
     }
 }

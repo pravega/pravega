@@ -19,6 +19,7 @@ import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.common.util.btree.SearchResult;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Supplier;
@@ -88,7 +89,7 @@ abstract class BTreeSetPage {
 
     //region Members
 
-    private static final ByteArrayComparator COMPARATOR = BTreeSet.COMPARATOR;
+    private static final Comparator<ArrayView> COMPARATOR = BTreeSet.COMPARATOR;
     @Getter
     private final PagePointer pagePointer;
     @Getter
@@ -193,13 +194,13 @@ abstract class BTreeSetPage {
      * @return The buffer.
      */
     private ArrayView newContents(int itemCount, int contentsSize, long pageId) {
-        byte[] contents = new byte[HEADER_FOOTER_LENGTH + itemCount * ITEM_OFFSET_LENGTH + contentsSize];
-        contents[0] = CURRENT_VERSION;
-        contents[1] = getFlags();
-        BitConverter.writeInt(contents, TOTAL_SIZE_OFFSET, contents.length);
+        val contents = new ByteArraySegment(new byte[HEADER_FOOTER_LENGTH + itemCount * ITEM_OFFSET_LENGTH + contentsSize]);
+        contents.set(0, CURRENT_VERSION);
+        contents.set(1, getFlags());
+        setSize(contents, contents.getLength());
         BitConverter.writeInt(contents, COUNT_OFFSET, itemCount);
-        BitConverter.writeLong(contents, contents.length - PAGE_ID_LENGTH, pageId);
-        return new ByteArraySegment(contents);
+        BitConverter.writeLong(contents, contents.getLength() - PAGE_ID_LENGTH, pageId);
+        return contents;
     }
 
     /**
@@ -245,9 +246,9 @@ abstract class BTreeSetPage {
     abstract boolean isIndexPage();
 
     /**
-     * Invoked by {@link #split} immediately after creating a new split page, allowing the spl
+     * Indicates that modifications to this page have concluded and performs any maintenance tasks that may be required.
      */
-    abstract void splitComplete();
+    abstract void seal();
 
     /**
      * Gets the size of this page's serialization, in bytes.
@@ -267,13 +268,17 @@ abstract class BTreeSetPage {
         return size() - HEADER_FOOTER_LENGTH - this.itemCount * ITEM_OFFSET_LENGTH;
     }
 
-    private void markModified() {
+    /**
+     * Indicates that this page has been modified.
+     */
+    void markModified() {
         this.modified = true;
     }
 
     @Override
     public String toString() {
-        return String.format("%s: Size=%s, ContentSize=%s, Count=%s.", isIndexPage() ? "I" : "L", size(), getContentSize(), getItemCount());
+        return String.format("%s: %s, Size=%s, ContentSize=%s, Count=%s.", isIndexPage() ? "I" : "L",
+                this.pagePointer, size(), getContentSize(), getItemCount());
     }
 
     /**
@@ -306,7 +311,7 @@ abstract class BTreeSetPage {
         Preconditions.checkArgument(delta <= 0, "Cannot replace an item (%s) with a bigger one (%s).", length, newItem.getLength());
 
         // Copy new item data.
-        copyData(newItem, this.data.slice(offset, length));
+        copyData(newItem, this.data.slice(offset, newItem.getLength()));
 
         if (delta != 0) {
             // Update remaining offsets with delta
@@ -320,7 +325,9 @@ abstract class BTreeSetPage {
             for (int index = offset + length; index < this.data.getLength(); index++) {
                 array[arrayOffset + index + delta] = array[arrayOffset + index];
             }
+
             this.data = this.data.slice(0, this.data.getLength() + delta);
+            setSize(this.data, this.data.getLength());
         }
     }
 
@@ -665,8 +672,9 @@ abstract class BTreeSetPage {
         val targetSlice = newPageContents.slice(relativeOffsets.get(0), actualContentLength);
         copyData(sourceSlice, targetSlice);
         BTreeSetPage result = BTreeSetPage.parse(pointer, newPageContents);
-        result.splitComplete();
+        Preconditions.checkState(result.getItemCount() > 0, "Page split resulted in empty page.");
         result.markModified();
+        result.seal();
         return result;
     }
 
@@ -692,6 +700,10 @@ abstract class BTreeSetPage {
 
     private void setOffset(ArrayView contents, int position, int offset) {
         BitConverter.writeInt(contents, ITEM_OFFSETS_OFFSET + position * ITEM_OFFSET_LENGTH, offset);
+    }
+
+    private void setSize(ArrayView contents, int size) {
+        BitConverter.writeInt(contents, TOTAL_SIZE_OFFSET, size);
     }
 
     private void copyData(ArrayView from, ArrayView to) {
@@ -725,9 +737,12 @@ abstract class BTreeSetPage {
         }
 
         @Override
-        void splitComplete() {
-            Preconditions.checkState(getItemCount() > 0, "Index Page split resulted in empty page.");
-            super.setItemAt(0, new ByteArraySegment(COMPARATOR.getMinValue()));
+        void seal() {
+            // Index pages need to have their first item point to Min-Value. Otherwise we will not be able to include
+            // items that are between this page's pointer to this page and this pages's first item.
+            if (getItemCount() > 0) {
+                super.setItemAt(0, new ByteArraySegment(ByteArrayComparator.getMinValue()));
+            }
         }
 
         /**
@@ -816,7 +831,7 @@ abstract class BTreeSetPage {
         }
 
         @Override
-        void splitComplete() {
+        void seal() {
             Preconditions.checkState(getItemCount() > 0, "Leaf Page split resulted in empty page.");
         }
 

@@ -108,7 +108,7 @@ public final class ByteArrayComparator implements Comparator<byte[]>, Serializab
      *
      * @return The minimum, non-empty value.
      */
-    public byte[] getMinValue() {
-        return new byte[MIN_VALUE];
+    public static byte[] getMinValue() {
+        return new byte[]{MIN_VALUE};
     }
 }
