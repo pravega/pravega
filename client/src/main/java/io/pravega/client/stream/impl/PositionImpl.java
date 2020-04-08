@@ -118,25 +118,34 @@ public class PositionImpl extends PositionInternal {
 
         @Override
         protected byte getWriteVersion() {
-            return 1;
+            return 0;
         }
 
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00)
-                      .revision(1, this::write01, this::read01);
-            version(1).revision(0, this::write10, this::read10);
+                      .revision(1, this::write01, this::read01)
+                      .revision(2, this::write02, this::read02);
         }
 
         private void read00(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
-            Map<Segment, Long> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), RevisionDataInput::readCompactLong);
+            // RevisionDataInput::readCompactSignedLong can read data written using RevisionDataOutput.writeCompactLong
+            Map<Segment, Long> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), RevisionDataInput::readCompactSignedLong);
             builder.ownedSegments(map);
         }
 
         private void write00(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
+            // This is used to ensure serialized data can be read by the older client.
+            // Note: the older client does not serialize if the offset has -1L as value.
             Map<Segment, Long> map = position.getOwnedSegmentsWithOffsets();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
-                                        (out, offset) -> out.writeCompactLong(offset));
+                                        (out, offset) -> {
+                                            if ( offset < 0) {
+                                                out.writeCompactSignedLong(offset);
+                                            } else {
+                                                out.writeCompactLong(offset);
+                                            }
+                                        });
         }
         
         private void read01(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
@@ -149,17 +158,17 @@ public class PositionImpl extends PositionInternal {
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializer::writeRange);
         }
 
-        private void read10(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
-            Map<Segment, Long> ownedSegments = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), RevisionDataInput::readCompactSignedLong);
-            builder.ownedSegments(ownedSegments);
-            read01(revisionDataInput, builder);
-        }
-
-        private void write10(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
+        private void write02(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
+            // serialize offset segment again as CompactSignedLong ensure serialization
             Map<Segment, Long> map = position.getOwnedSegmentsWithOffsets();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
                     (out, offset) -> out.writeCompactSignedLong(offset));
-            write01(position, revisionDataOutput);
+        }
+
+        // This method is invoked only if the data is serialized with revision as 2.
+        private void read02(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
+            Map<Segment, Long> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), RevisionDataInput::readCompactSignedLong);
+            builder.ownedSegments(map);
         }
 
         private static void writeRange(RevisionDataOutput out, Range range) throws IOException {
@@ -188,7 +197,7 @@ public class PositionImpl extends PositionInternal {
         ByteArraySegment serialized = SERIALIZER.serialize(this);
         return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
     }
-    
+
     @SneakyThrows(IOException.class)
     public static Position fromBytes(ByteBuffer buff) {
         return SERIALIZER.deserialize(new ByteArraySegment(buff));
