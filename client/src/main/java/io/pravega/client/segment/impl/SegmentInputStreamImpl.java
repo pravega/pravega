@@ -247,5 +247,10 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     public Segment getSegmentId() {
         return asyncInput.getSegmentId();
     }
+    
+    @Synchronized
+    int getBufferSize() {
+        return buffer.getCapacity();
+    }
 
 }

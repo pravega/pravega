@@ -31,6 +31,7 @@ import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperatio
 import io.pravega.segmentstore.server.logs.operations.MetadataOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
+import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import java.time.Duration;
@@ -440,7 +441,8 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         ex = Exceptions.unwrap(ex);
         return Exceptions.mustRethrow(ex)
                 || ex instanceof DataCorruptionException     // Data corruption - stop processing to prevent more damage.
-                || ex instanceof StorageNotPrimaryException; // Fenced out - another instance took over.
+                || ex instanceof StorageNotPrimaryException  // Fenced out - another instance took over.
+                || ex instanceof DataLogWriterNotPrimaryException;  // Fenced out at the DurableLog level.
     }
 
     private boolean isShutdownException(Throwable ex) {
