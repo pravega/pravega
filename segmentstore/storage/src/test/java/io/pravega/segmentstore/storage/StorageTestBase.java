@@ -165,6 +165,10 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         Iterator<SegmentProperties> it = s.listSegments();
         expectedCount -= deletedSegments.size();
         Assert.assertEquals(expectedCount, Iterators.size(it));
+        while(it.hasNext()){
+            SegmentProperties curr = it.next();
+            Assert.assertFalse("deleted segment is returned by the Iterator", deletedSegments.contains(curr.getName()));
+        }
     }
 
     /**
