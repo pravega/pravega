@@ -11,6 +11,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.auth.InvalidTokenException;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
@@ -27,6 +28,8 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
+
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -300,9 +303,11 @@ public class SegmentMetadataClientTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
+        ClientConfig config = ClientConfig.builder().rawclientTimeout(Duration.ofSeconds(3600)).build();
         @Cleanup
         ConnectionFactory cf = Mockito.mock(ConnectionFactory.class);
         Mockito.when(cf.getInternalExecutor()).thenReturn(executor);
+        Mockito.when(cf.getClientConfig()).thenReturn(config);
         @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
         ClientConnection connection1 = mock(ClientConnection.class);
@@ -348,7 +353,9 @@ public class SegmentMetadataClientTest {
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
         InOrder order = Mockito.inOrder(connection1, connection2, cf);
         long length = client.fetchCurrentSegmentLength();
-        order.verify(cf, Mockito.times(2)).establishConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any());
+        order.verify(cf).establishConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any());
+        order.verify(cf).getClientConfig();
+        order.verify(cf).establishConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any());
         order.verify(connection1).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(0), segment.getScopedName(), "")),
                                             Mockito.any(ClientConnection.CompletedCallback.class));
         order.verify(connection1).close();

@@ -73,6 +73,11 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     }
 
     @Override
+    public ClientConfig getClientConfig() {
+        return clientConfig;
+    }
+
+    @Override
     public void close() {
         log.info("Shutting down connection factory");
         if (closed.compareAndSet(false, true)) {

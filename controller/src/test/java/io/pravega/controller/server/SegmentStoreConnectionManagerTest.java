@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
@@ -24,6 +25,7 @@ import lombok.Getter;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -351,6 +353,7 @@ public class SegmentStoreConnectionManagerTest {
     private class MockConnectionFactory implements ConnectionFactory {
         @Getter
         private ReplyProcessor rp;
+        private ClientConfig clientConfig = ClientConfig.builder().rawclientTimeout(Duration.ofSeconds(3600)).build();
 
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
@@ -369,6 +372,11 @@ public class SegmentStoreConnectionManagerTest {
         @Override
         public ScheduledExecutorService getInternalExecutor() {
             return null;
+        }
+
+        @Override
+        public ClientConfig getClientConfig() {
+            return clientConfig;
         }
 
         @Override

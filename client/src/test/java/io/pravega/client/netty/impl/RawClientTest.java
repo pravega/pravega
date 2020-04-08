@@ -25,6 +25,8 @@ import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+
 import io.pravega.test.common.AssertExtensions;
 
 import lombok.Cleanup;

@@ -36,7 +36,6 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class RawClient implements AutoCloseable {
-    private static final Duration DEFAULT_RAWCLIENT_REQUEST_TIMEOUT = Duration.ofSeconds(30);
 
     private final CompletableFuture<ClientConnection> connection;
     private final Segment segmentId;
@@ -49,6 +48,8 @@ public class RawClient implements AutoCloseable {
     @Getter
     private final Flow flow = Flow.create();
     private final ConnectionFactory connectionFactory;
+
+    private final Duration connectionTimeout;
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
@@ -90,6 +91,7 @@ public class RawClient implements AutoCloseable {
         this.segmentId = null;
         this.connectionFactory = connectionFactory;
         this.connection = connectionFactory.establishConnection(flow, uri, responseProcessor);
+        this.connectionTimeout = this.connectionFactory.getClientConfig().getRawclientTimeout();
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -98,6 +100,7 @@ public class RawClient implements AutoCloseable {
         this.connectionFactory = connectionFactory;
         this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
                                     .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(flow, uri, responseProcessor));
+        this.connectionTimeout = this.connectionFactory.getClientConfig().getRawclientTimeout();
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -137,7 +140,7 @@ public class RawClient implements AutoCloseable {
     }
 
     public <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(long requestId, T request) {
-        return sendRequest(requestId, request, DEFAULT_RAWCLIENT_REQUEST_TIMEOUT);
+        return sendRequest(requestId, request, this.connectionTimeout);
     }
 
     public <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(long requestId, T request,

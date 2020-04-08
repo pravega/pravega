@@ -12,6 +12,7 @@ package io.pravega.client.netty.impl;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 
@@ -45,6 +46,12 @@ public interface ConnectionFactory extends AutoCloseable {
      * @return A ScheduledExecutorService.
      */
     ScheduledExecutorService getInternalExecutor();
+
+    /**
+     * Get the client config used by the client.
+     * @return A ClientConfig.
+     */
+    ClientConfig getClientConfig();
 
     @Override
     void close();

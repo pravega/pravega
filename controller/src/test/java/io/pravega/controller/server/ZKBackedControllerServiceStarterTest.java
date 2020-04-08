@@ -12,6 +12,7 @@ package io.pravega.controller.server;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Bytes;
 import com.google.common.util.concurrent.Service;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
@@ -45,6 +46,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -110,6 +112,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         private ReplyProcessor rp;
         private ClientConnection connection;
         private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(2);
+        private ClientConfig clientConfig = ClientConfig.builder().rawclientTimeout(Duration.ofSeconds(3600)).build();
 
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
@@ -128,6 +131,11 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         @Override
         public ScheduledExecutorService getInternalExecutor() {
             return executorService;
+        }
+
+        @Override
+        public ClientConfig getClientConfig() {
+            return clientConfig;
         }
 
         @Override

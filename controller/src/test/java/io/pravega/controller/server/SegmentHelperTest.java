@@ -11,6 +11,7 @@ package io.pravega.controller.server;
 
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
@@ -37,6 +38,8 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
+
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
@@ -790,6 +793,7 @@ public class SegmentHelperTest {
         private ReplyProcessor rp;
         private ClientConnection connection;
         private ScheduledExecutorService executor;
+        private ClientConfig clientConfig = ClientConfig.builder().rawclientTimeout(Duration.ofSeconds(3600)).build();
 
         public MockConnectionFactory() {
             this.executor = new InlineExecutor();
@@ -816,6 +820,11 @@ public class SegmentHelperTest {
         @Override
         public ScheduledExecutorService getInternalExecutor() {
             return executor;
+        }
+
+        @Override
+        public ClientConfig getClientConfig() {
+            return clientConfig;
         }
 
         @Override

@@ -10,12 +10,15 @@
 package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -30,6 +33,7 @@ public class MockConnectionFactoryImpl implements ConnectionFactory {
     Map<PravegaNodeUri, ReplyProcessor> processors = new HashMap<>();
     @Setter
     ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "testClientInternal");
+    private ClientConfig clientConfig = ClientConfig.builder().rawclientTimeout(Duration.ofSeconds(3600)).build();
 
     @Override
     @Synchronized
@@ -49,6 +53,11 @@ public class MockConnectionFactoryImpl implements ConnectionFactory {
     @Override
     public ScheduledExecutorService getInternalExecutor() {
         return executor;
+    }
+
+    @Override
+    public ClientConfig getClientConfig() {
+        return clientConfig;
     }
 
     @Synchronized

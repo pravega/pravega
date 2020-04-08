@@ -15,6 +15,7 @@ import io.pravega.client.stream.impl.Credentials;
 import io.pravega.shared.metrics.MetricListener;
 import java.io.Serializable;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
@@ -109,6 +110,13 @@ public class ClientConfig implements Serializable {
     private final MetricListener metricListener;
 
     /**
+     * If the flag is set, RawClient will timeout the future if it doesn't receive response from Segment store
+     * in a given time period. Notice that we don't want this feature enabled in testing since it might mask some
+     * bugs.
+     */
+    private final Duration rawclientTimeout;
+
+    /**
      * Returns whether TLS is enabled for client-to-server (Controller and Segment Store) communications.
      *
      * @return {@code true} if TLS is enabled, otherwise returns {@code false}
@@ -164,6 +172,8 @@ public class ClientConfig implements Serializable {
 
         private boolean deriveTlsEnabledFromControllerURI = true;
 
+        private Duration rawclientTimeout = Duration.ofSeconds(30);
+
         /**
          * Note: by making this method private, we intend to hide the corresponding property
          * "deriveTlsEnabledFromControllerURI".
@@ -197,7 +207,7 @@ public class ClientConfig implements Serializable {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
             }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
-                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore, metricListener);
+                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore, metricListener, rawclientTimeout);
         }
 
         /**
