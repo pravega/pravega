@@ -19,6 +19,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +40,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
 
     @GuardedBy("$lock")
     private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
+    @Getter(value = AccessLevel.MODULE)
     private final SegmentInputStream in;
 
     EventSegmentReaderImpl(SegmentInputStream input) {
