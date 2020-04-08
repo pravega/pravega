@@ -11,6 +11,8 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.collect.ImmutableList;
 import io.pravega.client.stream.impl.Orderer;
+import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
+import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -89,6 +91,25 @@ public class SegmentInputStreamTest {
         wireData.put(data);
         wireData.flip();
         return wireData;
+    }
+    
+    @Test
+    public void testConfigBufferSize() {
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController mockController = new MockController("localhost", -1, connectionFactory, false);
+        SegmentInputStreamFactoryImpl streamFactory = new SegmentInputStreamFactoryImpl(mockController, connectionFactory);
+        @Cleanup
+        EventSegmentReader streamSmall = streamFactory.createEventReaderForSegment(segment, 100, null, Long.MAX_VALUE);
+        int bufferSize = ((SegmentInputStreamImpl) ((EventSegmentReaderImpl) streamSmall).getIn()).getBufferSize();
+        assertEquals(SegmentInputStreamImpl.MIN_BUFFER_SIZE, bufferSize);
+        @Cleanup
+        EventSegmentReader streamNormal = streamFactory.createEventReaderForSegment(segment, 1024 * 1024, null, Long.MAX_VALUE);
+        bufferSize = ((SegmentInputStreamImpl) ((EventSegmentReaderImpl) streamNormal).getIn()).getBufferSize();
+        assertEquals(1024 * 1024, bufferSize);
+        @Cleanup
+        EventSegmentReader streamXL = streamFactory.createEventReaderForSegment(segment, 1000 * 1024 * 1024, null, Long.MAX_VALUE);
+        bufferSize = ((SegmentInputStreamImpl) ((EventSegmentReaderImpl) streamXL).getIn()).getBufferSize();
+        assertEquals(SegmentInputStreamImpl.MAX_BUFFER_SIZE, bufferSize);
     }
 
     @Test
