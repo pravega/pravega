@@ -21,10 +21,12 @@ public class ReaderConfig implements Serializable {
     private static final long serialVersionUID = 1L;
     private final long initialAllocationDelay;
     private final boolean disableTimeWindows;
+    private final int bufferSize;
     
     public static class ReaderConfigBuilder {
         private long initialAllocationDelay = 0;
         private boolean disableTimeWindows = false;
+        private int bufferSize = 1024 * 1024;
     }
     
 }
