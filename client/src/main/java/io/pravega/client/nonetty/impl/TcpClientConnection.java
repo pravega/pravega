@@ -1,3 +1,11 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.client.nonetty.impl;
 
 import io.netty.buffer.ByteBufInputStream;
@@ -26,13 +34,12 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class TcpClientConnection implements ClientConnection {
-    
+
     private final Socket socket;
     private final CommandEncoder encoder;
     private final ConnectionReader reader;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    
     @RequiredArgsConstructor
     private static class ConnectionReader {
         private final InputStream inputStream;
@@ -40,11 +47,11 @@ public class TcpClientConnection implements ClientConnection {
         private final ScheduledExecutorService thread;
         private final AppendBatchSizeTracker batchSizeTracker;
         private final AtomicBoolean stop = new AtomicBoolean(false);
-        
+
         public void start() {
             thread.submit(() -> {
                 byte[] header = new byte[8];
-                while(!stop.get()) {
+                while (!stop.get()) {
                     try {
                         inputStream.readNBytes(header, 0, 8);
                         ByteBuffer headerReadingBuffer = ByteBuffer.wrap(header);
@@ -53,21 +60,21 @@ public class TcpClientConnection implements ClientConnection {
                         if (type == null) {
                             throw new InvalidMessageException("Unknown wire command: " + t);
                         }
-                        
+
                         int length = headerReadingBuffer.getInt();
                         if (length < 0 || length > WireCommands.MAX_WIRECOMMAND_SIZE) {
                             throw new InvalidMessageException("Event of invalid length: " + length);
                         }
-                        
+
                         byte[] bytes = inputStream.readNBytes(length);
                         WireCommand command = type.readFrom(new ByteBufInputStream(Unpooled.wrappedBuffer(bytes)), length);
                         if (command instanceof WireCommands.DataAppended) {
                             WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
                             batchSizeTracker.recordAck(dataAppended.getEventNumber());
                         }
-                       
+
                         callback.process((Reply) command);
-                        
+
                     } catch (Exception e) {
                         log.error("Error processing data from from server ", e);
                         stop();
@@ -75,8 +82,7 @@ public class TcpClientConnection implements ClientConnection {
                 }
             });
         }
-        
-        
+
         public void stop() {
             stop.set(true);
             thread.shutdown();
@@ -86,6 +92,7 @@ public class TcpClientConnection implements ClientConnection {
     @SneakyThrows(IOException.class)
     public TcpClientConnection(String host, int port, ReplyProcessor callback) {
         socket = new Socket(host, port);
+        socket.setTcpNoDelay(true);
         InputStream inputStream = socket.getInputStream();
         ScheduledExecutorService pool = ExecutorServiceHelpers.newScheduledThreadPool(1, "Reading from " + host);
         AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
@@ -124,24 +131,27 @@ public class TcpClientConnection implements ClientConnection {
 
     @Override
     public void close() {
-        closed.set(true);
-        reader.stop();
-        try {
-            socket.close();
-        } catch (IOException e) {
-            log.warn("Error closing socket", e);
+        if (closed.compareAndSet(false, true)) {
+            reader.stop();
+            try {
+                socket.close();
+            } catch (IOException e) {
+                log.warn("Error closing socket", e);
+            }
         }
     }
 
     @Override
-    public void sendAsync(List<Append> appends) {
+    public void sendAsync(List<Append> appends, CompletedCallback callback) {
         try {
             for (Append append : appends) {
                 encoder.write(append);
             }
+            callback.complete(null);
         } catch (IOException e) {
             log.warn("Error writing to connection");
             close();
+            callback.complete(new ConnectionFailedException(e));
         }
     }
 

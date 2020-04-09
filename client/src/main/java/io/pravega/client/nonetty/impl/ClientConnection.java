@@ -44,12 +44,23 @@ public interface ClientConnection extends AutoCloseable {
      * @param appends A list of append command to send.
      * @param callback A callback to be invoked when the operation is complete
      */
-    void sendAsync(List<Append> appends);
+    void sendAsync(List<Append> appends, CompletedCallback callback);
 
     /**
      * Drop the connection. No further operations may be performed.
      */
     @Override
     void close();
+    
+    @FunctionalInterface
+    interface CompletedCallback {
+        /**
+         * Invoked when the {@link ClientConnection#sendAsync(List, CompletedCallback)} data has
+         * either been written to the wire or failed.
+         * 
+         * @param e The exception that was encountered (Or null if it is a success)
+         */
+        void complete(ConnectionFailedException e);
+    }
 
 }

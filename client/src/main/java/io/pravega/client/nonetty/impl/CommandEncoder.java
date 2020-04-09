@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.client.nonetty.impl;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -54,7 +63,7 @@ public class CommandEncoder {
 
     private final OutputStream output;
     private final ScheduledExecutorService executor;
-    private final ByteBuf buffer = Unpooled.buffer(1024*1024);
+    private final ByteBuf buffer = Unpooled.buffer(1024 * 1024);
 
     @RequiredArgsConstructor
     private final class Session {
@@ -282,7 +291,7 @@ public class CommandEncoder {
         final int msgSize = append.getData().readableBytes();
         int blockSize = blockSizeSupplier.getAppendBlockSize();
         // Only publish client side metrics when there is some metrics notifier configured for efficiency.
-        if (!metricNotifier.equals(MetricNotifier.NO_OP_METRIC_NOTIFIER)) {
+        if (metricNotifier!= null && !metricNotifier.equals(MetricNotifier.NO_OP_METRIC_NOTIFIER)) {
             metricNotifier.updateSuccessMetric(CLIENT_APPEND_BLOCK_SIZE, segmentTags(append.getSegment(), append.getWriterId().toString()),
                                                blockSize);
         }
