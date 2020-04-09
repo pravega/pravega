@@ -527,7 +527,7 @@ public final class WireCommands {
         final UUID writerId;
         final ByteBuf data;
 
-        AppendBlock(UUID writerId) {
+        public AppendBlock(UUID writerId) {
             this.writerId = writerId;
             this.data = Unpooled.EMPTY_BUFFER; // Populated on read path
         }

@@ -27,7 +27,7 @@ import java.util.function.Supplier;
  * synchronous writers. Otherwise the batch size is set to the amount of data that will be written in the next
  * {@link #MAX_BATCH_TIME_MILLIS} or half the server round trip time (whichever is less)
  */
-class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
+public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private static final int MAX_BATCH_TIME_MILLIS = 100;
 
     private final Supplier<Long> clock;
@@ -38,7 +38,7 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private final ExponentialMovingAverage millisBetweenAppends = new ExponentialMovingAverage(10, 0.1, false);
     private final ExponentialMovingAverage appendsOutstanding = new ExponentialMovingAverage(2, 0.05, false);
 
-    AppendBatchSizeTrackerImpl() {
+    public AppendBatchSizeTrackerImpl() {
         clock = System::currentTimeMillis;
         lastAppendTime = new AtomicLong(clock.get());
         lastAckNumber = new AtomicLong(0);

@@ -16,8 +16,8 @@ import lombok.Data;
 
 @Data
 public class Append implements Request, Comparable<Append> {
-    final String segment;
-    final UUID writerId;
+    public final String segment;
+    public final UUID writerId;
     final long eventNumber;
     final int eventCount;
     final ByteBuf data;
