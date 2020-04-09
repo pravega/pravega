@@ -36,9 +36,12 @@ add_system_property_ecs_config_uri() {
 
 # Add ECS certificates into Java truststore
 add_certs_into_truststore() {
-    CERTS=/etc/ssl/certs/java/ecs-certs/*
+    password=`cat /etc/ssl/certs/java/ecs-certs/JAVA_TRUST_STORE_PASSWORD`
+    trustStore=`cat /etc/ssl/certs/java/ecs-certs/JAVA_TRUST_STORE_PATH`
+
+    CERTS=/etc/ssl/certs/java/ecs-certs/*.pem
     for cert in $CERTS
     do
-      yes | keytool -importcert -storepass changeit -file "${cert}" -keystore /etc/ssl/certs/java/cacerts || true
+      yes | keytool -importcert -storepass "${password}" -file "${cert}" -keystore "${trustStore}" || true
     done
 }
