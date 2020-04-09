@@ -9,17 +9,11 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
-import io.pravega.segmentstore.contracts.tables.TableEntry;
-import io.pravega.segmentstore.contracts.tables.TableKey;
-import java.time.Duration;
-import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -30,22 +24,15 @@ import lombok.val;
 @RequiredArgsConstructor
 class ContainerSortedKeyIndex {
     //region Members
+
+    static final KeyTranslator EXTERNAL_TRANSLATOR = KeyTranslator.partitioned((byte) 'E');
+    static final KeyTranslator INTERNAL_TRANSLATOR = KeyTranslator.partitioned((byte) 'I');
+
     private final ConcurrentHashMap<Long, SegmentSortedKeyIndex> sortedKeyIndices = new ConcurrentHashMap<>();
-    /**
-     * A Function that will be invoked when a Table Segment's Sorted Key Index nodes need to be persisted.
-     */
     @NonNull
-    private final UpdateNodes updateNodes;
-    /**
-     * A Function that will be invoked when a Table Segment's Sorted Key Index nodes need to be deleted.
-     */
+    private final SortedKeyIndexDataSource dataSource;
     @NonNull
-    private final DeleteNodes deleteNodes;
-    /**
-     * A Function that will be invoked when a Table Segment's Sorted Key Index nodes need to be retrieved.
-     */
-    @NonNull
-    private final GetNodes getNodes;
+    private final Executor executor;
 
     //endregion
 
@@ -59,6 +46,23 @@ class ContainerSortedKeyIndex {
      */
     static boolean isSortedTableSegment(SegmentProperties info) {
         return info.getAttributes().getOrDefault(TableAttributes.SORTED, Attributes.BOOLEAN_FALSE) == Attributes.BOOLEAN_TRUE;
+    }
+
+    /**
+     * Gets a {@link KeyTranslator} for the given segment.
+     *
+     * @param info              A {@link SegmentProperties} describing the segment,
+     * @param isExternalRequest True if the request to be translated originated externally, false if internal (such as
+     *                          from a {@link ContainerSortedKeyIndex}'s {@link SortedKeyIndexDataSource}.
+     * @return A {@link KeyTranslator}, or null if the segment does not need key translation.
+     */
+    KeyTranslator getKeyTranslator(SegmentProperties info, boolean isExternalRequest) {
+        if (!isSortedTableSegment(info)) {
+            // Nothing to translate for non-sorted segments.
+            return null;
+        }
+
+        return isExternalRequest ? EXTERNAL_TRANSLATOR : INTERNAL_TRANSLATOR;
     }
 
     /**
@@ -99,29 +103,7 @@ class ContainerSortedKeyIndex {
     }
 
     private SegmentSortedKeyIndex createSortedKeyIndex(String segmentName) {
-        return new SegmentSortedKeyIndexImpl(
-                (entries, timeout) -> this.updateNodes.apply(segmentName, entries, timeout),
-                (keys, timeout) -> this.deleteNodes.apply(segmentName, keys, timeout),
-                (keys, timeout) -> this.getNodes.apply(segmentName, keys, timeout));
-    }
-
-    //endregion
-
-    //region Functional Interfaces
-
-    @FunctionalInterface
-    public interface UpdateNodes {
-        CompletableFuture<?> apply(String segmentName, List<TableEntry> entries, Duration timeout);
-    }
-
-    @FunctionalInterface
-    public interface DeleteNodes {
-        CompletableFuture<?> apply(String segmentName, Collection<TableKey> keys, Duration timeout);
-    }
-
-    @FunctionalInterface
-    public interface GetNodes {
-        CompletableFuture<List<TableEntry>> apply(String segmentName, List<ArrayView> keys, Duration timeout);
+        return new SegmentSortedKeyIndexImpl(segmentName, this.dataSource, this.executor);
     }
 
     //endregion

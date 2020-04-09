@@ -823,7 +823,8 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             this.segment = new SegmentMock(executorService());
             this.sortedKeyStorage = new TableStoreMock(executorService());
             this.sortedKeyStorage.createSegment(this.segment.getInfo().getName(), TIMEOUT).join();
-            this.sortedKeyIndex = new ContainerSortedKeyIndex(this.sortedKeyStorage::put, this.sortedKeyStorage::remove, this.sortedKeyStorage::get);
+            val ds = new SortedKeyIndexDataSource(KeyTranslator.identity(), this.sortedKeyStorage::put, this.sortedKeyStorage::remove, this.sortedKeyStorage::get);
+            this.sortedKeyIndex = new ContainerSortedKeyIndex(ds, executorService());
             this.index = new TestContainerKeyIndex(CONTAINER_ID, this.cacheManager, this.sortedKeyIndex, KeyHashers.DEFAULT_HASHER, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);
             this.random = new Random(0);

@@ -48,7 +48,7 @@ import lombok.val;
 public class BTreeSet {
     //region Members
 
-    static final Comparator<ArrayView> COMPARATOR = new ByteArrayComparator()::compare;
+    public static final Comparator<ArrayView> COMPARATOR = new ByteArrayComparator()::compare;
     private static final Comparator<PagePointer> POINTER_COMPARATOR = PagePointer.getComparator(COMPARATOR);
 
     private final int maxPageSize;

@@ -111,4 +111,33 @@ public final class ByteArrayComparator implements Comparator<byte[]>, Serializab
     public static byte[] getMinValue() {
         return new byte[]{MIN_VALUE};
     }
+
+    /**
+     * Gets an {@link ArrayView} of the same length as the given one that immediately succeeds it when compared with
+     * {@link ByteArrayComparator}.
+     *
+     * @param array The input array.
+     * @return The result, or null if the input array has max value (there is no array of the same length that can be
+     * greater than it when compared using {@link ByteArrayComparator}).
+     */
+    public static ArrayView getNextItemOfSameLength(ArrayView array) {
+        final int maxValue = MAX_VALUE & 0xFF;
+        final byte[] result = new byte[array.getLength()];
+        array.copyTo(result, 0, result.length);
+        int index = result.length - 1;
+        while (index >= 0) {
+            int v = result[index] & 0xFF;
+            if (v >= maxValue) {
+                result[index] = ByteArrayComparator.MIN_VALUE;
+            } else {
+                result[index] = (byte) (v + 1);
+                return new ByteArraySegment(result); // Found one.
+            }
+
+            index--;
+        }
+
+        // This is the highest item of its length.
+        return null;
+    }
 }

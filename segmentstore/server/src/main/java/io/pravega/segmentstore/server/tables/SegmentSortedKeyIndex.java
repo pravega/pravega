@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.Beta;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import java.time.Duration;
@@ -16,10 +17,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import javax.annotation.Nullable;
+import lombok.Data;
 
 /**
  * Defines an index that maintains a Table Segment's Keys in lexicographic bitwise order.
  */
+@Beta
 interface SegmentSortedKeyIndex {
     /**
      * Include and persist updates that have been included in a Table Segment Index.
@@ -62,13 +66,39 @@ interface SegmentSortedKeyIndex {
 
     /**
      * Creates a new Key Iterator for all Keys beginning with the given prefix.
-     * TODO: IteratorState???
      *
-     * @param prefix       An {@link ArrayView} representing the prefix. If empty, all keys will iterated on.
+     * @param range        Iterator range.
      * @param fetchTimeout Timeout for each fetch triggered by {@link AsyncIterator#getNext()}.
      * @return An {@link AsyncIterator} that can be used to iterate keys.
      */
-    AsyncIterator<List<ArrayView>> iterator(ArrayView prefix, Duration fetchTimeout);
+    AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout);
+
+    /**
+     * Generates a {@link IteratorRange} that can be used as argument to {@link #iterator} from the given input.
+     *
+     * @param fromKeyExclusive The lower bound of the iteration (exclusive). If this iteration is resumed (from a previously
+     *                         interrupted one), should be the last key that was returned.
+     * @param prefix           The prefix of all keys returned.
+     * @return An {@link IteratorRange}.
+     */
+    IteratorRange getIteratorRange(@Nullable ArrayView fromKeyExclusive, @Nullable ArrayView prefix);
+
+    /**
+     * Arguments for {@link #iterator}.
+     */
+    @Data
+    class IteratorRange {
+        /**
+         * An {@link ArrayView} representing the lower bound of the iteration (exclusive). All returned keys will be larger
+         * than this one. If null, the iteration will start from the smallest key in the segment.
+         */
+        private final ArrayView from;
+        /**
+         * An {@link ArrayView representing the upper bound of the iteration (exclusive). All returned keys will be smaller
+         * than this one. If null, the iteration will proceed through the largest key in the segment.
+         */
+        private final ArrayView to;
+    }
 
     /**
      * Creates a {@link SegmentSortedKeyIndex} that does nothing.
@@ -98,8 +128,13 @@ interface SegmentSortedKeyIndex {
             }
 
             @Override
-            public AsyncIterator<List<ArrayView>> iterator(ArrayView prefix, Duration fetchTimeout) {
+            public AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout) {
                 return () -> null;
+            }
+
+            @Override
+            public IteratorRange getIteratorRange(@Nullable ArrayView fromKeyExclusive, @Nullable ArrayView prefix) {
+                return new IteratorRange(null, null);
             }
         };
     }

@@ -9,8 +9,11 @@
  */
 package io.pravega.common.util;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -59,6 +62,33 @@ public class ByteArrayComparatorTests {
             } else if (compareResult > 0) {
                 // Only empty array is smaller than it.
                 Assert.assertEquals(0, s.getLength());
+            }
+        }
+    }
+
+    /**
+     * Tests the {@link  ByteArrayComparator#getNextItemOfSameLength}.
+     */
+    @Test
+    public void testGetNextItemOfSameLength() {
+        val c = new ByteArrayComparator();
+        val max = ByteArrayComparator.MAX_VALUE;
+        val almostMax = (byte) (max - 1);
+        List<Map.Entry<byte[], byte[]>> tests = Arrays.asList(
+                new AbstractMap.SimpleImmutableEntry<>(new byte[]{}, null),
+                new AbstractMap.SimpleImmutableEntry<>(new byte[]{almostMax}, new byte[]{max}),
+                new AbstractMap.SimpleImmutableEntry<>(new byte[]{max}, null),
+                new AbstractMap.SimpleImmutableEntry<>(new byte[]{0, 1, 2, 3, 4}, new byte[]{0, 1, 2, 3, 5}),
+                new AbstractMap.SimpleImmutableEntry<>(new byte[]{max, almostMax}, new byte[]{max, max}),
+                new AbstractMap.SimpleImmutableEntry<>(new byte[]{max, max}, null));
+
+        for (val e : tests) {
+            val actual = ByteArrayComparator.getNextItemOfSameLength(new ByteArraySegment(e.getKey()));
+            if (e.getValue() == null) {
+                Assert.assertNull(actual);
+            } else {
+                val expected = new ByteArraySegment(e.getValue());
+                Assert.assertEquals(0, c.compare(expected, actual));
             }
         }
     }

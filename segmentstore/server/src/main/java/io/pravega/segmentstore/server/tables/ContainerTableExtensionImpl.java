@@ -22,6 +22,7 @@ import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -42,13 +43,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -107,11 +111,20 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         this.segmentContainer = segmentContainer;
         this.executor = executor;
         this.hasher = hasher;
-        this.sortedKeyIndex = new ContainerSortedKeyIndex(this::put, this::remove, this::get);
+        this.sortedKeyIndex = createSortedIndex();
         this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheManager, this.sortedKeyIndex, this.hasher, this.executor);
         this.serializer = new EntrySerializer();
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("TableExtension[%d]", this.segmentContainer.getId());
+    }
+
+    private ContainerSortedKeyIndex createSortedIndex() {
+        val ds = new SortedKeyIndexDataSource(
+                ContainerSortedKeyIndex.INTERNAL_TRANSLATOR,
+                (s, entries, timeout) -> put(s, entries, false, timeout),
+                (s, keys, timeout) -> remove(s, keys, false, timeout),
+                (s, keys, timeout) -> get(s, keys, false, timeout));
+        return new ContainerSortedKeyIndex(ds, this.executor);
     }
 
     //endregion
@@ -191,51 +204,72 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     @Override
     public CompletableFuture<List<Long>> put(@NonNull String segmentName, @NonNull List<TableEntry> entries, Duration timeout) {
+        return put(segmentName, entries, true, timeout);
+    }
+
+    private CompletableFuture<List<Long>> put(@NonNull String segmentName, @NonNull List<TableEntry> entries, boolean external, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-
-        // Generate an Update Batch for all the entries (since we need to know their Key Hashes and relative offsets in
-        // the batch itself).
-        val updateBatch = batch(entries, TableEntry::getKey, this.serializer::getUpdateLength, TableKeyBatch.update());
-        logRequest("put", segmentName, updateBatch.isConditional(), updateBatch.isRemoval(), entries.size(), updateBatch.getLength());
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
-                .thenComposeAsync(segment -> this.keyIndex.update(segment, updateBatch,
-                        () -> commit(entries, updateBatch.getLength(), this.serializer::serializeUpdate, segment, timer.getRemaining()), timer),
-                        this.executor);
+                .thenComposeAsync(segment -> {
+                    val segmentInfo = segment.getInfo();
+                    val toUpdate = translateItems(entries, segmentInfo, true, KeyTranslator::inbound);
+
+                    // Generate an Update Batch for all the entries (since we need to know their Key Hashes and relative
+                    // offsets in the batch itself).
+                    val updateBatch = batch(toUpdate, TableEntry::getKey, this.serializer::getUpdateLength, TableKeyBatch.update());
+                    logRequest("put", segmentInfo.getName(), updateBatch.isConditional(), updateBatch.isRemoval(),
+                            toUpdate.size(), updateBatch.getLength());
+                    return this.keyIndex.update(segment, updateBatch,
+                            () -> commit(toUpdate, updateBatch.getLength(), this.serializer::serializeUpdate, segment, timer.getRemaining()), timer);
+                }, this.executor);
     }
 
     @Override
     public CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, Duration timeout) {
+        return remove(segmentName, keys, true, timeout);
+    }
+
+    private CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, boolean external, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-
-        // Generate an Update Batch for all the keys (since we need to know their Key Hashes and relative offsets in
-        // the batch itself).
-        val removeBatch = batch(keys, key -> key, this.serializer::getRemovalLength, TableKeyBatch.removal());
-        logRequest("remove", segmentName, removeBatch.isConditional(), removeBatch.isRemoval(), keys.size(), removeBatch.getLength());
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
-                .thenComposeAsync(segment -> this.keyIndex.update(segment, removeBatch,
-                        () -> commit(keys, removeBatch.getLength(), this.serializer::serializeRemoval, segment, timer.getRemaining()), timer),
-                        this.executor)
+                .thenComposeAsync(segment -> {
+                    val segmentInfo = segment.getInfo();
+                    val toRemove = translateItems(keys, segmentInfo, external, KeyTranslator::inbound);
+                    val removeBatch = batch(toRemove, key -> key, this.serializer::getRemovalLength, TableKeyBatch.removal());
+                    logRequest("remove", segmentInfo.getName(), removeBatch.isConditional(), removeBatch.isRemoval(),
+                            toRemove.size(), removeBatch.getLength());
+                    return this.keyIndex.update(segment, removeBatch,
+                            () -> commit(toRemove, removeBatch.getLength(), this.serializer::serializeRemoval, segment, timer.getRemaining()), timer);
+                }, this.executor)
                 .thenRun(Runnables.doNothing());
     }
 
     @Override
     public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<ArrayView> keys, Duration timeout) {
+        return get(segmentName, keys, true, timeout);
+    }
+
+    private CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<ArrayView> keys, boolean external, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         logRequest("get", segmentName, keys.size());
         if (keys.isEmpty()) {
             return CompletableFuture.completedFuture(Collections.emptyList());
         } else {
             TimeoutTimer timer = new TimeoutTimer(timeout);
-            val resultBuilder = new GetResultBuilder(keys, this.hasher);
             return this.segmentContainer
                     .forSegment(segmentName, timer.getRemaining())
-                    .thenComposeAsync(segment -> this.keyIndex.getBucketOffsets(segment, resultBuilder.getHashes(), timer)
-                                    .thenComposeAsync(offsets -> get(segment, resultBuilder, offsets, timer), this.executor),
-                            this.executor);
+                    .thenComposeAsync(segment -> {
+                        val segmentInfo = segment.getInfo();
+                        val toGet = translateItems(keys, segmentInfo, external, KeyTranslator::inbound);
+                        val resultBuilder = new GetResultBuilder(toGet, this.hasher);
+                        return this.keyIndex.getBucketOffsets(segment, resultBuilder.getHashes(), timer)
+                                .thenComposeAsync(offsets -> get(segment, resultBuilder, offsets, timer), this.executor)
+                                .thenApply(results -> translateItems(results, segmentInfo, external, KeyTranslator::outbound));
+                    }, this.executor);
         }
     }
 
@@ -268,8 +302,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                                 // if the TableBucket has been rearranged due to a compaction. The rearrangement is a rare
                                 // occurrence and can only happen if more than one Key is mapped to a bucket (collision).
                                 return this.keyIndex.getBucketOffsetDirect(segment, keyHash, timer)
-                                                    .thenComposeAsync(newOffset -> bucketReader.find(key, newOffset, timer), this.executor)
-                                                    .thenApply(this::maybeDeleted);
+                                        .thenComposeAsync(newOffset -> bucketReader.find(key, newOffset, timer), this.executor)
+                                        .thenApply(this::maybeDeleted);
                             }
                         }, this.executor));
             }
@@ -278,16 +312,43 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return builder.getResultFutures();
     }
 
+    @SuppressWarnings("unchecked")
+    private <T, V extends Collection<T>> V translateItems(V items, SegmentProperties segmentInfo, boolean isExternal,
+                                                          BiFunction<KeyTranslator, T, T> translateItem) {
+        val t = this.sortedKeyIndex.getKeyTranslator(segmentInfo, isExternal);
+        if (t == null) {
+            // Not a sorted segment. Nothing to translate.
+            return items;
+        }
+
+        return (V) items.stream().map(i -> translateItem.apply(t, i)).collect(Collectors.toList());
+    }
+
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
         logRequest("keyIterator", segmentName);
-        return newIterator(segmentName, args, TableBucketReader::key);
+        return this.segmentContainer.forSegment(segmentName, args.getFetchTimeout())
+                .thenComposeAsync(segment -> {
+                    if (ContainerSortedKeyIndex.isSortedTableSegment(segment.getInfo())) {
+                        return newSortedIterator(segment, args,
+                                keys -> CompletableFuture.completedFuture(keys.stream().map(TableKey::unversioned).collect(Collectors.toList())));
+                    } else {
+                        return newHashIterator(segment, args, TableBucketReader::key, KeyTranslator::outbound);
+                    }
+                }, this.executor);
     }
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
         logRequest("entryIterator", segmentName);
-        return newIterator(segmentName, args, TableBucketReader::entry);
+        return this.segmentContainer.forSegment(segmentName, args.getFetchTimeout())
+                .thenComposeAsync(segment -> {
+                    if (ContainerSortedKeyIndex.isSortedTableSegment(segment.getInfo())) {
+                        return newSortedIterator(segment, args, keys -> get(segmentName, keys, args.getFetchTimeout()));
+                    } else {
+                        return newHashIterator(segment, args, TableBucketReader::entry, KeyTranslator::outbound);
+                    }
+                }, this.executor);
     }
 
     //endregion
@@ -325,10 +386,35 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return segment.append(new ByteArraySegment(s), null, timeout);
     }
 
-    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, @NonNull IteratorArgs args,
-                                                                              @NonNull GetBucketReader<T> createBucketReader) {
-        // TODO: this should be implemented with https://github.com/pravega/pravega/issues/4656.
-        Preconditions.checkArgument(args.getPrefixFilter() == null, "Prefix Iterator not supported.");
+    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newSortedIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
+                                                                                    @NonNull Function<List<ArrayView>, CompletableFuture<List<T>>> toResult) {
+        return this.keyIndex.getSortedKeyIndex(segment)
+                .thenApply(index -> {
+                    val range = index.getIteratorRange(args.getSerializedState(), args.getPrefixFilter());
+                    return index.iterator(range, args.getFetchTimeout())
+                            .thenCompose(keys -> toSortedIteratorItem(keys, toResult));
+                });
+    }
+
+    private <T> CompletableFuture<IteratorItem<T>> toSortedIteratorItem(List<ArrayView> keys, Function<List<ArrayView>, CompletableFuture<List<T>>> toResult) {
+        if (keys == null) {
+            // End of iteration.
+            return CompletableFuture.completedFuture(null);
+        }
+
+        return toResult.apply(keys)
+                .thenApply(result -> {
+                    // Some elements may have been deleted in the meantime, so exclude them.
+                    result = result.stream().filter(Objects::nonNull).collect(Collectors.toList());
+                    val lastKey = keys.get(keys.size() - 1);
+                    return new IteratorItemImpl<>(lastKey, result);
+                });
+    }
+
+    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newHashIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
+                                                                                  @NonNull GetBucketReader<T> createBucketReader,
+                                                                                  @NonNull BiFunction<KeyTranslator, T, T> translateItem) {
+        Preconditions.checkArgument(args.getPrefixFilter() == null, "Cannot perform a KeyHash iteration with a prefix.");
         UUID fromHash;
         try {
             fromHash = KeyHasher.getNextHash(args.getSerializedState() == null ? null : IteratorState.deserialize(args.getSerializedState()).getKeyHash());
@@ -342,30 +428,26 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return CompletableFuture.completedFuture(TableIterator.empty());
         }
 
-        return this.segmentContainer
-                .forSegment(segmentName, args.getFetchTimeout())
-                .thenComposeAsync(segment -> buildIterator(segment, createBucketReader, fromHash, args.getFetchTimeout()), this.executor);
-    }
-
-    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> buildIterator(
-            DirectSegmentAccess segment, GetBucketReader<T> createBucketReader, UUID fromHash, Duration fetchTimeout) {
         // Create a converter that will use a TableBucketReader to fetch all requested items in the iterated Buckets.
         val bucketReader = createBucketReader.apply(segment, this.keyIndex::getBackpointerOffset, this.executor);
-
+        val segmentInfo = segment.getInfo();
         TableIterator.ConvertResult<IteratorItem<T>> converter = bucket ->
-                bucketReader.findAllExisting(bucket.getSegmentOffset(), new TimeoutTimer(fetchTimeout))
-                            .thenApply(result -> new IteratorItemImpl<>(new IteratorState(bucket.getHash()), result));
+                bucketReader.findAllExisting(bucket.getSegmentOffset(), new TimeoutTimer(args.getFetchTimeout()))
+                        .thenApply(result -> {
+                            result = translateItems(result, segmentInfo, true, translateItem);
+                            return new IteratorItemImpl<>(new IteratorState(bucket.getHash()).serialize(), result);
+                        });
 
         // Fetch the Tail (Unindexed) Hashes, then create the TableIterator.
         return this.keyIndex.getUnindexedKeyHashes(segment)
-                            .thenComposeAsync(cacheHashes -> TableIterator.<IteratorItem<T>>builder()
-                                    .segment(segment)
-                                    .cacheHashes(cacheHashes)
-                                    .firstHash(fromHash)
-                                    .executor(executor)
-                                    .resultConverter(converter)
-                                    .fetchTimeout(fetchTimeout)
-                                    .build(), this.executor);
+                .thenComposeAsync(cacheHashes -> TableIterator.<IteratorItem<T>>builder()
+                        .segment(segment)
+                        .cacheHashes(cacheHashes)
+                        .firstHash(fromHash)
+                        .executor(executor)
+                        .resultConverter(converter)
+                        .fetchTimeout(args.getFetchTimeout())
+                        .build(), this.executor);
     }
 
     private TableEntry maybeDeleted(TableEntry e) {
@@ -465,21 +547,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     //region IteratorItemImpl
 
-    @RequiredArgsConstructor
+    @Data
     private static class IteratorItemImpl<T> implements IteratorItem<T> {
-        private final IteratorState state;
-        @Getter
+        private final ArrayView state;
         private final Collection<T> entries;
-
-        @Override
-        public ArrayView getState() {
-            return this.state.serialize();
-        }
-
-        @Override
-        public String toString() {
-            return String.format("State = %s, EntryCount = %s", this.state, this.entries.size());
-        }
     }
 
     @FunctionalInterface
