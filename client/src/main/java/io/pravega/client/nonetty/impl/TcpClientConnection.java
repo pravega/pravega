@@ -28,7 +28,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -40,14 +39,24 @@ public class TcpClientConnection implements ClientConnection {
     private final ConnectionReader reader;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    @RequiredArgsConstructor
     private static class ConnectionReader {
+
+        private final String name;
         private final InputStream inputStream;
         private final ReplyProcessor callback;
         private final ScheduledExecutorService thread;
         private final AppendBatchSizeTracker batchSizeTracker;
         private final AtomicBoolean stop = new AtomicBoolean(false);
 
+        public ConnectionReader(String name, InputStream inputStream, ReplyProcessor callback,
+                                AppendBatchSizeTracker batchSizeTracker) {
+            this.name = name;
+            this.inputStream = inputStream;
+            this.callback = callback;
+            this.thread = ExecutorServiceHelpers.newScheduledThreadPool(1, "Reading from " + name);
+            this.batchSizeTracker = batchSizeTracker;
+        }
+        
         public void start() {
             thread.submit(() -> {
                 byte[] header = new byte[8];
@@ -76,7 +85,7 @@ public class TcpClientConnection implements ClientConnection {
                         callback.process((Reply) command);
 
                     } catch (Exception e) {
-                        log.error("Error processing data from from server ", e);
+                        log.error("Error processing data from from server " + name, e);
                         stop();
                     }
                 }
@@ -94,10 +103,9 @@ public class TcpClientConnection implements ClientConnection {
         socket = new Socket(host, port);
         socket.setTcpNoDelay(true);
         InputStream inputStream = socket.getInputStream();
-        ScheduledExecutorService pool = ExecutorServiceHelpers.newScheduledThreadPool(1, "Reading from " + host);
         AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
-        this.reader = new ConnectionReader(inputStream, callback, pool, batchSizeTracker);
-        this.encoder = new CommandEncoder(l -> batchSizeTracker, null, socket.getOutputStream(), pool);
+        this.reader = new ConnectionReader(host, inputStream, callback, batchSizeTracker);
+        this.encoder = new CommandEncoder(l -> batchSizeTracker, null, socket.getOutputStream(), ExecutorServiceHelpers.newScheduledThreadPool(1, "Timeouts for " + host));
         this.reader.start();
     }
 
