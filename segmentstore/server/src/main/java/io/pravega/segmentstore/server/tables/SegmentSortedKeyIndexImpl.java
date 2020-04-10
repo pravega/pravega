@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.tables;
 
 import com.google.common.annotations.Beta;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.util.ArrayView;
@@ -51,7 +52,8 @@ import lombok.val;
 class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     //region Members
 
-    private static final Comparator<ArrayView> KEY_COMPARATOR = BTreeSet.COMPARATOR;
+    @VisibleForTesting
+    static final Comparator<ArrayView> KEY_COMPARATOR = BTreeSet.COMPARATOR;
     private final String segmentName;
     private final SortedKeyIndexDataSource dataSource;
     @GuardedBy("tailKeys")
@@ -75,7 +77,6 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     @Override
     public CompletableFuture<Void> persistUpdate(Collection<BucketUpdate> bucketUpdates, Duration timeout) {
         val args = prepareUpdate(bucketUpdates);
-
         if (args.isEmpty()) {
             // No insertion or deletion. Nothing to do.
             return CompletableFuture.completedFuture(null);
@@ -88,7 +89,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
         val result = new UpdateArgs();
         for (val bucketUpdate : bucketUpdates) {
             for (val keyUpdate : bucketUpdate.getKeyUpdates()) {
-                if (this.dataSource.getKeyTranslator().isInternal(keyUpdate.getKey())) {
+                if (this.dataSource.isKeyExcluded(keyUpdate.getKey())) {
                     // We are not processing our own keys.
                     continue;
                 }
@@ -111,7 +112,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
         synchronized (this.tailKeys) {
             // Include only external keys.
             batch.getItems().stream()
-                    .filter(item -> !this.dataSource.getKeyTranslator().isInternal(item.getKey()))
+                    .filter(item -> !this.dataSource.isKeyExcluded(item.getKey().getKey()))
                     .forEach(item -> this.tailKeys.put(
                             item.getKey().getKey(),
                             new CacheBucketOffset(batchSegmentOffset + item.getOffset(), batch.isRemoval())));
@@ -119,10 +120,10 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     }
 
     @Override
-    public void includeTailCache(Map<ArrayView, CacheBucketOffset> tailUpdates) {
+    public void includeTailCache(Map<? extends ArrayView, CacheBucketOffset> tailUpdates) {
         synchronized (this.tailKeys) {
             tailUpdates.forEach((key, offset) -> {
-                if (!this.dataSource.getKeyTranslator().isInternal(key)) {
+                if (!this.dataSource.isKeyExcluded(key)) {
                     this.tailKeys.put(key, offset);
                 }
             });
@@ -149,15 +150,15 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     @Override
     public AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout) {
         val lastKey = new AtomicReference<ArrayView>(range.getFrom());
-        return this.sortedKeys.iterator(range.getFrom(), false, range.getTo(), false, fetchTimeout)
-                .thenApply(keys -> {
-                    keys = mixWithTail(keys, lastKey.get(), range.getTo());
-                    if (keys != null && !keys.isEmpty()) {
-                        // Keep track of the last key; we'll need it for the next iteration.
-                        lastKey.set(keys.get(keys.size() - 1));
-                    }
-                    return keys;
-                });
+        val persistedIterator = this.sortedKeys.iterator(range.getFrom(), false, range.getTo(), false, fetchTimeout);
+        return () -> persistedIterator.getNext().thenApply(keys -> {
+            keys = mixWithTail(keys, lastKey.get(), range.getTo());
+            if (keys != null && !keys.isEmpty()) {
+                // Keep track of the last key; we'll need it for the next iteration.
+                lastKey.set(keys.get(keys.size() - 1));
+            }
+            return keys;
+        });
     }
 
     @Override
@@ -182,21 +183,20 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
 
     private List<ArrayView> mixWithTail(List<ArrayView> persistedKeys, ArrayView fromExclusive, ArrayView toExclusive) {
         val tailResult = new ArrayList<ArrayView>();
-        val tailDeletions = new HashSet<HashedArray>();
+        val tailKeys = new HashSet<HashedArray>();
         synchronized (this.tailKeys) {
             NavigableMap<ArrayView, CacheBucketOffset> tailSection;
             if (persistedKeys == null || persistedKeys.isEmpty()) {
                 // No (or no more) items from the persisted index. Return as much as we can from our tail index.
-                tailSection = this.tailKeys.subMap(fromExclusive, false, toExclusive, false);
+                tailSection = getTailSection(fromExclusive, toExclusive, false);
             } else {
-                // Match the range returned by BTreeSet
-                tailSection = this.tailKeys.subMap(fromExclusive, false, persistedKeys.get(persistedKeys.size() - 1), false);
+                // Match the range returned by BTreeSet.
+                tailSection = getTailSection(fromExclusive, persistedKeys.get(persistedKeys.size() - 1), true);
             }
 
             tailSection.forEach((key, offset) -> {
-                if (offset.isRemoval()) {
-                    tailDeletions.add(new HashedArray(key));
-                } else {
+                tailKeys.add(new HashedArray(key));
+                if (!offset.isRemoval()) {
                     tailResult.add(key);
                 }
             });
@@ -205,16 +205,34 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
         if (persistedKeys == null || persistedKeys.isEmpty()) {
             // We have reached the end of the iteration.
             return tailResult.isEmpty() ? null : tailResult;
-        } else if (tailResult.size() + tailDeletions.size() == 0) {
+        } else if (tailKeys.isEmpty()) {
             // Nothing in the tail; return whatever we got from the persisted set.
             return persistedKeys;
         }
 
-        val i1 = persistedKeys.stream().filter(key -> !tailDeletions.contains(new HashedArray(key))).iterator();
-        val i2 = tailResult.iterator();
+        // Generate an iterator through the persisted keys that excludes anything that was updated in the tail.
+        val persistedIterator = persistedKeys.stream().filter(key -> !tailKeys.contains(new HashedArray(key))).iterator();
+        val tailIterator = tailResult.iterator();
         val result = new ArrayList<ArrayView>(persistedKeys.size() + tailResult.size());
-        Iterators.mergeSorted(Arrays.asList(i1, i2), KEY_COMPARATOR).forEachRemaining(result::add);
+        Iterators.mergeSorted(Arrays.asList(persistedIterator, tailIterator), KEY_COMPARATOR).forEachRemaining(result::add);
         return result;
+    }
+
+    @GuardedBy("tailKeys")
+    private NavigableMap<ArrayView, CacheBucketOffset> getTailSection(ArrayView fromExclusive, ArrayView to, boolean toInclusive) {
+        if (fromExclusive == null && to == null) {
+            // Full map.
+            return this.tailKeys;
+        } else if (fromExclusive == null) {
+            // No beginning.
+            return this.tailKeys.headMap(to, toInclusive);
+        } else if (to == null) {
+            // No end.
+            return this.tailKeys.tailMap(fromExclusive, false);
+        } else {
+            // Beginning and end.
+            return this.tailKeys.subMap(fromExclusive, false, to, toInclusive);
+        }
     }
 
     //endregion
@@ -262,18 +280,20 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     //region Helper Classes
 
     private static class UpdateArgs {
-        final HashSet<ArrayView> insertions = new HashSet<>();
-        final HashSet<ArrayView> deletions = new HashSet<>();
+        final HashSet<HashedArray> insertions = new HashSet<>();
+        final HashSet<HashedArray> deletions = new HashSet<>();
         private long highestKeyOffset = -1;
         private int keyWithHighestOffsetLength = -1;
 
-        void keyInserted(ArrayView key, long offset) {
+        void keyInserted(HashedArray key, long offset) {
             this.insertions.add(key);
+            this.deletions.remove(key);
             updateHighestKeyOffsets(offset, key.getLength());
         }
 
-        void keyDeleted(ArrayView key, long offset) {
+        void keyDeleted(HashedArray key, long offset) {
             this.deletions.add(key);
+            this.insertions.remove(key);
             updateHighestKeyOffsets(offset, key.getLength());
         }
 
@@ -290,7 +310,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
 
         private Supplier<Long> getOffsetCounter() {
             Preconditions.checkState(!isEmpty(), "Cannot generate Offset Counter for empty UpdateArgs.");
-            Preconditions.checkArgument(this.highestKeyOffset > 0, "highestKeyOffset must be a positive number.");
+            Preconditions.checkArgument(this.highestKeyOffset >= 0, "highestKeyOffset must be a non-negative number.");
             Preconditions.checkArgument(this.keyWithHighestOffsetLength > 0, "keyWithHighestOffsetLength must be a positive number.");
             val nextId = new AtomicLong(this.highestKeyOffset);
             val maxValue = this.highestKeyOffset + this.keyWithHighestOffsetLength;

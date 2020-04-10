@@ -18,7 +18,7 @@ import lombok.Data;
  */
 @Data
 class PagePointer {
-    static final long ROOT_PAGE_ID = 0L;
+    static final long ROOT_PAGE_ID = -1L;
     private static final long NO_PAGE_ID = Long.MIN_VALUE;
     /**
      * A routing key that represents the low bound for any item in the page pointed to by this.

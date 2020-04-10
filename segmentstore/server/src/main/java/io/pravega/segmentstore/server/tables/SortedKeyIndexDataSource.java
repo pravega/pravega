@@ -24,11 +24,9 @@ import lombok.NonNull;
  */
 @Data
 class SortedKeyIndexDataSource {
-    /**
-     * A {@link KeyTranslator} for internal keys.
-     */
-    @NonNull
-    private final KeyTranslator keyTranslator;
+    static final KeyTranslator EXTERNAL_TRANSLATOR = KeyTranslator.partitioned((byte) 'E');
+    static final KeyTranslator INTERNAL_TRANSLATOR = KeyTranslator.partitioned((byte) 'I');
+
     /**
      * A Function that will be invoked when a Table Segment's Sorted Key Index nodes need to be persisted.
      */
@@ -44,6 +42,16 @@ class SortedKeyIndexDataSource {
      */
     @NonNull
     private final SortedKeyIndexDataSource.Read read;
+
+    /**
+     * Gets a value indicating whether the given Key should be excluded from indexing or not.
+     *
+     * @param keyContents The Key contents.
+     * @return True if the key is an internal key (exclude), false otherwise.
+     */
+    boolean isKeyExcluded(ArrayView keyContents) {
+        return INTERNAL_TRANSLATOR.isInternal(keyContents);
+    }
 
     @FunctionalInterface
     public interface Update {

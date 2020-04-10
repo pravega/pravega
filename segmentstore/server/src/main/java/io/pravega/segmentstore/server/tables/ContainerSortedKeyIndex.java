@@ -25,9 +25,6 @@ import lombok.val;
 class ContainerSortedKeyIndex {
     //region Members
 
-    static final KeyTranslator EXTERNAL_TRANSLATOR = KeyTranslator.partitioned((byte) 'E');
-    static final KeyTranslator INTERNAL_TRANSLATOR = KeyTranslator.partitioned((byte) 'I');
-
     private final ConcurrentHashMap<Long, SegmentSortedKeyIndex> sortedKeyIndices = new ConcurrentHashMap<>();
     @NonNull
     private final SortedKeyIndexDataSource dataSource;
@@ -46,23 +43,6 @@ class ContainerSortedKeyIndex {
      */
     static boolean isSortedTableSegment(SegmentProperties info) {
         return info.getAttributes().getOrDefault(TableAttributes.SORTED, Attributes.BOOLEAN_FALSE) == Attributes.BOOLEAN_TRUE;
-    }
-
-    /**
-     * Gets a {@link KeyTranslator} for the given segment.
-     *
-     * @param info              A {@link SegmentProperties} describing the segment,
-     * @param isExternalRequest True if the request to be translated originated externally, false if internal (such as
-     *                          from a {@link ContainerSortedKeyIndex}'s {@link SortedKeyIndexDataSource}.
-     * @return A {@link KeyTranslator}, or null if the segment does not need key translation.
-     */
-    KeyTranslator getKeyTranslator(SegmentProperties info, boolean isExternalRequest) {
-        if (!isSortedTableSegment(info)) {
-            // Nothing to translate for non-sorted segments.
-            return null;
-        }
-
-        return isExternalRequest ? EXTERNAL_TRANSLATOR : INTERNAL_TRANSLATOR;
     }
 
     /**

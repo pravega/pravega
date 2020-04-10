@@ -107,7 +107,7 @@ public class BTreeSet {
      * @return A CompletableFuture that, when completed normally, will indicate that the updates have been applied
      * successfully. If the operation failed, the Future will be completed with the appropriate exception.
      */
-    public CompletableFuture<Void> update(@Nullable Collection<ArrayView> toInsert, @Nullable Collection<ArrayView> toRemove,
+    public CompletableFuture<Void> update(@Nullable Collection<? extends ArrayView> toInsert, @Nullable Collection<? extends ArrayView> toRemove,
                                           @NonNull Supplier<Long> getNextPageId, @NonNull Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         val updates = new ArrayList<UpdateItem>();
@@ -127,7 +127,7 @@ public class BTreeSet {
                 .thenComposeAsync(pageCollection -> writePages(pageCollection, timer), this.executor);
     }
 
-    private int collectUpdates(Collection<ArrayView> items, boolean isRemoval, List<UpdateItem> updates) {
+    private int collectUpdates(Collection<? extends ArrayView> items, boolean isRemoval, List<UpdateItem> updates) {
         if (items == null) {
             return 0;
         }

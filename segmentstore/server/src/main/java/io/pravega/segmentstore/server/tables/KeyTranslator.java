@@ -131,7 +131,10 @@ abstract class KeyTranslator {
         ArrayView inbound(ArrayView external) {
             byte[] data = new byte[1 + external.getLength()];
             data[0] = this.partition;
-            external.copyTo(data, 1, external.getLength());
+            if (external.getLength() > 0) {
+                external.copyTo(data, 1, external.getLength());
+            }
+
             return new ByteArraySegment(data);
         }
 
@@ -141,6 +144,11 @@ abstract class KeyTranslator {
                     "Key too short. Expected at least 1, given %s.", internal.getLength());
             byte p = internal.get(0);
             Preconditions.checkArgument(p == this.partition, "Wrong partition. Expected %s, found %s.", this.partition, p);
+            if (internal.getLength() == 1) {
+                // There was no key to begin with.
+                return new ByteArraySegment(new byte[0]);
+            }
+
             return internal.slice(1, internal.getLength() - 1);
         }
 

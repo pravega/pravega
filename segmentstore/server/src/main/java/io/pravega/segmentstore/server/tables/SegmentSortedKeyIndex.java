@@ -53,7 +53,7 @@ interface SegmentSortedKeyIndex {
      *
      * @param tailUpdates The updates to include.
      */
-    void includeTailCache(Map<ArrayView, CacheBucketOffset> tailUpdates);
+    void includeTailCache(Map<? extends ArrayView, CacheBucketOffset> tailUpdates);
 
     /**
      * Notifies that the Table Segment has indexed and durably persisted all updates up to and including the given offset.
@@ -118,7 +118,7 @@ interface SegmentSortedKeyIndex {
             }
 
             @Override
-            public void includeTailCache(Map<ArrayView, CacheBucketOffset> tailUpdates) {
+            public void includeTailCache(Map<? extends ArrayView, CacheBucketOffset> tailUpdates) {
                 // This method intentionally left blank.
             }
 
@@ -129,7 +129,7 @@ interface SegmentSortedKeyIndex {
 
             @Override
             public AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout) {
-                return () -> null;
+                return () -> CompletableFuture.completedFuture(null);
             }
 
             @Override

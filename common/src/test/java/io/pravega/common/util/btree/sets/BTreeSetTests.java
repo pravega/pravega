@@ -449,7 +449,7 @@ public class BTreeSetTests extends ThreadPooledTestSuite {
 
     private class DataSource {
         private final Map<Long, ArrayView> data = new ConcurrentHashMap<>();
-        private final AtomicLong nextId = new AtomicLong(1000);
+        private final AtomicLong nextId = new AtomicLong(0);
         private final AtomicInteger persistCount = new AtomicInteger();
         private final AtomicInteger readCount = new AtomicInteger();
 

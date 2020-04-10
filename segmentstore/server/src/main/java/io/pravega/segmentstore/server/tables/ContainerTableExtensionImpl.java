@@ -120,7 +120,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     private ContainerSortedKeyIndex createSortedIndex() {
         val ds = new SortedKeyIndexDataSource(
-                ContainerSortedKeyIndex.INTERNAL_TRANSLATOR,
                 (s, entries, timeout) -> put(s, entries, false, timeout),
                 (s, keys, timeout) -> remove(s, keys, false, timeout),
                 (s, keys, timeout) -> get(s, keys, false, timeout));
@@ -214,7 +213,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 .forSegment(segmentName, timer.getRemaining())
                 .thenComposeAsync(segment -> {
                     val segmentInfo = segment.getInfo();
-                    val toUpdate = translateItems(entries, segmentInfo, true, KeyTranslator::inbound);
+                    val toUpdate = translateItems(entries, segmentInfo, external, KeyTranslator::inbound);
 
                     // Generate an Update Batch for all the entries (since we need to know their Key Hashes and relative
                     // offsets in the batch itself).
@@ -315,24 +314,25 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @SuppressWarnings("unchecked")
     private <T, V extends Collection<T>> V translateItems(V items, SegmentProperties segmentInfo, boolean isExternal,
                                                           BiFunction<KeyTranslator, T, T> translateItem) {
-        val t = this.sortedKeyIndex.getKeyTranslator(segmentInfo, isExternal);
-        if (t == null) {
-            // Not a sorted segment. Nothing to translate.
+        if (!ContainerSortedKeyIndex.isSortedTableSegment(segmentInfo)) {
+            // Nothing to translate for non-sorted segments.
             return items;
         }
 
+        val t = isExternal ? SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR : SortedKeyIndexDataSource.INTERNAL_TRANSLATOR;
         return (V) items.stream().map(i -> translateItem.apply(t, i)).collect(Collectors.toList());
     }
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
-        logRequest("keyIterator", segmentName);
         return this.segmentContainer.forSegment(segmentName, args.getFetchTimeout())
                 .thenComposeAsync(segment -> {
                     if (ContainerSortedKeyIndex.isSortedTableSegment(segment.getInfo())) {
+                        logRequest("keyIterator", segmentName, "sorted");
                         return newSortedIterator(segment, args,
                                 keys -> CompletableFuture.completedFuture(keys.stream().map(TableKey::unversioned).collect(Collectors.toList())));
                     } else {
+                        logRequest("keyIterator", segmentName, "hash");
                         return newHashIterator(segment, args, TableBucketReader::key, KeyTranslator::outbound);
                     }
                 }, this.executor);
@@ -340,12 +340,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
-        logRequest("entryIterator", segmentName);
         return this.segmentContainer.forSegment(segmentName, args.getFetchTimeout())
                 .thenComposeAsync(segment -> {
                     if (ContainerSortedKeyIndex.isSortedTableSegment(segment.getInfo())) {
+                        logRequest("entryIterator", segmentName, "sorted");
                         return newSortedIterator(segment, args, keys -> get(segmentName, keys, args.getFetchTimeout()));
                     } else {
+                        logRequest("entryIterator", segmentName, "hash");
                         return newHashIterator(segment, args, TableBucketReader::entry, KeyTranslator::outbound);
                     }
                 }, this.executor);
@@ -392,21 +393,28 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 .thenApply(index -> {
                     val range = index.getIteratorRange(args.getSerializedState(), args.getPrefixFilter());
                     return index.iterator(range, args.getFetchTimeout())
-                            .thenCompose(keys -> toSortedIteratorItem(keys, toResult));
+                            .thenCompose(keys -> toSortedIteratorItem(keys, toResult, segment.getInfo()));
                 });
     }
 
-    private <T> CompletableFuture<IteratorItem<T>> toSortedIteratorItem(List<ArrayView> keys, Function<List<ArrayView>, CompletableFuture<List<T>>> toResult) {
+    private <T> CompletableFuture<IteratorItem<T>> toSortedIteratorItem(List<ArrayView> keys, Function<List<ArrayView>,
+            CompletableFuture<List<T>>> toResult, SegmentProperties segmentInfo) {
         if (keys == null) {
             // End of iteration.
             return CompletableFuture.completedFuture(null);
         }
 
+        // Remember the last key before the translation. We'll send this with the response so we know where to resume next.
+        val lastKey = keys.get(keys.size() - 1);
+
+        // Convert the Keys to their external form.
+        keys = translateItems(keys, segmentInfo, true, KeyTranslator::outbound);
+
+        // Get the result and include it in the response.
         return toResult.apply(keys)
                 .thenApply(result -> {
                     // Some elements may have been deleted in the meantime, so exclude them.
                     result = result.stream().filter(Objects::nonNull).collect(Collectors.toList());
-                    val lastKey = keys.get(keys.size() - 1);
                     return new IteratorItemImpl<>(lastKey, result);
                 });
     }
