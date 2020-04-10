@@ -23,8 +23,6 @@ import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -60,7 +58,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     protected static final int APPENDS_PER_SEGMENT = 10;
     protected static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final int SEGMENT_COUNT = 4;
-    private static final Random RANDOM = new Random(1234);
+    protected final Random rnd = new Random(0);
 
     @Getter(AccessLevel.PROTECTED)
     @Setter(AccessLevel.PROTECTED)
@@ -77,9 +75,10 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     /**
      * Tests the create() method.
+     * @throws Exception If any unexpected error occurred.
      */
     @Test
-    public void testCreate() {
+    public void testCreate() throws Exception {
         String segmentName = createSegmentName("foo_open");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
@@ -98,10 +97,10 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     /**
      * Tests the exists API.
-     * @throws IOException if an unexpected error occurred.
+     * @throws Exception if an unexpected error occurred.
      */
     @Test
-    public void testListSegmentsWithOneSegment() throws IOException {
+    public void testListSegmentsWithOneSegment() throws Exception {
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
@@ -135,7 +134,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             val wh1 = s.create(segmentName);
             // Write data.
             s.write(wh1, 0, new ByteArrayInputStream(data), data.length);
-            if (RANDOM.nextInt(2) == 1) {
+            if (rnd.nextInt(2) == 1) {
                 s.seal(wh1);
                 sealedSegments.add(segmentName);
             }
@@ -196,7 +195,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         for (int i = 0; i < expectedCount; i++) {
             String segmentName = "segment-" + i;
             SegmentHandle handle = s.create(segmentName);
-            if (RANDOM.nextInt(2) == 1) {
+            if (rnd.nextInt(2) == 1) {
                 s.delete(handle);
                 deletedSegments.add(segmentName);
             }
@@ -208,9 +207,10 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     /**
      * Tests the delete() method.
+     * @throws Exception If any unexpected error occurred.
      */
     @Test
-    public void testDelete() {
+    public void testDelete() throws Exception {
         String segmentName = createSegmentName("foo_open");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
@@ -227,9 +227,10 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     /**
      * Tests the openRead() and openWrite() methods.
+     * @throws Exception If any unexpected error occurred.
      */
     @Test
-    public void testOpen() {
+    public void testOpen() throws Exception {
         String segmentName = createSegmentName("foo_open");
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
@@ -248,7 +249,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     /**
      * Tests the write() method.
      *
-     * @throws Exception if an unexpected error occurred.
+     * @throws Exception If any unexpected error occurred.
      */
     @Test
     public void testWrite() throws Exception {
@@ -276,9 +277,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             for (int j = 0; j < appendCount; j++) {
                 byte[] writeData = String.format(APPEND_FORMAT, segmentName, j).getBytes();
 
-                // We intentionally add some garbage at the end of the dataStream to verify that write() takes into account
-                // the value of the "length" argument.
-                val dataStream = new SequenceInputStream(new ByteArrayInputStream(writeData), new ByteArrayInputStream(new byte[100]));
+                val dataStream = new ByteArrayInputStream(writeData);
                 s.write(writeHandle, offset, dataStream, writeData.length, TIMEOUT).join();
                 offset += writeData.length;
             }
@@ -304,7 +303,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     /**
      * Tests the read() method.
      *
-     * @throws Exception if an unexpected error occurred.
+     * @throws Exception If any unexpected error occurred.
      */
     @Test
     public void testRead() throws Exception {
@@ -372,7 +371,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     /**
      * Tests the seal() method.
      *
-     * @throws Exception if an unexpected error occurred.
+     * @throws Exception If any unexpected error occurred.
      */
     @Test
     public void testSeal() throws Exception {
@@ -422,7 +421,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     /**
      * Tests the concat() method.
      *
-     * @throws Exception if an unexpected error occurred.
+     * @throws Exception If any unexpected error occurred.
      */
     @Test
     public void testConcat() throws Exception {
@@ -518,7 +517,6 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     private HashMap<String, ByteArrayOutputStream> populate(Storage s, String context) throws Exception {
         HashMap<String, ByteArrayOutputStream> appendData = new HashMap<>();
-        byte[] extraData = new byte[1024];
         for (int segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
             String segmentName = getSegmentName(segmentId, context);
             createSegment(segmentName, s);
@@ -528,7 +526,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
             long offset = 0;
             for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
-                byte[] writeData = String.format(APPEND_FORMAT, segmentName, j).getBytes();
+                byte[] writeData = populate(APPEND_FORMAT.length());
 
                 val dataStream = new ByteArrayInputStream(writeData);
                 s.write(writeHandle, offset, dataStream, writeData.length, TIMEOUT).join();
@@ -537,6 +535,16 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             }
         }
         return appendData;
+    }
+
+    protected void populate(byte[] data) {
+        rnd.nextBytes(data);
+    }
+
+    protected byte[] populate(int size) {
+        byte[] bytes = new byte[size];
+        populate(bytes);
+        return bytes;
     }
 
     //endregion
@@ -557,10 +565,10 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     protected void verifyWriteOperationsSucceed(SegmentHandle handle, Storage storage) {
         val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
-        final byte[] data = "hello".getBytes();
+        final byte[] data = populate(5);
         storage.write(handle, si.getLength(), new ByteArrayInputStream(data), data.length, TIMEOUT).join();
 
-        final String concatName = "concat";
+        final String concatName = "concat" + Long.toString(System.currentTimeMillis());
         storage.create(concatName, TIMEOUT).join();
         val concatHandle = storage.openWrite(concatName).join();
         storage.write(concatHandle, 0, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
@@ -570,14 +578,18 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     protected void verifyWriteOperationsFail(SegmentHandle handle, Storage storage) {
         val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
-        final byte[] data = "hello".getBytes();
+        final byte[] data = populate(5);
         AssertExtensions.assertSuppliedFutureThrows(
                 "Write was not fenced out.",
                 () -> storage.write(handle, si.getLength(), new ByteArrayInputStream(data), data.length, TIMEOUT),
                 ex -> ex instanceof StorageNotPrimaryException);
+    }
 
+    protected void verifyConcatOperationsFail(SegmentHandle handle, Storage storage) {
+        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
+        final byte[] data = populate(5);
         // Create a second segment and try to concat it into the primary one.
-        final String concatName = "concat";
+        final String concatName = "concat" + Long.toString(System.currentTimeMillis());
         createSegment(concatName, storage);
         val concatHandle = storage.openWrite(concatName).join();
         storage.write(concatHandle, 0, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
@@ -629,7 +641,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         s.create(name, null).join();
     }
 
-    protected String createSegmentName(String originName) {
+    protected String createSegmentName(String originName) throws Exception {
         if (isTestingSystemSegment()) {
             return INTERNAL_NAME_PREFIX + originName;
         } else {
@@ -644,8 +656,9 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     /**
      * Creates a new instance of the Storage implementation to be tested. This will be cleaned up (via close()) upon
      * test termination.
+     * @throws Exception If any unexpected error occurred.
      */
-    protected abstract Storage createStorage();
+    protected abstract Storage createStorage() throws Exception;
 
     //endregion
 }
