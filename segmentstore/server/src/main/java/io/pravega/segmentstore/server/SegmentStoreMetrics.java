@@ -21,7 +21,6 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -143,14 +142,12 @@ public final class SegmentStoreMetrics {
          */
         private final OpStatsLogger processOperationsLatency;
         private final OpStatsLogger processOperationsBatchSize;
+        private final int containerId;
         private final String[] containerTag;
-        private final HashMap<String, String[]> throttlerTags = new HashMap<>();
 
         public OperationProcessor(int containerId) {
+            this.containerId = containerId;
             this.containerTag = containerTag(containerId);
-            for (ThrottlerName name : ThrottlerName.values()) {
-                this.throttlerTags.put(name.toString(), throttlerTag(containerId, name.toString()));
-            }
             this.operationQueueSize = STATS_LOGGER.createStats(MetricsNames.OPERATION_QUEUE_SIZE, this.containerTag);
             this.operationsInFlight = STATS_LOGGER.createStats(MetricsNames.OPERATION_PROCESSOR_IN_FLIGHT, this.containerTag);
             this.operationQueueWaitTime = STATS_LOGGER.createStats(MetricsNames.OPERATION_QUEUE_WAIT_TIME, this.containerTag);
@@ -181,7 +178,11 @@ public final class SegmentStoreMetrics {
         }
 
         public void processingDelay(int millis, String throttlerName) {
-            DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, millis, this.throttlerTags.get(throttlerName));
+            DYNAMIC_LOGGER.reportGaugeValue(
+                    MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
+                    millis,
+                    throttlerTag(this.containerId, throttlerName)
+            );
         }
 
         public void operationQueueWaitTime(long queueWaitTimeMillis) {
@@ -226,12 +227,6 @@ public final class SegmentStoreMetrics {
                 this.operationLatency.reportFailValue(millis);
                 GLOBAL_OPERATION_LATENCY.reportFailValue(millis);
             });
-        }
-
-        private static enum ThrottlerName {
-            Batching,
-            Cache,
-            DurableDataLog,
         }
     }
 

@@ -122,8 +122,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
                 if (remaining > 0 && remaining < delay.get().getDurationMillis()) {
                     delay.set(delay.get().withNewDelay(remaining));
                 }
-                int incurredDelay = (int) (existingDelay.remaining.getInitial().toMillis() - existingDelay.remaining.getRemaining().toMillis());
-                this.metrics.processingDelay(incurredDelay, existingDelay.source.toString());
+                this.metrics.processingDelay((int) existingDelay.remaining.getElapsed().toMillis(), existingDelay.source.toString());
             }
 
             return throttleOnce(delay.get());
@@ -145,7 +144,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
             // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
             // processing of operations) or if this is due to us not being able to ingest items quickly enough.
             log.warn("{}: Processing delay = {}.", this.traceObjectId, delay);
-        } else if (delay.getThrottlerName() != null) {
+        } else {
             log.debug("{}: Processing delay = {}.", this.traceObjectId, delay);
         }
 
@@ -161,7 +160,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
                             ex -> ex instanceof ThrottlingInterruptedException,
                             this::throttle)
                     .whenComplete((r, e) -> {
-                        if (this.currentDelay.get() != null && currentDelay.get().remaining.getRemaining().toMillis() <= 0) {
+                        if (this.currentDelay.get() != null && !this.currentDelay.get().remaining.hasRemaining()) {
                             this.metrics.processingDelay(delay.getDurationMillis(), delay.getThrottlerName().toString());
                         }
                         this.currentDelay.set(null);

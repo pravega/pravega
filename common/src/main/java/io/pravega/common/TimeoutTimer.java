@@ -53,12 +53,12 @@ public class TimeoutTimer {
     }
 
     /**
-     * Returns the Duration object passed in during instantiation.
+     * Returns a Duration of the time elapsed in Nanoseconds.
      *
-     * @return The original duration.
+     * @return The elapsed time.
      */
-    public Duration getInitial() {
-        return timeout;
+    public Duration getElapsed() {
+        return Duration.ofNanos(getNanos.get() - initialNanos);
     }
 
     /**
