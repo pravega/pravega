@@ -822,7 +822,7 @@ class ContainerKeyIndex implements AutoCloseable {
                     // Cleanup.
                     RecoveryTask removed = this.recoveryTasks.remove(task.segmentId);
                     if (removed != task) {
-                        // Some weird thing happened and we removed a differen task. Add it back.
+                        // Some weird thing happened and we removed a different task. Add it back.
                         this.recoveryTasks.put(task.segmentId, removed);
                     }
                 }
