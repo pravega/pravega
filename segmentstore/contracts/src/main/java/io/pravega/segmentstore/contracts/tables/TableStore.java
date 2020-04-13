@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.contracts.tables;
 
-import com.google.common.annotations.Beta;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -48,8 +47,11 @@ import java.util.concurrent.CompletableFuture;
  * or {@link #entryIterator} in lexicographic bitwise order. All other contracts are identical to the Non-Sorted variant.
  * * Sorted Table Segments will require additional storage space to store the ordered Keys and may require additional
  * processing time to maintain the said data structure.
+ * * Sorted Table Segments do not support conditional Table Segment Deletion {@link #deleteSegment(String, boolean, Duration)}
+ * with `true` passed as the second argument.
+ * * Sorted Table Segments Key Iterators ({@link #keyIterator}) will not return Key Versions. Versions can still be
+ * retrieved for individual Keys using {@link #get} or using the Entry Iterator {@link #entryIterator}.
  */
-@Beta
 public interface TableStore {
     /**
      * Gets a value indicating the maximum length of any Table Entry Key supported by the TableStore.
@@ -83,8 +85,8 @@ public interface TableStore {
      * This segment may not be used for Streaming purposes (i.e., it cannot be used with {@link StreamSegmentStore}).
      *
      * @param segmentName The name of the Table Segment to create.
-     * @param sorted      If true, the created Table Segment will be a Sorted Table Segment, otherwise it will be a
-     *                    plain Hash Table. See {@link TableStore} Javadoc for difference between the two.
+     * @param sorted      EXPERIMENTAL. If true, the created Table Segment will be a Sorted Table Segment, otherwise it
+     *                    will be a plain Hash Table. See {@link TableStore} Javadoc for difference between the two.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, the future will be failed with the causing exception. Notable Exceptions:
@@ -98,7 +100,8 @@ public interface TableStore {
      * Deletes an existing Table Segment.
      *
      * @param segmentName The name of the Table Segment to delete.
-     * @param mustBeEmpty If true, the Table Segment will only be deleted if it is empty (contains no keys).
+     * @param mustBeEmpty If true, the Table Segment will only be deleted if it is empty (contains no keys). This is not
+     *                    supported on Sorted Table Segments.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, the future will be failed with the causing exception. Notable Exceptions:

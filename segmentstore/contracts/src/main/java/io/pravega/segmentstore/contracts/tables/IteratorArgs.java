@@ -24,9 +24,11 @@ import lombok.NonNull;
 @Builder
 public class IteratorArgs {
     /**
+     * EXPERIMENTAL!
      * (Optional) A filter to apply to all returned Iterator Entries. If specified, only those entries whose keys begin
      * with this prefix will be included.
-     * TODO: this feature is not currently supported.
+     * This option only applies to Sorted Table Segments (see {@link TableStore}. An attempt to use it on a non-Sorted
+     * Table Segment will result in an {@link IllegalArgumentException}.
      */
     @Beta
     private final ArrayView prefixFilter;

@@ -399,7 +399,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     private <T> CompletableFuture<IteratorItem<T>> toSortedIteratorItem(List<ArrayView> keys, Function<List<ArrayView>,
             CompletableFuture<List<T>>> toResult, SegmentProperties segmentInfo) {
-        if (keys == null) {
+        if (keys == null || keys.isEmpty()) {
             // End of iteration.
             return CompletableFuture.completedFuture(null);
         }
