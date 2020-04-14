@@ -1037,6 +1037,8 @@ distributions {
                 exclude "logback.xml"
             }
             from (project(":standalone").installDist)
+            from 'LICENSE'
+            from 'NOTICE'
         }
     }
     client {
@@ -1046,6 +1048,8 @@ distributions {
             from { project(":shared:authplugin").configurations.runtime.allArtifacts.files }
             from { project(":client").configurations.runtime }
             from { project(":client").configurations.runtime.allArtifacts.files }
+            from 'LICENSE'
+            from 'NOTICE'
         }
     }
     javadoc {
