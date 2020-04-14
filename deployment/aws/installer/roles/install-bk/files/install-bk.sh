@@ -18,7 +18,7 @@ PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 BK_AUTORECOVERY=${BK_AUTORECOVERY:-"false"}
 
-BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
+BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${BK_CLUSTER_NAME}/ledgers"
 
 if [ $USE_MOUNT -eq 0 ]; then
     BK_DIR="/bk"
@@ -48,8 +48,7 @@ until /opt/zk/zookeeper-3.5.1-alpha/bin/zkCli.sh -server $ZK_URL ls /; do sleep 
 
 echo "create the zk root"
 /opt/zk/zookeeper-3.5.1-alpha/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}
-/opt/zk/zookeeper-3.5.1-alpha/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}
-/opt/zk/zookeeper-3.5.1-alpha/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}
+/opt/zk/zookeeper-3.5.1-alpha/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${BK_CLUSTER_NAME}
 
 echo "format the bookie"
 # format bookie

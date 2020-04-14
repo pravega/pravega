@@ -27,7 +27,7 @@ ZK_URL=$(echo "${ZK_URL:-127.0.0.1:2181}" | sed -r 's/,/;/g')
 PRAVEGA_PATH=${PRAVEGA_PATH:-"pravega"}
 PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
-BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
+BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${BK_CLUSTER_NAME}/ledgers"
 BK_DIR="/bk"
 BK_zkLedgersRootPath=${BK_LEDGERS_PATH}
 BK_HOME=/opt/bookkeeper
@@ -46,7 +46,7 @@ export BK_metadataServiceUri=zk://${ZK_URL}${BK_LEDGERS_PATH}
 export BK_journalDirectories=${BK_journalDirectories:-${BK_DIR}/journal}
 export BK_ledgerDirectories=${BK_ledgerDirectories:-${BK_DIR}/ledgers}
 export BK_indexDirectories=${BK_DIR}/index
-export BK_CLUSTER_ROOT_PATH=/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}
+export BK_CLUSTER_ROOT_PATH=/${PRAVEGA_PATH}/${BK_CLUSTER_NAME}
 
 export BK_tlsProvider=OpenSSL
 export BK_tlsKeyStoreType=JKS
