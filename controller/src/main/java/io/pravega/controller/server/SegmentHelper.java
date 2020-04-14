@@ -343,7 +343,8 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
 
-        return sendRequest(connection, requestId, new WireCommands.CreateTableSegment(requestId, tableName, delegationToken))
+        // All Controller Metadata Segments are non-sorted.
+        return sendRequest(connection, requestId, new WireCommands.CreateTableSegment(requestId, tableName, false, delegationToken))
                 .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.CreateTableSegment.class, type));
     }
 

@@ -373,10 +373,10 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
             kvt.putIfAbsent(keyFamily, key, value).join();
         });
 
-        // Check the key iterator.
-        checkIterator(kvt, KeyValueTable::keyIterator, k -> k, TableEntry::getKey, this::areEqual);
+        // Check the key iterator. Keys are returned without versions.
+        checkIterator(kvt, KeyValueTable::keyIterator, k -> k, TableEntry::getKey, this::areEqualExcludingVersion);
 
-        // Check the entry iterator.
+        // Check the entry iterator. Entries are returned with versions.
         checkIterator(kvt, KeyValueTable::entryIterator, TableEntry::getKey, e -> e, this::areEqual);
     }
 
@@ -408,7 +408,7 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
             for (int i = 0; i < keys.size(); i++) {
                 val tableEntry = keyValueTable.get(keyFamily, keys.get(i)).join();
                 val actualItem = getItemFromEntry.apply(tableEntry);
-                Assert.assertTrue("", areEqual.test(actualItem, actualKeys.get(i)));
+                Assert.assertTrue("Unexpected entry at position " + i + " " + hint, areEqual.test(actualItem, actualKeys.get(i)));
             }
 
             // Now issue "resumed" iterators. We want to verify that we are recording the correct IteratorState and that
@@ -522,8 +522,12 @@ public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
         return String.format("%s_%s", keyId, iteration);
     }
 
+    private boolean areEqualExcludingVersion(TableKey<Integer> k1, TableKey<Integer> k2) {
+        return k1.getKey().equals(k2.getKey());
+    }
+
     private boolean areEqual(TableKey<Integer> k1, TableKey<Integer> k2) {
-        return k1.getKey().equals(k2.getKey()) && k1.getVersion().equals(k2.getVersion());
+        return areEqualExcludingVersion(k1, k2) && k1.getVersion().equals(k2.getVersion());
     }
 
     private boolean areEqual(TableEntry<Integer, String> e1, TableEntry<Integer, String> e2) {

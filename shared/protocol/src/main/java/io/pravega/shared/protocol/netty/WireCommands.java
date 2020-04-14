@@ -1078,6 +1078,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
         final long requestId;
         final String segment;
+        final boolean sorted;
         @ToString.Exclude
         final String delegationToken;
 
@@ -1091,14 +1092,19 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeBoolean(sorted);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
+            boolean sorted = false;
+            if (in.available() >= 1) {
+                sorted = in.readBoolean();
+            }
 
-            return new CreateTableSegment(requestId, segment, delegationToken);
+            return new CreateTableSegment(requestId, segment, sorted, delegationToken);
         }
     }
 

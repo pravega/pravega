@@ -559,7 +559,7 @@ public class WireCommandsTest {
 
     @Test
     public void testCreateTableSegment() throws IOException {
-        testCommand(new WireCommands.CreateTableSegment(l, testString1, ""));
+        testCommand(new WireCommands.CreateTableSegment(l, testString1, true,""));
     }
 
     @Test
