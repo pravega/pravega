@@ -129,7 +129,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
         int firstIndex = 0;
         for (val t : testItems) {
             context.containerIndex.notifyIndexOffsetChanged(SEGMENT_ID, t.batchOffset);
-            while (firstIndex < keysWithOffsets.size() && keysWithOffsets.get(firstIndex).getValue().getSegmentOffset() <= t.batchOffset) {
+            while (firstIndex < keysWithOffsets.size() && keysWithOffsets.get(firstIndex).getValue().getSegmentOffset() < t.batchOffset) {
                 firstIndex++;
             }
 

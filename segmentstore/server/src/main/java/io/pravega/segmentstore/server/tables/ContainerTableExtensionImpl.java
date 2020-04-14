@@ -313,14 +313,18 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     @SuppressWarnings("unchecked")
     private <T, V extends Collection<T>> V translateItems(V items, SegmentProperties segmentInfo, boolean isExternal,
-                                                          BiFunction<KeyTranslator, T, T> translateItem) {
+                                                          BiFunction<KeyTranslator, T, T> translateFunction) {
         if (!ContainerSortedKeyIndex.isSortedTableSegment(segmentInfo)) {
             // Nothing to translate for non-sorted segments.
             return items;
         }
 
         val t = isExternal ? SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR : SortedKeyIndexDataSource.INTERNAL_TRANSLATOR;
-        return (V) items.stream().map(i -> translateItem.apply(t, i)).collect(Collectors.toList());
+        return (V) items.stream().map(i -> translateItem(i, t, translateFunction)).collect(Collectors.toList());
+    }
+
+    private <T> T translateItem(T item, KeyTranslator translator, BiFunction<KeyTranslator, T, T> translateItem) {
+        return item == null ? null : translateItem.apply(translator, item);
     }
 
     @Override
@@ -391,7 +395,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                                                                                     @NonNull Function<List<ArrayView>, CompletableFuture<List<T>>> toResult) {
         return this.keyIndex.getSortedKeyIndex(segment)
                 .thenApply(index -> {
-                    val range = index.getIteratorRange(args.getSerializedState(), args.getPrefixFilter());
+                    val prefix = translateItem(args.getPrefixFilter(), SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR, KeyTranslator::inbound);
+                    val range = index.getIteratorRange(args.getSerializedState(), prefix);
                     return index.iterator(range, args.getFetchTimeout())
                             .thenCompose(keys -> toSortedIteratorItem(keys, toResult, segment.getInfo()));
                 });

@@ -139,7 +139,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
             } else {
                 // Indexed up to an offset. It's safe to remove any tail entries below the offset.
                 val toRemove = this.tailKeys.entrySet().stream()
-                        .filter(e -> e.getValue().getSegmentOffset() <= offset)
+                        .filter(e -> e.getValue().getSegmentOffset() < offset)
                         .map(Map.Entry::getKey)
                         .collect(Collectors.toList());
                 toRemove.forEach(this.tailKeys::remove);
