@@ -148,7 +148,7 @@ public class HashHelperTest {
     private <T> void testBucketUniformity(HashBucketFunction<T> toTest, Supplier<T> generator) {
         final int elementsPerBucket = 100000;
         final int acceptedDeviation = (int) (0.05 * elementsPerBucket);
-        int bucketCount = 16;
+        final int bucketCount = 16;
         final int totalCount = bucketCount * elementsPerBucket;
         val h = HashHelper.seededWith("Test");
         val result = new HashMap<Integer, Integer>();
