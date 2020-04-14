@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
@@ -59,6 +60,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     @GuardedBy("tailKeys")
     private final TreeMap<ArrayView, CacheBucketOffset> tailKeys;
     private final BTreeSet sortedKeys;
+    private final Executor executor;
     private final String traceLogId;
 
     //endregion
@@ -67,6 +69,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
         this.segmentName = segmentName;
         this.dataSource = dataSource;
         this.tailKeys = new TreeMap<>(KEY_COMPARATOR);
+        this.executor = executor;
         this.traceLogId = String.format("SortedKeyIndex[%s]", this.segmentName);
         this.sortedKeys = new BTreeSet(TableStore.MAXIMUM_VALUE_LENGTH, TableStore.MAXIMUM_KEY_LENGTH,
                 this::getBTreeSetPage, this::persistBTreeSet, executor, traceLogId);
@@ -149,16 +152,16 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
 
     @Override
     public AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout) {
-        val lastKey = new AtomicReference<ArrayView>(range.getFrom());
+        // Get a snapshot of the tail keys at the beginning of the iteration. If the state of this index changes throughout
+        // the iteration (i.e., calls to persist() and/or updateSegmentIndexOffset(), we may get inconsistent or incorrect
+        // results. Since we do not guarantee that changes AFTER the iterator was initiated will be visible in the iteration,
+        // it is OK to snapshot the tail now vs querying it every time.
+        val tailSnapshot = getTailSnapshot(range);
         val persistedIterator = this.sortedKeys.iterator(range.getFrom(), false, range.getTo(), false, fetchTimeout);
-        return () -> persistedIterator.getNext().thenApply(keys -> {
-            keys = mixWithTail(keys, lastKey.get(), range.getTo());
-            if (keys != null && !keys.isEmpty()) {
-                // Keep track of the last key; we'll need it for the next iteration.
-                lastKey.set(keys.get(keys.size() - 1));
-            }
-            return keys;
-        });
+
+        // Return a sequential iterator. It is important that no two requests overlap, otherwise the iterator's state may
+        // get corrupted.
+        return new SortedIterator(tailSnapshot, persistedIterator, range).asSequential(this.executor);
     }
 
     @Override
@@ -181,57 +184,26 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
 
     //region Helpers
 
-    private List<ArrayView> mixWithTail(List<ArrayView> persistedKeys, ArrayView fromExclusive, ArrayView toExclusive) {
-        val tailResult = new ArrayList<ArrayView>();
-        val tailKeys = new HashSet<HashedArray>();
+    private TreeMap<ArrayView, CacheBucketOffset> getTailSnapshot(IteratorRange range) {
         synchronized (this.tailKeys) {
-            NavigableMap<ArrayView, CacheBucketOffset> tailSection;
-            if (persistedKeys == null || persistedKeys.isEmpty()) {
-                // No (or no more) items from the persisted index. Return as much as we can from our tail index.
-                tailSection = getTailSection(fromExclusive, toExclusive, false);
-            } else {
-                // Match the range returned by BTreeSet.
-                tailSection = getTailSection(fromExclusive, persistedKeys.get(persistedKeys.size() - 1), true);
-            }
-
-            tailSection.forEach((key, offset) -> {
-                tailKeys.add(new HashedArray(key));
-                if (!offset.isRemoval()) {
-                    tailResult.add(key);
-                }
-            });
+            return new TreeMap<>(subMap(this.tailKeys, range.getFrom(), range.getTo(), false));
         }
-
-        if (persistedKeys == null || persistedKeys.isEmpty()) {
-            // We have reached the end of the iteration.
-            return tailResult.isEmpty() ? null : tailResult;
-        } else if (tailKeys.isEmpty()) {
-            // Nothing in the tail; return whatever we got from the persisted set.
-            return persistedKeys;
-        }
-
-        // Generate an iterator through the persisted keys that excludes anything that was updated in the tail.
-        val persistedIterator = persistedKeys.stream().filter(key -> !tailKeys.contains(new HashedArray(key))).iterator();
-        val tailIterator = tailResult.iterator();
-        val result = new ArrayList<ArrayView>(persistedKeys.size() + tailResult.size());
-        Iterators.mergeSorted(Arrays.asList(persistedIterator, tailIterator), KEY_COMPARATOR).forEachRemaining(result::add);
-        return result;
     }
 
-    @GuardedBy("tailKeys")
-    private NavigableMap<ArrayView, CacheBucketOffset> getTailSection(ArrayView fromExclusive, ArrayView to, boolean toInclusive) {
+    private static NavigableMap<ArrayView, CacheBucketOffset> subMap(NavigableMap<ArrayView, CacheBucketOffset> tailKeys,
+                                                                     ArrayView fromExclusive, ArrayView to, boolean toInclusive) {
         if (fromExclusive == null && to == null) {
             // Full map.
-            return this.tailKeys;
+            return tailKeys;
         } else if (fromExclusive == null) {
             // No beginning.
-            return this.tailKeys.headMap(to, toInclusive);
+            return tailKeys.headMap(to, toInclusive);
         } else if (to == null) {
             // No end.
-            return this.tailKeys.tailMap(fromExclusive, false);
+            return tailKeys.tailMap(fromExclusive, false);
         } else {
             // Beginning and end.
-            return this.tailKeys.subMap(fromExclusive, false, to, toInclusive);
+            return tailKeys.subMap(fromExclusive, false, to, toInclusive);
         }
     }
 
@@ -278,6 +250,70 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     //endregion
 
     //region Helper Classes
+
+    @RequiredArgsConstructor
+    private static class SortedIterator implements AsyncIterator<List<ArrayView>> {
+        private final NavigableMap<ArrayView, CacheBucketOffset> tailSnapshot;
+        private final AsyncIterator<List<ArrayView>> persistedIterator;
+        private final IteratorRange range;
+        private final AtomicReference<ArrayView> lastKey;
+
+        SortedIterator(NavigableMap<ArrayView, CacheBucketOffset> tailSnapshot, AsyncIterator<List<ArrayView>> persistedIterator, IteratorRange range) {
+            this.tailSnapshot = tailSnapshot;
+            this.persistedIterator = persistedIterator;
+            this.lastKey = new AtomicReference<>(range.getFrom());
+            this.range = range;
+        }
+
+        @Override
+        public CompletableFuture<List<ArrayView>> getNext() {
+            return this.persistedIterator.getNext().thenApply(keys -> {
+                keys = mixWithTail(keys, this.tailSnapshot, lastKey.get(), range.getTo());
+                if (keys != null && !keys.isEmpty()) {
+                    // Keep track of the last key; we'll need it for the next iteration.
+                    this.lastKey.set(keys.get(keys.size() - 1));
+                }
+                return keys;
+            });
+        }
+
+        private List<ArrayView> mixWithTail(List<ArrayView> persistedKeys, NavigableMap<ArrayView, CacheBucketOffset> tailSnapshot,
+                                            ArrayView fromExclusive, ArrayView toExclusive) {
+            val tailResult = new ArrayList<ArrayView>();
+            val tailKeys = new HashSet<HashedArray>();
+
+            NavigableMap<ArrayView, CacheBucketOffset> tailSection;
+            if (persistedKeys == null || persistedKeys.isEmpty()) {
+                // No (or no more) items from the persisted index. Return as much as we can from our tail index.
+                tailSection = subMap(tailSnapshot, fromExclusive, toExclusive, false);
+            } else {
+                // Match the range returned by BTreeSet.
+                tailSection = subMap(tailSnapshot, fromExclusive, persistedKeys.get(persistedKeys.size() - 1), true);
+            }
+
+            tailSection.forEach((key, offset) -> {
+                tailKeys.add(new HashedArray(key));
+                if (!offset.isRemoval()) {
+                    tailResult.add(key);
+                }
+            });
+
+            if (persistedKeys == null || persistedKeys.isEmpty()) {
+                // We have reached the end of the iteration.
+                return tailResult.isEmpty() ? null : tailResult;
+            } else if (tailKeys.isEmpty()) {
+                // Nothing in the tail; return whatever we got from the persisted set.
+                return persistedKeys;
+            }
+
+            // Generate an iterator through the persisted keys that excludes anything that was updated in the tail.
+            val persistedIterator = persistedKeys.stream().filter(key -> !tailKeys.contains(new HashedArray(key))).iterator();
+            val tailIterator = tailResult.iterator();
+            val result = new ArrayList<ArrayView>(persistedKeys.size() + tailResult.size());
+            Iterators.mergeSorted(Arrays.asList(persistedIterator, tailIterator), KEY_COMPARATOR).forEachRemaining(result::add);
+            return result;
+        }
+    }
 
     private static class UpdateArgs {
         final HashSet<HashedArray> insertions = new HashSet<>();

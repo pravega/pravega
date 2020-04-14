@@ -41,7 +41,7 @@ class SortedKeyIndexDataSource {
      * A Function that will be invoked when a Table Segment's Sorted Key Index nodes need to be retrieved.
      */
     @NonNull
-    private final SortedKeyIndexDataSource.Read read;
+    private final Read read;
 
     /**
      * Gets a value indicating whether the given Key should be excluded from indexing or not.
