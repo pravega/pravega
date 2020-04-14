@@ -40,12 +40,6 @@ add_certs_into_truststore() {
     trustStore="/etc/ssl/certs/java/cacerts"
     certificate="ecs-certificate.pem"
 
-    if test -f "/etc/secret-volume/ECS_JAVA_TRUST_STORE_PASSWORD"; then
-        password=`cat /etc/secret-volume/ECS_JAVA_TRUST_STORE_PASSWORD`
-    fi
-    if test -f "/etc/secret-volume/ECS_JAVA_TRUST_STORE_PATH"; then
-        trustStore=`cat /etc/secret-volume/ECS_JAVA_TRUST_STORE_PATH`
-    fi
     if test -f "/etc/secret-volume/ECS_CERTIFICATE_NAME"; then
         certificate=`cat /etc/secret-volume/ECS_CERTIFICATE_NAME`
     fi
