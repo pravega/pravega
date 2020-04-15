@@ -20,14 +20,16 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
+
+import io.pravega.test.common.JwtBody;
+import io.pravega.test.common.JwtTestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
-import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
-import static io.pravega.client.security.auth.JwtTestUtils.dummyToken;
+import static io.pravega.test.common.JwtTestUtils.createJwtBody;
+import static io.pravega.test.common.JwtTestUtils.dummyToken;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -61,59 +63,7 @@ public class JwtTokenProviderImplTest {
         assertEquals(token, objectUnderTest.retrieveToken().join());
     }
 
-    @Test
-    public void testExtractExpirationTimeReturnsNullIfExpInBodyIsNotSet() {
 
-        // See decoded parts at https://jwt.io/.
-        //
-        // The body decodes to:
-        //     {
-        //        "sub": "1234567890",
-        //        "aud": "segmentstore",
-        //        "iat": 1516239022
-        //     }
-        String token = String.format("%s.%s.%s", "base64-encoded-header",
-                JwtBody.builder().subject("1234567890").audience("segmentstore").issuedAtTime(1516239022L).build(),
-                "base64-encoded-signature");
-
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                token, mock(Controller.class), "somescope", "somestream");
-
-        assertNull(objectUnderTest.extractExpirationTime(token));
-    }
-
-    @Test
-    public void testExtractExpirationTimeReturnsNullIfTokenIsNotInJwtFormat() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                mock(Controller.class), "somescope", "somestream");
-        assertNull(objectUnderTest.extractExpirationTime("abc"));
-        assertNull(objectUnderTest.extractExpirationTime("abc.def"));
-        assertNull(objectUnderTest.extractExpirationTime("abc.def.ghi.jkl"));
-    }
-
-    // Refresh behavior when expiration time is not set
-    // public void testExpirationTimeIsNullIfExpInBodyIsNotSet
-
-    @Test
-    public void testExpirationTimeIsNotNullIfExpInBodyIsSet() {
-
-        // See decoded parts at https://jwt.io/.
-        //
-        // The body decodes to:
-        //     {
-        //        "sub": "jdoe",
-        //        "aud": "segmentstore",
-        //         "iat": 1569324678,
-        //         "exp": 1569324683
-        //     }
-        String token = String.format("%s.%s.%s",
-                "eyJhbGciOiJIUzUxMiJ9", // header
-                "eyJzdWIiOiJqZG9lIiwiYXVkIjoic2VnbWVudHN0b3JlIiwiaWF0IjoxNTY5MzI0Njc4LCJleHAiOjE1NjkzMjQ2ODN9", // body
-                "EKvw5oVkIihOvSuKlxiX7q9_OAYz7m64wsFZjJTBkoqg4oidpFtdlsldXHToe30vrPnX45l8QAG4DoShSMdw"); // signature
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                token, dummyController, "somescope", "somestream");
-        assertNotNull(objectUnderTest.extractExpirationTime(token));
-    }
 
     @Test
     public void testRetrievesNewTokenIfTokenIsNearingExpiry() {
@@ -168,20 +118,6 @@ public class JwtTokenProviderImplTest {
     }
 
     @Test
-    public void testReturnsNullExpirationTimeForNullToken() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
-        assertNull(objectUnderTest.extractExpirationTime(null));
-    }
-
-    @Test
-    public void testReturnsNullExpirationTimeForEmptyToken() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
-        assertNull(objectUnderTest.extractExpirationTime(null));
-    }
-
-    @Test
     public void testDefaultTokenRefreshThreshold() {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 dummyToken(), dummyController, "some-scope", "some-stream");
@@ -199,48 +135,6 @@ public class JwtTokenProviderImplTest {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(token, dummyController, "testscope",
                 "teststream");
         assertEquals(token, objectUnderTest.retrieveToken().join());
-    }
-
-    @Test
-    public void testParseExpirationTimeExtractsExpiryTime() {
-        // Contains a space before each field value
-        String json1 = "{\"sub\": \"subject\",\"aud\": \"segmentstore\",\"iat\": 1569837384,\"exp\": 1569837434}";
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
-        assertEquals(1569837434, objectUnderTest.parseExpirationTime(json1).longValue());
-
-        // Does not contain space before field values
-        String json2 = "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384,\"exp\":1569837434}";
-        assertEquals(1569837434, objectUnderTest.parseExpirationTime(json2).longValue());
-    }
-
-    @Test
-    public void testParseExpirationTimeReturnsNullWhenExpiryIsNotSet() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
-
-        // Does not contain expiry time
-        String json = "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384}";
-
-        assertNull(objectUnderTest.parseExpirationTime(json));
-    }
-
-    @Test
-    public void testParseExpirationTimeReturnsNullWhenTokenIsNullOrEmpty() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
-        assertNull(objectUnderTest.parseExpirationTime(null));
-        assertNull(objectUnderTest.parseExpirationTime(""));
-    }
-
-    @Test
-    public void testParseExpirationTimeReturnsNullWhenTokenIsNotInteger() {
-        // Notice that the exp field value contains non-digits/alphabets
-        String jwtBody = "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384,\"exp\":\"abc\"}";
-
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
-        assertNull(objectUnderTest.parseExpirationTime(jwtBody));
     }
 
     @Test
