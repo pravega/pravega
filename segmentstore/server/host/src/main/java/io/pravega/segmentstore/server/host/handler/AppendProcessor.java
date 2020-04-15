@@ -146,30 +146,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 tokenVerifier.verifyToken(newSegment,
                         setupAppend.getDelegationToken(),
                         AuthHandler.Permissions.READ_UPDATE);
-
-                final Duration durationToExpiry = JwtUtils.durationToExpiry(setupAppend.getDelegationToken());
-
-                if (durationToExpiry != null) { // Can be null if token had no expiry set (for internal communications)
-                    if (durationToExpiry.isNegative()) {
-                        log.debug("Token has already expired");
-                        throw new TokenExpiredException("Token already expired");
-                    } else {
-                        Futures.delayedTask(() -> {
-                            if (writerStates.containsKey(Pair.of(newSegment, writer))) {
-                                // Closing the connection will result in client authenticating with Controller again
-                                // and retrying.
-                                log.debug("Closing client connection due to token expiry");
-                                try {
-                                    this.connection.close();
-                                } catch (RuntimeException e) {
-                                    // The connection might have been closed already, for instance.
-                                    // Ignore
-                                }
-                            }
-                            return null;
-                        }, durationToExpiry, this.tokenExpiryHandlerExecutor);
-                    }
-                }
+                setupTokenExpiryTask(setupAppend, newSegment, writer);
             } catch (TokenException e) {
                 handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
                         "Update Segment Attribute", e);
@@ -193,6 +170,33 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
                     }
                 });
+    }
+
+    @VisibleForTesting
+    void setupTokenExpiryTask(SetupAppend setupAppend, String newSegment, UUID writer) {
+        final Duration durationToExpiry = JwtUtils.durationToExpiry(setupAppend.getDelegationToken());
+
+        if (durationToExpiry != null) { // Can be null if token had no expiry set (for internal communications)
+            if (durationToExpiry.isNegative()) {
+                log.debug("Token has already expired");
+                throw new TokenExpiredException("Token already expired");
+            } else {
+                Futures.delayedTask(() -> {
+                    if (writerStates.containsKey(Pair.of(newSegment, writer))) {
+                        try {
+                            log.debug("Informing the client about token expiry");
+                            connection.send(new WireCommands.AuthTokenCheckFailed(setupAppend.getRequestId(),
+                                    "Token expired",
+                                    WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+                        } catch (RuntimeException e) {
+                            log.warn("Encountered an exception", e);
+                            // Ignore
+                        }
+                    }
+                    return null;
+                }, durationToExpiry, this.tokenExpiryHandlerExecutor);
+            }
+        }
     }
 
     /**
