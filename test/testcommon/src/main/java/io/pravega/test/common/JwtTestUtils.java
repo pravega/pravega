@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.security.auth;
+package io.pravega.test.common;
 
 import com.google.gson.Gson;
 
@@ -15,12 +15,12 @@ import java.util.Base64;
 
 public class JwtTestUtils {
 
-    static String createJwtBody(JwtBody jwt) {
+    public static String createJwtBody(JwtBody jwt) {
         String json = new Gson().toJson(jwt);
         return Base64.getEncoder().encodeToString(json.getBytes());
     }
 
-    static String dummyToken() {
+    public static String dummyToken() {
         return String.format("header.%s.signature",
                 createJwtBody(JwtBody.builder().expirationTime(Long.MAX_VALUE).build()));
     }

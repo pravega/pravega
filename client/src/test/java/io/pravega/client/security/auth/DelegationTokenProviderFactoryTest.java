@@ -12,12 +12,13 @@ package io.pravega.client.security.auth;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.JwtBody;
 import org.junit.Test;
 
 import java.time.Instant;
 
-import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
-import static io.pravega.client.security.auth.JwtTestUtils.dummyToken;
+import static io.pravega.test.common.JwtTestUtils.createJwtBody;
+import static io.pravega.test.common.JwtTestUtils.dummyToken;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
