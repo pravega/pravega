@@ -52,7 +52,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 9;
+    public static final int WIRE_VERSION = 10;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
