@@ -143,6 +143,42 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the case when an interruption is called on an uninterruptible throttling source.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testUninterruptibleDelay() throws Exception {
+        // Supply monotonically decreasing delays.
+        val suppliedDelays = Arrays.asList(2000);
+        val delays = Collections.<Integer>synchronizedList(new ArrayList<>());
+        val calculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Batching);
+        val nextDelay = suppliedDelays.iterator();
+        Consumer<Integer> recordDelay = delayMillis -> {
+            delays.add(delayMillis);
+            calculator.setDelayMillis(nextDelay.hasNext() ? nextDelay.next() : 0); // 0 means we're done (no more throttling).
+        };
+        @Cleanup
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), executorService(), metrics, recordDelay);
+
+        // Set a non-maximum delay and ask to throttle, then verify we throttled the correct amount.
+        calculator.setDelayMillis(nextDelay.next());
+        val t1 = t.throttle();
+
+        Assert.assertFalse("Not expected throttle future to be completed yet.", t1.isDone());
+        t.notifyThrottleSourceChanged();
+
+        String[] tags = { "container", String.valueOf(this.containerId), "throttler", "Batching" };
+        TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
+
+        Assert.assertEquals(
+                "Last reported delay is equal to last supplied delay.",
+                (int) suppliedDelays.get(0),
+                (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value()
+        );
+    }
+
+    /**
      * Tests interruptible Cache delays.
      *
      * @throws Exception

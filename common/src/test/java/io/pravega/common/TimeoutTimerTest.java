@@ -23,10 +23,10 @@ public class TimeoutTimerTest {
         assertFalse(timer.hasRemaining());
         timer.reset(Duration.ofMillis(10000));
         assertTrue(timer.hasRemaining());
+        assertTrue(timer.getElapsed().toMillis() > 0);
         timer.zero();
         assertFalse(timer.hasRemaining());
     }
-    
     
     @Test
     public void testResetToZero() {
