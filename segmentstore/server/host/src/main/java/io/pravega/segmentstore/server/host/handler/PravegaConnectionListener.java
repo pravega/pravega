@@ -30,6 +30,7 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.io.filesystem.FileModificationEventWatcher;
 import io.pravega.common.io.filesystem.FileModificationMonitor;
 import io.pravega.common.io.filesystem.FileModificationPollingMonitor;
@@ -52,6 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
@@ -89,6 +91,10 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private final String pathToTlsKeyFile;
 
     private FileModificationMonitor tlsCertFileModificationMonitor; // used only if tls reload is enabled
+
+    // Used for running token expiry handling tasks.
+    private final ScheduledExecutorService tokenExpiryHandlerExecutor =
+            ExecutorServiceHelpers.newScheduledThreadPool(10, "token-expiry-handler");
 
     //endregion
 
@@ -198,14 +204,14 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          new CommandDecoder(),
                          new AppendDecoder(),
                          lsh);
-
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
                          connectionTracker,
                          new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError),
                          statsRecorder,
                          tokenVerifier,
-                         replyWithStackTraceOnError));
+                         replyWithStackTraceOnError,
+                         tokenExpiryHandlerExecutor));
              }
          });
 
@@ -279,6 +285,9 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
         if (tlsCertFileModificationMonitor != null) {
             tlsCertFileModificationMonitor.stopMonitoring();
+        }
+        if (tokenExpiryHandlerExecutor != null) {
+            tokenExpiryHandlerExecutor.shutdownNow();
         }
     }
 }

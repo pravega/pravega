@@ -15,9 +15,11 @@ import com.google.common.base.Throwables;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
+import io.pravega.common.security.JwtUtils;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -57,6 +59,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Builder;
 import lombok.Getter;
@@ -92,6 +95,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
     private final AtomicLong outstandingBytes = new AtomicLong();
+    private final ScheduledExecutorService tokenExpiryHandlerExecutor;
 
     //endregion
 
@@ -142,6 +146,30 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 tokenVerifier.verifyToken(newSegment,
                         setupAppend.getDelegationToken(),
                         AuthHandler.Permissions.READ_UPDATE);
+
+                final Duration durationToExpiry = JwtUtils.durationToExpiry(setupAppend.getDelegationToken());
+
+                if (durationToExpiry != null) { // Can be null if token had no expiry set (for internal communications)
+                    if (durationToExpiry.isNegative()) {
+                        log.debug("Token has already expired");
+                        throw new TokenExpiredException("Token already expired");
+                    } else {
+                        Futures.delayedTask(() -> {
+                            if (writerStates.containsKey(Pair.of(newSegment, writer))) {
+                                // Closing the connection will result in client authenticating with Controller again
+                                // and retrying.
+                                log.debug("Closing client connection due to token expiry");
+                                try {
+                                    this.connection.close();
+                                } catch (RuntimeException e) {
+                                    // The connection might have been closed already, for instance.
+                                    // Ignore
+                                }
+                            }
+                            return null;
+                        }, durationToExpiry, this.tokenExpiryHandlerExecutor);
+                    }
+                }
             } catch (TokenException e) {
                 handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
                         "Update Segment Attribute", e);
