@@ -20,6 +20,10 @@ public class JwtTestUtils {
         return Base64.getEncoder().encodeToString(json.getBytes());
     }
 
+    public static String createTokenWithDummyMetadata(JwtBody jwt) {
+        return String.format("header.%s.signature", createJwtBody(jwt));
+    }
+
     public static String dummyToken() {
         return String.format("header.%s.signature",
                 createJwtBody(JwtBody.builder().expirationTime(Long.MAX_VALUE).build()));
