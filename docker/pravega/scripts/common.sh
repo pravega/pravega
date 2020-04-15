@@ -33,24 +33,3 @@ add_system_property_ecs_config_uri() {
     echo "${name}" "${configUri}"
     add_system_property "${name}" "${configUri}"
 }
-
-# Add ECS certificates into Java truststore
-add_certs_into_truststore() {
-    password="changeit"
-    trust="/etc/ssl/certs/java/cacerts"
-    certificate="ecs-certificate.pem"
-
-    if test -f "/etc/secret-volume/ECS_JAVA_TRUST_STORE_PASSWORD"; then
-        password=`cat /etc/secret-volume/ECS_JAVA_TRUST_STORE_PASSWORD`
-    fi
-    if test -f "/etc/secret-volume/ECS_JAVA_TRUST_STORE_PATH"; then
-        trustStore=`cat /etc/secret-volume/ECS_JAVA_TRUST_STORE_PATH`
-    fi
-    if test -f "/etc/secret-volume/ECS_CERTIFICATE_NAME"; then
-        certificate=`cat /etc/secret-volume/ECS_CERTIFICATE_NAME`
-    fi
-
-    if test -f "/etc/secret-volume/${certificate}"; then
-        yes | keytool -importcert -storepass "${password}" -file "/etc/secret-volume/${certificate}" -keystore "${trustStore}" || true
-    fi
-}
