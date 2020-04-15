@@ -88,7 +88,7 @@ public class SerializationTest {
 
         // Serialize via the old serialization logic.
         // Note: the older serialization logic does not work with -1L as offset.
-        final byte[] bufOld = new PositionSerializerR1().serialize(new PositionR1(pos)).array();
+        final byte[] bufOld = new PositionSerializerOld().serialize(new PositionOld(pos)).array();
         // deserialize it using latest revision and ensure compatibility.
         assertEquals(pos, Position.fromBytes(ByteBuffer.wrap(bufOld)));
     }
@@ -101,21 +101,21 @@ public class SerializationTest {
 
         // deserialize it using the old serialization logic and ensure compatibility.
         // Note: The old serialization logic does not allow users to serialize / deserialize with -1L as offset.
-        PositionSerializerR1 oldSerializer = new PositionSerializerR1();
+        PositionSerializerOld oldSerializer = new PositionSerializerOld();
 
-        PositionR1 pos1 = new PositionR1(null, null);
+        PositionOld pos1 = new PositionOld(null, null);
         oldSerializer.deserialize(new ByteArraySegment(newBuf.array()), pos1);
         assertEquals(pos, pos1.getPostionImpl());
     }
 
     // Mutable class to validate older serialization.
     @AllArgsConstructor
-    private class PositionR1 {
+    private class PositionOld {
 
         private Map<Segment, Long> ownedSegments;
         private Map<Segment, SegmentWithRange.Range> segmentRanges;
 
-        public PositionR1(PositionImpl impl) {
+        public PositionOld(PositionImpl impl) {
             this.ownedSegments = impl.getOwnedSegmentsWithOffsets();
             this.segmentRanges = impl.getOwnedSegmentRangesWithOffsets().keySet().stream()
                                      .collect(Collectors
@@ -128,7 +128,7 @@ public class SerializationTest {
     }
 
     // Serializer to simiulate revision 1 of serialization.
-    private static class PositionSerializerR1 extends VersionedSerializer.Direct<PositionR1> {
+    private static class PositionSerializerOld extends VersionedSerializer.Direct<PositionOld> {
 
         @Override
         protected byte getWriteVersion() {
@@ -142,28 +142,28 @@ public class SerializationTest {
                       .revision(1, this::write01, this::read01);
         }
 
-        private void write00(PositionR1 position, RevisionDataOutput revisionDataOutput) throws IOException {
+        private void write00(PositionOld position, RevisionDataOutput revisionDataOutput) throws IOException {
             Map<Segment, Long> map = position.ownedSegments;
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
                     (out, offset) -> out.writeCompactLong(offset));
 
         }
 
-        private void write01(PositionR1 position, RevisionDataOutput revisionDataOutput) throws IOException {
+        private void write01(PositionOld position, RevisionDataOutput revisionDataOutput) throws IOException {
             Map<Segment, SegmentWithRange.Range> m1 = position.segmentRanges;
             revisionDataOutput
-                    .writeMap(m1, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializerR1::writeRange);
+                    .writeMap(m1, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializerOld::writeRange);
         }
 
-        private void read00(RevisionDataInput revisionDataInput, PositionR1 target) throws IOException {
+        private void read00(RevisionDataInput revisionDataInput, PositionOld target) throws IOException {
             Map<Segment, Long> map = revisionDataInput
                     .readMap(in -> Segment.fromScopedName(in.readUTF()), RevisionDataInput::readCompactLong);
             target.ownedSegments = map;
         }
 
-        private void read01(RevisionDataInput revisionDataInput, PositionR1 target) throws IOException {
+        private void read01(RevisionDataInput revisionDataInput, PositionOld target) throws IOException {
             Map<Segment, SegmentWithRange.Range> map1 = revisionDataInput
-                    .readMap(in -> Segment.fromScopedName(in.readUTF()), PositionSerializerR1::readRange);
+                    .readMap(in -> Segment.fromScopedName(in.readUTF()), PositionSerializerOld::readRange);
             target.segmentRanges = map1;
         }
 
