@@ -46,9 +46,9 @@ import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -60,6 +60,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.TestUtils;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.UUID;
@@ -123,9 +124,11 @@ public class ReadTest {
 
             // Each ReadResultEntryContents may be of an arbitrary length - we should make no assumptions.
             // Also put a timeout when fetching the response in case we get back a Future read and it never completes.
-            ReadResultEntryContents contents = entry.getContent().get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+            BufferView contents = entry.getContent().get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+            @Cleanup
+            InputStream contentStream = contents.getReader();
             byte next;
-            while ((next = (byte) contents.getData().read()) != -1) {
+            while ((next = (byte) contentStream.read()) != -1) {
                 byte expected = data[index % data.length];
                 assertEquals(expected, next);
                 index++;

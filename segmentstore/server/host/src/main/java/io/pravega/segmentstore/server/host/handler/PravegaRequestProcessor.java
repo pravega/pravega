@@ -18,9 +18,9 @@ import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
-import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -31,7 +31,6 @@ import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -82,7 +81,6 @@ import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -100,7 +98,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import lombok.SneakyThrows;
 import lombok.val;
 import org.slf4j.LoggerFactory;
 
@@ -225,7 +222,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     private void handleReadResult(ReadSegment request, ReadResult result) {
         String segment = request.getSegment();
-        ArrayList<ReadResultEntryContents> cachedEntries = new ArrayList<>();
+        ArrayList<BufferView> cachedEntries = new ArrayList<>();
         ReadResultEntry nonCachedEntry = collectCachedEntries(request.getOffset(), result, cachedEntries);
         final String operation = "readSegment";
 
@@ -297,15 +294,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * Reads all of the cachedEntries from the ReadResult and puts their content into the cachedEntries list.
      * Upon encountering a non-cached entry, it stops iterating and returns it.
      */
-    private ReadResultEntry collectCachedEntries(long initialOffset, ReadResult readResult,
-                                                 ArrayList<ReadResultEntryContents> cachedEntries) {
+    private ReadResultEntry collectCachedEntries(long initialOffset, ReadResult readResult, ArrayList<BufferView> cachedEntries) {
         long expectedOffset = initialOffset;
         while (readResult.hasNext()) {
             ReadResultEntry entry = readResult.next();
             if (entry.getType() == Cache) {
                 Preconditions.checkState(entry.getStreamSegmentOffset() == expectedOffset,
                         "Data returned from read was not contiguous.");
-                ReadResultEntryContents content = entry.getContent().getNow(null);
+                BufferView content = entry.getContent().getNow(null);
                 expectedOffset += content.getLength();
                 cachedEntries.add(content);
             } else {
@@ -318,18 +314,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     /**
      * Copy all of the contents provided into a byteBuffer and return it.
      */
-    @SneakyThrows(IOException.class)
-    private ByteBuffer copyData(List<ReadResultEntryContents> contents) {
-        int totalSize = contents.stream().mapToInt(ReadResultEntryContents::getLength).sum();
-
-        ByteBuffer data = ByteBuffer.allocate(totalSize);
-        int bytesCopied = 0;
-        for (ReadResultEntryContents content : contents) {
-            int copied = StreamHelpers.readAll(content.getData(), data.array(), bytesCopied, totalSize - bytesCopied);
-            Preconditions.checkState(copied == content.getLength(), "Read fewer bytes than available.");
-            bytesCopied += copied;
-        }
-        return data;
+    private ByteBuffer copyData(List<BufferView> contents) {
+        return ByteBuffer.wrap(BufferView.wrap(contents).getCopy());
     }
 
     @Override
