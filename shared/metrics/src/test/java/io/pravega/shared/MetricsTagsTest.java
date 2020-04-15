@@ -125,7 +125,7 @@ public class MetricsTagsTest {
         assertEquals(MetricsTags.TAG_CONTAINER, tags[0]);
         assertEquals("1", tags[1]);
         assertEquals(MetricsTags.TAG_THROTTLER, tags[2]);
-        assertEquals("Cache", tags[2]);
+        assertEquals("Cache", tags[3]);
     }
 
     @Test
