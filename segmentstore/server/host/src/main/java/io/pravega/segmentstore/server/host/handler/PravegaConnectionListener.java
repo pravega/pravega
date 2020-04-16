@@ -287,7 +287,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
             tlsCertFileModificationMonitor.stopMonitoring();
         }
         if (tokenExpiryHandlerExecutor != null) {
-            tokenExpiryHandlerExecutor.shutdownNow();
+            ExecutorServiceHelpers.shutdown(tokenExpiryHandlerExecutor);
         }
     }
 }

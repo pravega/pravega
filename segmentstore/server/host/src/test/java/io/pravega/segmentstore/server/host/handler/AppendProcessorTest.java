@@ -18,6 +18,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoop;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -46,8 +47,11 @@ import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.JwtBody;
+import io.pravega.test.common.JwtTestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -123,6 +127,33 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyNoMoreInteractions(store);
 
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
+    }
+
+    @Test(expected = TokenExpiredException.class)
+    public void testSetupTokenExpiryTaskThrowsExceptionIfTokenHasExpired() {
+        String streamSegmentName = "scope/stream/0.#epoch.0";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
+
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                .store(store)
+                .connection(connection)
+                .connectionTracker(tracker)
+                .statsRecorder(mockedRecorder)
+                .build();
+
+        setupGetAttributes(streamSegmentName, clientId, store);
+        val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
+
+        String delegationToken = JwtTestUtils.createTokenWithDummyMetadata(
+                JwtBody.builder().expirationTime(Instant.now().minusSeconds(2000).getEpochSecond()).build());
+        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, delegationToken);
+
+        processor.setupTokenExpiryTask(setupAppend, streamSegmentName, clientId);
     }
 
     @Test

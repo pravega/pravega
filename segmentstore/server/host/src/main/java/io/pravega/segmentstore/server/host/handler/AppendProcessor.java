@@ -178,18 +178,23 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         if (durationToExpiry != null) { // Can be null if token had no expiry set (for internal communications)
             if (durationToExpiry.isNegative()) {
-                log.debug("Token has already expired");
-                throw new TokenExpiredException("Token already expired");
+                String message = String.format("Token sent by writer %s for segment %s has expired",
+                        writer, newSegment);
+                log.debug(message);
+                throw new TokenExpiredException(message);
             } else {
                 Futures.delayedTask(() -> {
-                    if (writerStates.containsKey(Pair.of(newSegment, writer))) {
+                    if (setupAppendDoneAlready(newSegment, writer)) {
                         try {
-                            log.debug("Informing the client about token expiry");
+                            log.debug("Informing the writer {} about token expiry for segment {}",
+                                    writer, newSegment);
                             connection.send(new WireCommands.AuthTokenCheckFailed(setupAppend.getRequestId(),
-                                    "Token expired",
+                                    String.format("Token sent by wrPraiter %s for segment %s has expired",
+                                            writer, newSegment),
                                     WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
                         } catch (RuntimeException e) {
-                            log.warn("Encountered an exception", e);
+                            log.warn("Unable to inform writer {} about token expiry for segment {}", writer,
+                                    newSegment, e);
                             // Ignore
                         }
                     }
@@ -197,6 +202,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 }, durationToExpiry, this.tokenExpiryHandlerExecutor);
             }
         }
+    }
+
+    @VisibleForTesting
+    boolean setupAppendDoneAlready(String newSegment, UUID writer) {
+        return writerStates.containsKey(Pair.of(newSegment, writer));
     }
 
     /**

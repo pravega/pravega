@@ -26,7 +26,7 @@ import io.pravega.test.common.JwtTestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
-import static io.pravega.test.common.JwtTestUtils.createJwtBody;
+import static io.pravega.test.common.JwtTestUtils.toCompact;
 import static io.pravega.test.common.JwtTestUtils.dummyToken;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -56,7 +56,7 @@ public class JwtTokenProviderImplTest {
 
     @Test
     public void testRetrievesSameTokenPassedDuringConstruction() {
-        String token = String.format("header.%s.signature", createJwtBody(
+        String token = String.format("header.%s.signature", toCompact(
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 token, mock(Controller.class), "somescope", "somestream");
@@ -67,7 +67,7 @@ public class JwtTokenProviderImplTest {
 
     @Test
     public void testRetrievesNewTokenIfTokenIsNearingExpiry() {
-        String token = String.format("header.%s.signature", createJwtBody(
+        String token = String.format("header.%s.signature", toCompact(
                 JwtBody.builder().expirationTime(Instant.now().minusSeconds(1).getEpochSecond()).build()));
         log.debug("token: {}", token);
 
@@ -76,7 +76,7 @@ public class JwtTokenProviderImplTest {
         CompletableFuture<String> future = CompletableFuture.supplyAsync(new Supplier<String>() {
             @Override
             public String get() {
-                return String.format("newtokenheader.%s.signature", createJwtBody(
+                return String.format("newtokenheader.%s.signature", toCompact(
                         JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
             }
         });
@@ -97,7 +97,7 @@ public class JwtTokenProviderImplTest {
     @Test
     public void testRetrievesSameTokenOutsideOfTokenRefreshThresholdWhenTokenIsNull() {
 
-        final String token = String.format("newtokenheader.%s.signature", createJwtBody(
+        final String token = String.format("newtokenheader.%s.signature", toCompact(
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         // Setup mock
         Controller mockController = mock(Controller.class);
@@ -127,7 +127,7 @@ public class JwtTokenProviderImplTest {
 
     @Test
     public void testReturnsExistingTokenIfNotNearingExpiry() {
-        String encodedJwtBody = createJwtBody(JwtBody.builder()
+        String encodedJwtBody = toCompact(JwtBody.builder()
                 .expirationTime(Instant.now().plusSeconds(10000).getEpochSecond())
                 .build());
         String token = String.format("header.%s.signature", encodedJwtBody);
@@ -144,7 +144,7 @@ public class JwtTokenProviderImplTest {
         CompletableFuture<String> future = CompletableFuture.supplyAsync(new Supplier<String>() {
             @Override
             public String get() {
-                return String.format("newtokenheader.%s.signature", createJwtBody(
+                return String.format("newtokenheader.%s.signature", toCompact(
                         JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
             }
         });
@@ -198,14 +198,14 @@ public class JwtTokenProviderImplTest {
     @Test
     public void testPopulateTokenReturnsTrueWhenTokenIsNonEmpty() {
         String initialToken = String.format("%s.%s.%s", "base64-encoded-header",
-                JwtTestUtils.createJwtBody(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
+                JwtTestUtils.toCompact(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
                 "base64-encoded-signature");
 
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(initialToken, this.dummyController,
                 "somescope", "somestream");
 
         String newToken = String.format("%s.%s.%s", "base64-encoded-header",
-                JwtTestUtils.createJwtBody(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
+                JwtTestUtils.toCompact(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
                 "base64-encoded-signature");
         assertTrue(objectUnderTest.populateToken(newToken));
     }

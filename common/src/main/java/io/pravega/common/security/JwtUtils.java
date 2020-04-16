@@ -14,8 +14,13 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Utility methods for JSON Web Tokens (JWT).
+ */
 @Slf4j
 public class JwtUtils {
 
@@ -28,11 +33,21 @@ public class JwtUtils {
      */
     private static final Pattern JWT_EXPIRATION_PATTERN = Pattern.compile("\"exp\":\\s?(\\d+)");
 
-    public static Long extractExpirationTime(String token) {
-        if (token == null || token.trim().equals("")) {
+    /**
+     * Extracts expiration time from the specified JWT token.
+     *
+     * @param jsonWebToken the JWT to extract the expiration time from
+     * @return the the expiration time (in seconds). Returns null if
+     *         a) the specified token is blank, or
+     *         b) the specified token is of invalid format, or
+     *         c) expiration time is missing from the token, or
+     *         d) expiration time is not a number.
+     */
+    public static Long extractExpirationTime(String jsonWebToken) {
+        if (jsonWebToken == null || jsonWebToken.trim().equals("")) {
             return null;
         }
-        String[] tokenParts = token.split("\\.");
+        String[] tokenParts = jsonWebToken.split("\\.");
 
         //A JWT token has 3 parts: the header, the body and the signature.
         if (tokenParts == null || tokenParts.length != 3) {
@@ -46,8 +61,18 @@ public class JwtUtils {
         return parseExpirationTime(decodedJsonBody);
     }
 
-    public static Duration durationToExpiry(String token) {
-        Long expirationTime = extractExpirationTime(token);
+    /**
+     * Returns the duration relative to the current instant in which the specified JWT is to expire.
+     *
+     * @param jsonWebToken the JWT token
+     * @return the duration relative to the current instant. Returns null if
+     *         a) the specified token is blank, or
+     *         b) the specified token is of invalid format, or
+     *         c) expiration time is missing from the token, or
+     *         d) expiration time is not a number.
+     */
+    public static Duration durationToExpiry(String jsonWebToken) {
+        Long expirationTime = extractExpirationTime(jsonWebToken);
         if (expirationTime == null) {
             return null;
         } else {
@@ -55,7 +80,8 @@ public class JwtUtils {
         }
     }
 
-    public static Long parseExpirationTime(String jwtBody) {
+    @VisibleForTesting
+    static Long parseExpirationTime(String jwtBody) {
         Long result = null;
         if (jwtBody != null && !jwtBody.trim().equals("")) {
             Matcher matcher = JWT_EXPIRATION_PATTERN.matcher(jwtBody);
@@ -71,7 +97,7 @@ public class JwtUtils {
                         result = Long.parseLong(expiryTimeFieldParts[1].trim());
                     } catch (NumberFormatException e) {
                         // ignore
-                        log.warn("Encountered this exception when parsing JWT body for expiration time: {}", e.getMessage());
+                        log.warn("Unable to parse JWT body for expiration time: {}", e.getMessage());
                     }
                 }
             }

@@ -346,7 +346,7 @@ project ('bindings') {
         compile project(':common')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
-        testCompile project(':test:testcommon') 
+        testCompile project(':test:testcommon')
         testCompile project(path: ':segmentstore:storage', configuration: 'testRuntime')
     }
     javadoc {

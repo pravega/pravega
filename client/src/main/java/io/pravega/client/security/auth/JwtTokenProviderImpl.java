@@ -153,7 +153,6 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         } else {
             return this.delegationToken.compareAndSet(currentToken, new DelegationToken(token, extractExpirationTime(token)));
         }
-
     }
 
     private boolean isTokenNearingExpiry(DelegationToken token) {

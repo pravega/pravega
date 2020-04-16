@@ -17,7 +17,7 @@ import org.junit.Test;
 
 import java.time.Instant;
 
-import static io.pravega.test.common.JwtTestUtils.createJwtBody;
+import static io.pravega.test.common.JwtTestUtils.toCompact;
 import static io.pravega.test.common.JwtTestUtils.dummyToken;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -87,7 +87,7 @@ public class DelegationTokenProviderFactoryTest {
 
     @Test
     public void testCreateWithJwtToken() {
-        String jwtDelegationToken = String.format("base-64-encoded-header.%s.base-64-encoded-signature", createJwtBody(
+        String jwtDelegationToken = String.format("base-64-encoded-header.%s.base-64-encoded-signature", toCompact(
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(jwtDelegationToken,
                 dummyController, new Segment("test-scope", "test-stream", 1));
