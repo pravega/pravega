@@ -42,8 +42,17 @@ class CompositeBufferView implements BufferView {
      * @param components The components to wrap.
      */
     CompositeBufferView(@NonNull List<BufferView> components) {
-        this.components = components;
-        this.length = this.components.stream().mapToInt(BufferView::getLength).sum();
+        this.components = new ArrayList<>();
+        int length = 0;
+        for (BufferView c : components) {
+            if (c instanceof CompositeBufferView) {
+                this.components.addAll(((CompositeBufferView) c).components);
+            } else {
+                this.components.add(c);
+            }
+            length += c.getLength();
+        }
+        this.length = length;
     }
 
     //endregion

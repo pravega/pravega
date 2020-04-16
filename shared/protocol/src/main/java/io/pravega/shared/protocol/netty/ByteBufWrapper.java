@@ -113,14 +113,17 @@ public class ByteBufWrapper implements BufferView {
     @Override
     public int copyTo(ByteBuffer byteBuffer) {
         Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
-        ByteBuf buf = this.buf.duplicate();
+        ByteBuf source = this.buf.duplicate();
         int length = byteBuffer.remaining();
         if (length > getLength()) {
-            byteBuffer = byteBuffer.duplicate();
+            int origLimit = byteBuffer.limit();
             length = getLength();
             byteBuffer.limit(length);
+            source.readBytes(byteBuffer);
+            byteBuffer.limit(origLimit);
+        } else {
+            source.readBytes(byteBuffer);
         }
-        buf.readBytes(byteBuffer);
         return length;
     }
 

@@ -50,6 +50,23 @@ public class CompositeBufferViewTests {
     }
 
     /**
+     * Tests {@link BufferView#wrap(List)}.
+     */
+    @Test
+    public void testWrapRecursive() throws IOException {
+        val b1 = new ByteArraySegment(new byte[]{1});
+        val b2 = new ByteArraySegment(new byte[]{2});
+        val b3 = new ByteArraySegment(new byte[]{3});
+
+        val c1 = BufferView.wrap(Arrays.asList(b1, b2));
+        val c2 = BufferView.wrap(Arrays.asList(c1, b3));
+        Assert.assertEquals(b1.getLength() + b2.getLength() + b3.getLength(), c2.getLength());
+        AssertExtensions.assertStreamEquals("",
+                new SequenceInputStream(Iterators.asEnumeration(Arrays.asList(b1.getReader(), b2.getReader(), b3.getReader()).iterator())),
+                c2.getReader(), c2.getLength());
+    }
+
+    /**
      * Tests {@link CompositeBufferView#getReader()}.
      */
     @Test
