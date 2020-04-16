@@ -24,6 +24,8 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static io.pravega.shared.MetricsTags.containerTag;
+import static io.pravega.shared.MetricsTags.throttlerTag;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -135,4 +137,25 @@ public class SegmentStoreMetricsTests {
         assertNull(MetricRegistryUtils.getTimer(MetricsNames.STORAGE_WRITER_FLUSH_ELAPSED, containerTag));
         assertNull(MetricRegistryUtils.getTimer(MetricsNames.STORAGE_WRITER_ITERATION_ELAPSED, containerTag));
     }
+
+    @Test
+    public void testThrottlerMetrics() {
+        final int delay = 100;
+        final int containerId = new Random().nextInt(Integer.MAX_VALUE);
+
+        @Cleanup
+        SegmentStoreMetrics.OperationProcessor op = new SegmentStoreMetrics.OperationProcessor(containerId);
+
+        op.processingDelay(delay, "DurableDataLog");
+        assertEquals(delay, (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTag(containerId, "DurableDataLog")).value());
+
+        op.processingDelay(delay, "Cache");
+        assertEquals(delay, (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTag(containerId, "Cache")).value());
+
+        op.processingDelay(delay, "Batching");
+        assertEquals(delay, (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTag(containerId, "Batching")).value());
+        op.processingDelay(delay * delay, "Batching");
+        assertEquals(delay * delay, (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTag(containerId, "Batching")).value());
+    }
+
 }

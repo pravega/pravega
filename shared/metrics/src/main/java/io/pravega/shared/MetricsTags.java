@@ -29,6 +29,7 @@ public final class MetricsTags {
     public static final String TAG_EPOCH = "epoch";
     public static final String TAG_CLASS = "class";
     public static final String TAG_EXCEPTION = "exception";
+    public static final String TAG_THROTTLER = "throttler";
 
     private static final String TRANSACTION_DELIMITER = "#transaction.";
     private static final String EPOCH_DELIMITER = ".#epoch.";
@@ -52,6 +53,16 @@ public final class MetricsTags {
      */
     public static String[] containerTag(int containerId) {
         return new String[] {TAG_CONTAINER, String.valueOf(containerId)};
+    }
+
+    /**
+     * Generate a throttler tag (string array) on the input throttler to be associated with a metric.
+     * @param containerId container id.
+     * @param throttler throttler name.
+     * @return string array as the throttler tag of metric.
+     */
+    public static String[] throttlerTag(int containerId, String throttler) {
+        return new String[] {TAG_CONTAINER, String.valueOf(containerId), TAG_THROTTLER, throttler};
     }
 
     /**
