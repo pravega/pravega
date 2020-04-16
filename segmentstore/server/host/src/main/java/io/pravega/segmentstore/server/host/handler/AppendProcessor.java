@@ -15,6 +15,7 @@ import com.google.common.base.Throwables;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.security.JwtUtils;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
@@ -112,7 +113,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .nextRequestProcessor(new FailingRequestProcessor())
                 .statsRecorder(SegmentStatsRecorder.noOp())
                 .connectionTracker(new ConnectionTracker())
-                .replyWithStackTraceOnError(false);
+                .replyWithStackTraceOnError(false)
+                .tokenExpiryHandlerExecutor(ExecutorServiceHelpers.newScheduledThreadPool(2,
+                        "test-token-expiry-handler"));
     }
 
     //endregion
@@ -146,7 +149,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 tokenVerifier.verifyToken(newSegment,
                         setupAppend.getDelegationToken(),
                         AuthHandler.Permissions.READ_UPDATE);
-                setupTokenExpiryTask(setupAppend, newSegment, writer);
+                setupTokenExpiryTask(setupAppend);
             } catch (TokenException e) {
                 handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
                         "Update Segment Attribute", e);
@@ -173,39 +176,53 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     @VisibleForTesting
-    void setupTokenExpiryTask(SetupAppend setupAppend, String newSegment, UUID writer) {
-        final Duration durationToExpiry = JwtUtils.durationToExpiry(setupAppend.getDelegationToken());
+    CompletableFuture<Void> setupTokenExpiryTask(SetupAppend setupAppend) {
+        String segment = setupAppend.getSegment();
+        UUID writerId = setupAppend.getWriterId();
+        long requestId = setupAppend.getRequestId();
 
-        if (durationToExpiry != null) { // Can be null if token had no expiry set (for internal communications)
-            if (durationToExpiry.isNegative()) {
-                String message = String.format("Token sent by writer %s for segment %s has expired",
-                        writer, newSegment);
-                log.debug(message);
-                throw new TokenExpiredException(message);
-            } else {
-                Futures.delayedTask(() -> {
-                    if (setupAppendDoneAlready(newSegment, writer)) {
-                        try {
-                            log.debug("Informing the writer {} about token expiry for segment {}",
-                                    writer, newSegment);
-                            connection.send(new WireCommands.AuthTokenCheckFailed(setupAppend.getRequestId(),
-                                    String.format("Token sent by wrPraiter %s for segment %s has expired",
-                                            writer, newSegment),
-                                    WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
-                        } catch (RuntimeException e) {
-                            log.warn("Unable to inform writer {} about token expiry for segment {}", writer,
-                                    newSegment, e);
-                            // Ignore
-                        }
+        Duration expiryDuration = this.durationToExpiry(setupAppend);
+
+        if (expiryDuration == null) {
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return Futures.delayedTask(() -> {
+                if (isSetupAppendCompleted(segment, writerId)) {
+                    try {
+                        log.debug("Informing writer {} that sent request {}, about token expiry for segment {}",
+                                writerId, requestId, segment);
+                        connection.send(new WireCommands.AuthTokenCheckFailed(setupAppend.getRequestId(),
+                                String.format("Token sent by writer %s for segment %s in request %s has expired",
+                                        writerId, segment, requestId),
+                                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+                    } catch (RuntimeException e) {
+                        log.warn("Unable to inform writer {} that sent request {}, about token expiry for segment {}",
+                                writerId, requestId, segment, e);
+                        // Ignore
                     }
-                    return null;
-                }, durationToExpiry, this.tokenExpiryHandlerExecutor);
-            }
+                }
+                return null;
+            }, expiryDuration, this.tokenExpiryHandlerExecutor);
         }
     }
 
     @VisibleForTesting
-    boolean setupAppendDoneAlready(String newSegment, UUID writer) {
+    Duration durationToExpiry(SetupAppend setupAppend) {
+        final Duration duration = JwtUtils.durationToExpiry(setupAppend.getDelegationToken());
+
+        // Note that duration can be null, say if token had no expiry set (for internal communications).
+
+        if (duration != null && duration.isNegative()) {
+            String message = String.format("Token sent by writer %s for segment %s in request %s has expired",
+                    setupAppend.getWriterId(), setupAppend.getSegment(), setupAppend.getRequestId());
+            log.debug(message);
+            throw new TokenExpiredException(message);
+        }
+        return duration;
+    }
+
+    @VisibleForTesting
+    boolean isSetupAppendCompleted(String newSegment, UUID writer) {
         return writerStates.containsKey(Pair.of(newSegment, writer));
     }
 

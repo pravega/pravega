@@ -82,8 +82,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -153,7 +155,36 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                 JwtBody.builder().expirationTime(Instant.now().minusSeconds(2000).getEpochSecond()).build());
         SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, delegationToken);
 
-        processor.setupTokenExpiryTask(setupAppend, streamSegmentName, clientId);
+        processor.setupTokenExpiryTask(setupAppend);
+    }
+
+    @Test
+    public void testSetupTokenExpiryTaskInformsClientIfTokenHasExpired() throws InterruptedException {
+        // Arrange
+        String streamSegmentName = "scope/stream/0.#epoch.0";
+        UUID clientId = UUID.randomUUID();
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                .store(store)
+                .connection(connection)
+                .build();
+
+        // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
+        AppendProcessor mockProcessor = spy(processor);
+        doReturn(true).when(mockProcessor).isSetupAppendCompleted(streamSegmentName, clientId);
+        doReturn(Duration.ofMillis(20)).when(mockProcessor).durationToExpiry(any());
+
+        String delegationToken = JwtTestUtils.dummyToken();
+        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, delegationToken);
+
+        // Act
+        mockProcessor.setupTokenExpiryTask(setupAppend).join();
+
+        // Assert
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(setupAppend.getRequestId(),
+                any(), WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
     }
 
     @Test

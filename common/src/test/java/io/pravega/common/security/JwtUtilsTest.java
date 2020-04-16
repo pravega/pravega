@@ -96,6 +96,12 @@ public class JwtUtilsTest {
     }
 
     @Test
+    public void testParseExpirationTimeReturnsNullWhenExpiryIsIllegal() {
+        String json = "{\"sub\": \"subject\",\"aud\": \"segmentstore\",\"iat\": 1569837384,\"exp\": \"non-numeric\"}";
+        assertNull(JwtUtils.parseExpirationTime(json));
+    }
+
+    @Test
     public void testParseExpirationTimeReturnsNullWhenTokenIsNullOrEmpty() {
         assertNull(JwtUtils.parseExpirationTime(null));
         assertNull(JwtUtils.parseExpirationTime(""));
@@ -136,4 +142,6 @@ public class JwtUtilsTest {
         System.out.println(duration.getSeconds());
         assertTrue("Duration is not negative", duration.isNegative());
     }
+
+
 }
