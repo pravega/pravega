@@ -26,6 +26,10 @@ import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import lombok.AllArgsConstructor;
 import lombok.val;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -70,12 +74,119 @@ public class SerializationTest {
 
     @Test
     public void testPosition() {
-        PositionImpl pos = new PositionImpl(ImmutableMap.of(new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0, 1), 2L));
+        PositionImpl pos = new PositionImpl(ImmutableMap.of(new SegmentWithRange(Segment.fromScopedName("foo/bar/0"), 0, 0.5), 2L,
+                new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0.5, 1.0), -1L));
         ByteBuffer bytes = pos.toBytes();
-        Position pos2 = Position.fromBytes(bytes);
-        assertEquals(pos, pos2);
+        Position pos1 = Position.fromBytes(bytes);
+        assertEquals(pos, pos1);
     }
-    
+
+    @Test
+    public void testPositionImplBackwardCompatibility() throws Exception {
+        PositionImpl pos = new PositionImpl(ImmutableMap
+                .of(new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0, 1), 2L));
+
+        // Serialize via the old serialization logic.
+        // Note: the older serialization logic does not work with -1L as offset.
+        final byte[] bufOld = new PositionSerializerOld().serialize(new PositionOld(pos)).array();
+        // deserialize it using latest revision and ensure compatibility.
+        assertEquals(pos, Position.fromBytes(ByteBuffer.wrap(bufOld)));
+    }
+
+    @Test
+    public void testPositionImplForwardCompatibility() throws Exception {
+        PositionImpl pos = new PositionImpl(ImmutableMap
+                .of(new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0, 1), 2L));
+        ByteBuffer newBuf = pos.toBytes();
+
+        // deserialize it using the old serialization logic and ensure compatibility.
+        // Note: The old serialization logic does not allow users to serialize / deserialize with -1L as offset.
+        PositionSerializerOld oldSerializer = new PositionSerializerOld();
+
+        PositionOld pos1 = new PositionOld(null, null);
+        oldSerializer.deserialize(new ByteArraySegment(newBuf.array()), pos1);
+        assertEquals(pos, pos1.getPostionImpl());
+    }
+
+    // Mutable class to validate older serialization.
+    @AllArgsConstructor
+    private class PositionOld {
+
+        private Map<Segment, Long> ownedSegments;
+        private Map<Segment, SegmentWithRange.Range> segmentRanges;
+
+        public PositionOld(PositionImpl impl) {
+            this.ownedSegments = impl.getOwnedSegmentsWithOffsets();
+            this.segmentRanges = impl.getOwnedSegmentRangesWithOffsets().keySet().stream()
+                                     .collect(Collectors
+                                             .toMap(SegmentWithRange::getSegment, SegmentWithRange::getRange));
+        }
+
+        public PositionImpl getPostionImpl() {
+            return new PositionImpl(ownedSegments, segmentRanges);
+        }
+    }
+
+    // Serializer to simiulate revision 1 of serialization.
+    private static class PositionSerializerOld extends VersionedSerializer.Direct<PositionOld> {
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+
+            version(0).revision(0, this::write00, this::read00)
+                      .revision(1, this::write01, this::read01);
+        }
+
+        private void write00(PositionOld position, RevisionDataOutput revisionDataOutput) throws IOException {
+            Map<Segment, Long> map = position.ownedSegments;
+            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
+                    (out, offset) -> out.writeCompactLong(offset));
+
+        }
+
+        private void write01(PositionOld position, RevisionDataOutput revisionDataOutput) throws IOException {
+            Map<Segment, SegmentWithRange.Range> m1 = position.segmentRanges;
+            revisionDataOutput
+                    .writeMap(m1, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializerOld::writeRange);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, PositionOld target) throws IOException {
+            Map<Segment, Long> map = revisionDataInput
+                    .readMap(in -> Segment.fromScopedName(in.readUTF()), RevisionDataInput::readCompactLong);
+            target.ownedSegments = map;
+        }
+
+        private void read01(RevisionDataInput revisionDataInput, PositionOld target) throws IOException {
+            Map<Segment, SegmentWithRange.Range> map1 = revisionDataInput
+                    .readMap(in -> Segment.fromScopedName(in.readUTF()), PositionSerializerOld::readRange);
+            target.segmentRanges = map1;
+        }
+
+        private static void writeRange(RevisionDataOutput out, SegmentWithRange.Range range) throws IOException {
+            double low, high;
+            if (range == null) {
+                low = -1;
+                high = -1;
+            } else {
+                low = range.getLow();
+                high = range.getHigh();
+            }
+            out.writeDouble(low);
+            out.writeDouble(high);
+        }
+
+        private static SegmentWithRange.Range readRange(RevisionDataInput in) throws IOException {
+            double low = in.readDouble();
+            double high = in.readDouble();
+            return (low < 0 || high < 0) ? null : new SegmentWithRange.Range(low, high);
+        }
+    }
+
     @Test
     public void testStreamCut() {
         StreamCutImpl cut = new StreamCutImpl(Stream.of("Foo/Bar"), ImmutableMap.of(Segment.fromScopedName("Foo/Bar/1"), 3L));
