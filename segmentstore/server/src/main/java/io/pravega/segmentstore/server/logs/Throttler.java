@@ -122,6 +122,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
                 if (remaining > 0 && remaining < delay.get().getDurationMillis()) {
                     delay.set(delay.get().withNewDelay(remaining));
                 }
+                this.metrics.processingDelay((int) existingDelay.remaining.getElapsed().toMillis(), existingDelay.source.toString());
             }
 
             return throttleOnce(delay.get());
@@ -138,7 +139,6 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
     }
 
     private CompletableFuture<Void> throttleOnce(ThrottlerCalculator.DelayResult delay) {
-        this.metrics.processingDelay(delay.getDurationMillis());
         if (delay.isMaximum()
                 || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.DurableDataLog) {
             // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
@@ -159,8 +159,17 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
                             result.delayFuture,
                             ex -> ex instanceof ThrottlingInterruptedException,
                             this::throttle)
-                    .whenComplete((r, e) -> this.currentDelay.set(null));
+                    .whenComplete((r, e) -> {
+                        if (this.currentDelay.get() != null && !this.currentDelay.get().remaining.hasRemaining()) {
+                            this.metrics.processingDelay(delay.getDurationMillis(), delay.getThrottlerName().toString());
+                        }
+                        this.currentDelay.set(null);
+                    });
         } else {
+            // The future won't be interrupted, so we can assume it will run till completion.
+            if (delay.getThrottlerName() != null) {
+                this.metrics.processingDelay(delay.getDurationMillis(), delay.getThrottlerName().toString());
+            }
             return delayFuture;
         }
     }
