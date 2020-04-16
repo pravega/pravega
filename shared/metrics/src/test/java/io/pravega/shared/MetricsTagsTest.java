@@ -17,14 +17,7 @@ import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static io.pravega.shared.MetricsTags.DEFAULT_HOSTNAME_KEY;
-import static io.pravega.shared.MetricsTags.containerTag;
-import static io.pravega.shared.MetricsTags.createHostTag;
-import static io.pravega.shared.MetricsTags.exceptionTag;
-import static io.pravega.shared.MetricsTags.hostTag;
-import static io.pravega.shared.MetricsTags.segmentTags;
-import static io.pravega.shared.MetricsTags.streamTags;
-import static io.pravega.shared.MetricsTags.transactionTags;
+import static io.pravega.shared.MetricsTags.*;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
@@ -124,6 +117,15 @@ public class MetricsTagsTest {
         assertEquals("segment", tags[5]);
         assertEquals(MetricsTags.TAG_EPOCH, tags[6]);
         assertEquals("0", tags[7]);
+    }
+
+    @Test
+    public void testThrottlerTags() {
+        String[] tags = throttlerTag(1, "Cache");
+        assertEquals(MetricsTags.TAG_CONTAINER, tags[0]);
+        assertEquals("1", tags[1]);
+        assertEquals(MetricsTags.TAG_THROTTLER, tags[2]);
+        assertEquals("Cache", tags[3]);
     }
 
     @Test
