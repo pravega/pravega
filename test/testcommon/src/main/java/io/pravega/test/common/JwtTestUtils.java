@@ -42,7 +42,7 @@ public class JwtTestUtils {
 
     /**
      * Creates a dummy JWT in compact format.
-     * @return
+     * @return the dummy JWT token
      */
     public static String dummyToken() {
         return String.format("header.%s.signature",

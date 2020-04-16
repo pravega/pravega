@@ -89,8 +89,6 @@ public class JwtUtils {
                 // Should look like this, if a proper match is found: "exp": 1569837434
                 String matchedString = matcher.group();
 
-                // JwtUtils
-
                 String[] expiryTimeFieldParts = matchedString.split(":");
                 if (expiryTimeFieldParts != null && expiryTimeFieldParts.length == 2) {
                     try {

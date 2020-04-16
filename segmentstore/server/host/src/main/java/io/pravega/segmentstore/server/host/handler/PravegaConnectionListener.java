@@ -93,8 +93,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private FileModificationMonitor tlsCertFileModificationMonitor; // used only if tls reload is enabled
 
     // Used for running token expiry handling tasks.
-    private final ScheduledExecutorService tokenExpiryHandlerExecutor =
-            ExecutorServiceHelpers.newScheduledThreadPool(10, "token-expiry-handler");
+    private final ScheduledExecutorService tokenExpiryHandlerExecutor;
 
     //endregion
 
@@ -111,7 +110,17 @@ public final class PravegaConnectionListener implements AutoCloseable {
     @VisibleForTesting
     public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore) {
         this(enableTls, false, "localhost", port, streamSegmentStore, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
-                new PassingTokenVerifier(), null, null, true);
+                new PassingTokenVerifier(), null, null, true,
+                ExecutorServiceHelpers.newScheduledThreadPool(1, "test-token-expiry-handler"));
+    }
+
+    public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
+                                     SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
+                                     DelegationTokenVerifier tokenVerifier, String certFile, String keyFile,
+                                     boolean replyWithStackTraceOnError) {
+        this(enableTls, enableTlsReload, host, port, streamSegmentStore, tableStore, statsRecorder, tableStatsRecorder,
+                tokenVerifier, certFile, keyFile, replyWithStackTraceOnError,
+                ExecutorServiceHelpers.newScheduledThreadPool(1, "test-token-expiry-handler"));
     }
 
     /**
@@ -129,10 +138,12 @@ public final class PravegaConnectionListener implements AutoCloseable {
      * @param certFile           Path to the certificate file to be used for TLS.
      * @param keyFile            Path to be key file to be used for TLS.
      * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
+     * @param executor           The execution to be used for running token expiration handling tasks.
      */
     public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
-                                     DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, boolean replyWithStackTraceOnError) {
+                                     DelegationTokenVerifier tokenVerifier, String certFile, String keyFile,
+                                     boolean replyWithStackTraceOnError, ScheduledExecutorService executor) {
         this.enableTls = enableTls;
         if (this.enableTls) {
             this.enableTlsReload = enableTlsReload;
@@ -155,6 +166,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
         }
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.connectionTracker = new ConnectionTracker();
+        this.tokenExpiryHandlerExecutor = executor;
     }
 
     //endregion
@@ -204,14 +216,14 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          new CommandDecoder(),
                          new AppendDecoder(),
                          lsh);
+
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
                          connectionTracker,
                          new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError),
                          statsRecorder,
                          tokenVerifier,
-                         replyWithStackTraceOnError,
-                         tokenExpiryHandlerExecutor));
+                         replyWithStackTraceOnError, tokenExpiryHandlerExecutor));
              }
          });
 
@@ -285,9 +297,6 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
         if (tlsCertFileModificationMonitor != null) {
             tlsCertFileModificationMonitor.stopMonitoring();
-        }
-        if (tokenExpiryHandlerExecutor != null) {
-            ExecutorServiceHelpers.shutdown(tokenExpiryHandlerExecutor);
         }
     }
 }
