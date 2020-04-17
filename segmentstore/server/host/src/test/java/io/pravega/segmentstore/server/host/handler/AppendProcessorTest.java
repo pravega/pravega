@@ -28,6 +28,7 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
@@ -114,13 +115,16 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                                                    .connection(connection)
                                                    .connectionTracker(tracker)
                                                    .statsRecorder(mockedRecorder)
+                                                   .tokenVerifier(new PassingTokenVerifier())
                                                    .build();
 
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
 
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, JwtTestUtils.createDummyTokenWithNoExpiry());
+        processor.setupAppend(setupAppendCommand);
         processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac, data);
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
@@ -131,6 +135,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyNoMoreInteractions(store);
 
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
+        assertTrue(processor.isSetupAppendCompleted(setupAppendCommand.getSegment(), setupAppendCommand.getWriterId()));
     }
 
     @Test(expected = TokenExpiredException.class)
@@ -178,7 +183,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         doReturn(true).when(mockProcessor).isSetupAppendCompleted(streamSegmentName, clientId);
         doReturn(Duration.ofMillis(20)).when(mockProcessor).durationToExpiry(any());
 
-        String delegationToken = JwtTestUtils.dummyToken();
+        String delegationToken = JwtTestUtils.createEmptyDummyToken();
         SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, delegationToken);
 
         // Act
@@ -208,7 +213,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         doReturn(Duration.ofMillis(1)).when(mockProcessor).durationToExpiry(any());
         doThrow(new RuntimeException()).when(mockConnection).send(any());
 
-        String delegationToken = JwtTestUtils.dummyToken();
+        String delegationToken = JwtTestUtils.createEmptyDummyToken();
         SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, delegationToken);
 
         // Act

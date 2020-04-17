@@ -17,8 +17,8 @@ import org.junit.Test;
 
 import java.time.Instant;
 
+import static io.pravega.test.common.JwtTestUtils.createEmptyDummyToken;
 import static io.pravega.test.common.JwtTestUtils.toCompact;
-import static io.pravega.test.common.JwtTestUtils.dummyToken;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -42,7 +42,7 @@ public class DelegationTokenProviderFactoryTest {
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Null Controller argument wasn't rejected.",
-                () -> DelegationTokenProviderFactory.create(dummyToken(), null, mock(Segment.class)),
+                () -> DelegationTokenProviderFactory.create(createEmptyDummyToken(), null, mock(Segment.class)),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Null scopeName argument wasn't rejected.",
@@ -58,7 +58,7 @@ public class DelegationTokenProviderFactoryTest {
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Null segment argument wasn't rejected.",
-                () -> DelegationTokenProviderFactory.create(dummyToken(), dummyController, null),
+                () -> DelegationTokenProviderFactory.create(createEmptyDummyToken(), dummyController, null),
                 e -> e instanceof NullPointerException);
     }
 

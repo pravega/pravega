@@ -26,8 +26,8 @@ import io.pravega.test.common.JwtTestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
+import static io.pravega.test.common.JwtTestUtils.createEmptyDummyToken;
 import static io.pravega.test.common.JwtTestUtils.toCompact;
-import static io.pravega.test.common.JwtTestUtils.dummyToken;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -45,7 +45,7 @@ public class JwtTokenProviderImplTest {
     @Test
     public void testIsWithinThresholdForRefresh() {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "somescope", "somestream");
+                createEmptyDummyToken(), dummyController, "somescope", "somestream");
 
         assertFalse(objectUnderTest.isWithinRefreshThreshold(Instant.ofEpochSecond(10), Instant.ofEpochSecond(30)));
         assertFalse(objectUnderTest.isWithinRefreshThreshold(Instant.now(), Instant.now().plusSeconds(11)));
@@ -120,7 +120,7 @@ public class JwtTokenProviderImplTest {
     @Test
     public void testDefaultTokenRefreshThreshold() {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
+                createEmptyDummyToken(), dummyController, "some-scope", "some-stream");
         assertSame(JwtTokenProviderImpl.DEFAULT_REFRESH_THRESHOLD_SECONDS,
                 objectUnderTest.getRefreshThresholdInSeconds());
     }

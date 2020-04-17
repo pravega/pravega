@@ -11,6 +11,7 @@ package io.pravega.test.common;
 
 import com.google.gson.Gson;
 
+import java.time.Instant;
 import java.util.Base64;
 
 /**
@@ -42,10 +43,36 @@ public class JwtTestUtils {
 
     /**
      * Creates a dummy JWT in compact format.
-     * @return the dummy JWT token
+     * @return a JWT token
      */
-    public static String dummyToken() {
-        return String.format("header.%s.signature",
-                toCompact(JwtBody.builder().expirationTime(Long.MAX_VALUE).build()));
+    public static String createDummyToken() {
+        return createTokenWithDummyMetadata(JwtBody.builder()
+                .subject("some-subject")
+                .audience("some-audience")
+                .issuedAtTime(Instant.now().getEpochSecond())
+                .expirationTime(Instant.now().plusSeconds(1000).getEpochSecond())
+                .build());
+    }
+
+    /**
+     * Creates an empty dummy JWT token in compact format.
+     * @return a JWT token
+     */
+    public static String createEmptyDummyToken() {
+        return createTokenWithDummyMetadata(JwtBody.builder().build());
+
+    }
+
+    /**
+     * Creates a dummy JWT token with no expiration set.
+     *
+     * @return a JWT token
+     */
+    public static String createDummyTokenWithNoExpiry() {
+        return createTokenWithDummyMetadata(JwtBody.builder()
+                .subject("some-subject")
+                .audience("some-audience")
+                .issuedAtTime(Instant.now().getEpochSecond())
+                .build());
     }
 }
