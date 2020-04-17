@@ -455,7 +455,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Override
     public void write(PendingEvent event) {
         //State is set to sealed during a Transaction abort and the segment writer should not throw an {@link IllegalStateException} in such a case.
-        checkState(NameUtils.isTransactionSegment(segmentName) || !state.isAlreadySealed(), "Segment: %s is already sealed", segmentName);
+        checkState(!state.isAlreadySealed() || NameUtils.isTransactionSegment(segmentName), "Segment: %s is already sealed", segmentName);
         synchronized (writeOrderLock) {
             ClientConnection connection;
             try {
