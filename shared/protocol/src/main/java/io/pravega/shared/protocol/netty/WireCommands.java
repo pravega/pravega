@@ -29,7 +29,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.Accessors;
 
@@ -791,7 +795,10 @@ public final class WireCommands {
         }
     }
 
-    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    @Getter
+    @ToString
+    @EqualsAndHashCode(exclude = "mustRelease")
     public static final class SegmentRead implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_READ;
         final String segment;
@@ -800,6 +807,11 @@ public final class WireCommands {
         final boolean endOfSegment;
         final ByteBuf data;
         final long requestId;
+        private final boolean mustRelease;
+
+        public SegmentRead(String segment, long offset, boolean atTail, boolean endOfSegment, ByteBuf data, long requestId) {
+            this(segment, offset, atTail, endOfSegment, data, requestId, false);
+        }
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -829,7 +841,13 @@ public final class WireCommands {
             }
             ByteBuf data = in.readFully(dataLength).retain();
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new SegmentRead(segment, offset, atTail, endOfSegment, data, requestId);
+            return new SegmentRead(segment, offset, atTail, endOfSegment, data, requestId, true);
+        }
+
+        public void release() {
+            if (this.mustRelease) {
+                this.data.release();
+            }
         }
 
         @Override

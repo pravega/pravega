@@ -517,12 +517,36 @@ public class WireCommandsTest {
     public void testSegmentRead() throws IOException {
         testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buf, l));
     }
-    
+
+    @Test
+    public void testSegmentReadRelease() throws IOException {
+        // If we pass in the buffer ourselves, there should be no need to release.
+        int originalRefCnt = buf.refCnt();
+        WireCommands.SegmentRead sr = new WireCommands.SegmentRead(testString1, l, true, false, buf, l);
+        assertFalse(sr.isMustRelease());
+        sr.release();
+        assertEquals(originalRefCnt, buf.refCnt());
+
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        sr.writeFields(new DataOutputStream(bout));
+        ByteBuf buf = Unpooled.wrappedBuffer(bout.toByteArray());
+        WireCommands.SegmentRead read = (WireCommands.SegmentRead) WireCommands.SegmentRead.readFrom(new EnhancedByteBufInputStream(buf), bout.size());
+        assertTrue(read.isMustRelease());
+        assertEquals(2, read.getData().refCnt());
+        assertEquals(2, buf.refCnt());
+        buf.release();
+        assertEquals(1, read.getData().refCnt());
+        assertEquals(1, buf.refCnt());
+        read.release();
+        assertEquals(0, read.getData().refCnt());
+        assertEquals(0, buf.refCnt());
+    }
+
     @Test
     public void testUpdateSegmentAttribute() throws IOException {
         testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, l, l, ""));
     }
-    
+
     @Test
     public void testSegmentAttributeUpdated() throws IOException {
         testCommand(new WireCommands.SegmentAttributeUpdated(l, true));

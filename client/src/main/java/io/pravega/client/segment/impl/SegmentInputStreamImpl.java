@@ -151,13 +151,14 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         }
         verifyIsAtCorrectOffset(segmentRead);
         if (segmentRead.getData().readableBytes() > 0) {
-            int copied = buffer.fill(segmentRead.getData().nioBuffer());
+            int copied = buffer.fill(segmentRead.getData().nioBuffers());
             segmentRead.getData().skipBytes(copied);
         }
         if (segmentRead.isEndOfSegment()) {
             receivedEndOfSegment = true;
         }
         if (segmentRead.getData().readableBytes() == 0) {
+            segmentRead.release();
             outstandingRequest = null;
             issueRequestIfNeeded();
         }

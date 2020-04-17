@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Cleanup;
@@ -760,9 +761,10 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     /**
      * Returns a {@link BufferView} which contains the data needing to be flushed to Storage.
      *
-     * @return A {@link BufferView} to flush.
+     * @return A {@link BufferView} to flush or null if the segment was deleted.
      * @throws DataCorruptionException If a unable to retrieve required data from the Data Source.
      */
+    @Nullable
     private BufferView getFlushData() throws DataCorruptionException {
         StorageOperation first = this.operations.getFirst();
         if (!(first instanceof AggregatedAppendOperation)) {
