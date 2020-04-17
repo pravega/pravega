@@ -77,12 +77,14 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -159,16 +161,16 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testSetupTokenExpiryTaskInformsClientIfTokenHasExpired() throws InterruptedException {
+    public void testSetupTokenExpiryTaskInformsClientIfTokenHasExpired() {
         // Arrange
         String streamSegmentName = "scope/stream/0.#epoch.0";
         UUID clientId = UUID.randomUUID();
 
-        StreamSegmentStore store = mock(StreamSegmentStore.class);
-        ServerConnection connection = mock(ServerConnection.class);
+        StreamSegmentStore mockStore = mock(StreamSegmentStore.class);
+        ServerConnection mockConnection = mock(ServerConnection.class);
         AppendProcessor processor = AppendProcessor.defaultBuilder()
-                .store(store)
-                .connection(connection)
+                .store(mockStore)
+                .connection(mockConnection)
                 .build();
 
         // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
@@ -183,8 +185,55 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         mockProcessor.setupTokenExpiryTask(setupAppend).join();
 
         // Assert
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(setupAppend.getRequestId(),
+        verify(mockConnection).send(new WireCommands.AuthTokenCheckFailed(setupAppend.getRequestId(),
                 any(), WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+    }
+
+    @Test
+    public void testSetupTokenExpiryWhenConnectionSendThrowsException() {
+        // Arrange
+        String streamSegmentName = "scope/stream/0.#epoch.0";
+        UUID clientId = UUID.randomUUID();
+
+        StreamSegmentStore mockStore = mock(StreamSegmentStore.class);
+        ServerConnection mockConnection = mock(ServerConnection.class);
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                .store(mockStore)
+                .connection(mockConnection)
+                .build();
+
+        // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
+        AppendProcessor mockProcessor = spy(processor);
+        doReturn(true).when(mockProcessor).isSetupAppendCompleted(streamSegmentName, clientId);
+        doReturn(Duration.ofMillis(1)).when(mockProcessor).durationToExpiry(any());
+        doThrow(new RuntimeException()).when(mockConnection).send(any());
+
+        String delegationToken = JwtTestUtils.dummyToken();
+        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, delegationToken);
+
+        // Act
+        mockProcessor.setupTokenExpiryTask(setupAppend).join();
+    }
+
+    @Test
+    public void testDurationToExpiry() {
+        // Arrange
+        String streamSegmentName = "scope/stream/0.#epoch.0";
+        UUID clientId = UUID.randomUUID();
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                .store(store)
+                .connection(connection)
+                .build();
+
+        String delegationToken = JwtTestUtils.createTokenWithDummyMetadata(
+                JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build());
+        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, delegationToken);
+
+        Duration objectUnderTest = processor.durationToExpiry(setupAppend);
+        assertTrue(objectUnderTest.getSeconds() > 0);
     }
 
     @Test

@@ -72,6 +72,13 @@ public class JwtUtilsTest {
     }
 
     @Test
+    public void testExpirationTimeIsNullIfJwtDoesNotHaveThreeParts() {
+        assertNull(JwtUtils.extractExpirationTime("A.B"));
+        assertNull(JwtUtils.extractExpirationTime("A"));
+        assertNull(JwtUtils.extractExpirationTime("A.B.C.D"));
+    }
+
+    @Test
     public void testReturnsNullExpirationTimeForNullToken() {
           assertNull(JwtUtils.extractExpirationTime(null));
     }
@@ -142,6 +149,4 @@ public class JwtUtilsTest {
         System.out.println(duration.getSeconds());
         assertTrue("Duration is not negative", duration.isNegative());
     }
-
-
 }

@@ -49,7 +49,7 @@ public class JwtUtils {
         }
         String[] tokenParts = jsonWebToken.split("\\.");
 
-        //A JWT token has 3 parts: the header, the body and the signature.
+        // A JWT token has 3 parts: the header, the body and the signature.
         if (tokenParts == null || tokenParts.length != 3) {
             return null;
         }
@@ -95,7 +95,8 @@ public class JwtUtils {
                         result = Long.parseLong(expiryTimeFieldParts[1].trim());
                     } catch (NumberFormatException e) {
                         // ignore
-                        log.warn("Unable to parse JWT body for expiration time: {}", e.getMessage());
+                        log.warn("Unable to parse JWT body for expiration time: [{}]", expiryTimeFieldParts[1],
+                                e.getMessage());
                     }
                 }
             }

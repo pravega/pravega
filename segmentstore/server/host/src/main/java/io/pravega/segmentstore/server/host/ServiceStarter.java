@@ -114,8 +114,7 @@ public final class ServiceStarter {
                                                       this.serviceConfig.getListeningPort(), service, tableStoreService,
                                                       autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
-                                                      this.serviceConfig.isReplyWithStackTraceOnError(),
-                                                      this.serviceBuilder.getCoreExecutor());
+                                                      this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getCoreExecutor());
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
