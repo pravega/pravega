@@ -814,7 +814,7 @@ public final class WireCommands {
             out.writeBoolean(endOfSegment);
             int dataLength = data.readableBytes();
             out.writeInt(dataLength);
-            this.data.readBytes((OutputStream) out, dataLength);
+            this.data.getBytes(this.data.readerIndex(), (OutputStream) out, dataLength);
             out.writeLong(requestId);
         }
 
@@ -1726,6 +1726,7 @@ public final class WireCommands {
             return new TableKeysRemoved(requestId, segment);
         }
     }
+
 
     @Data
     public static final class ReadTable implements Request, WireCommand {
