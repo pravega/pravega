@@ -75,7 +75,7 @@ public final class WireCommands {
 
     @FunctionalInterface
     interface Constructor {
-        WireCommand readFrom(ByteBufInputStream in, int length) throws IOException;
+        WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException;
     }
 
     @Data
@@ -818,7 +818,7 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
             String segment = in.readUTF();
             long offset = in.readLong();
             boolean atTail = in.readBoolean();
@@ -827,10 +827,9 @@ public final class WireCommands {
             if (dataLength > length) {
                 throw new BufferOverflowException();
             }
-            byte[] data = new byte[dataLength];
-            in.readFully(data);
-            long requestId =  in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new SegmentRead(segment, offset, atTail, endOfSegment, Unpooled.wrappedBuffer(data), requestId);
+            ByteBuf data = in.readFully(dataLength).retain();
+            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            return new SegmentRead(segment, offset, atTail, endOfSegment, data, requestId);
         }
 
         @Override

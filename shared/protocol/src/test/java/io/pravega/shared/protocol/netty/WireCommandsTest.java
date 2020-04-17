@@ -773,13 +773,13 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         command.writeFields(new DataOutputStream(bout));
         byte[] array = bout.toByteArray();
-        WireCommand read = command.getType().readFrom(new ByteBufInputStream(Unpooled.wrappedBuffer(array)),
+        WireCommand read = command.getType().readFrom(new EnhancedByteBufInputStream(Unpooled.wrappedBuffer(array)),
                                                       array.length);
         assertEquals(command, read);
     }
 
     private void testCommandFromByteArray(byte[] bytes, WireCommand compatibleCommand) throws IOException {
-        WireCommand read = compatibleCommand.getType().readFrom(new ByteBufInputStream(Unpooled.wrappedBuffer(bytes)),
+        WireCommand read = compatibleCommand.getType().readFrom(new EnhancedByteBufInputStream(Unpooled.wrappedBuffer(bytes)),
                 bytes.length);
         assertEquals(compatibleCommand, read);
     }
