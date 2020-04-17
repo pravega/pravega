@@ -29,18 +29,20 @@ import java.util.function.Supplier;
  */
 public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private static final int MAX_BATCH_TIME_MILLIS = 100;
-    private static final int TARGET_TARGET_BATCH_TIME_MILLIS = 7;
-    private static final int MAX_TARGET_BATCH_TIME_MILLIS = 20;
     private static final double NANOS_PER_MILLI = 1000000;
+    
+    private static final int BASE_TIME_NANOS = 660000;
+    private static final int BASE_SIZE = 32 * 1024;
+    private static final double OUTSTANDING_FRACTION = 0.66;
     
     private final Supplier<Long> clock;
     private final AtomicLong lastAppendNumber;
     private final AtomicLong lastAppendTime;
     private final AtomicLong lastAckNumber;
-    private final ExponentialMovingAverage eventSize = new ExponentialMovingAverage(1024, 0.1, true);
-    private final ExponentialMovingAverage nanosBetweenAppends = new ExponentialMovingAverage(10 * NANOS_PER_MILLI, 0.001, true);
-    private final ExponentialMovingAverage appendsOutstanding = new ExponentialMovingAverage(20, 0.01, false);
-
+    private final ExponentialMovingAverage eventSize = new ExponentialMovingAverage(1024, 0.01, true);
+    private final ExponentialMovingAverage nanosBetweenAppends = new ExponentialMovingAverage(10 * NANOS_PER_MILLI, 0.0001, false);
+    private final ExponentialMovingAverage appendsOutstanding = new ExponentialMovingAverage(20, 0.0001, false);
+    
     public AppendBatchSizeTrackerImpl() {
         clock = System::nanoTime;
         lastAppendTime = new AtomicLong(clock.get());
@@ -54,6 +56,7 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         long last = lastAppendTime.getAndSet(now);
         lastAppendNumber.set(eventNumber);
         nanosBetweenAppends.addNewSample(now - last);
+        appendsOutstanding.addNewSample(eventNumber - lastAckNumber.get());
         eventSize.addNewSample(size);
     }
 
@@ -61,7 +64,6 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     public long recordAck(long eventNumber) {
         lastAckNumber.getAndSet(eventNumber);
         long outstandingAppendCount = lastAppendNumber.get() - eventNumber;
-        appendsOutstanding.addNewSample(outstandingAppendCount);
         return outstandingAppendCount;
     }
 
@@ -75,12 +77,10 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         if (numInflight <= 1) {
             return 0;
         }
-        double appendsPerMilli = NANOS_PER_MILLI / nanosBetweenAppends.getCurrentValue();
-        double appendsInMaxBatch = Math.max(1.0, MAX_TARGET_BATCH_TIME_MILLIS * appendsPerMilli);
-        double appendsInTargetBatch = Math.max(1.0, TARGET_TARGET_BATCH_TIME_MILLIS * appendsPerMilli);
-        double targetAppendsOutstanding = MathHelpers.minMax((appendsOutstanding.getCurrentValue() + appendsInTargetBatch) * 0.5,
-                                                             1.0, appendsInMaxBatch);
-        return (int) MathHelpers.minMax((long) (targetAppendsOutstanding * eventSize.getCurrentValue()), 0, MAX_BATCH_SIZE);
+        double appendsInTime = Math.max(1.0, BASE_TIME_NANOS / nanosBetweenAppends.getCurrentValue());
+        double appendsInBatch = (appendsOutstanding.getCurrentValue() * OUTSTANDING_FRACTION + appendsInTime);
+        int size = (int) (appendsInBatch * eventSize.getCurrentValue()) + BASE_SIZE;
+        return MathHelpers.minMax(size, 0, MAX_BATCH_SIZE);
     }
 
     @Override
