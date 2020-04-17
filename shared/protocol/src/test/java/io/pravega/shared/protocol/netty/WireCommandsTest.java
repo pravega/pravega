@@ -515,7 +515,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSegmentRead() throws IOException {
-        testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buffer, l));
+        testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buf, l));
     }
     
     @Test

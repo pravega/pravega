@@ -107,6 +107,13 @@ public interface BufferView {
     }
 
     /**
+     * Gets a list of {@link ByteBuffer} that represent the contents of this {@link BufferView}.
+     *
+     * @return A List of {@link ByteBuffer}.
+     */
+    List<ByteBuffer> getContents();
+
+    /**
      * Wraps the given {@link BufferView} into a single instance.
      *
      * @param components The components to wrap.

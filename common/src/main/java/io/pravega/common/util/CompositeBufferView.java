@@ -127,6 +127,16 @@ class CompositeBufferView implements BufferView {
     }
 
     @Override
+    public List<ByteBuffer> getContents() {
+        ArrayList<ByteBuffer> result = new ArrayList<>(this.components.size());
+        for (BufferView c : this.components) {
+            result.addAll(c.getContents());
+        }
+
+        return result;
+    }
+
+    @Override
     public void retain() {
         this.components.forEach(BufferView::retain);
     }

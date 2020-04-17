@@ -150,20 +150,21 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             throw e;
         }
         verifyIsAtCorrectOffset(segmentRead);
-        if (segmentRead.getData().hasRemaining()) {
-            buffer.fill(segmentRead.getData());
+        if (segmentRead.getData().readableBytes() > 0) {
+            int copied = buffer.fill(segmentRead.getData().nioBuffer());
+            segmentRead.getData().skipBytes(copied);
         }
         if (segmentRead.isEndOfSegment()) {
             receivedEndOfSegment = true;
         }
-        if (!segmentRead.getData().hasRemaining()) {
+        if (segmentRead.getData().readableBytes() == 0) {
             outstandingRequest = null;
             issueRequestIfNeeded();
         }
     }
 
     private void verifyIsAtCorrectOffset(WireCommands.SegmentRead segmentRead) {
-        long offsetRead = segmentRead.getOffset() + segmentRead.getData().position();
+        long offsetRead = segmentRead.getOffset() + segmentRead.getData().readerIndex();
         long expectedOffset = offset + buffer.dataAvailable();
         checkState(offsetRead == expectedOffset, "ReadSegment returned data for the wrong offset %s vs %s", offsetRead,
                    expectedOffset);
@@ -233,7 +234,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         boolean atEnd = receivedEndOfSegment || receivedTruncated || (outstandingRequest != null && outstandingRequest.isCompletedExceptionally());
         if (outstandingRequest != null && Futures.isSuccessful(outstandingRequest)) {
             SegmentRead request = outstandingRequest.join();
-            result += request.getData().remaining();
+            result += request.getData().readableBytes();
             atEnd |= request.isEndOfSegment();
         }
         if (result <= 0 && atEnd) {

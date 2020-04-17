@@ -17,6 +17,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.NonNull;
 
@@ -69,6 +71,11 @@ public class ByteBufWrapper implements BufferView {
         if (this.buf.refCnt() > 0) {
             this.buf.release();
         }
+    }
+
+    @Override
+    public List<ByteBuffer> getContents() {
+        return Arrays.asList(this.buf.nioBuffers());
     }
 
     @Override

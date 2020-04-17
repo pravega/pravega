@@ -47,7 +47,6 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -180,7 +179,7 @@ public class PravegaRequestProcessorTest {
         // Execute and Verify readSegment calling stack in connection and store is executed as design.
         processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
-        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(data), requestId));
+        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, Unpooled.wrappedBuffer(data), requestId));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         entry2.complete(new ByteArraySegment(data));
@@ -209,7 +208,7 @@ public class PravegaRequestProcessorTest {
         // Execute and Verify readSegment calling stack in connection and store is executed as design.
         processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
-        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, false, true, ByteBuffer.wrap(new byte[0]), requestId));
+        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, false, true, Unpooled.EMPTY_BUFFER, requestId));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -233,7 +232,7 @@ public class PravegaRequestProcessorTest {
         processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
         // Since the underlying store cancels the read request verify if an empty SegmentRead Wirecommand is sent as a response.
-        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(new byte[0]), requestId));
+        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, Unpooled.EMPTY_BUFFER, requestId));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }

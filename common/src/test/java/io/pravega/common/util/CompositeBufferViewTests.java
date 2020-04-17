@@ -22,6 +22,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -47,6 +49,10 @@ public class CompositeBufferViewTests {
         Assert.assertEquals(b1.getLength() + b2.getLength(), composite.getLength());
         AssertExtensions.assertStreamEquals("",
                 new SequenceInputStream(b1.getReader(), b2.getReader()), composite.getReader(), composite.getLength());
+
+        val contentBufs = composite.getContents();
+        val expectedContentBufs = Stream.of(b1, b2).flatMap(b -> b.getContents().stream()).collect(Collectors.toList());
+        AssertExtensions.assertListEquals("", expectedContentBufs, contentBufs, ByteBuffer::equals);
     }
 
     /**
@@ -64,6 +70,10 @@ public class CompositeBufferViewTests {
         AssertExtensions.assertStreamEquals("",
                 new SequenceInputStream(Iterators.asEnumeration(Arrays.asList(b1.getReader(), b2.getReader(), b3.getReader()).iterator())),
                 c2.getReader(), c2.getLength());
+
+        val contentBufs = c2.getContents();
+        val expectedContentBufs = Stream.of(b1, b2, b3).flatMap(b -> b.getContents().stream()).collect(Collectors.toList());
+        AssertExtensions.assertListEquals("", expectedContentBufs, contentBufs, ByteBuffer::equals);
     }
 
     /**

@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.BufferOverflowException;
-import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -799,7 +798,7 @@ public final class WireCommands {
         final long offset;
         final boolean atTail; //TODO: Is sometimes false when actual state is unknown.
         final boolean endOfSegment;
-        final ByteBuffer data;
+        final ByteBuf data;
         final long requestId;
 
         @Override
@@ -813,9 +812,9 @@ public final class WireCommands {
             out.writeLong(offset);
             out.writeBoolean(atTail);
             out.writeBoolean(endOfSegment);
-            int dataLength = data.remaining();
+            int dataLength = data.readableBytes();
             out.writeInt(dataLength);
-            out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
+            this.data.readBytes((OutputStream) out, dataLength);
             out.writeLong(requestId);
         }
 
@@ -831,7 +830,7 @@ public final class WireCommands {
             byte[] data = new byte[dataLength];
             in.readFully(data);
             long requestId =  in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new SegmentRead(segment, offset, atTail, endOfSegment, ByteBuffer.wrap(data), requestId);
+            return new SegmentRead(segment, offset, atTail, endOfSegment, Unpooled.wrappedBuffer(data), requestId);
         }
 
         @Override

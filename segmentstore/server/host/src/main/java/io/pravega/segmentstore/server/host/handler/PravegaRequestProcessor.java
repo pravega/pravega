@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
@@ -127,7 +128,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
-    private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
     private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore segmentStore;
     private final TableStore tableStore;
@@ -232,10 +232,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         if (!cachedEntries.isEmpty() || endOfSegment) {
             // We managed to collect some data. Send it.
-            ByteBuffer data = copyData(cachedEntries);
+            ByteBuf data = getData(cachedEntries);
             SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data, request.getRequestId());
             connection.send(reply);
-            this.statsRecorder.read(segment, reply.getData().array().length);
+            this.statsRecorder.read(segment, reply.getData().readableBytes());
         } else if (truncated) {
             // We didn't collect any data, instead we determined that the current read offset was truncated.
             // Determine the current Start Offset and send that back.
@@ -250,12 +250,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             nonCachedEntry.requestContent(TIMEOUT);
             nonCachedEntry.getContent()
                     .thenAccept(contents -> {
-                        ByteBuffer data = copyData(Collections.singletonList(contents));
+                        ByteBuf data = getData(Collections.singletonList(contents));
                         SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(),
-                                                            false, endOfSegment,
-                                                            data, request.getRequestId());
+                                false, endOfSegment,
+                                data, request.getRequestId());
                         connection.send(reply);
-                        this.statsRecorder.read(segment, reply.getData().array().length);
+                        this.statsRecorder.read(segment, reply.getData().readableBytes());
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentTruncatedException) {
@@ -312,10 +312,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     /**
-     * Copy all of the contents provided into a byteBuffer and return it.
+     * Collect all the data from the given contents into a {@link ByteBuf}.
      */
-    private ByteBuffer copyData(List<BufferView> contents) {
-        return ByteBuffer.wrap(BufferView.wrap(contents).getCopy());
+    private ByteBuf getData(List<BufferView> contents) {
+        val compositeView = BufferView.wrap(contents);
+        val rawBuffers = compositeView.getContents();
+        val result = Unpooled.compositeBuffer(rawBuffers.size());
+        for (ByteBuffer b : rawBuffers) {
+            result.addComponent(Unpooled.wrappedBuffer(b));
+        }
+
+        return result.writerIndex(result.capacity()).resetReaderIndex();
     }
 
     @Override
@@ -930,8 +937,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             invokeSafely(connection::send, new WrongHost(requestId, segment, "", clientReplyStackTrace), failureHandler);
         } else if (u instanceof ReadCancellationException) {
             log.info(requestId, "Sending empty response on connection {} while reading segment {} due to CancellationException.",
-                     connection, segment);
-            invokeSafely(connection::send, new SegmentRead(segment, offset, true, false, EMPTY_BYTE_BUFFER, requestId), failureHandler);
+                    connection, segment);
+            invokeSafely(connection::send, new SegmentRead(segment, offset, true, false, EMPTY_BUFFER, requestId), failureHandler);
         } else if (u instanceof CancellationException) {
             log.info(requestId, "Closing connection {} while performing {} due to {}.",
                     connection, operation, u.toString());

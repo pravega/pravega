@@ -11,16 +11,16 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -110,7 +110,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                         segmentIsSealed.getOffset(),
                         true,
                         true,
-                        ByteBufferUtils.EMPTY,
+                        Unpooled.EMPTY_BUFFER,
                         segmentIsSealed.getRequestId()));
             }
         }
