@@ -49,7 +49,6 @@ import java.util.Map.Entry;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Cleanup;
 import lombok.Synchronized;
@@ -78,7 +77,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private final Map<Segment, Range> ranges = new HashMap<>();
     @GuardedBy("readers")
-    private final Map<SegmentWithRange, Long> sealedSegments = new HashMap<>();
+    private final Map<Segment, Long> sealedSegments = new HashMap<>();
     @GuardedBy("readers")
     private Sequence lastRead;
     @GuardedBy("readers")
@@ -172,10 +171,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     private PositionInternal getPosition() {
-        Map<SegmentWithRange, Long> positions = readers.stream()
-                .collect(Collectors.toMap(e -> new SegmentWithRange(e.getSegmentId(), ranges.get(e.getSegmentId())), e -> e.getOffset()));
-        sealedSegments.forEach((key, value) -> positions.put(key, -1L));
-        return new PositionImpl(positions);
+        Map<Segment, Long> ownedSegments = new HashMap<>(sealedSegments);
+        for (EventSegmentReader entry : readers) {
+            ownedSegments.put(entry.getSegmentId(), entry.getOffset());
+        }
+        return PositionImpl.builder().ownedSegments(ownedSegments).segmentRanges(new HashMap<>(ranges)).build();
     }
 
     /**
@@ -252,9 +252,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
      * Releases all sealed segments, unless there is a checkpoint pending for this reader.
      */
     private void releaseSealedSegments() throws ReaderNotInReaderGroupException {
-        for (Iterator<Entry<SegmentWithRange, Long>> iterator = sealedSegments.entrySet().iterator(); iterator.hasNext();) {
-            SegmentWithRange oldSegment = iterator.next().getKey();
-            if (groupState.handleEndOfSegment(oldSegment)) {
+        for (Iterator<Entry<Segment, Long>> iterator = sealedSegments.entrySet().iterator(); iterator.hasNext();) {
+            Segment oldSegment = iterator.next().getKey();
+            Range range = ranges.get(oldSegment);
+            if (groupState.handleEndOfSegment(new SegmentWithRange(oldSegment, range))) {
+                ranges.remove(oldSegment);
                 iterator.remove();
             } else {
                 break;
@@ -270,7 +272,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             for (Entry<SegmentWithRange, Long> newSegment : newSegments.entrySet()) {
                 long endOffset = groupState.getEndOffsetForSegment(newSegment.getKey().getSegment());
                 if (newSegment.getValue() < 0 || (newSegment.getValue() == endOffset && endOffset != Long.MAX_VALUE)) {
-                    sealedSegments.put(newSegment.getKey(), newSegment.getValue());
+                    sealedSegments.put(newSegment.getKey().getSegment(), newSegment.getValue());
+                    ranges.put(newSegment.getKey().getSegment(), newSegment.getKey().getRange());
                 } else {
                     Segment segment = newSegment.getKey().getSegment();
                     EventSegmentReader in = inputStreamFactory.createEventReaderForSegment(segment, config.getBufferSize(),
@@ -299,9 +302,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             Segment segmentId = oldSegment.getSegmentId();
         log.info("{} encountered end of segment {} ", this, oldSegment.getSegmentId());
         readers.remove(oldSegment);
-        Range range = ranges.remove(segmentId);
         oldSegment.close();
-        sealedSegments.put(new SegmentWithRange(segmentId, range), segmentSealed ? -1L : oldSegment.getOffset());
+        sealedSegments.put(segmentId, segmentSealed ? -1L : oldSegment.getOffset());
     }
     
     private void handleSegmentTruncated(EventSegmentReader segmentReader) throws TruncatedDataException {
