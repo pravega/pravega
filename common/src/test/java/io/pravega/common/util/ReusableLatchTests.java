@@ -10,6 +10,7 @@
 package io.pravega.common.util;
 
 import io.pravega.test.common.AssertExtensions;
+import org.junit.Assert;
 import org.junit.Test;
 
 public class ReusableLatchTests {
@@ -17,6 +18,7 @@ public class ReusableLatchTests {
     @Test(timeout = 5000)
     public void testRelease() {
         ReusableLatch latch = new ReusableLatch(false);
+        Assert.assertEquals(0, latch.getQueueLength());
         AssertExtensions.assertBlocks(() -> latch.awaitUninterruptibly(), () -> latch.release());
     }
     
