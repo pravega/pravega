@@ -177,6 +177,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * @return String.
      */
     String getClassName();
+
     /**
      * Lists all the segments stored on the storage device.
      *
