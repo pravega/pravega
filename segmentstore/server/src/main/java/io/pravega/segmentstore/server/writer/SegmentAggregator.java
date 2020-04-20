@@ -1303,28 +1303,28 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in Storage.
      */
     private CompletableFuture<WriterFlushResult> reconcileAppendOperation(AggregatedAppendOperation op, SegmentProperties storageInfo, TimeoutTimer timer) {
-        CompletableFuture<Boolean> reconcileResult;
+        CompletableFuture<Integer> reconcileResult;
         WriterFlushResult flushResult = new WriterFlushResult();
         if (op.getLength() > 0) {
             // This operation has data. Reconcile that first.
-            reconcileResult = reconcileData(op, storageInfo, timer)
-                    .thenApply(reconciledBytes -> {
-                        flushResult.withFlushedBytes(reconciledBytes);
-                        return reconciledBytes >= op.getLength() && op.getLastStreamSegmentOffset() <= storageInfo.getLength();
-                    });
+            reconcileResult = reconcileData(op, storageInfo, timer);
         } else {
             // No data to reconcile, so we consider this part done.
-            reconcileResult = CompletableFuture.completedFuture(true);
+            reconcileResult = CompletableFuture.completedFuture(0);
         }
 
-        return reconcileResult.thenApplyAsync(fullyReconciled -> {
-            if (fullyReconciled) {
+        return reconcileResult.thenApplyAsync(reconciledBytes -> {
+            StorageOperation firstOp = this.operations.getFirst();
+            assert op == firstOp : "Reconciled operation is not the same as removed operation";
+            op.reconcileComplete(reconciledBytes); // Reflect the reconciliation result in the operation.
+            if (op.getLength() == 0) {
                 // Operation has been completely validated; pop it off the list.
-                StorageOperation removedOp = this.operations.removeFirst();
-                assert op == removedOp : "Reconciled operation is not the same as removed operation";
+                assert op.getLastStreamSegmentOffset() <= storageInfo.getLength() : "Fully reconciled operation is not entirely in Storage.";
+                this.operations.removeFirst();
             }
-            return flushResult;
-        });
+
+            return flushResult.withFlushedBytes(reconciledBytes);
+        }, this.executor);
     }
 
     /**
@@ -1739,6 +1739,13 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         boolean isSealed() {
             return this.sealed.get();
+        }
+
+        void reconcileComplete(int reconciledBytes) {
+            Preconditions.checkArgument(reconciledBytes <= this.length.get(),
+                    "Attempted to reconcile more bytes than stored in this operation.");
+            this.streamSegmentOffset.addAndGet(reconciledBytes);
+            this.length.addAndGet(-reconciledBytes);
         }
 
         // region StorageOperation Implementation
