@@ -51,7 +51,16 @@ public class TimeoutTimer {
     public Duration getRemaining() {
         return timeout.minusNanos(getNanos.get() - initialNanos);
     }
-    
+
+    /**
+     * Returns a Duration of the time elapsed in Nanoseconds.
+     *
+     * @return The elapsed time.
+     */
+    public Duration getElapsed() {
+        return Duration.ofNanos(getNanos.get() - initialNanos);
+    }
+
     /**
      * Returns true if there is time remaining.
      *
