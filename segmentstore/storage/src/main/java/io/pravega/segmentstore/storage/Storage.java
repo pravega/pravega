@@ -171,6 +171,11 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      */
     boolean supportsTruncation();
 
+    /**
+     * Gets the name of the storage class.
+     *
+     * @return String.
+     */
     String getClassName();
     /**
      * Lists all the segments stored on the storage device.
