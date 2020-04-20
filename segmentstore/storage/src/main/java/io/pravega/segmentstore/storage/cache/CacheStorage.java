@@ -114,10 +114,11 @@ public interface CacheStorage extends AutoCloseable {
     /**
      * Sets a callback that will be invoked during {@link #insert} if there is insufficient capacity to add more entries.
      *
-     * @param cacheFullCallback The callback to invoke. This should return `true` if a cache cleanup was performed, and
-     *                          `false` otherwise.
+     * @param cacheFullCallback    The callback to invoke. This should return `true` if a cache cleanup was performed, and
+     *                             `false` otherwise.
+     * @param retryDelayBaseMillis The amount of time to wait between retries if cacheFullCallback returns `false`.
      */
-    void setCacheFullCallback(@NonNull Supplier<Boolean> cacheFullCallback);
+    void setCacheFullCallback(@NonNull Supplier<Boolean> cacheFullCallback, int retryDelayBaseMillis);
 
     /**
      * Closes this {@link CacheStorage} instance and releases all resources used by it.
