@@ -93,6 +93,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             Assert.assertTrue("Expected the segment to exist.", s.exists(segmentName, null).join());
         }
     }
+
     /**
      * Tests the exists API.
      */
