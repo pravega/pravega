@@ -29,6 +29,9 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
@@ -40,6 +43,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IOUtils;
@@ -186,7 +190,7 @@ class HDFSStorage implements SyncStorage {
         return exists;
     }
 
-    private boolean isSealed(Path path) throws FileNameFormatException {
+    private static boolean isSealed(Path path) throws FileNameFormatException {
         return getEpochFromPath(path) == MAX_EPOCH;
     }
 
@@ -487,6 +491,77 @@ class HDFSStorage implements SyncStorage {
         // return handle
         return HDFSSegmentHandle.write(streamSegmentName);
     }
+
+    @Override
+    public Iterator<SegmentProperties> listSegments() {
+        try {
+            return new HDFSSegmentIterator(this.fileSystem.listStatusIterator(new Path(config.getHdfsRoot() + Path.SEPARATOR)),
+                    fileStatus -> {
+                        // There has to be a better way than this!
+                        String fileName = fileStatus.getPath().getName();
+                        int index = fileName.lastIndexOf(PART_SEPARATOR);
+                        if (fileName.endsWith(PART_SEPARATOR + SEALED)) {
+                            return true;
+                        }
+                        try {
+                            Long.parseLong(fileName.substring(index + 1));
+                        } catch (NumberFormatException nfe) {
+                            return false;
+                        }
+                        return true;
+                    });
+        } catch (IOException e) {
+            log.error("Hit an exception: ", e);
+        }
+        return Collections.emptyIterator();
+    }
+
+    public static class HDFSSegmentIterator implements Iterator<SegmentProperties> {
+
+        RemoteIterator<FileStatus> results;
+        FileStatus current;
+        java.util.function.Predicate<FileStatus> patternMatchPredicate;
+
+        HDFSSegmentIterator(RemoteIterator<FileStatus> results, java.util.function.Predicate<FileStatus> patternMatchPredicate) {
+            this.results = results;
+            this.patternMatchPredicate = patternMatchPredicate;
+        }
+
+        @Override
+        public boolean hasNext() {
+            try {
+                if (results != null) {
+                    while (results.hasNext()) {
+                        current = results.next();
+                        if (patternMatchPredicate.test(current)) {
+                            return true;
+                        }
+                    }
+                }
+            } catch (IOException e) {
+
+            }
+            current = null;
+            return false;
+        }
+
+        @Override
+        public SegmentProperties next() {
+            if (null != current) {
+                try {
+                    boolean isSealed = isSealed(current.getPath());
+                    return StreamSegmentInformation.builder()
+                            .name(getSegmentNameFromPath(current.getPath()))
+                            .length(current.getLen())
+                            .sealed(isSealed).build();
+                } catch (FileNameFormatException e) {
+
+                }
+            }
+            throw new NoSuchElementException();
+        }
+    }
+
     //endregion
 
     //region Helpers
@@ -592,7 +667,16 @@ class HDFSStorage implements SyncStorage {
         return getEpochFromPath(status.getPath());
     }
 
-    private long getEpochFromPath(Path path) throws FileNameFormatException {
+    private static String getSegmentNameFromPath(Path path) throws FileNameFormatException {
+        String fileName = path.getName();
+        int pos2 = fileName.lastIndexOf(PART_SEPARATOR);
+        if (pos2 <= 0) {
+            throw new FileNameFormatException(fileName, "File must be in the following format: " + EXAMPLE_NAME_FORMAT);
+        }
+        return fileName.substring(0, pos2);
+    }
+
+    private static long getEpochFromPath(Path path) throws FileNameFormatException {
         String fileName = path.toString();
         int pos2 = fileName.lastIndexOf(PART_SEPARATOR);
         if (pos2 <= 0) {

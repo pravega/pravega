@@ -18,6 +18,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -119,6 +120,11 @@ public class AsyncStorageWrapper implements Storage {
     }
 
     @Override
+    public String getClassName() {
+        return this.syncStorage.getClass().getSimpleName();
+    }
+
+    @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
         return supplyAsync(() -> this.syncStorage.openRead(streamSegmentName), streamSegmentName);
     }
@@ -136,6 +142,11 @@ public class AsyncStorageWrapper implements Storage {
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
         return supplyAsync(() -> this.syncStorage.exists(streamSegmentName), streamSegmentName);
+    }
+
+    @Override
+    public CompletableFuture<Iterator<SegmentProperties>> listSegments() {
+        return CompletableFuture.completedFuture(this.syncStorage.listSegments());
     }
 
     //endregion
