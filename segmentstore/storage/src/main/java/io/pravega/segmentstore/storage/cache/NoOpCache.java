@@ -72,7 +72,7 @@ public class NoOpCache implements CacheStorage {
     }
 
     @Override
-    public void setCacheFullCallback(Supplier<Boolean> cacheFullCallback) {
+    public void setCacheFullCallback(Supplier<Boolean> cacheFullCallback, int millis) {
 
     }
 }
