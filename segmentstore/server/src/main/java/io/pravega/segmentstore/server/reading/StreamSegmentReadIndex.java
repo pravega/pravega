@@ -27,6 +27,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
+import io.pravega.segmentstore.storage.cache.CacheFullException;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -509,8 +510,14 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkArgument(offset + data.getLength() <= this.metadata.getStorageLength(), "entry",
                 "The given range of bytes (Offset=%s, Length=%s) does not correspond to the StreamSegment range that is in Storage (%s).",
                 offset, data.getLength(), this.metadata.getStorageLength());
-
-        addToCacheAndIndex(data, offset, this::insertEntriesToCacheAndIndex);
+        try {
+            addToCacheAndIndex(data, offset, this::insertEntriesToCacheAndIndex);
+        } catch (CacheFullException ex) {
+            // We have already ack-ed this request with the appropriate data to the upstream code, so it's not a problem
+            // if we cannot insert it into the cache due to the cache being full.
+            log.warn("{}: Unable to insert Storage Read data (Offset={}, Length={}) into the Cache. {}",
+                    this.traceObjectId, offset, data.getLength(), ex.getMessage());
+        }
     }
 
     /**
