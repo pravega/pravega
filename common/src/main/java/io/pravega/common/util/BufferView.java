@@ -53,6 +53,16 @@ public interface BufferView {
     InputStream getReader(int offset, int length);
 
     /**
+     * Equivalent to invoking {@link #slice(int, int)} with offset 0 and getLength(). Depending on the implementation,
+     * this may return this instance or a new instance that is a copy of this one but pointing to the same backing buffer.
+     *
+     * @return A {@link BufferView}.
+     */
+    default BufferView slice() {
+        return this;
+    }
+
+    /**
      * Creates a new {@link BufferView} that represents a sub-range of this {@link BufferView} instance. The new instance
      * will share the same backing buffer as this one, so a change to one will be reflected in the other.
      *
@@ -124,7 +134,7 @@ public interface BufferView {
         if (components.size() == 0) {
             return new ByteArraySegment(new byte[0]);
         } else if (components.size() == 1) {
-            return components.get(0);
+            return components.get(0).slice();
         } else {
             return new CompositeBufferView(components);
         }

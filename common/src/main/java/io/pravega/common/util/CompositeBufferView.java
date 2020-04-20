@@ -46,9 +46,11 @@ class CompositeBufferView implements BufferView {
         int length = 0;
         for (BufferView c : components) {
             if (c instanceof CompositeBufferView) {
-                this.components.addAll(((CompositeBufferView) c).components);
+                for (BufferView b : ((CompositeBufferView) c).components) {
+                    this.components.add(b.slice());
+                }
             } else {
-                this.components.add(c);
+                this.components.add(c.slice());
             }
             length += c.getLength();
         }
