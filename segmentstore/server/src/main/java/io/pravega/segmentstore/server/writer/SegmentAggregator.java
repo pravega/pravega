@@ -1308,8 +1308,8 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             op.reconcileComplete(reconciledBytes); // Reflect the reconciliation result in the operation.
             if (op.getLength() == 0) {
                 // Operation has been completely validated; pop it off the list.
-                StorageOperation firstOp = this.operations.removeFirst();
-                assert op == firstOp && op.getLastStreamSegmentOffset() <= storageInfo.getLength();
+                StorageOperation removedOp = this.operations.removeFirst();
+                assert op == removedOp : "Reconciled operation is not the same as removed operation";
             }
 
             return new WriterFlushResult().withFlushedBytes(reconciledBytes);
@@ -1731,8 +1731,6 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         }
 
         void reconcileComplete(int reconciledBytes) {
-            Preconditions.checkArgument(reconciledBytes <= this.length.get(),
-                    "Attempted to reconcile more bytes than stored in this operation.");
             this.streamSegmentOffset.addAndGet(reconciledBytes);
             this.length.addAndGet(-reconciledBytes);
         }
