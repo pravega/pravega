@@ -111,7 +111,16 @@ public class ReusableLatch {
             }
         }
     }
-    
+
+    /**
+     * Gets the number of threads waiting.
+     *
+     * @return The number of threads waiting.
+     */
+    public int getQueueLength() {
+        return this.impl.getQueueLength();
+    }
+
     @Override
     public String toString() {
         return "LatchReleased: " + released.get();
