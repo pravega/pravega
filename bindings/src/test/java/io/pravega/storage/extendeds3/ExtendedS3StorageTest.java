@@ -15,6 +15,7 @@ import com.emc.object.s3.bean.ObjectKey;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.DeleteObjectsRequest;
 import com.emc.object.util.ConfigUri;
+import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.Property;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -42,6 +43,7 @@ import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -139,7 +141,9 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             String str = "0123456789";
             int totalBytesWritten = 0;
             for (int i = 1; i < 5; i++) {
-                storage.write(handleA, totalBytesWritten, new ByteArrayInputStream(str.getBytes()), i, null).join();
+                try (BoundedInputStream bis = new BoundedInputStream(new ByteArrayInputStream(str.getBytes()), i)) {
+                    storage.write(handleA, totalBytesWritten, bis, i, null).join();
+                }
                 totalBytesWritten += i;
                 assertEquals(totalBytesWritten, ExtendedS3Metrics.WRITE_BYTES.get());
                 assertEquals(i, ExtendedS3Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
@@ -181,10 +185,66 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             assertEquals(2, ExtendedS3Metrics.DELETE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
             assertTrue(0 < ExtendedS3Metrics.DELETE_LATENCY.toOpStatsData().getAvgLatencyMillis());
 
-        } finally {
-
         }
+    }
 
+    /**
+     * Tests fix for https://github.com/pravega/pravega/issues/4591.
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testExistsWithPrefix() throws Exception {
+        val adapterConfig = ExtendedS3StorageConfig.builder()
+                .with(ExtendedS3StorageConfig.CONFIGURI, setup.configUri)
+                .with(ExtendedS3StorageConfig.BUCKET, setup.adapterConfig.getBucket())
+                .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
+                .with(ExtendedS3StorageConfig.USENONEMATCH, true)
+                .build();
+
+        String segmentName1 = "issue4591";
+        String segmentName2 = "normal";
+        try (Storage s = createStorage(setup.client, adapterConfig, executorService())) {
+            s.initialize(DEFAULT_EPOCH);
+
+            // No segment should exist
+            assertFalse(s.exists(segmentName1, null).get());
+            assertFalse(s.exists(segmentName1 + "$index", null).get());
+            assertFalse(s.exists(segmentName2, null).get());
+
+            // Create and verify
+            s.create(segmentName2, null).join();
+            assertTrue(s.exists(segmentName2, null).get());
+
+            s.create(segmentName1 + "$index", null).join();
+            assertTrue(s.exists(segmentName1 + "$index", null).get());
+
+            // Verify with prefix
+            assertFalse(s.exists(segmentName1, null).get());
+            assertFalse(s.exists(segmentName1 + "$header", null).get());
+        }
+    }
+
+    /**
+     * Tests the concat() method forcing to use multipart upload.
+     *
+     * @throws Exception if an unexpected error occurred.
+     */
+    @Test
+    public void testConcatWithMultipartUpload() throws Exception {
+        val adapterConfig = ExtendedS3StorageConfig.builder()
+                .with(ExtendedS3StorageConfig.CONFIGURI, setup.configUri)
+                .with(ExtendedS3StorageConfig.BUCKET, setup.adapterConfig.getBucket())
+                .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
+                .with(ExtendedS3StorageConfig.USENONEMATCH, true)
+                .with(ExtendedS3StorageConfig.SMALL_OBJECT_THRESHOLD, 1)
+                .build();
+        final String context = createSegmentName("Concat");
+        assertEquals(0, ExtendedS3Metrics.LARGE_CONCAT_COUNT.get());
+        try (Storage s = createStorage(setup.client, adapterConfig, executorService())) {
+            testConcat(context, s);
+            assertTrue(ExtendedS3Metrics.LARGE_CONCAT_COUNT.get() > 0);
+            assertEquals(ExtendedS3Metrics.CONCAT_COUNT.get(), ExtendedS3Metrics.LARGE_CONCAT_COUNT.get());
+        }
     }
 
     private static Storage createStorage(S3Client client, ExtendedS3StorageConfig adapterConfig, Executor executor) {

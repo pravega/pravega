@@ -19,6 +19,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +40,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
 
     @GuardedBy("$lock")
     private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
+    @Getter(value = AccessLevel.MODULE)
     private final SegmentInputStream in;
 
     EventSegmentReaderImpl(SegmentInputStream input) {
@@ -115,7 +118,8 @@ class EventSegmentReaderImpl implements EventSegmentReader {
     }
 
     private void readEventDataFromSegmentInputStream(ByteBuffer result) throws EndOfSegmentException, SegmentTruncatedException, TimeoutException {
-        if (in.read(result, PARTIAL_DATA_TIMEOUT) == 0) {
+        //SSS can return empty events incase of @link{io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor.ReadCancellationException}
+        if (in.read(result, PARTIAL_DATA_TIMEOUT) == 0 && result.limit() != 0) {
             log.warn("Timeout while trying to read Event data from segment {} at offset {}. The buffer capacity is {} bytes and the data read so far is {} bytes",
                     in.getSegmentId(), in.getOffset(), result.limit(), result.position());
             throw new TimeoutException("Timeout while trying to read event data");

@@ -69,6 +69,7 @@ init_tier2() {
     add_system_property_ecs_config_uri "extendeds3.configUri" "${EXTENDEDS3_CONFIGURI}" "${EXTENDEDS3_ACCESS_KEY_ID}" "${EXTENDEDS3_SECRET_KEY}"
     add_system_property "extendeds3.bucket" "${EXTENDEDS3_BUCKET}"
     add_system_property "extendeds3.prefix" "${EXTENDEDS3_PREFIX}"
+    add_certs_into_truststore
     ;;
     esac
 }

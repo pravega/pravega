@@ -33,4 +33,5 @@ final class ExtendedS3Metrics {
     static final Counter CREATE_COUNT = EXTENDED_S3_LOGGER.createCounter(MetricsNames.STORAGE_CREATE_COUNT);
     static final Counter DELETE_COUNT = EXTENDED_S3_LOGGER.createCounter(MetricsNames.STORAGE_DELETE_COUNT);
     static final Counter CONCAT_COUNT = EXTENDED_S3_LOGGER.createCounter(MetricsNames.STORAGE_CONCAT_COUNT);
+    static final Counter LARGE_CONCAT_COUNT = EXTENDED_S3_LOGGER.createCounter(MetricsNames.STORAGE_LARGE_CONCAT_COUNT);
 }

@@ -183,6 +183,7 @@ public final class ServiceStarter {
                         this.zkClient,
                         new Host(this.serviceConfig.getPublishedIPAddress(),
                                 this.serviceConfig.getPublishedPort(), null),
+                        this.serviceConfig.getParallelContainerStarts(),
                         setup.getCoreExecutor()));
     }
 
