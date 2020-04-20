@@ -10,11 +10,17 @@
 package io.pravega.segmentstore.server.logs;
 
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
+import io.pravega.shared.MetricsNames;
+import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.MetricsTags;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Random;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -36,13 +42,13 @@ import org.junit.Test;
  * Unit tests for the {@link Throttler} class.
  */
 public class ThrottlerTests extends ThreadPooledTestSuite {
-    private static final int CONTAINER_ID = 1;
     private static final ThrottlerCalculator.ThrottlerName THROTTLER_NAME = ThrottlerCalculator.ThrottlerName.Cache;
     private static final int MAX_THROTTLE_MILLIS = ThrottlerCalculator.MAX_DELAY_MILLIS;
     private static final int NON_MAX_THROTTLE_MILLIS = MAX_THROTTLE_MILLIS - 1;
     private static final int TIMEOUT_MILLIS = 10000;
     private static final int SHORT_TIMEOUT_MILLIS = 50;
     private SegmentStoreMetrics.OperationProcessor metrics;
+    private int containerId = 1;
 
     @Override
     protected int getThreadPoolSize() {
@@ -51,7 +57,12 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
 
     @Before
     public void setUp() {
-        this.metrics = new SegmentStoreMetrics.OperationProcessor(CONTAINER_ID);
+        this.containerId = new Random().nextInt(Integer.MAX_VALUE);
+        MetricsProvider.initialize(MetricsConfig.builder()
+                                                .with(MetricsConfig.ENABLE_STATISTICS, true)
+                                                .build());
+        MetricsProvider.getMetricsProvider().startWithoutExporting();
+        this.metrics = new SegmentStoreMetrics.OperationProcessor(this.containerId);
     }
 
     @After
@@ -67,7 +78,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         val delays = Collections.<Integer>synchronizedList(new ArrayList<>());
         val calculator = new TestCalculatorThrottler(THROTTLER_NAME);
         @Cleanup
-        Throttler t = new AutoCompleteTestThrottler(CONTAINER_ID, wrap(calculator), executorService(), metrics, delays::add);
+        Throttler t = new AutoCompleteTestThrottler(this.containerId, wrap(calculator), executorService(), metrics, delays::add);
 
         calculator.setThrottlingRequired(false);
         Assert.assertFalse("Not expecting any throttling to be required.", t.isThrottlingRequired());
@@ -82,13 +93,15 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     /**
      * Tests the case when {@link ThrottlerCalculator#getThrottlingDelay()} returns a value which does not warrant repeated
      * delays (i.e., not maximum delay)
+     *
+     * @throws Exception
      */
     @Test
     public void testSingleDelay() throws Exception {
         val delays = Collections.<Integer>synchronizedList(new ArrayList<>());
         val calculator = new TestCalculatorThrottler(THROTTLER_NAME);
         @Cleanup
-        Throttler t = new AutoCompleteTestThrottler(CONTAINER_ID, wrap(calculator), executorService(), metrics, delays::add);
+        Throttler t = new AutoCompleteTestThrottler(this.containerId, wrap(calculator), executorService(), metrics, delays::add);
 
         // Set a non-maximum delay and ask to throttle, then verify we throttled the correct amount.
         calculator.setDelayMillis(NON_MAX_THROTTLE_MILLIS);
@@ -100,6 +113,8 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     /**
      * Tests the case when {@link ThrottlerCalculator#getThrottlingDelay()} returns a value which requires repeated
      * delays (Maximum Delay == True).
+     *
+     * @throws Exception
      */
     @Test
     public void testMaximumDelay() throws Exception {
@@ -117,7 +132,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         // block as long as necessary; at each throttle cycle it should check the calculator for a new value, which we
         // will decrease an expect to unblock once we got a value smaller than MAX.
         @Cleanup
-        Throttler t = new AutoCompleteTestThrottler(CONTAINER_ID, wrap(calculator), executorService(), metrics, recordDelay);
+        Throttler t = new AutoCompleteTestThrottler(this.containerId, wrap(calculator), executorService(), metrics, recordDelay);
         calculator.setDelayMillis(nextDelay.get());
         t.throttle().get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected number of delays recorded.", repeatCount, delays.size());
@@ -128,7 +143,45 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the case when an interruption is called on an uninterruptible throttling source.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testUninterruptibleDelay() throws Exception {
+        // Supply monotonically decreasing delays.
+        val suppliedDelays = Arrays.asList(2000);
+        val delays = Collections.<Integer>synchronizedList(new ArrayList<>());
+        val calculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Batching);
+        val nextDelay = suppliedDelays.iterator();
+        Consumer<Integer> recordDelay = delayMillis -> {
+            delays.add(delayMillis);
+            calculator.setDelayMillis(nextDelay.hasNext() ? nextDelay.next() : 0); // 0 means we're done (no more throttling).
+        };
+        @Cleanup
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), executorService(), metrics, recordDelay);
+
+        // Set a non-maximum delay and ask to throttle, then verify we throttled the correct amount.
+        calculator.setDelayMillis(nextDelay.next());
+        val t1 = t.throttle();
+
+        Assert.assertFalse("Not expected throttle future to be completed yet.", t1.isDone());
+        t.notifyThrottleSourceChanged();
+
+        String[] tags = { "container", String.valueOf(this.containerId), "throttler", "Batching" };
+        TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
+
+        Assert.assertEquals(
+                "Last reported delay is equal to last supplied delay.",
+                (int) suppliedDelays.get(0),
+                (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value()
+        );
+    }
+
+    /**
      * Tests interruptible Cache delays.
+     *
+     * @throws Exception
      */
     @Test
     public void testInterruptedCacheDelay() throws Exception {
@@ -146,6 +199,102 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests if interruptible throttlers are correctly reporting the time spent throttled.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testInterruptedIncreasingDelayMetrics() throws Exception {
+        // Supply monotonically decreasing delays.
+        val suppliedDelays = Arrays.asList(3000, 4000, 5000);
+        val delays = Collections.<Integer>synchronizedList(new ArrayList<>());
+        val calculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Cache);
+        val nextDelay = suppliedDelays.iterator();
+        Consumer<Integer> recordDelay = delayMillis -> {
+            delays.add(delayMillis);
+            calculator.setDelayMillis(nextDelay.hasNext() ? nextDelay.next() : 0); // 0 means we're done (no more throttling).
+        };
+        @Cleanup
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), executorService(), metrics, recordDelay);
+
+        // Set a non-maximum delay and ask to throttle, then verify we throttled the correct amount.
+        calculator.setDelayMillis(nextDelay.next());
+        val t1 = t.throttle();
+        Assert.assertFalse("Not expected throttle future to be completed yet.", t1.isDone());
+
+        // For every delay that we want to submit, notify that the cache cleanup has completed, which should cancel the
+        // currently running throttle cycle and request the next throttling value.
+        for (int i = 1; i < suppliedDelays.size(); i++) {
+            // Interrupt the current throttle cycle.
+            t.notifyThrottleSourceChanged();
+            Assert.assertFalse("Not expected throttle future to be completed yet.", t1.isDone());
+
+            // Wait for the new cycle to begin (we use the recordDelay consumer above to figure this out).
+            int expectedDelayCount = i + 1;
+            TestUtils.await(() -> delays.size() == expectedDelayCount, 5, TIMEOUT_MILLIS);
+        }
+        TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
+
+        String[] tags = { "container", String.valueOf(this.containerId), "throttler", "Cache" };
+
+        // Because the supplied delays is monotonically decreasing, only the first delay value should be used to calculate
+        // the duration supplied.
+        AssertExtensions.assertLessThanOrEqual(
+                "Throttler should be at most the first supplied delay",
+                (int) suppliedDelays.get(0),
+                (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value()
+        );
+    }
+
+    /**
+     * Tests if interruptible throttlers are correctly reporting the time spent throttled.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testInterruptedDecreasingDelayMetrics() throws Exception {
+        // Supply monotonically decreasing delays.
+        val suppliedDelays = Arrays.asList(5000, 4000, 3000);
+        val delays = Collections.<Integer>synchronizedList(new ArrayList<>());
+        val calculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Cache);
+        val nextDelay = suppliedDelays.iterator();
+        Consumer<Integer> recordDelay = delayMillis -> {
+            delays.add(delayMillis);
+            calculator.setDelayMillis(nextDelay.hasNext() ? nextDelay.next() : 0); // 0 means we're done (no more throttling).
+        };
+        @Cleanup
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), executorService(), metrics, recordDelay);
+
+        // Set a non-maximum delay and ask to throttle, then verify we throttled the correct amount.
+        calculator.setDelayMillis(nextDelay.next());
+        val t1 = t.throttle();
+        Assert.assertFalse("Not expected throttle future to be completed yet.", t1.isDone());
+        // For every delay that we want to submit, notify that the cache cleanup has completed, which should cancel the
+        // currently running throttle cycle and request the next throttling value.
+        for (int i = 1; i < suppliedDelays.size(); i++) {
+            // Interrupt the current throttle cycle.
+            t.notifyThrottleSourceChanged();
+            // Wait for the new cycle to begin (we use the recordDelay consumer above to figure this out).
+            int expectedDelayCount = i + 1;
+            TestUtils.await(() -> delays.size() == expectedDelayCount, 5, TIMEOUT_MILLIS);
+        }
+        TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
+        String[] tags = MetricsTags.throttlerTag(this.containerId, calculator.getName().toString());
+        // Because the supplied delays is monotonically decreasing, only the first delay value should be used to calculate
+        // the duration supplied.
+        AssertExtensions.assertGreaterThanOrEqual(
+                "Excepted delay to be at least the smallest value.",
+                 suppliedDelays.get(2),
+                (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value()
+        );
+        AssertExtensions.assertLessThan(
+                "Excepted delay to be strictly less than the max.",
+                 suppliedDelays.get(0),
+                (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value()
+        );
+    }
+
+    /**
      * Tests the case when {@link Throttler#throttle()} returns a delay that can be interrupted using {@link Throttler#notifyThrottleSourceChanged()}}.
      */
     private void testInterruptedDelay(ThrottlerCalculator.ThrottlerName throttlerName) throws Exception {
@@ -158,7 +307,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
             calculator.setDelayMillis(nextDelay.hasNext() ? nextDelay.next() : 0); // 0 means we're done (no more throttling).
         };
         @Cleanup
-        TestThrottler t = new TestThrottler(CONTAINER_ID, wrap(calculator), executorService(), metrics, recordDelay);
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), executorService(), metrics, recordDelay);
 
         // Set a non-maximum delay and ask to throttle, then verify we throttled the correct amount.
         calculator.setDelayMillis(nextDelay.next());
@@ -193,6 +342,14 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
 
     private ThrottlerCalculator wrap(ThrottlerCalculator.Throttler calculatorThrottler) {
         return ThrottlerCalculator.builder().throttler(calculatorThrottler).build();
+    }
+
+    private ThrottlerCalculator wrap(ArrayList<ThrottlerCalculator.Throttler> throttlers) {
+        return ThrottlerCalculator.builder().throttlers(throttlers).build();
+    }
+
+    private double getThrottlerMetric(ThrottlerCalculator.ThrottlerName name) {
+        return MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, MetricsTags.throttlerTag(containerId, name.toString())).value();
     }
 
     //region Helper Classes
