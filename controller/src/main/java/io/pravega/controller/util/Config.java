@@ -132,58 +132,58 @@ public final class Config {
 
     //region Property Definitions
     private static final String NULL_VALUE = "{null}";
-    private static final Property<Integer> PROPERTY_CONTAINER_COUNT = Property.named("containerCount", 4);
-    private static final Property<Boolean> PROPERTY_HOST_MONITORING_ENABLED = Property.named("hostMonitorEnabled", true);
-    private static final Property<Integer> PROPERTY_MIN_REBALANCE_INTERVAL_SECONDS = Property.named("minRebalanceIntervalSeconds", 10);
-    private static final Property<Boolean> PROPERTY_REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
-    private static final Property<Boolean> PROPERTY_REQUEST_TRACING_ENABLED = Property.named("requestTracingEnabled", true);
-    private static final Property<Boolean> PROPERTY_DUMP_STACK_ON_SHUTDOWN = Property.named("dumpStackOnShutdown", false);
-    private static final Property<Boolean> PROPERTY_USE_PRAVEGA_TABLES = Property.named("usePravegaTables", true);
+    private static final Property<Integer> PROPERTY_CONTAINER_COUNT = Property.named("core.container.count", 4);
+    private static final Property<Boolean> PROPERTY_HOST_MONITORING_ENABLED = Property.named("core.host-monitor.enable", true);
+    private static final Property<Integer> PROPERTY_MIN_REBALANCE_INTERVAL_SECONDS = Property.named("core.minimumRebalanceInterval.seconds", 10);
+    private static final Property<Boolean> PROPERTY_REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("core.replyWithStackTraceOnError.enable", false);
+    private static final Property<Boolean> PROPERTY_REQUEST_TRACING_ENABLED = Property.named("core.requestTracing.enable", true);
+    private static final Property<Boolean> PROPERTY_DUMP_STACK_ON_SHUTDOWN = Property.named("core.dumpStackOnShutdown.enable", false);
+    private static final Property<Boolean> PROPERTY_USE_PRAVEGA_TABLES = Property.named("core.usePravegaTables.enable", true);
     private static final Property<Integer> PROPERTY_SERVICE_PORT = Property.named("service.port", 9090);
-    private static final Property<Integer> PROPERTY_TASK_POOL_SIZE = Property.named("service.asyncTaskPoolSize", 80);
-    private static final Property<String> PROPERTY_SERVICE_HOST_IP = Property.named("service.hostIp", "localhost");
-    private static final Property<Integer> PROPERTY_SERVICE_HOST_PORT = Property.named("service.hostPort", 12345);
-    private static final Property<String> PROPERTY_RPC_HOST = Property.named("service.publishedRPCHost", NULL_VALUE);
-    private static final Property<Integer> PROPERTY_RPC_PORT = Property.named("service.publishedRPCPort", 9090);
+    private static final Property<Integer> PROPERTY_TASK_POOL_SIZE = Property.named("service.asyncTaskPool.size", 80);
+    private static final Property<String> PROPERTY_SERVICE_HOST_IP = Property.named("service.host.ip", "localhost");
+    private static final Property<Integer> PROPERTY_SERVICE_HOST_PORT = Property.named("service.host.port", 12345);
+    private static final Property<String> PROPERTY_RPC_HOST = Property.named("service.rpc.published.host", NULL_VALUE);
+    private static final Property<Integer> PROPERTY_RPC_PORT = Property.named("service.rpc.published.port", 9090);
     private static final Property<String> PROPERTY_CLUSTER_NAME = Property.named("service.cluster", "pravega-cluster");
-    private static final Property<String> PROPERTY_REST_IP = Property.named("service.restIp", "0.0.0.0");
-    private static final Property<Integer> PROPERTY_REST_PORT = Property.named("service.restPort", 9091);
-    private static final Property<String> PROPERTY_REST_KEYSTORE_FILE_PATH = Property.named("rest.tlsKeyStoreFile", "");
-    private static final Property<String> PROPERTY_REST_KEYSTORE_PASSWORD_FILE_PATH = Property.named("rest.tlsKeyStorePasswordFile", "");
+    private static final Property<String> PROPERTY_REST_IP = Property.named("service.rest.ip", "0.0.0.0");
+    private static final Property<Integer> PROPERTY_REST_PORT = Property.named("service.rest.port", 9091);
+    private static final Property<String> PROPERTY_REST_KEYSTORE_FILE_PATH = Property.named("security.tls.javaKeyStore.location", "");
+    private static final Property<String> PROPERTY_REST_KEYSTORE_PASSWORD_FILE_PATH = Property.named("security.tls.javaKeyStorePassword.location", "");
 
-    private static final Property<Boolean> PROPERTY_AUTH_ENABLED = Property.named("auth.enabled", false);
-    private static final Property<String> PROPERTY_AUTH_PASSWORD_FILE = Property.named("auth.userPasswordFile", "");
-    private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named("auth.tokenSigningKey", "");
-    private static final Property<Integer> PROPERTY_ACCESS_TOKEN_TTL_SECONDS = Property.named("auth.accessTokenTtlSeconds", 600);
+    private static final Property<Boolean> PROPERTY_AUTH_ENABLED = Property.named("security.auth.enable", false);
+    private static final Property<String> PROPERTY_AUTH_PASSWORD_FILE = Property.named("security.auth.pwdAuthHander.accountsDb.location", "");
+    private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named("security.auth.tokenSigningKeyString", "");
+    private static final Property<Integer> PROPERTY_ACCESS_TOKEN_TTL_SECONDS = Property.named("security.auth.accessToken.ttl.seconds", 600);
 
-    private static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named("auth.tlsEnabled", false);
-    private static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named("auth.tlsCertFile", "");
-    private static final Property<String> PROPERTY_TLS_TRUST_STORE = Property.named("auth.tlsTrustStore", "");
-    private static final Property<String> PROPERTY_TLS_KEY_FILE = Property.named("auth.tlsKeyFile", "");
-    private static final Property<String> PROPERTY_TLS_ENABLED_FOR_SEGMENT_STORE = Property.named("auth.segmentStoreTlsEnabled", "");
+    private static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named("security.tls.enable", false);
+    private static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named("security.tls.serverCertificate.location", "");
+    private static final Property<String> PROPERTY_TLS_TRUST_STORE = Property.named("security.tls.trustStore.location", "");
+    private static final Property<String> PROPERTY_TLS_KEY_FILE = Property.named("security.tls.serverPrivateKey.location", "");
+    private static final Property<String> PROPERTY_TLS_ENABLED_FOR_SEGMENT_STORE = Property.named("security.tls.segmentStoreTlsEnabledString", "");
 
-    private static final Property<String> PROPERTY_ZK_URL = Property.named("zk.url", "localhost:2181");
-    private static final Property<Integer> PROPERTY_ZK_RETRY_MILLIS = Property.named("zk.retryIntervalMillis", 5000);
-    private static final Property<Integer> PROPERTY_ZK_MAX_RETRY_COUNT = Property.named("maxRetries", 5);
-    private static final Property<Integer> PROPERTY_ZK_SESSION_TIMEOUT_MILLIS = Property.named("sessionTimeoutMillis", 10000);
-    private static final Property<Boolean> PROPERTY_ZK_SECURE_CONNECTION = Property.named("secureConnection", false);
-    private static final Property<String> PROPERTY_ZK_TRUSTSTORE_FILE_PATH = Property.named("zk.tlsTrustStoreFile", "");
-    private static final Property<String> PROPERTY_ZK_TRUSTSTORE_PASSWORD_FILE_PATH = Property.named("zk.tlsTrustStorePasswordFile", "");
+    private static final Property<String> PROPERTY_ZK_URL = Property.named("zookeeper.uri", "localhost:2181");
+    private static final Property<Integer> PROPERTY_ZK_RETRY_MILLIS = Property.named("zookeeper.retryInterval.milliseconds", 5000);
+    private static final Property<Integer> PROPERTY_ZK_MAX_RETRY_COUNT = Property.named("zookeeper.maxRetries.count", 5);
+    private static final Property<Integer> PROPERTY_ZK_SESSION_TIMEOUT_MILLIS = Property.named("zookeeper.sessionTimeout.milliseconds", 10000);
+    private static final Property<Boolean> PROPERTY_ZK_SECURE_CONNECTION = Property.named("zookeeper.secureConnection.enable", false);
+    private static final Property<String> PROPERTY_ZK_TRUSTSTORE_FILE_PATH = Property.named("zookeeper.security.trustStore.location", "");
+    private static final Property<String> PROPERTY_ZK_TRUSTSTORE_PASSWORD_FILE_PATH = Property.named("zookeeper.security.trustStorePassword.location", "");
 
-    private static final Property<Integer> PROPERTY_RETENTION_FREQUENCY_MINUTES = Property.named("retention.frequencyMinutes", 30);
-    private static final Property<Integer> PROPERTY_RETENTION_BUCKET_COUNT = Property.named("retention.bucketCount", 1);
-    private static final Property<Integer> PROPERTY_RETENTION_THREAD_COUNT = Property.named("retention.threadCount", 1);
+    private static final Property<Integer> PROPERTY_RETENTION_FREQUENCY_MINUTES = Property.named("retention.frequency.minutes", 30);
+    private static final Property<Integer> PROPERTY_RETENTION_BUCKET_COUNT = Property.named("retention.bucket.count", 1);
+    private static final Property<Integer> PROPERTY_RETENTION_THREAD_COUNT = Property.named("retention.thread.count", 1);
     
-    private static final Property<Integer> PROPERTY_TXN_MIN_LEASE = Property.named("transaction.minLeaseValue", 10000);
-    private static final Property<Integer> PROPERTY_TXN_MAX_LEASE = Property.named("transaction.maxLeaseValue", 120000);
-    private static final Property<Integer> PROPERTY_TXN_TTL_HOURS = Property.named("transaction.ttlHours", 24);
+    private static final Property<Integer> PROPERTY_TXN_MIN_LEASE = Property.named("transaction.minLease", 10000);
+    private static final Property<Integer> PROPERTY_TXN_MAX_LEASE = Property.named("transaction.maxLease", 120000);
+    private static final Property<Integer> PROPERTY_TXN_TTL_HOURS = Property.named("transaction.ttl.hours", 24);
 
-    private static final Property<Integer> PROPERTY_WATERMARKING_FREQUENCY_SECONDS = Property.named("watermarking.frequencySeconds", 10);
-    private static final Property<Integer> PROPERTY_WATERMARKING_BUCKET_COUNT = Property.named("watermarking.bucketCount", 100);
-    private static final Property<Integer> PROPERTY_WATERMARKING_THREAD_COUNT = Property.named("watermarking.threadCount", 10);
+    private static final Property<Integer> PROPERTY_WATERMARKING_FREQUENCY_SECONDS = Property.named("watermarking.frequency.seconds", 10);
+    private static final Property<Integer> PROPERTY_WATERMARKING_BUCKET_COUNT = Property.named("watermarking.bucket.count", 100);
+    private static final Property<Integer> PROPERTY_WATERMARKING_THREAD_COUNT = Property.named("watermarking.thread.count", 10);
 
     private static final Property<String> PROPERTY_SCALE_STREAM_NAME = Property.named("scale.streamName", "_requeststream");
-    private static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named("scale.ReaderGroup", "scaleGroup");
+    private static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named("scale.readerGroup", "scaleGroup");
     private static final String COMPONENT_CODE = "controller";
 
     //endregion
