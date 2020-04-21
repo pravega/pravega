@@ -121,7 +121,8 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the not exists API.
+     * Tests the next batch of segments in ExtendedS3Storage.
+     * @throws Exception if an unexpected error occurred.
      */
     @Test
     public void testListSegmentsBatch() throws Exception {
