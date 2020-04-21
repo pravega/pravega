@@ -136,11 +136,11 @@ public class CheckpointState {
         if (readers != null) {
             boolean removed = readers.remove(readerName);
             Preconditions.checkState(removed, "Reader already checkpointed.");
+            checkpointIndex.get(readerName).remove(checkpointId);
             Map<Segment, Long> positions = checkpointPositions.get(checkpointId);
             positions.putAll(position);
             if (readers.isEmpty()) {
                 uncheckpointedHosts.remove(checkpointId);
-                checkpointIndex.get(readerName).remove(checkpointId);
                 //checkpoint operation completed for all readers, update the last checkpoint position.
                 lastCheckpointPosition = checkpointPositions.get(checkpointId);
             }
