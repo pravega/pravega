@@ -517,7 +517,6 @@ class HDFSStorage implements SyncStorage {
     }
 
     public static class HDFSSegmentIterator implements Iterator<SegmentProperties> {
-
         RemoteIterator<FileStatus> results;
         FileStatus current;
         java.util.function.Predicate<FileStatus> patternMatchPredicate;
@@ -539,7 +538,7 @@ class HDFSStorage implements SyncStorage {
                     }
                 }
             } catch (IOException e) {
-
+                log.error("Hit an exception", e);
             }
             current = null;
             return false;
@@ -555,7 +554,7 @@ class HDFSStorage implements SyncStorage {
                             .length(current.getLen())
                             .sealed(isSealed).build();
                 } catch (FileNameFormatException e) {
-
+                    log.error("Hit an exception", e);
                 }
             }
             throw new NoSuchElementException();
