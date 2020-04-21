@@ -192,7 +192,6 @@ public class ExtendedS3Storage implements SyncStorage {
 
 
     public class ExtendedS3SegmentIterator implements Iterator<SegmentProperties> {
-
         ListObjectsResult results;
         S3Object current;
         Iterator<S3Object> innerIterator;
@@ -214,14 +213,11 @@ public class ExtendedS3Storage implements SyncStorage {
                         return true;
                     }
                 }
-                // End of the batch
-                if (!innerIterator.hasNext()) {
-                    // Already fetched the next batch
-                    if (nextBatch) {
+                if (!innerIterator.hasNext()) { // End of the batch
+                    if (nextBatch) {    // Already fetched the next batch
                         break;
                     }
-                    // This batch was last if less than max keys were returned.
-                    if (results.getObjects().size() < results.getMaxKeys()) {
+                    if (results.getObjects().size() < results.getMaxKeys()) {   // This batch was last if less than max keys were returned.
                         break;
                     }
                     results = client.listMoreObjects(results);

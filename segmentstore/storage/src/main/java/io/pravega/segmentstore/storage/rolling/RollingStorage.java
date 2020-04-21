@@ -525,7 +525,6 @@ public class RollingStorage implements SyncStorage {
     }
 
     public static class RollingStorageSegmentIterator implements Iterator<SegmentProperties> {
-
         RollingStorage instance;
         Iterator<SegmentProperties> results;
         SegmentProperties current;
@@ -564,7 +563,6 @@ public class RollingStorage implements SyncStorage {
                 } catch (StreamSegmentException e) {
                     log.error("Hit an exception while trying to read segment header file {}", current.getName(), e);
                 }
-
             }
             throw new NoSuchElementException();
         }

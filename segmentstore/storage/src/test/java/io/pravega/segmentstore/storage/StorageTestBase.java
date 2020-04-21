@@ -121,6 +121,38 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the not exists API.
+     */
+    @Test
+    public void testListSegmentsBatch() throws Exception {
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+
+            if (!s.getClassName().equals("ExtendedS3Storage")) {
+                return;
+            }
+
+            Iterator<SegmentProperties> iterator = s.listSegments().join();
+            Assert.assertFalse(iterator.hasNext());
+
+            int expectedCount = 1001;
+            for (int i = 0; i < expectedCount; i++) {
+                String segmentName = "segment-" + i;
+                createSegment(segmentName, s);
+            }
+
+            iterator = s.listSegments().join();
+
+            int actualCount = 0;
+            while (iterator.hasNext()) {
+                SegmentProperties prop = iterator.next();
+                ++actualCount;
+            }
+            Assert.assertFalse(iterator.hasNext());
+        }
+    }
+
+    /**
      * Tests the ability to list Segments.
      * @throws Exception if an unexpected error occurred.
      */
