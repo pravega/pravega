@@ -93,6 +93,7 @@ public class CheckpointState {
             checkpointPositions.put(checkpointId, new HashMap<>(knownPositions));
             checkpoints.add(checkpointId);
         }
+        recomputeCheckpointIndex();
     }
     
     String getCheckpointForReader(String readerName) {
@@ -118,7 +119,7 @@ public class CheckpointState {
                     checkpointsForHost = new ArrayList<>();
                     checkpointIndex.put(host, checkpointsForHost);
                 }
-                checkpoints.add(checkpointId);
+                checkpointsForHost.add(checkpointId);
             }
         }
     }
