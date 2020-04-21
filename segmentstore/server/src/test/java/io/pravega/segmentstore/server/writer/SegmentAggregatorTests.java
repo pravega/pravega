@@ -1639,6 +1639,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final WriterConfig config = DEFAULT_CONFIG;
         final int appendCount = 1000;
         final int failEvery = 3;
+        final int partialFailEvery = 6;
 
         @Cleanup
         TestContext context = new TestContext(config);
@@ -1648,14 +1649,21 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         AtomicInteger writeCount = new AtomicInteger();
         AtomicReference<Exception> setException = new AtomicReference<>();
         context.storage.setWriteInterceptor((segmentName, offset, data, length, storage) -> {
-            if (writeCount.incrementAndGet() % failEvery == 0) {
+            int wc = writeCount.incrementAndGet();
+            if (wc % failEvery == 0) {
+                if (wc % partialFailEvery == 0) {
+                    // Only a part of the operation has been written. Verify that we can reconcile partially written
+                    // operations as well.
+                    length /= 2;
+                }
+
                 // Time to wreak some havoc.
                 return storage.write(writeHandle(segmentName), offset, data, length, TIMEOUT)
-                              .thenAccept(v -> {
-                                  IntentionalException ex = new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
-                                  setException.set(ex);
-                                  throw ex;
-                              });
+                        .thenAccept(v -> {
+                            IntentionalException ex = new IntentionalException(String.format("S=%s,O=%d", segmentName, offset));
+                            setException.set(ex);
+                            throw ex;
+                        });
             } else {
                 setException.set(null);
                 return null;
