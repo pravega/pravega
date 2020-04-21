@@ -160,7 +160,7 @@ public final class Config {
     private static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named("security.tls.serverCertificate.location", "");
     private static final Property<String> PROPERTY_TLS_TRUST_STORE = Property.named("security.tls.trustStore.location", "");
     private static final Property<String> PROPERTY_TLS_KEY_FILE = Property.named("security.tls.serverPrivateKey.location", "");
-    private static final Property<String> PROPERTY_TLS_ENABLED_FOR_SEGMENT_STORE = Property.named("security.tls.segmentStoreTlsEnabledString", "");
+    private static final Property<String> PROPERTY_TLS_ENABLED_FOR_SEGMENT_STORE = Property.named("security.tls.accessSegmentStoreOverTls", "");
 
     private static final Property<String> PROPERTY_ZK_URL = Property.named("zookeeper.uri", "localhost:2181");
     private static final Property<Integer> PROPERTY_ZK_RETRY_MILLIS = Property.named("zookeeper.retryInterval.milliseconds", 5000);

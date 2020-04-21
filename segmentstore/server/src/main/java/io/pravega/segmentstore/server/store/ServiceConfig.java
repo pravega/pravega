@@ -27,38 +27,38 @@ import lombok.SneakyThrows;
 public class ServiceConfig {
     //region Config Names
 
-    public static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount");
-    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 30);
-    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("storageThreadPoolSize", 200);
-    public static final Property<Integer> LISTENING_PORT = Property.named("listeningPort", 12345);
-    public static final Property<Integer> PUBLISHED_PORT = Property.named("publishedPort");
-    public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
-    public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("publishedIPAddress", "");
-    public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("parallelContainerStarts", 1);
-    public static final Property<String> ZK_URL = Property.named("zkURL", "localhost:2181");
-    public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
-    public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
-    public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 10000);
-    public static final Property<Boolean> SECURE_ZK = Property.named("secureZK", false);
-    public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zkTrustStore", "");
-    public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zkTrustStorePasswordPath", "");
+    public static final Property<Integer> CONTAINER_COUNT = Property.named("core.container.count");
+    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("core.threadPool.size", 30);
+    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("core.storageThreadPool.size", 200);
+    public static final Property<Integer> LISTENING_PORT = Property.named("service.listening.port", 12345);
+    public static final Property<Integer> PUBLISHED_PORT = Property.named("service.published.Port");
+    public static final Property<String> LISTENING_IP_ADDRESS = Property.named("service.listening.ip", "");
+    public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("service.published.ip", "");
+    public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("core.parallelContainerStarts.count", 1);
+    public static final Property<String> ZK_URL = Property.named("zookeeper.uri", "localhost:2181");
+    public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zookeeper.retry.interval.milliseconds", 5000);
+    public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zookeeper.retry.count", 5);
+    public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zookeeper.session.timeout.milliseconds", 10000);
+    public static final Property<Boolean> SECURE_ZK = Property.named("zookeeper.secureConnection.enable", false);
+    public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zookeeper.security.trustStore.location", "");
+    public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zookeeper.security.trustStorePassword.location", "");
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
-    public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
-    public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.HDFS);
+    public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("core.dataLogImplementation", DataLogType.INMEMORY);
+    public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("core.storageImplementation", StorageType.HDFS);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
-    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 4L * 1024 * 1024 * 1024);
-    public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cacheTargetUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION));
-    public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cacheMaxUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION));
-    public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
-    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 1);
-    public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
-    public static final Property<String> INSTANCE_ID = Property.named("instanceId", "");
+    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cache.maxEntries.size", 4L * 1024 * 1024 * 1024);
+    public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cache.targetUtilization.percent", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION));
+    public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cache.maxUtilization.percent", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION));
+    public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cache.maxTime.seconds", 30 * 60);
+    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cache.generationTime.seconds", 1);
+    public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("core.replyWithStackTraceOnError.enable", false);
+    public static final Property<String> INSTANCE_ID = Property.named("core.instanceId", "");
 
     // TLS-related config for the service
-    public static final Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
-    public static final Property<String> CERT_FILE = Property.named("certFile", "");
-    public static final Property<String> KEY_FILE = Property.named("keyFile", "");
-    public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("enableTlsReload", false);
+    public static final Property<Boolean> ENABLE_TLS = Property.named("security.tls.enable", false);
+    public static final Property<String> CERT_FILE = Property.named("security.tls.serverCertificate.location", "");
+    public static final Property<String> KEY_FILE = Property.named("security.tls.serverPrivateKey.location", "");
+    public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("security.tls.autoCertificateReload.enable", false);
 
 
     public static final String COMPONENT_CODE = "pravegaservice";
