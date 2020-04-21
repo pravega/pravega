@@ -193,6 +193,16 @@ public final class NameUtils {
     }
 
     /**
+     * Checks whether given name is an Attribute Segment.
+     *
+     * @param segmentName The name of the segment.
+     * @return true if the name is Attribute Segment. False otherwise
+     */
+    public static boolean isAttributeSegment(String segmentName) {
+        return segmentName.endsWith(ATTRIBUTE_SUFFIX);
+    }
+
+    /**
      * Gets the name of the Segment name from its Header Segment Name.
      *
      * @param headerSegmentName The name of the Header Segment.

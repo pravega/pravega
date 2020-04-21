@@ -684,7 +684,7 @@ public abstract class MetadataStore implements AutoCloseable {
 
     @Data
     @Builder
-    protected static class SegmentInfo {
+    public static class SegmentInfo {
         private static final SegmentInfoSerializer SERIALIZER = new SegmentInfoSerializer();
         private final long segmentId;
         private final SegmentProperties properties;
@@ -704,12 +704,12 @@ public abstract class MetadataStore implements AutoCloseable {
         }
 
         @SneakyThrows(IOException.class)
-        static ArrayView serialize(SegmentInfo state) {
+        public static ArrayView serialize(SegmentInfo state) {
             return SERIALIZER.serialize(state);
         }
 
         @SneakyThrows(IOException.class)
-        static SegmentInfo deserialize(ArrayView contents) {
+        public static SegmentInfo deserialize(ArrayView contents) {
             try {
                 return SERIALIZER.deserialize(contents);
             } catch (EOFException | SerializationException ex) {
