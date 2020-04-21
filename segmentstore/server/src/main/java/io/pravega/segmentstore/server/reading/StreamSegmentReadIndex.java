@@ -764,7 +764,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
         Preconditions.checkArgument(length >= 0, "length must be a non-negative number");
-        Preconditions.checkArgument(startOffset >= this.metadata.getStorageLength(), "startOffset must refer to an offset beyond the Segment's StorageLength offset.");
+        Preconditions.checkArgument(startOffset >= this.metadata.getStorageLength(),
+                "[%s]: startOffset (%s) must refer to an offset beyond the Segment's StorageLength offset(%s).", this.traceObjectId, startOffset, this.metadata.getStorageLength());
         Preconditions.checkArgument(startOffset + length <= this.metadata.getLength(), "startOffset+length must be less than the length of the Segment.");
         Preconditions.checkArgument(startOffset >= Math.min(this.metadata.getStartOffset(), this.metadata.getStorageLength()),
                 "startOffset is before the Segment's StartOffset.");
