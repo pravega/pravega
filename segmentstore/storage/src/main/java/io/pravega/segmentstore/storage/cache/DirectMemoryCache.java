@@ -23,6 +23,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -87,7 +88,7 @@ public class DirectMemoryCache implements CacheStorage {
     //region Members
 
     /**
-     * The maximum number of attempts to invoke {@link #tryCleanup()} if at capacity and needing to insert more data.
+     * The maximum number of attempts to invoke {@link #tryCleanup} if at capacity and needing to insert more data.
      */
     @VisibleForTesting
     static final int MAX_CLEANUP_ATTEMPTS = 5;
@@ -100,6 +101,7 @@ public class DirectMemoryCache implements CacheStorage {
     private final AtomicBoolean closed;
     private final AtomicLong storedBytes;
     private final AtomicReference<Supplier<Boolean>> tryCleanup;
+    private final AtomicInteger retryDelayBaseMillis;
 
     //endregion
 
@@ -133,6 +135,7 @@ public class DirectMemoryCache implements CacheStorage {
 
         this.layout = layout;
         this.tryCleanup = new AtomicReference<>(null);
+        this.retryDelayBaseMillis = new AtomicInteger(0);
         this.storedBytes = new AtomicLong(0);
         this.closed = new AtomicBoolean(false);
         this.buffers = new DirectMemoryBuffer[(int) (maxSizeBytes / this.layout.bufferSize())];
@@ -363,8 +366,9 @@ public class DirectMemoryCache implements CacheStorage {
     }
 
     @Override
-    public void setCacheFullCallback(Supplier<Boolean> cacheFullCallback) {
+    public void setCacheFullCallback(Supplier<Boolean> cacheFullCallback, int retryDelayBaseMillis) {
         this.tryCleanup.set(cacheFullCallback);
+        this.retryDelayBaseMillis.set(retryDelayBaseMillis);
     }
 
     //endregion
@@ -373,7 +377,7 @@ public class DirectMemoryCache implements CacheStorage {
 
     private DirectMemoryBuffer getNextAvailableBuffer() {
         int attempts = 0;
-        do {
+        while (attempts < MAX_CLEANUP_ATTEMPTS) {
             synchronized (this.availableBufferIds) {
                 while (!this.availableBufferIds.isEmpty() || !this.unallocatedBufferIds.isEmpty()) {
                     while (!this.availableBufferIds.isEmpty()) {
@@ -399,15 +403,23 @@ public class DirectMemoryCache implements CacheStorage {
 
             // If we get here, there are no available buffers and we have allocated all the buffers we could. Notify
             // any upstream listeners to attempt a cleanup (if possible).
-        } while (++attempts <= MAX_CLEANUP_ATTEMPTS && tryCleanup());
+            attempts++;
+            tryCleanup(attempts);
+        }
 
         // Unable to reuse any existing buffer or find a new one to allocate and upstream code could not free up data.
         throw new CacheFullException(String.format("%s full: %s.", DirectMemoryCache.class.getSimpleName(), getState()));
     }
 
-    private boolean tryCleanup() {
+    private void tryCleanup(int attempts) {
         val c = this.tryCleanup.get();
-        return c != null && c.get();
+        if (c != null && !c.get()) {
+            // Unable to clean up the cache. Wait a bit, then try again.
+            int sleepMillis = attempts * this.retryDelayBaseMillis.get();
+            if (sleepMillis > 0 && attempts < MAX_CLEANUP_ATTEMPTS) {
+                Exceptions.handleInterrupted(() -> Thread.sleep(sleepMillis));
+            }
+        }
     }
 
     //endregion
