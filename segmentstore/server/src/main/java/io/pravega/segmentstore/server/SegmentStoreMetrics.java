@@ -21,6 +21,7 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -146,7 +147,7 @@ public final class SegmentStoreMetrics {
         private final OpStatsLogger processOperationsBatchSize;
         private final int containerId;
         private final String[] containerTag;
-        private Set<String> throttlers = new HashSet<>();
+        private Set<String> throttlers = Collections.synchronizedSet(new HashSet<>());
 
         public OperationProcessor(int containerId) {
             this.containerId = containerId;
