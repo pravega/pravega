@@ -91,13 +91,7 @@ public class JwtUtils {
 
                 String[] expiryTimeFieldParts = matchedString.split(":");
                 if (expiryTimeFieldParts != null && expiryTimeFieldParts.length == 2) {
-                    try {
-                        result = Long.parseLong(expiryTimeFieldParts[1].trim());
-                    } catch (NumberFormatException e) {
-                        // ignore
-                        log.warn("Unable to parse JWT body for expiration time: [{}]", expiryTimeFieldParts[1],
-                                e.getMessage());
-                    }
+                    result = Long.parseLong(expiryTimeFieldParts[1].trim());
                 }
             }
         }

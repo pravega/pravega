@@ -197,8 +197,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                                 WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
                     } catch (RuntimeException e) {
                         // Log and ignore
-                        log.warn("Unable to inform writer {} that sent request {}, about token expiry for segment {}",
-                                writerId, requestId, segment, e);
+                        log.debug("Unable to inform writer {} that sent request {}, about token expiry for segment {}",
+                                writerId, requestId, segment);
                     }
                 }
                 return null;
