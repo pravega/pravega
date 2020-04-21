@@ -435,10 +435,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             // it may be higher by more than 1 (eg: in the case of a prior failed conditional appends).
             // this is because client never decrements eventNumber.
             Long lowest = state.getLowestInflight();
-            if (lowest > previousAckLevel) {
-                throw new IllegalStateException("Missed ack from server - previousAckLevel = " + previousAckLevel
-                        + ", ackLevel = " + ackLevel + ", inFlightLevel = " + lowest);
-            }
+            checkState(lowest > previousAckLevel, "Missed ack from server - previousAckLevel = %s, ackLevel = %s, inFlightLevel = %s",
+                       previousAckLevel, ackLevel, lowest);
         }
 
         @Override
