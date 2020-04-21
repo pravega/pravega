@@ -51,7 +51,7 @@ public class SegmentStoreMetricsTests {
      */
     @Test
     public void testContainerRecoveryDurationMetric() {
-        int containerId = 0;
+        int containerId = new Random().nextInt(Integer.MAX_VALUE);
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CONTAINER_RECOVERY_TIME, containerTag(containerId)));
         SegmentStoreMetrics.recoveryCompleted(1000, containerId);
         assertEquals(1000, (long) MetricRegistryUtils.getGauge(MetricsNames.CONTAINER_RECOVERY_TIME, containerTag(containerId)).value());
