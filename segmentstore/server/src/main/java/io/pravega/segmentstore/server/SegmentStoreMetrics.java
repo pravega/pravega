@@ -21,7 +21,10 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -144,6 +147,7 @@ public final class SegmentStoreMetrics {
         private final OpStatsLogger processOperationsBatchSize;
         private final int containerId;
         private final String[] containerTag;
+        private Set<String> throttlers = Collections.synchronizedSet(new HashSet<>());
 
         public OperationProcessor(int containerId) {
             this.containerId = containerId;
@@ -170,6 +174,9 @@ public final class SegmentStoreMetrics {
             this.memoryCommitCount.close();
             this.processOperationsLatency.close();
             this.processOperationsBatchSize.close();
+            for (String throttler : throttlers) {
+                DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTag(containerId, throttler));
+            }
         }
 
         public void currentState(int queueSize, int inFlightCount) {
@@ -178,6 +185,7 @@ public final class SegmentStoreMetrics {
         }
 
         public void processingDelay(int millis, String throttlerName) {
+            throttlers.add(throttlerName);
             DYNAMIC_LOGGER.reportGaugeValue(
                     MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS,
                     millis,
