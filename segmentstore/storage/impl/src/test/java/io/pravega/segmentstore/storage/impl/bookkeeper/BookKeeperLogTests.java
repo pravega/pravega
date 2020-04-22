@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
-import com.google.common.base.Charsets;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CompositeByteArraySegment;
@@ -29,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -515,8 +515,10 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
         // Create a few ledgers. One without an Id, one with a bad id, and one with
         val ledgerNoLogId = createCustomLedger(null);
-        val ledgerBadLogId = createCustomLedger(Collections.singletonMap(Ledgers.PROPERTY_LOG_ID, "abc".getBytes())); // Corrupted id
-        val ledgerOtherLogId = createCustomLedger(Collections.singletonMap(Ledgers.PROPERTY_LOG_ID, Integer.toString(log.getLogId() + 1).getBytes(Charsets.US_ASCII)));
+        val corruptedId = new HashMap<>(Ledgers.createLedgerCustomMetadata(log.getLogId()));
+        corruptedId.put(Ledgers.PROPERTY_LOG_ID, "abc".getBytes());
+        val ledgerBadLogId = createCustomLedger(corruptedId);
+        val ledgerOtherLogId = createCustomLedger(Ledgers.createLedgerCustomMetadata(log.getLogId() + 1));
         val ledgerGoodLogId = Ledgers.create(bk, this.config.get(), log.getLogId());
         val candidateLedgers = Arrays.asList(ledgerGoodLogId, ledgerBadLogId, ledgerNoLogId, ledgerOtherLogId);
         for (val lh : candidateLedgers) {
@@ -550,11 +552,19 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         wrapper.disable();
 
         // Create a few ledgers. One without an Id, one with a bad id, and one with
-        val ledgerNoLogId = createCustomLedger(null);
-        val ledgerBadLogId = createCustomLedger(Collections.singletonMap(Ledgers.PROPERTY_LOG_ID, "abc".getBytes())); // Corrupted id
-        val ledgerOtherLogId = createCustomLedger(Collections.singletonMap(Ledgers.PROPERTY_LOG_ID, Integer.toString(log.getLogId() + 1).getBytes(Charsets.US_ASCII)));
+        val ledgerNoProperties = createCustomLedger(null);
+        Assert.assertEquals(Ledgers.NO_LOG_ID, Ledgers.getBookKeeperLogId(ledgerNoProperties));
+        val noLogId = new HashMap<>(Ledgers.createLedgerCustomMetadata(log.getLogId()));
+        noLogId.remove(Ledgers.PROPERTY_LOG_ID);
+        val ledgerNoLogId = createCustomLedger(noLogId);
+        Assert.assertEquals(Ledgers.NO_LOG_ID, Ledgers.getBookKeeperLogId(ledgerNoLogId));
+        val corruptedId = new HashMap<>(Ledgers.createLedgerCustomMetadata(log.getLogId()));
+        corruptedId.put(Ledgers.PROPERTY_LOG_ID, "abc".getBytes());
+        val ledgerBadLogId = createCustomLedger(corruptedId);
+        Assert.assertEquals(Ledgers.NO_LOG_ID, Ledgers.getBookKeeperLogId(ledgerBadLogId));
+        val ledgerOtherLogId = createCustomLedger(Ledgers.createLedgerCustomMetadata(log.getLogId() + 1));
         val ledgerGoodLogId = Ledgers.create(bk, this.config.get(), log.getLogId());
-        val candidateLedgers = Arrays.asList(ledgerGoodLogId, ledgerBadLogId, ledgerNoLogId, ledgerOtherLogId);
+        val candidateLedgers = Arrays.asList(ledgerGoodLogId, ledgerBadLogId, ledgerNoProperties, ledgerNoLogId, ledgerOtherLogId);
         for (val lh : candidateLedgers) {
             lh.addEntry(new byte[100]);
         }
@@ -592,8 +602,10 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         wrapper.disable();
 
         val ledgerNoLogId = createCustomLedger(null);
-        val ledgerBadLogId = createCustomLedger(Collections.singletonMap(Ledgers.PROPERTY_LOG_ID, "abc".getBytes())); // Corrupted id
-        val ledgerOtherLogId = createCustomLedger(Collections.singletonMap(Ledgers.PROPERTY_LOG_ID, Integer.toString(CONTAINER_ID + 1).getBytes(Charsets.US_ASCII)));
+        val corruptedId = new HashMap<>(Ledgers.createLedgerCustomMetadata(CONTAINER_ID));
+        corruptedId.put(Ledgers.PROPERTY_LOG_ID, "abc".getBytes());
+        val ledgerBadLogId = createCustomLedger(corruptedId);
+        val ledgerOtherLogId = createCustomLedger(Ledgers.createLedgerCustomMetadata(CONTAINER_ID + 1));
         val ledgerGoodLogId = Ledgers.create(bk, this.config.get(), CONTAINER_ID);
         val candidateLedgers = Arrays.asList(ledgerNoLogId, ledgerBadLogId, ledgerOtherLogId, ledgerGoodLogId);
         for (val lh : candidateLedgers) {

@@ -9,11 +9,13 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
-import java.util.Collections;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,9 @@ import org.apache.bookkeeper.client.LedgerHandle;
  */
 @Slf4j
 final class Ledgers {
+    static final Charset CUSTOM_PROPERTY_CHARSET = Charsets.US_ASCII;
+    static final String PROPERTY_APPLICATION = "application";
+    static final String PROPERTY_VALUE_APPLICATION = "Pravega";
     static final String PROPERTY_LOG_ID = "BookKeeperLogId";
     static final int NO_LOG_ID = -1;
     static final long NO_LEDGER_ID = LedgerHandle.INVALID_LEDGER_ID;
@@ -207,22 +212,31 @@ final class Ledgers {
      * from a version that did not store this information).
      */
     static int getBookKeeperLogId(LedgerHandle handle) {
-        byte[] logIdSerialized = handle.getCustomMetadata().getOrDefault(PROPERTY_LOG_ID, null);
-        if (logIdSerialized == null) {
+        String appName = getPropertyValue(PROPERTY_APPLICATION, handle);
+        if (appName == null || !appName.equalsIgnoreCase(PROPERTY_VALUE_APPLICATION)) {
+            log.warn("Property '{}' on Ledger {} does not match expected value '{}' (actual '{}'). This is OK if this ledger was created prior to Pravega 0.7.1.",
+                    PROPERTY_APPLICATION, handle.getId(), PROPERTY_VALUE_APPLICATION, appName);
+            return NO_LOG_ID;
+        }
+
+        String deserialized = getPropertyValue(PROPERTY_LOG_ID, handle);
+        if (deserialized == null) {
             log.warn("No property '{}' found on Ledger {}. This is OK if this ledger was created prior to Pravega 0.7.1.",
                     PROPERTY_LOG_ID, handle.getId());
             return NO_LOG_ID;
         }
 
-        String deserialized = null;
         try {
-            deserialized = new String(logIdSerialized, Charsets.US_ASCII);
             return Integer.parseInt(deserialized);
-        } catch (Exception ex) {
-            log.error("Property '{}' Ledger {} has invalid value '{}'. Returning default value.",
-                    PROPERTY_LOG_ID, handle.getId(), deserialized == null ? logIdSerialized : deserialized);
+        } catch (NumberFormatException ex) {
+            log.error("Property '{}' Ledger {} has invalid value '{}'. Returning default value.", PROPERTY_LOG_ID, handle.getId(), deserialized);
             return NO_LOG_ID;
         }
+    }
+
+    private static String getPropertyValue(String property, LedgerHandle handle) {
+        byte[] s = handle.getCustomMetadata().getOrDefault(property, null);
+        return s == null ? null : new String(s, CUSTOM_PROPERTY_CHARSET);
     }
 
     /**
@@ -231,7 +245,11 @@ final class Ledgers {
      * @param logId The {@link BookKeeperLog} Id to encode.
      * @return An immutable {@link Map} containing the encoded Ledger's Custom Metadata.
      */
-    private static Map<String, byte[]> createLedgerCustomMetadata(int logId) {
-        return Collections.singletonMap(PROPERTY_LOG_ID, Integer.toString(logId).getBytes(Charsets.US_ASCII));
+    @VisibleForTesting
+    static Map<String, byte[]> createLedgerCustomMetadata(int logId) {
+        return ImmutableMap.<String, byte[]>builder()
+                .put(PROPERTY_APPLICATION, PROPERTY_VALUE_APPLICATION.getBytes(CUSTOM_PROPERTY_CHARSET))
+                .put(PROPERTY_LOG_ID, Integer.toString(logId).getBytes(CUSTOM_PROPERTY_CHARSET))
+                .build();
     }
 }
