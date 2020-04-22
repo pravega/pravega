@@ -148,7 +148,7 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     private void initializeZookeeperConnectionStateListener() {
-        // We consider metadata operations to be safe to execute if the Zookeeper connection state is CONNECTED or RECONNECTED.
+        // Store current state of the session and the time it has been changed.
         this.zkClient.getConnectionStateListenable().addListener((client, newState) -> {
             zkSessionState.set(new ZookeeperSessionStateAndTime(newState, System.currentTimeMillis()));
         });
@@ -877,7 +877,7 @@ class BookKeeperLog implements DurableDataLog {
         } catch (KeeperException.NodeExistsException | KeeperException.BadVersionException keeperEx) {
             if (!isReliableZookeeperConnectionState()){
                 log.warn("A Zookeeper metadata update has been done while Zookeeper session was unstable. This may lead" +
-                        "to metadata inconsistency between Zookeeper metadata and what is in Bookkeeper.");
+                        " to inconsistency between Zookeeper metadata and what is in Bookkeeper which can require reconciliation.");
             }
             // We were fenced out. Clean up and throw appropriate exception.
             throw new DataLogWriterNotPrimaryException(
