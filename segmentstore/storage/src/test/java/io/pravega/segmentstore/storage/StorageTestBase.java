@@ -15,6 +15,7 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.test.common.AssertExtensions;
@@ -41,12 +42,15 @@ import lombok.Setter;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static io.pravega.test.common.AssertExtensions.assertSuppliedFutureThrows;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
+import static org.mockito.Mockito.when;
+
 /**
  * Base class for testing any implementation of the Storage interface.
  */
