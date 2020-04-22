@@ -9,12 +9,14 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
+import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogTestBase;
@@ -41,6 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.bookkeeper.client.BKException;
@@ -49,6 +52,8 @@ import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.data.Stat;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -376,6 +381,43 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         val ws = log.getWriteSettings();
         Assert.assertEquals(BookKeeperConfig.MAX_APPEND_LENGTH, ws.getMaxWriteLength());
         Assert.assertEquals(this.config.get().getMaxOutstandingBytes(), ws.getMaxOutstandingBytes());
+    }
+
+    @Test
+    public void testReconcileMetadata() throws Exception {
+        // Test initialization (node creation).
+        try (val log = new TestBookKeeperLog()) {
+            // Data not persisted and we throw an error - this is a real fencing event.
+            log.setThrowZkException(true);
+            log.setPersistData(false);
+            AssertExtensions.assertThrows(
+                    "Create(Persist=False, Throw=True)",
+                    () -> log.initialize(TIMEOUT),
+                    ex -> ex instanceof DataLogWriterNotPrimaryException);
+            Assert.assertEquals(1, log.getCreateExceptionCount());
+
+            // Data persisted correctly and we throw an error - reconciliation needed.
+            log.setPersistData(true);
+            log.initialize(TIMEOUT);
+            Assert.assertEquals("Create(Persist=True, Throw=True)", 2, log.getCreateExceptionCount());
+        }
+
+        // Test updates (subsequent recoveries).
+        try (val log = new TestBookKeeperLog()) {
+            // Data not persisted and we throw an error - this is a real fencing event.
+            log.setThrowZkException(true);
+            log.setPersistData(false);
+            AssertExtensions.assertThrows(
+                    "Update(Persist=False, Throw=True)",
+                    () -> log.initialize(TIMEOUT),
+                    ex -> ex instanceof DataLogWriterNotPrimaryException);
+            Assert.assertEquals(1, log.getUpdateExceptionCount());
+
+            // Data persisted correctly and we throw an error - reconciliation needed.
+            log.setPersistData(true);
+            log.initialize(TIMEOUT);
+            Assert.assertEquals("Update(Persist=True, Throw=True)", 2, log.getUpdateExceptionCount());
+        }
     }
 
     /**
@@ -738,6 +780,61 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     //endregion
+
+    //region TestBookKeeperLog
+
+    @Setter
+    private class TestBookKeeperLog extends BookKeeperLog {
+        private boolean persistData = true;
+        private boolean throwZkException = false;
+        private final AtomicInteger createExceptionCount = new AtomicInteger();
+        private final AtomicInteger updateExceptionCount = new AtomicInteger();
+
+        TestBookKeeperLog() {
+            super(CONTAINER_ID, zkClient.get(), factory.get().getBookKeeperClient(), config.get(), executorService());
+        }
+
+        int getCreateExceptionCount() {
+            return this.createExceptionCount.get();
+        }
+
+        int getUpdateExceptionCount() {
+            return this.updateExceptionCount.get();
+        }
+
+        @Override
+        protected Stat createZkMetadata(byte[] serializedMetadata) throws Exception {
+            assert this.persistData || this.throwZkException;
+            Stat result = new Stat();
+            if (this.persistData) {
+                result = super.createZkMetadata(serializedMetadata);
+            }
+            if (this.throwZkException) {
+                this.createExceptionCount.incrementAndGet();
+                throw new KeeperException.NodeExistsException();
+            }
+            return result;
+        }
+
+        @VisibleForTesting
+        protected Stat updateZkMetadata(byte[] serializedMetadata, int version) throws Exception {
+            assert this.persistData || this.throwZkException;
+            Stat result = new Stat();
+            if (this.persistData) {
+                super.updateZkMetadata(serializedMetadata, version);
+            }
+            if (this.throwZkException) {
+                this.updateExceptionCount.incrementAndGet();
+                throw new KeeperException.BadVersionException();
+            }
+            return result;
+        }
+    }
+
+    //endregion
+
+    //region Actual Test Implementations
+
     public static class SecureBookKeeperLogTests extends BookKeeperLogTests {
         @BeforeClass
         public static void startUp() throws Exception {
@@ -751,4 +848,6 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
             setUpBookKeeper(false);
         }
     }
+
+    //endregion
 }
