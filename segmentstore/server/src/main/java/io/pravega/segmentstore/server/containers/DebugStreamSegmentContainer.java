@@ -12,9 +12,14 @@ package io.pravega.segmentstore.server.containers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
-import io.pravega.segmentstore.server.*;
+import io.pravega.segmentstore.server.DebugSegmentContainer;
+import io.pravega.segmentstore.server.OperationLogFactory;
+import io.pravega.segmentstore.server.ReadIndexFactory;
+import io.pravega.segmentstore.server.SegmentContainerFactory;
+import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -40,21 +45,25 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
      *                                 {@link SegmentContainerExtension}s to be associated with that instance.
      * @param executor                 An Executor that can be used to run async tasks.
      */
-    DebugStreamSegmentContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, SegmentContainerFactory.CreateExtensions createExtensions, ScheduledExecutorService executor) {
-        super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory, storageFactory, createExtensions, executor);
+    DebugStreamSegmentContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
+                                ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory,
+                                WriterFactory writerFactory, StorageFactory storageFactory,
+                                SegmentContainerFactory.CreateExtensions createExtensions, ScheduledExecutorService executor) {
+        super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory,
+                storageFactory, createExtensions, executor);
         this.config = config;
     }
 
     /**
-     * Creates a stream segment.
-     * @param streamSegmentName A string.
-     * @param length An integer.
-     * @param isSealed A boolean.
-     * @return A created stream segment.
+     * Creates a segment with given properties.
+     * @param streamSegmentName         Name of the segment to be created.
+     * @param length                    Length of the segment to be created.
+     * @param isSealed                  Sealed status of the segment to be created.
+     * @return                          A newly created segment.
      */
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, int length, boolean isSealed /*TODO: pass in generic params */) {
-
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, int length, boolean isSealed
+            /*TODO: pass in generic params */) {
         if (log.isDebugEnabled()) {
             log.debug("createStreamSegment called for {}", streamSegmentName);
         }
