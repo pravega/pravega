@@ -26,7 +26,7 @@ import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.nio.channels.WritableByteChannel;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -61,7 +61,7 @@ public class CommandEncoder {
     private int bytesLeftInBlock;
     private final Map<UUID, Session> pendingWrites = new HashMap<>();
 
-    private final OutputStream output;
+    private final WritableByteChannel output;
     private final ScheduledExecutorService executor;
     private final ByteBuf buffer = Unpooled.buffer(1024 * 1024);
 
@@ -235,7 +235,7 @@ public class CommandEncoder {
     
     @GuardedBy("$lock")
     private void flushBuffer() throws IOException {
-        buffer.readBytes(output, buffer.readableBytes());
+        output.write(buffer.nioBuffer());
         buffer.clear();
     }
     

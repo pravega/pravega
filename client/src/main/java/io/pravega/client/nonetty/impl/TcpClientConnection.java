@@ -22,9 +22,10 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.SocketChannel;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -42,16 +43,16 @@ public class TcpClientConnection implements ClientConnection {
     private static class ConnectionReader {
 
         private final String name;
-        private final InputStream inputStream;
+        private final ReadableByteChannel channel;
         private final ReplyProcessor callback;
         private final ScheduledExecutorService thread;
         private final AppendBatchSizeTracker batchSizeTracker;
         private final AtomicBoolean stop = new AtomicBoolean(false);
 
-        public ConnectionReader(String name, InputStream inputStream, ReplyProcessor callback,
+        public ConnectionReader(String name, ReadableByteChannel channel, ReplyProcessor callback,
                                 AppendBatchSizeTracker batchSizeTracker) {
             this.name = name;
-            this.inputStream = inputStream;
+            this.channel = channel;
             this.callback = callback;
             this.thread = ExecutorServiceHelpers.newScheduledThreadPool(1, "Reading from " + name);
             this.batchSizeTracker = batchSizeTracker;
@@ -59,31 +60,31 @@ public class TcpClientConnection implements ClientConnection {
         
         public void start() {
             thread.submit(() -> {
-                byte[] header = new byte[8];
                 while (!stop.get()) {
                     try {
-                        inputStream.readNBytes(header, 0, 8);
-                        ByteBuffer headerReadingBuffer = ByteBuffer.wrap(header);
-                        int t = headerReadingBuffer.getInt();
+                        ByteBuffer header = ByteBuffer.allocate(8);
+                        fillFromChannel(header, channel);
+
+                        int t = header.getInt();
                         WireCommandType type = WireCommands.getType(t);
                         if (type == null) {
                             throw new InvalidMessageException("Unknown wire command: " + t);
                         }
 
-                        int length = headerReadingBuffer.getInt();
+                        int length = header.getInt();
                         if (length < 0 || length > WireCommands.MAX_WIRECOMMAND_SIZE) {
                             throw new InvalidMessageException("Event of invalid length: " + length);
                         }
 
-                        byte[] bytes = inputStream.readNBytes(length);
-                        WireCommand command = type.readFrom(new ByteBufInputStream(Unpooled.wrappedBuffer(bytes)), length);
+                        ByteBuffer payload = ByteBuffer.allocate(length);
+                        fillFromChannel(payload, channel);
+                        WireCommand command = type.readFrom(new ByteBufInputStream(Unpooled.wrappedBuffer(payload)), length);
                         if (command instanceof WireCommands.DataAppended) {
                             WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
                             batchSizeTracker.recordAck(dataAppended.getEventNumber());
                         }
 
                         callback.process((Reply) command);
-
                     } catch (Exception e) {
                         log.error("Error processing data from from server " + name, e);
                         stop();
@@ -92,6 +93,13 @@ public class TcpClientConnection implements ClientConnection {
             });
         }
 
+        private void fillFromChannel(ByteBuffer buff, ReadableByteChannel chan) throws IOException {
+            while (buff.hasRemaining()) {                
+                chan.read(buff);
+            }
+            buff.flip();
+        }
+        
         public void stop() {
             stop.set(true);
             thread.shutdown();
@@ -102,10 +110,10 @@ public class TcpClientConnection implements ClientConnection {
     public TcpClientConnection(String host, int port, ReplyProcessor callback) {
         socket = new Socket(host, port);
         socket.setTcpNoDelay(true);
-        InputStream inputStream = socket.getInputStream();
+        SocketChannel channel = socket.getChannel();
         AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
-        this.reader = new ConnectionReader(host, inputStream, callback, batchSizeTracker);
-        this.encoder = new CommandEncoder(l -> batchSizeTracker, null, socket.getOutputStream(), ExecutorServiceHelpers.newScheduledThreadPool(1, "Timeouts for " + host));
+        this.reader = new ConnectionReader(host, channel, callback, batchSizeTracker);
+        this.encoder = new CommandEncoder(l -> batchSizeTracker, null, channel, ExecutorServiceHelpers.newScheduledThreadPool(1, "Timeouts for " + host));
         this.reader.start();
     }
 
