@@ -51,7 +51,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Cleanup;
-import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END_OF_SEGMENT_REACHED;
@@ -372,10 +371,18 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         }
     }
 
-    @Synchronized
     @VisibleForTesting
     List<EventSegmentReader> getReaders() {
-        return Collections.unmodifiableList(readers);
+        synchronized (readers) {            
+            return Collections.unmodifiableList(readers);
+        }
+    }
+    
+    @VisibleForTesting
+    Map<Segment, Range> getRanges() {
+        synchronized (readers) {
+            return Collections.unmodifiableMap(ranges);
+        }
     }
 
     @Override
