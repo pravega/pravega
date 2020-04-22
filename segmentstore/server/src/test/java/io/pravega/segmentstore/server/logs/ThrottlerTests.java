@@ -168,13 +168,12 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         Assert.assertFalse("Not expected throttle future to be completed yet.", t1.isDone());
         t.notifyThrottleSourceChanged();
 
-        String[] tags = { "container", String.valueOf(this.containerId), "throttler", "Batching" };
         TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
 
         Assert.assertEquals(
                 "Last reported delay is equal to last supplied delay.",
                 (int) suppliedDelays.get(0),
-                (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value()
+                (int) getThrottlerMetric(calculator.getName())
         );
     }
 
@@ -235,14 +234,12 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         }
         TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
 
-        String[] tags = { "container", String.valueOf(this.containerId), "throttler", "Cache" };
-
         // Because the supplied delays is monotonically decreasing, only the first delay value should be used to calculate
         // the duration supplied.
         AssertExtensions.assertLessThanOrEqual(
                 "Throttler should be at most the first supplied delay",
                 (int) suppliedDelays.get(0),
-                (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value()
+                (int) getThrottlerMetric(calculator.getName())
         );
     }
 
@@ -279,18 +276,17 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
             TestUtils.await(() -> delays.size() == expectedDelayCount, 5, TIMEOUT_MILLIS);
         }
         TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
-        String[] tags = MetricsTags.throttlerTag(this.containerId, calculator.getName().toString());
         // Because the supplied delays is monotonically decreasing, only the first delay value should be used to calculate
         // the duration supplied.
         AssertExtensions.assertGreaterThanOrEqual(
                 "Excepted delay to be at least the smallest value.",
                  suppliedDelays.get(2),
-                (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value()
+                (int) getThrottlerMetric(calculator.getName())
         );
         AssertExtensions.assertLessThan(
                 "Excepted delay to be strictly less than the max.",
                  suppliedDelays.get(0),
-                (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, tags).value()
+                (int) getThrottlerMetric(calculator.getName())
         );
     }
 
@@ -342,10 +338,6 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
 
     private ThrottlerCalculator wrap(ThrottlerCalculator.Throttler calculatorThrottler) {
         return ThrottlerCalculator.builder().throttler(calculatorThrottler).build();
-    }
-
-    private ThrottlerCalculator wrap(ArrayList<ThrottlerCalculator.Throttler> throttlers) {
-        return ThrottlerCalculator.builder().throttlers(throttlers).build();
     }
 
     private double getThrottlerMetric(ThrottlerCalculator.ThrottlerName name) {
