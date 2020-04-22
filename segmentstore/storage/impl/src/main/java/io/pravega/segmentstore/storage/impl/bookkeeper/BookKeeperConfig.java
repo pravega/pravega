@@ -26,19 +26,19 @@ import org.apache.bookkeeper.client.BookKeeper;
 public class BookKeeperConfig {
     //region Config Names
 
-    public static final Property<String> ZK_ADDRESS = Property.named("zkAddress", "localhost:2181");
-    public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zkSessionTimeoutMillis", 10000);
-    public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zkConnectionTimeoutMillis", 10000);
-    public static final Property<String> ZK_METADATA_PATH = Property.named("zkMetadataPath", "/segmentstore/containers");
-    public static final Property<Integer> ZK_HIERARCHY_DEPTH = Property.named("zkHierarchyDepth", 2);
-    public static final Property<Integer> MAX_WRITE_ATTEMPTS = Property.named("maxWriteAttempts", 5);
-    public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("bkEnsembleSize", 3);
-    public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 2);
-    public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("bkWriteQuorumSize", 3);
-    public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("bkWriteTimeoutMillis", 60000);
-    public static final Property<Integer> BK_READ_TIMEOUT = Property.named("readTimeoutMillis", 30000);
-    public static final Property<Integer> BK_READ_BATCH_SIZE = Property.named("readBatchSize", 64);
-    public static final Property<Integer> MAX_OUTSTANDING_BYTES = Property.named("maxOutstandingBytes", 256 * 1024 * 1024);
+    public static final Property<String> ZK_ADDRESS = Property.named("zk.connect.uri", "localhost:2181");
+    public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zk.connect.sessionTimeout.milliseconds", 10000);
+    public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zk.connect.sessionTimeout.milliseconds", 10000);
+    public static final Property<String> ZK_METADATA_PATH = Property.named("zk.metadata.path", "/segmentstore/containers");
+    public static final Property<Integer> ZK_HIERARCHY_DEPTH = Property.named("zk.metadata.hierarchy.depth", 2);
+    public static final Property<Integer> MAX_WRITE_ATTEMPTS = Property.named("write.attempts.count.max", 5);
+    public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("ensemble.size", 3);
+    public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("ack.quorum.size", 2);
+    public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("write.quorum.size", 3);
+    public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("write.timeout.milliseconds", 60000);
+    public static final Property<Integer> BK_READ_TIMEOUT = Property.named("read.timeout.milliseconds", 30000);
+    public static final Property<Integer> BK_READ_BATCH_SIZE = Property.named("read.batch.size", 64);
+    public static final Property<Integer> MAX_OUTSTANDING_BYTES = Property.named("write.outstandingBytes.max", 256 * 1024 * 1024);
     public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("bkLedgerMaxSize", 1024 * 1024 * 1024);
     public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
     public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
