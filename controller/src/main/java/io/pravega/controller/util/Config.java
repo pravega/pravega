@@ -139,15 +139,15 @@ public final class Config {
     private static final Property<Boolean> PROPERTY_REQUEST_TRACING_ENABLED = Property.named("request.tracing.enable", true);
     private static final Property<Boolean> PROPERTY_DUMP_STACK_ON_SHUTDOWN = Property.named("dumpStackOnShutdown.enable", false);
     private static final Property<Boolean> PROPERTY_USE_PRAVEGA_TABLES = Property.named("pravegaTables.enable", true);
-    private static final Property<Integer> PROPERTY_SERVICE_PORT = Property.named("rpc.listener.port", 9090);
+    private static final Property<Integer> PROPERTY_SERVICE_PORT = Property.named("service.rpc.listener.port", 9090);
     private static final Property<Integer> PROPERTY_TASK_POOL_SIZE = Property.named("asyncTaskPool.size", 80);
     private static final Property<String> PROPERTY_SERVICE_HOST_IP = Property.named("segmentstore.connect.ip", "localhost");
     private static final Property<Integer> PROPERTY_SERVICE_HOST_PORT = Property.named("segmentstore.connect.port", 12345);
-    private static final Property<String> PROPERTY_RPC_HOST = Property.named("rpc.published.host", NULL_VALUE);
-    private static final Property<Integer> PROPERTY_RPC_PORT = Property.named("rpc.published.port", 9090);
+    private static final Property<String> PROPERTY_RPC_HOST = Property.named("service.rpc.published.host", NULL_VALUE);
+    private static final Property<Integer> PROPERTY_RPC_PORT = Property.named("service.rpc.published.port", 9090);
     private static final Property<String> PROPERTY_CLUSTER_NAME = Property.named("cluster.name", "pravega-cluster");
-    private static final Property<String> PROPERTY_REST_IP = Property.named("rest.listener.ip", "0.0.0.0");
-    private static final Property<Integer> PROPERTY_REST_PORT = Property.named("rest.listener.port", 9091);
+    private static final Property<String> PROPERTY_REST_IP = Property.named("service.rest.listener.ip", "0.0.0.0");
+    private static final Property<Integer> PROPERTY_REST_PORT = Property.named("service.rest.listener.port", 9091);
     private static final Property<String> PROPERTY_REST_KEYSTORE_FILE_PATH = Property.named("security.tls.server.keyStore.location", "");
     private static final Property<String> PROPERTY_REST_KEYSTORE_PASSWORD_FILE_PATH = Property.named("security.tls.server.keyStore.pwd.location", "");
 
