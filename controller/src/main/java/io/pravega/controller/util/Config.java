@@ -182,8 +182,8 @@ public final class Config {
     private static final Property<Integer> PROPERTY_WATERMARKING_BUCKET_COUNT = Property.named("watermarking.bucket.count", 100);
     private static final Property<Integer> PROPERTY_WATERMARKING_THREAD_COUNT = Property.named("watermarking.thread.count", 10);
 
-    private static final Property<String> PROPERTY_SCALE_STREAM_NAME = Property.named("autoScale.stream.name", "_requeststream");
-    private static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named("autoScale.readerGroup.name", "scaleGroup");
+    private static final Property<String> PROPERTY_SCALE_STREAM_NAME = Property.named("autoScale.request.stream.name", "_requeststream");
+    private static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named("autoScale.request.readerGroup.name", "scaleGroup");
     private static final String COMPONENT_CODE = "controller";
 
     //endregion
