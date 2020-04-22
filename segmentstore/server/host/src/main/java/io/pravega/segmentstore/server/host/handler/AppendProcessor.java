@@ -189,12 +189,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             return Futures.delayedTask(() -> {
                 if (isSetupAppendCompleted(segment, writerId)) {
                     try {
-                        log.debug("Informing writer {} that sent request {}, about token expiry for segment {}",
+                        log.trace("Informing writer {} that sent request {}, about token expiry for segment {}",
                                 writerId, requestId, segment);
-                        connection.send(new WireCommands.AuthTokenCheckFailed(setupAppend.getRequestId(),
-                                String.format("Token sent by writer %s for segment %s in request %s has expired",
-                                        writerId, segment, requestId),
-                                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+                        if (!connection.isClosed()) {
+                            connection.send(new WireCommands.AuthTokenCheckFailed(setupAppend.getRequestId(),
+                                    String.format("Token sent by writer %s for segment %s in request %s has expired",
+                                            writerId, segment, requestId),
+                                    WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+                        }
                     } catch (RuntimeException e) {
                         // Log and ignore
                         log.debug("Unable to inform writer {} that sent request {}, about token expiry for segment {}",
