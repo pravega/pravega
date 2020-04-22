@@ -45,9 +45,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -55,6 +59,7 @@ import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.state.ConnectionState;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
 
@@ -85,6 +90,7 @@ class BookKeeperLog implements DurableDataLog {
     //region Members
 
     private static final long REPORT_INTERVAL = 1000;
+    private static final long MIN_SESSION_LENGTH_MILLIS = 5000;
     private final String logNodePath;
     private final CuratorFramework zkClient;
     private final BookKeeper bookKeeper;
@@ -104,6 +110,10 @@ class BookKeeperLog implements DurableDataLog {
     private final ScheduledFuture<?> metricReporter;
     @GuardedBy("queueStateChangeListeners")
     private final HashSet<ThrottleSourceListener> queueStateChangeListeners;
+    @Getter
+    @VisibleForTesting
+    private final AtomicReference<ZookeeperSessionStateAndTime> zkSessionState;
+
     //endregion
 
     //region Constructor
@@ -133,6 +143,15 @@ class BookKeeperLog implements DurableDataLog {
         this.metrics = new BookKeeperMetrics.BookKeeperLog(containerId);
         this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
         this.queueStateChangeListeners = new HashSet<>();
+        this.zkSessionState = new AtomicReference<>(new ZookeeperSessionStateAndTime(ConnectionState.CONNECTED, System.currentTimeMillis()));
+        initializeZookeeperConnectionStateListener();
+    }
+
+    private void initializeZookeeperConnectionStateListener() {
+        // We consider metadata operations to be safe to execute if the Zookeeper connection state is CONNECTED or RECONNECTED.
+        this.zkClient.getConnectionStateListenable().addListener((client, newState) -> {
+            zkSessionState.set(new ZookeeperSessionStateAndTime(newState, System.currentTimeMillis()));
+        });
     }
 
     private Retry.RetryAndThrowBase<? extends Exception> createRetryPolicy(int maxWriteAttempts, int writeTimeout) {
@@ -834,6 +853,10 @@ class BookKeeperLog implements DurableDataLog {
      * @throws DurableDataLogException          If another kind of exception occurred.
      */
     private void persistMetadata(LogMetadata metadata, boolean create) throws DurableDataLogException {
+        if (!isReliableZookeeperConnectionState()) {
+            throw new DataLogInitializationException(String.format("Zookeeper session is unstable, it may not be " +
+                    "safe to update metadata '%s%s'.", this.zkClient.getNamespace(), this.logNodePath));
+        }
         try {
             byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize(metadata).getCopy();
             Stat result;
@@ -852,6 +875,10 @@ class BookKeeperLog implements DurableDataLog {
 
             metadata.withUpdateVersion(result.getVersion());
         } catch (KeeperException.NodeExistsException | KeeperException.BadVersionException keeperEx) {
+            if (!isReliableZookeeperConnectionState()){
+                log.warn("A Zookeeper metadata update has been done while Zookeeper session was unstable. This may lead" +
+                        "to metadata inconsistency between Zookeeper metadata and what is in Bookkeeper.");
+            }
             // We were fenced out. Clean up and throw appropriate exception.
             throw new DataLogWriterNotPrimaryException(
                     String.format("Unable to acquire exclusive write lock for log (path = '%s%s').", this.zkClient.getNamespace(), this.logNodePath),
@@ -864,6 +891,15 @@ class BookKeeperLog implements DurableDataLog {
         }
 
         log.info("{} Metadata persisted ({}).", this.traceObjectId, metadata);
+    }
+
+    /**
+     * To consider a Zookeeper session as reliable, we expect it to be connected for at least MIN_SESSION_LENGTH_MILLIS.
+     */
+    private boolean isReliableZookeeperConnectionState() {
+        return (zkSessionState.get().connectionState == ConnectionState.CONNECTED ||
+                (zkSessionState.get().connectionState == ConnectionState.RECONNECTED
+                        && (System.currentTimeMillis() - zkSessionState.get().timestamp) > MIN_SESSION_LENGTH_MILLIS));
     }
 
     //endregion
@@ -994,4 +1030,14 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     //endregion
+
+    @AllArgsConstructor
+    static class ZookeeperSessionStateAndTime {
+        @Getter
+        @VisibleForTesting
+        private final ConnectionState connectionState;
+        @Getter
+        @VisibleForTesting
+        private final long timestamp;
+    }
 }

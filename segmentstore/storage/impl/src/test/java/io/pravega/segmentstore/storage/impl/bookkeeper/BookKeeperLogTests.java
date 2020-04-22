@@ -13,15 +13,11 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.common.util.RetriesExhaustedException;
-import io.pravega.segmentstore.storage.DataLogNotAvailableException;
-import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.segmentstore.storage.DurableDataLogTestBase;
-import io.pravega.segmentstore.storage.LogAddress;
-import io.pravega.segmentstore.storage.ThrottleSourceListener;
-import io.pravega.segmentstore.storage.WriteFailureException;
+import io.pravega.segmentstore.storage.*;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
+
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,6 +38,7 @@ import lombok.val;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.state.ConnectionState;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -370,6 +367,28 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         val ws = log.getWriteSettings();
         Assert.assertEquals(BookKeeperConfig.MAX_APPEND_LENGTH, ws.getMaxWriteLength());
         Assert.assertEquals(this.config.get().getMaxOutstandingBytes(), ws.getMaxOutstandingBytes());
+    }
+
+    @Test
+    public void testZookeeperSessionExpiration() throws Exception {
+        try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
+            // This should work, as the connection is new.
+            log.initialize(TIMEOUT);
+            // Next, we induce a Zookeeper session expiration.
+            zkClient.get().getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
+            // We wait for the connection to be re-established.
+            AssertExtensions.assertEventuallyEquals(ConnectionState.RECONNECTED, () -> log.getZkSessionState().get().getConnectionState(), 1000);
+            // When attempting to update the metadata in Zookeeper, we fail if the connection is not set or if has been
+            // re-established too recently (i.e. < MIN_SESSION_LENGTH_MILLIS), as the session may be still unstable.
+            AssertExtensions.assertThrows("Bookkeeper should have failed the update of metadata as the Zookeeper connection is unreliable",
+                    () -> log.truncate(new LedgerAddress(0, 0), Duration.ofSeconds(10)).join(),
+                    ex -> ex instanceof DataLogInitializationException);
+            // Then, we wait for the connection to be older than MIN_SESSION_LENGTH_MILLIS.
+            AssertExtensions.assertEventuallyEquals(true,
+                    () -> (System.currentTimeMillis() - log.getZkSessionState().get().getTimestamp()) > 5000, 10000);
+            // The next attempt to update the metadata in Zookeeper should not throw due to the connection state.
+            log.truncate(new LedgerAddress(0, 0), Duration.ofSeconds(10)).join();
+        }
     }
 
     /**
