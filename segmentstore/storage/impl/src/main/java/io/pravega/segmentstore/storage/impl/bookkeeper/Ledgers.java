@@ -9,8 +9,8 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.base.Charsets;
 import io.pravega.common.Exceptions;
-import io.pravega.common.util.BitConverter;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import java.util.Collections;
@@ -208,7 +208,21 @@ final class Ledgers {
      */
     static int getBookKeeperLogId(LedgerHandle handle) {
         byte[] logIdSerialized = handle.getCustomMetadata().getOrDefault(PROPERTY_LOG_ID, null);
-        return logIdSerialized == null || logIdSerialized.length < Integer.BYTES ? NO_LOG_ID : BitConverter.readInt(logIdSerialized, 0);
+        if (logIdSerialized == null || logIdSerialized.length == 0) {
+            log.warn("No property '{}' found on Ledger {}. This is OK if this ledger was created prior to Pravega 0.7.1.",
+                    PROPERTY_LOG_ID, handle.getId());
+            return NO_LOG_ID;
+        }
+
+        String deserialized = null;
+        try {
+            deserialized = new String(logIdSerialized, Charsets.US_ASCII);
+            return Integer.parseInt(deserialized);
+        } catch (Exception ex) {
+            log.error("Property '{}' Ledger {} has invalid value '{}'. Returning default value.",
+                    PROPERTY_LOG_ID, handle.getId(), deserialized == null ? logIdSerialized : deserialized);
+            return NO_LOG_ID;
+        }
     }
 
     /**
@@ -218,8 +232,6 @@ final class Ledgers {
      * @return An immutable {@link Map} containing the encoded Ledger's Custom Metadata.
      */
     private static Map<String, byte[]> createLedgerCustomMetadata(int logId) {
-        byte[] logIdSerialized = new byte[Integer.BYTES];
-        BitConverter.writeInt(logIdSerialized, 0, logId);
-        return Collections.singletonMap(PROPERTY_LOG_ID, logIdSerialized);
+        return Collections.singletonMap(PROPERTY_LOG_ID, Integer.toString(logId).getBytes(Charsets.US_ASCII));
     }
 }

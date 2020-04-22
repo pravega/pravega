@@ -9,10 +9,12 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.base.Charsets;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
@@ -24,6 +26,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -75,7 +78,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     private static final AtomicInteger BK_PORT = new AtomicInteger();
 
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+    public Timeout globalTimeout = Timeout.seconds(100 * TIMEOUT.getSeconds());
     private final AtomicReference<BookKeeperConfig> config = new AtomicReference<>();
     private final AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
     private final AtomicReference<BookKeeperLogFactory> factory = new AtomicReference<>();
@@ -403,6 +406,9 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 ex -> ex instanceof UnsupportedOperationException);
     }
 
+    /**
+     * Tests {@link DebugLogWrapper#reconcileLedgers}.
+     */
     @Test
     public void testReconcileLedgers() throws Exception {
         final int initialLedgerCount = 5;
@@ -414,8 +420,6 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         for (int i = 0; i < initialLedgerCount; i++) {
             try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
                 log.initialize(TIMEOUT);
-
-                val currentMetadata = log.loadMetadata();
                 log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
 
@@ -484,7 +488,129 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         AssertExtensions.assertListEquals("Unexpected ledger list.", expectedLedgers, newMetadata.getLedgers(),
                 (e, a) -> e.getLedgerId() == a.getLedgerId() && e.getSequence() == a.getSequence());
 
-        // Enable the new log and read from it.
+        checkLogReadAfterReconciliation(expectedLedgers.size());
+    }
+
+    /**
+     * Tests {@link DebugLogWrapper#reconcileLedgers} with an empty log metadata and various types of candidate ledgers
+     * that may or may not belong to it.
+     */
+    @Test
+    public void testReconcileLedgersEmptyLog() throws Exception {
+        final BookKeeper bk = this.factory.get().getBookKeeperClient();
+        val log = (BookKeeperLog) createDurableDataLog();
+        val wrapper = new DebugLogWrapper(log, bk, this.config.get());
+        wrapper.disable();
+
+        //Empty out the log's metadata.
+        val emptyMetadata = LogMetadata
+                .builder()
+                .enabled(false)
+                .epoch(1)
+                .truncationAddress(LogMetadata.INITIAL_TRUNCATION_ADDRESS)
+                .updateVersion(wrapper.fetchMetadata().getUpdateVersion())
+                .ledgers(Collections.emptyList())
+                .build();
+        log.overWriteMetadata(emptyMetadata);
+
+        // Create a few ledgers. One without an Id, one with a bad id, and one with
+        val ledgerNoLogId = createCustomLedger(null);
+        val ledgerBadLogId = createCustomLedger(Collections.singletonMap(Ledgers.PROPERTY_LOG_ID, "abc".getBytes())); // Corrupted id
+        val ledgerOtherLogId = createCustomLedger(Collections.singletonMap(Ledgers.PROPERTY_LOG_ID, Integer.toString(log.getLogId() + 1).getBytes(Charsets.US_ASCII)));
+        val ledgerGoodLogId = Ledgers.create(bk, this.config.get(), log.getLogId());
+        val candidateLedgers = Arrays.asList(ledgerGoodLogId, ledgerBadLogId, ledgerNoLogId, ledgerOtherLogId);
+        for (val lh : candidateLedgers) {
+            lh.addEntry(new byte[100]);
+        }
+
+        // Perform reconciliation.
+        boolean isChanged = wrapper.reconcileLedgers(candidateLedgers);
+        Assert.assertTrue("Expected something to change.", isChanged);
+
+        // Validate new metadata.
+        val newMetadata = wrapper.fetchMetadata();
+        val expectedLedgers = Collections.singletonList(ledgerGoodLogId.getId());
+        val newLedgers = newMetadata.getLedgers().stream().map(LedgerMetadata::getLedgerId).collect(Collectors.toList());
+        Assert.assertFalse("Expected metadata to still be disabled.", newMetadata.isEnabled());
+        Assert.assertEquals("Unexpected epoch.", emptyMetadata.getUpdateVersion(), newMetadata.getEpoch());
+        Assert.assertEquals("Unexpected update version.", emptyMetadata.getUpdateVersion() + 1, newMetadata.getUpdateVersion());
+        AssertExtensions.assertListEquals("Unexpected ledger list.", expectedLedgers, newLedgers, Long::equals);
+
+        checkLogReadAfterReconciliation(expectedLedgers.size());
+    }
+
+    /**
+     * Tests the ability to reject reading from a Log if it has been found it contains Ledgers that do not belong to it.
+     */
+    @Test
+    public void testReadWithBadLogId() throws Exception {
+        final BookKeeper bk = this.factory.get().getBookKeeperClient();
+        try (val log = (BookKeeperLog) createDurableDataLog()) {
+            log.initialize(TIMEOUT);
+            log.append(new CompositeByteArraySegment(new byte[100]), TIMEOUT).join();
+        }
+
+        // Add some bad ledgers to the log's metadata.
+        val writeLog = (BookKeeperLog) createDurableDataLog();
+        val wrapper = new DebugLogWrapper(writeLog, bk, this.config.get());
+        wrapper.disable();
+
+        val ledgerNoLogId = createCustomLedger(null);
+        val ledgerBadLogId = createCustomLedger(Collections.singletonMap(Ledgers.PROPERTY_LOG_ID, "abc".getBytes())); // Corrupted id
+        val ledgerOtherLogId = createCustomLedger(Collections.singletonMap(Ledgers.PROPERTY_LOG_ID, Integer.toString(CONTAINER_ID + 1).getBytes(Charsets.US_ASCII)));
+        val ledgerGoodLogId = Ledgers.create(bk, this.config.get(), CONTAINER_ID);
+        val candidateLedgers = Arrays.asList(ledgerNoLogId, ledgerBadLogId, ledgerOtherLogId, ledgerGoodLogId);
+        for (val lh : candidateLedgers) {
+            lh.addEntry(new byte[100]);
+        }
+
+        // Persist the metadata with bad ledgers.
+        val initialMetadata = wrapper.fetchMetadata();
+        val newLedgers = new ArrayList<LedgerMetadata>();
+        newLedgers.addAll(initialMetadata.getLedgers());
+        candidateLedgers.forEach(l -> newLedgers.add(new LedgerMetadata(l.getId(), newLedgers.size() + 1)));
+        val badMetadata = LogMetadata
+                .builder()
+                .enabled(false)
+                .epoch(initialMetadata.getEpoch() + 1)
+                .truncationAddress(LogMetadata.INITIAL_TRUNCATION_ADDRESS)
+                .updateVersion(wrapper.fetchMetadata().getUpdateVersion())
+                .ledgers(newLedgers)
+                .build();
+        writeLog.overWriteMetadata(badMetadata);
+
+        // Perform an initial read. This should fail.
+        val readLog = (BookKeeperLog) createDurableDataLog();
+        readLog.enable();
+        readLog.initialize(TIMEOUT);
+        @Cleanup
+        val reader = readLog.getReader();
+        AssertExtensions.assertThrows(
+                "No read exception thrown.",
+                () -> {
+                    while (reader.getNext() != null) {
+                        // This is intentionally left blank. We do not care what we read back.
+                    }
+                },
+                ex -> ex instanceof DataLogCorruptedException);
+
+        // Perform reconciliation.
+        val reconcileLog = (BookKeeperLog) createDurableDataLog();
+        val reconcileWrapper = new DebugLogWrapper(reconcileLog, bk, this.config.get());
+        reconcileWrapper.disable();
+        val allLedgers = new ArrayList<LedgerHandle>();
+        for (val lm : reconcileWrapper.fetchMetadata().getLedgers()) {
+            allLedgers.add(reconcileWrapper.openLedgerNoFencing(lm));
+        }
+
+        boolean isChanged = reconcileWrapper.reconcileLedgers(allLedgers);
+        Assert.assertTrue("Expected something to change.", isChanged);
+
+        // There should only be two ledgers that survived: the one where we wrote to the original log and ledgerGoodLogId.
+        checkLogReadAfterReconciliation(2);
+    }
+
+    private void checkLogReadAfterReconciliation(int expectedLedgerCount) throws Exception {
         val newLog = (BookKeeperLog) createDurableDataLog();
         newLog.enable();
         newLog.initialize(TIMEOUT);
@@ -497,7 +623,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
             readCount++;
         }
 
-        Assert.assertEquals("Unexpected number of entries/ledgers read.", expectedLedgers.size(), readCount);
+        Assert.assertEquals("Unexpected number of entries/ledgers read.", expectedLedgerCount, readCount);
     }
 
     @Override
@@ -525,6 +651,13 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
             handle.addEntry(new byte[100]);
         }
         return handle.getId();
+    }
+
+    @SneakyThrows
+    private LedgerHandle createCustomLedger(Map<String, byte[]> customMetadata) {
+        return this.factory.get().getBookKeeperClient().createLedger(this.config.get().getBkEnsembleSize(),
+                this.config.get().getBkWriteQuorumSize(), this.config.get().getBkAckQuorumSize(),
+                this.config.get().getDigestType(), this.config.get().getBKPassword(), customMetadata);
     }
 
     //endregion
