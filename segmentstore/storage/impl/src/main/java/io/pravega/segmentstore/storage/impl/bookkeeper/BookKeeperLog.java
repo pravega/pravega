@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -85,6 +86,8 @@ class BookKeeperLog implements DurableDataLog {
     //region Members
 
     private static final long REPORT_INTERVAL = 1000;
+    @Getter
+    private final int logId;
     private final String logNodePath;
     private final CuratorFramework zkClient;
     private final BookKeeper bookKeeper;
@@ -119,6 +122,7 @@ class BookKeeperLog implements DurableDataLog {
      */
     BookKeeperLog(int containerId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executorService) {
         Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative integer.");
+        this.logId = containerId;
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient");
         this.bookKeeper = Preconditions.checkNotNull(bookKeeper, "bookKeeper");
         this.config = Preconditions.checkNotNull(config, "config");
@@ -232,7 +236,7 @@ class BookKeeperLog implements DurableDataLog {
             }
 
             // Create new ledger.
-            LedgerHandle newLedger = Ledgers.create(this.bookKeeper, this.config);
+            LedgerHandle newLedger = Ledgers.create(this.bookKeeper, this.config, this.logId);
             log.info("{}: Created Ledger {}.", this.traceObjectId, newLedger.getId());
 
             // Update Metadata with new Ledger and persist to ZooKeeper.
@@ -332,7 +336,7 @@ class BookKeeperLog implements DurableDataLog {
     @Override
     public CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException {
         ensurePreconditions();
-        return new LogReader(getLogMetadata(), this.bookKeeper, this.config);
+        return new LogReader(this.logId, getLogMetadata(), this.bookKeeper, this.config);
     }
 
     @Override
@@ -866,6 +870,27 @@ class BookKeeperLog implements DurableDataLog {
         log.info("{} Metadata persisted ({}).", this.traceObjectId, metadata);
     }
 
+    /**
+     * Persists the given metadata into ZooKeeper, overwriting whatever was there previously.
+     *
+     * @param metadata Thew metadata to write.
+     * @throws IllegalStateException    If this BookKeeperLog is not disabled.
+     * @throws IllegalArgumentException If `metadata.getUpdateVersion` does not match the current version in ZooKeeper.
+     * @throws DurableDataLogException  If another kind of exception occurred. See {@link #persistMetadata}.
+     */
+    @VisibleForTesting
+    void overWriteMetadata(LogMetadata metadata) throws DurableDataLogException {
+        LogMetadata currentMetadata = loadMetadata();
+        boolean create = currentMetadata == null;
+        if (!create) {
+            Preconditions.checkState(!currentMetadata.isEnabled(), "Cannot overwrite metadata if BookKeeperLog is enabled.");
+            Preconditions.checkArgument(currentMetadata.getUpdateVersion() == metadata.getUpdateVersion(),
+                    "Wrong Update Version; expected %s, given %s.", currentMetadata.getUpdateVersion(), metadata.getUpdateVersion());
+        }
+
+        persistMetadata(metadata, create);
+    }
+
     //endregion
 
     //region Ledger Rollover
@@ -903,7 +928,7 @@ class BookKeeperLog implements DurableDataLog {
 
         try {
             // Create new ledger.
-            LedgerHandle newLedger = Ledgers.create(this.bookKeeper, this.config);
+            LedgerHandle newLedger = Ledgers.create(this.bookKeeper, this.config, this.logId);
             log.debug("{}: Rollover: created new ledger {}.", this.traceObjectId, newLedger.getId());
 
             // Update the metadata.
