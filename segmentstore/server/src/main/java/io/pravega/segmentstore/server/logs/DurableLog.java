@@ -31,6 +31,7 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
+import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
@@ -220,14 +221,15 @@ public class DurableLog extends AbstractService implements OperationLog {
             return recoveredItemCount > 0;
         } catch (Exception ex) {
             log.error("{} Recovery FAILED.", this.traceObjectId, ex);
-            if (Exceptions.unwrap(ex) instanceof DataCorruptionException) {
+            Throwable cause = Exceptions.unwrap(ex);
+            if (cause instanceof DataCorruptionException || cause instanceof DataLogCorruptedException) {
                 // DataCorruptionException during recovery means we will be unable to execute the recovery successfully
                 // regardless how many times we try. We need to disable the log so that future instances of this class
                 // will not attempt to do so indefinitely (which could wipe away useful debugging information before
                 // someone can manually fix the problem).
                 try {
                     this.durableDataLog.disable();
-                    log.info("{} Log disabled due to DataCorruptionException during recovery.", this.traceObjectId);
+                    log.info("{} Log disabled due to {} during recovery.", this.traceObjectId, cause.getClass().getSimpleName());
                 } catch (Exception disableEx) {
                     log.warn("{}: Unable to disable log after DataCorruptionException during recovery.", this.traceObjectId, disableEx);
                     ex.addSuppressed(disableEx);
