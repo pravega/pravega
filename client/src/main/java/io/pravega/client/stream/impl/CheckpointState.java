@@ -125,8 +125,11 @@ public class CheckpointState {
     }
 
     void removeReader(String readerName, Map<Segment, Long> position) {
-        for (String checkpointId : getCheckpointsForReader(readerName)) {            
-            readerCheckpointed(checkpointId, readerName, position);
+        List<String> toCheckpoint = checkpointIndex.remove(readerName);
+        if (toCheckpoint != null) {
+            for (String checkpointId : toCheckpoint) {            
+                readerCheckpointed(checkpointId, readerName, position);
+            }
         }
     }
     
@@ -136,7 +139,10 @@ public class CheckpointState {
         if (readers != null) {
             boolean removed = readers.remove(readerName);
             Preconditions.checkState(removed, "Reader already checkpointed.");
-            checkpointIndex.get(readerName).remove(checkpointId);
+            List<String> cps = checkpointIndex.get(readerName);
+            if (cps != null) {
+                cps.remove(checkpointId);                
+            }
             Map<Segment, Long> positions = checkpointPositions.get(checkpointId);
             positions.putAll(position);
             if (readers.isEmpty()) {
