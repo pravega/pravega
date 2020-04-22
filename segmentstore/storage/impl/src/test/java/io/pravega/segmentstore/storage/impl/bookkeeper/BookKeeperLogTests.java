@@ -540,6 +540,42 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     /**
+     * Tests {@link DebugLogWrapper#reconcileLedgers} by providing it with a few bad candidates, which should be excluded.
+     */
+    @Test
+    public void testReconcileLedgersBadCandidates() throws Exception {
+        final BookKeeper bk = this.factory.get().getBookKeeperClient();
+        val log = (BookKeeperLog) createDurableDataLog();
+        val wrapper = new DebugLogWrapper(log, bk, this.config.get());
+        wrapper.disable();
+
+        // Create a few ledgers. One without an Id, one with a bad id, and one with
+        val ledgerNoLogId = createCustomLedger(null);
+        val ledgerBadLogId = createCustomLedger(Collections.singletonMap(Ledgers.PROPERTY_LOG_ID, "abc".getBytes())); // Corrupted id
+        val ledgerOtherLogId = createCustomLedger(Collections.singletonMap(Ledgers.PROPERTY_LOG_ID, Integer.toString(log.getLogId() + 1).getBytes(Charsets.US_ASCII)));
+        val ledgerGoodLogId = Ledgers.create(bk, this.config.get(), log.getLogId());
+        val candidateLedgers = Arrays.asList(ledgerGoodLogId, ledgerBadLogId, ledgerNoLogId, ledgerOtherLogId);
+        for (val lh : candidateLedgers) {
+            lh.addEntry(new byte[100]);
+        }
+
+        // Perform reconciliation.
+        boolean isChanged = wrapper.reconcileLedgers(candidateLedgers);
+        Assert.assertTrue("Expected something to change.", isChanged);
+
+        // Validate new metadata.
+        val newMetadata = wrapper.fetchMetadata();
+        val expectedLedgers = Collections.singletonList(ledgerGoodLogId.getId());
+        val newLedgers = newMetadata.getLedgers().stream().map(LedgerMetadata::getLedgerId).collect(Collectors.toList());
+        Assert.assertFalse("Expected metadata to still be disabled.", newMetadata.isEnabled());
+        Assert.assertEquals("Unexpected epoch.", 2, newMetadata.getEpoch());
+        Assert.assertEquals("Unexpected update version.", 2, newMetadata.getUpdateVersion());
+        AssertExtensions.assertListEquals("Unexpected ledger list.", expectedLedgers, newLedgers, Long::equals);
+
+        checkLogReadAfterReconciliation(expectedLedgers.size());
+    }
+
+    /**
      * Tests the ability to reject reading from a Log if it has been found it contains Ledgers that do not belong to it.
      */
     @Test

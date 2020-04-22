@@ -208,7 +208,7 @@ final class Ledgers {
      */
     static int getBookKeeperLogId(LedgerHandle handle) {
         byte[] logIdSerialized = handle.getCustomMetadata().getOrDefault(PROPERTY_LOG_ID, null);
-        if (logIdSerialized == null || logIdSerialized.length == 0) {
+        if (logIdSerialized == null) {
             log.warn("No property '{}' found on Ledger {}. This is OK if this ledger was created prior to Pravega 0.7.1.",
                     PROPERTY_LOG_ID, handle.getId());
             return NO_LOG_ID;
