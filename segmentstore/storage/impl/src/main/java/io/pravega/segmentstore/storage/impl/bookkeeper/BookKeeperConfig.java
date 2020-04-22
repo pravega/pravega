@@ -39,17 +39,17 @@ public class BookKeeperConfig {
     public static final Property<Integer> BK_READ_TIMEOUT = Property.named("read.timeout.milliseconds", 30000);
     public static final Property<Integer> BK_READ_BATCH_SIZE = Property.named("read.batch.size", 64);
     public static final Property<Integer> MAX_OUTSTANDING_BYTES = Property.named("write.outstandingBytes.max", 256 * 1024 * 1024);
-    public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("bkLedgerMaxSize", 1024 * 1024 * 1024);
-    public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
-    public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
-    public static final Property<Boolean> BK_TLS_ENABLED = Property.named("tlsEnabled", false);
-    public static final Property<String> TLS_TRUST_STORE_PATH = Property.named("tlsTrustStorePath", "config/client.truststore.jks");
-    public static final Property<String> TLS_TRUST_STORE_PASSWORD_PATH = Property.named("tlsTrustStorePasswordPath", "");
-    public static final Property<Boolean> BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE = Property.named("enforceMinNumRacksPerWriteQuorum", false);
-    public static final Property<Integer> BK_MIN_NUM_RACKS_PER_WRITE_QUORUM = Property.named("minNumRacksPerWriteQuorum", 2);
-    public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopologyScriptFileName",
+    public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("ledger.size.max", 1024 * 1024 * 1024);
+    public static final Property<String> BK_PASSWORD = Property.named("connect.security.auth.pwd", "");
+    public static final Property<String> BK_LEDGER_PATH = Property.named("ledger.path", "");
+    public static final Property<Boolean> BK_TLS_ENABLED = Property.named("connect.security.tls.enable", false);
+    public static final Property<String> TLS_TRUST_STORE_PATH = Property.named("connect.security.tls.trustStore.location", "config/client.truststore.jks");
+    public static final Property<String> TLS_TRUST_STORE_PASSWORD_PATH = Property.named("connect.security.trustStore.pwd.location", "");
+    public static final Property<Boolean> BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE = Property.named("write.quorum.racks.minimumCount.enable", false);
+    public static final Property<Integer> BK_MIN_NUM_RACKS_PER_WRITE_QUORUM = Property.named("write.quorum.racks.count.min", 2);
+    public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopology.scriptFileName",
             "/opt/pravega/scripts/sample-bookkeeper-topology.sh");
-    public static final Property<String> BK_DIGEST_TYPE = Property.named("digestType", BookKeeper.DigestType.CRC32C.name());
+    public static final Property<String> BK_DIGEST_TYPE = Property.named("digest.type.name", BookKeeper.DigestType.CRC32C.name());
 
     public static final String COMPONENT_CODE = "bookkeeper";
     /**

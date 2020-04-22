@@ -23,11 +23,11 @@ import lombok.extern.slf4j.Slf4j;
 public class HDFSStorageConfig {
     //region Config Names
 
-    public static final Property<String> URL = Property.named("hdfsUrl", "localhost:9000");
-    public static final Property<String> ROOT = Property.named("hdfsRoot", "");
-    public static final Property<Integer> REPLICATION = Property.named("replication", 3);
-    public static final Property<Integer> BLOCK_SIZE = Property.named("blockSize", 1024 * 1024);
-    public static final Property<Boolean> REPLACE_DATANODES_ON_FAILURE = Property.named("replaceDataNodesOnFailure", true);
+    public static final Property<String> URL = Property.named("connect.uri", "localhost:9000");
+    public static final Property<String> ROOT = Property.named("root", "");
+    public static final Property<Integer> REPLICATION = Property.named("replication.factor", 3);
+    public static final Property<Integer> BLOCK_SIZE = Property.named("block.size", 1024 * 1024);
+    public static final Property<Boolean> REPLACE_DATANODES_ON_FAILURE = Property.named("replaceDataNodesOnFailure.enable", true);
     private static final String COMPONENT_CODE = "hdfs";
 
     //endregion

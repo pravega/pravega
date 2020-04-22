@@ -153,8 +153,8 @@ public final class Config {
 
     private static final Property<Boolean> PROPERTY_AUTH_ENABLED = Property.named("security.auth.enable", false);
     private static final Property<String> PROPERTY_AUTH_PASSWORD_FILE = Property.named("security.pwdAuthHander.accountsDb.location", "");
-    private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named("security.auth.tokenSigningKey.basis", "");
-    private static final Property<Integer> PROPERTY_ACCESS_TOKEN_TTL_SECONDS = Property.named("security.auth.accessToken.ttl.seconds", 600);
+    private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named("security.auth.token.signingKey.basis", "");
+    private static final Property<Integer> PROPERTY_ACCESS_TOKEN_TTL_SECONDS = Property.named("security.auth.token.ttl.seconds", 600);
 
     private static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named("security.tls.enable", false);
     private static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named("security.tls.server.certificate.location", "");
@@ -167,8 +167,8 @@ public final class Config {
     private static final Property<Integer> PROPERTY_ZK_MAX_RETRY_COUNT = Property.named("zk.connect.retries.count.max", 5);
     private static final Property<Integer> PROPERTY_ZK_SESSION_TIMEOUT_MILLIS = Property.named("zk.connect.sessionTimeout.milliseconds", 10000);
     private static final Property<Boolean> PROPERTY_ZK_SECURE_CONNECTION = Property.named("zk.connect.security.enable", false);
-    private static final Property<String> PROPERTY_ZK_TRUSTSTORE_FILE_PATH = Property.named("zk.connect.security.trustStore.location", "");
-    private static final Property<String> PROPERTY_ZK_TRUSTSTORE_PASSWORD_FILE_PATH = Property.named("zk.connect.security.trustStore.pwd.location", "");
+    private static final Property<String> PROPERTY_ZK_TRUSTSTORE_FILE_PATH = Property.named("zk.connect.security.tls.trustStore.location", "");
+    private static final Property<String> PROPERTY_ZK_TRUSTSTORE_PASSWORD_FILE_PATH = Property.named("zk.connect.security.tls.trustStore.pwd.location", "");
 
     private static final Property<Integer> PROPERTY_RETENTION_FREQUENCY_MINUTES = Property.named("retention.frequency.minutes", 30);
     private static final Property<Integer> PROPERTY_RETENTION_BUCKET_COUNT = Property.named("retention.bucket.count", 1);

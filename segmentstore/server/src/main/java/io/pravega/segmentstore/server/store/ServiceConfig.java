@@ -40,8 +40,8 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zk.connect.retries.count.max", 5);
     public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zk.connect.sessionTimeout.milliseconds", 10000);
     public static final Property<Boolean> SECURE_ZK = Property.named("zk.connect.security.enable", false);
-    public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zk.connect.security.trustStore.location", "");
-    public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zk.connect.security.trustStore.pwd.location", "");
+    public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zk.connect.security.tls.trustStore.location", "");
+    public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zk.connect.security.tls.trustStore.pwd.location", "");
     public static final Property<String> CLUSTER_NAME = Property.named("cluster.name", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY);
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS);
