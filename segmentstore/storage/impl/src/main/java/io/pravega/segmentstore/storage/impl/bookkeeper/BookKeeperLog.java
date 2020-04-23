@@ -812,7 +812,11 @@ class BookKeeperLog implements DurableDataLog {
 
         try {
             persistMetadata(currentMetadata, create);
-        } catch (DurableDataLogException ex) {
+        } catch (DataLogWriterNotPrimaryException ex) {
+            // Only attempt to cleanup the newly created ledger if we were fenced out. Any other exception is not indicative
+            // of whether we were able to persist the metadata or not, so it's safer to leave the ledger behind in case
+            // it is still used. If indeed our metadata has been updated, a subsequent recovery will pick it up and delete it
+            // because it (should be) empty.
             try {
                 Ledgers.delete(newLedger.getId(), this.bookKeeper);
             } catch (Exception deleteEx) {
@@ -820,6 +824,9 @@ class BookKeeperLog implements DurableDataLog {
                 ex.addSuppressed(deleteEx);
             }
 
+            throw ex;
+        } catch (Exception ex) {
+            log.warn("{}: Error while using ZooKeeper. Leaving orphaned ledger {} behind.", this.traceObjectId, newLedger.getId());
             throw ex;
         }
 

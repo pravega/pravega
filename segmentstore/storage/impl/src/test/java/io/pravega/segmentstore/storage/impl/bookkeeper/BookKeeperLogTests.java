@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CompositeByteArraySegment;
@@ -31,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -48,6 +50,7 @@ import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -402,6 +405,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
             Assert.assertEquals("Create(Persist=True, Throw=True)", 2, log.getCreateExceptionCount());
         }
 
+        val expectedLedgerIds = new HashSet<Long>();
         // Test updates (subsequent recoveries).
         try (val log = new TestBookKeeperLog()) {
             // Data not persisted and we throw an error - this is a real fencing event.
@@ -417,7 +421,14 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
             log.setPersistData(true);
             log.initialize(TIMEOUT);
             Assert.assertEquals("Update(Persist=True, Throw=True)", 2, log.getUpdateExceptionCount());
+            log.loadMetadata().getLedgers().stream().map(LedgerMetadata::getLedgerId).forEach(expectedLedgerIds::add);
         }
+
+        // Verify ledger cleanup.
+        @Cleanup
+        BookKeeperAdmin a = new BookKeeperAdmin(this.factory.get().getBookKeeperClient());
+        val allLedgers = Sets.newHashSet(a.listLedgers());
+        Assert.assertEquals("Unexpected ledgers in BK.", expectedLedgerIds, allLedgers);
     }
 
     /**
