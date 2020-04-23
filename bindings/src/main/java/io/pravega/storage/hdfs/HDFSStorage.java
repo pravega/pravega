@@ -510,13 +510,13 @@ class HDFSStorage implements SyncStorage {
                         }
                         return true;
                     });
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Hit an exception: ", e);
         }
         return Collections.emptyIterator();
     }
 
-    public class HDFSSegmentIterator implements Iterator<SegmentProperties> {
+    public static class HDFSSegmentIterator implements Iterator<SegmentProperties> {
         RemoteIterator<FileStatus> results;
         FileStatus current;
         java.util.function.Predicate<FileStatus> patternMatchPredicate;

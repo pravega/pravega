@@ -28,6 +28,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -360,6 +362,16 @@ public class HDFSStorageTest extends StorageTestBase {
                 s2.openWrite(segmentName).join();
             }
         }
+    }
+
+    /**
+     *  It tests the case when listSegments method encounters an exception and returns an empty iterator.
+     */
+    @Test
+    public void testListSegmentsNumberFormatException() {
+        HDFSStorage testHDFSStorage = new HDFSStorage(adapterConfig);
+        Iterator<SegmentProperties> iterator = testHDFSStorage.listSegments();
+        Assert.assertSame(iterator, Collections.emptyIterator());
     }
 
     // endregion

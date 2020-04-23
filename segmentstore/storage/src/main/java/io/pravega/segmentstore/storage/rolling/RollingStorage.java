@@ -551,7 +551,7 @@ public class RollingStorage implements SyncStorage {
         }
 
         @Override
-        public SegmentProperties next() {
+        public SegmentProperties next() throws NoSuchElementException {
             if (null != current) {
                 try {
                     String segmentName = NameUtils.getSegmentNameFromHeader(current.getName());
@@ -560,7 +560,7 @@ public class RollingStorage implements SyncStorage {
                             .name(segmentName)
                             .length(handle.length())
                             .sealed(handle.isSealed()).build();
-                } catch (StreamSegmentException e) {
+                } catch (StreamingException e) {
                     log.error("Hit an exception while trying to read segment header file {}", current.getName(), e);
                 }
             }
