@@ -15,7 +15,6 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.test.common.AssertExtensions;
@@ -42,21 +41,18 @@ import lombok.Setter;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static io.pravega.test.common.AssertExtensions.assertSuppliedFutureThrows;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
-import static org.mockito.Mockito.when;
 
 /**
  * Base class for testing any implementation of the Storage interface.
  */
 public abstract class StorageTestBase extends ThreadPooledTestSuite {
     //region General Test arguments
-
     protected static final Duration TIMEOUT = Duration.ofSeconds(30);
     protected static final long DEFAULT_EPOCH = 1;
     protected static final int APPENDS_PER_SEGMENT = 10;
@@ -106,53 +102,13 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
-
-            if (s.getClassName().equals("NoOpStorage")) {
-                return;
-            }
-
             Iterator<SegmentProperties> iterator = s.listSegments().join();
             Assert.assertFalse(iterator.hasNext());
-
             createSegment(segmentName, s);
-
             iterator = s.listSegments().join();
             Assert.assertTrue(iterator.hasNext());
             SegmentProperties prop = iterator.next();
             Assert.assertEquals(prop.getName(), segmentName);
-            Assert.assertFalse(iterator.hasNext());
-        }
-    }
-
-    /**
-     * Tests the next batch of segments in ExtendedS3Storage.
-     * @throws Exception if an unexpected error occurred.
-     */
-    @Test
-    public void testListSegmentsBatch() throws Exception {
-        try (Storage s = createStorage()) {
-            s.initialize(DEFAULT_EPOCH);
-
-            if (!s.getClassName().equals("ExtendedS3Storage")) {
-                return;
-            }
-
-            Iterator<SegmentProperties> iterator = s.listSegments().join();
-            Assert.assertFalse(iterator.hasNext());
-
-            int expectedCount = 1001;
-            for (int i = 0; i < expectedCount; i++) {
-                String segmentName = "segment-" + i;
-                createSegment(segmentName, s);
-            }
-
-            iterator = s.listSegments().join();
-
-            int actualCount = 0;
-            while (iterator.hasNext()) {
-                SegmentProperties prop = iterator.next();
-                ++actualCount;
-            }
             Assert.assertFalse(iterator.hasNext());
         }
     }
@@ -197,6 +153,11 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         Assert.assertEquals(actualCount, expectedCount);
     }
 
+    /**
+     * Tests listSegments() on deleting some segments.
+     *
+     * @throws Exception if an unexpected error occurred.
+     */
     @Test
     public void testListSegmentsWithDeletes() throws Exception {
         @Cleanup
@@ -207,7 +168,6 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         Set<String> deletedSegments = new HashSet<>();
         int expectedCount = 50;
         for (int i = 0; i < expectedCount; i++) {
-
             String segmentName = "segment-" + i;
             SegmentHandle handle = s.create(segmentName);
             if (RANDOM.nextInt(2) == 1) {
@@ -215,7 +175,6 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
                 deletedSegments.add(segmentName);
             }
         }
-
         Iterator<SegmentProperties> it = s.listSegments();
         expectedCount -= deletedSegments.size();
         Assert.assertEquals(expectedCount, Iterators.size(it));

@@ -31,6 +31,7 @@ import io.pravega.storage.IdempotentStorageTestBase;
 import io.pravega.test.common.TestUtils;
 
 import java.io.ByteArrayInputStream;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executor;
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -244,6 +246,32 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             testConcat(context, s);
             assertTrue(ExtendedS3Metrics.LARGE_CONCAT_COUNT.get() > 0);
             assertEquals(ExtendedS3Metrics.CONCAT_COUNT.get(), ExtendedS3Metrics.LARGE_CONCAT_COUNT.get());
+        }
+    }
+
+    /**
+     * Tests the next batch of segments in ExtendedS3Storage.
+     * @throws Exception if an unexpected error occurred.
+     */
+    @Test
+    public void testListSegmentsBatch() throws Exception {
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+            Iterator<SegmentProperties> iterator = s.listSegments().join();
+            Assert.assertFalse(iterator.hasNext());
+            int expectedCount = 1001; // Create more segments than 1000 which is the maximum number of segments in one batch.
+            for (int i = 0; i < expectedCount; i++) {
+                String segmentName = "segment-" + i;
+                createSegment(segmentName, s);
+            }
+            iterator = s.listSegments().join();
+            int actualCount = 0;
+            while (iterator.hasNext()) {
+                SegmentProperties prop = iterator.next();
+                ++actualCount;
+            }
+            Assert.assertEquals(actualCount, expectedCount);
+            Assert.assertFalse(iterator.hasNext());
         }
     }
 

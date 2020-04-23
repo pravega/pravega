@@ -194,4 +194,7 @@ public class NoOpStorageUserDataWriteOnlyTests extends StorageTestBase {
     public void testFencing() throws Exception {
     }
 
+    @Override
+    public void testListSegmentsWithOneSegment() {
+    }
 }

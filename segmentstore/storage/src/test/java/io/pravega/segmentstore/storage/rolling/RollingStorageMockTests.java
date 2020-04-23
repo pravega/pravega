@@ -26,15 +26,12 @@ public class RollingStorageMockTests {
     static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
-    private RollingStorage instance;
-    private Iterator<SegmentProperties> results;
-    private Predicate<SegmentProperties> patternMatchPredicate;
 
     @Test
     public void testNext() {
         RollingStorageMockTests.TestRollingStorageSegmentIterator testRollingStorageSegmentIterator = new
-                RollingStorageMockTests.TestRollingStorageSegmentIterator(instance, results,
-                patternMatchPredicate);
+                RollingStorageMockTests.TestRollingStorageSegmentIterator(null, null,
+                null);
         boolean caughtException = false;
         try {
             testRollingStorageSegmentIterator.next();

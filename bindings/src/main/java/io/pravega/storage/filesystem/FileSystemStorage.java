@@ -207,7 +207,6 @@ public class FileSystemStorage implements SyncStorage {
         return Collections.emptyIterator();
     }
 
-
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings
     @SneakyThrows
     private static StreamSegmentInformation getStreamSegmentInformation(String root, Path path) {

@@ -48,4 +48,7 @@ public class NoOpStorageUserDataWriteReadTests extends StorageTestBase {
     public void testFencing() {
     }
 
+    @Override
+    public void testListSegmentsWithOneSegment() {
+    }
 }
