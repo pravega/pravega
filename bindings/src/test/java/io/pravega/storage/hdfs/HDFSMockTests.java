@@ -12,20 +12,49 @@ package io.pravega.storage.hdfs;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.io.IOException;
+
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.NoSuchElementException;
+import java.util.function.Predicate;
+
+import org.mockito.Mockito;
 
 public class HDFSMockTests {
-
     static final Duration TIMEOUT = Duration.ofSeconds(30);
+
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+    private RemoteIterator<FileStatus> results;
+    private java.util.function.Predicate<FileStatus> patternMatchPredicate;
+
+    @Before
+    public void setUp() throws Exception {
+        this.results = Mockito.spy(new RemoteIterator<FileStatus>() {
+            @Override
+            public boolean hasNext() throws IOException {
+                return false;
+            }
+
+            @Override
+            public FileStatus next() throws IOException {
+                return null;
+            }
+        });
+
+        this.patternMatchPredicate = new Predicate<FileStatus>() {
+            @Override
+            public boolean test(FileStatus fileStatus) {
+                return false;
+            }
+        };
+    }
 
     @Test
     public void testNext() {
@@ -41,9 +70,10 @@ public class HDFSMockTests {
     }
 
     @Test
-    public void testHasNext() {
+    public void testHasNext() throws IOException {
         HDFSMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
-                HDFSMockTests.TestHDFSStorageSegmentIterator(null, null);
+                HDFSMockTests.TestHDFSStorageSegmentIterator(this.results, this.patternMatchPredicate);
+        Mockito.doThrow(new IOException()).when(results).hasNext();
         boolean hasNextValue = testHDFSStorageSegmentIterator.hasNext();
         Assert.assertFalse(hasNextValue);
     }
@@ -53,12 +83,8 @@ public class HDFSMockTests {
      */
     private static class TestHDFSStorageSegmentIterator extends HDFSStorage.HDFSSegmentIterator {
         public TestHDFSStorageSegmentIterator(RemoteIterator<FileStatus> results,
-                               java.util.function.Predicate<FileStatus> patternMatchPredicate) {
+                                              java.util.function.Predicate<FileStatus> patternMatchPredicate) {
             super(results, patternMatchPredicate);
-        }
-
-        protected boolean test(FileStatus fileStatus) throws IOException {
-            throw new IOException();
         }
 
         protected boolean isSealed(Path path) throws FileNameFormatException {
