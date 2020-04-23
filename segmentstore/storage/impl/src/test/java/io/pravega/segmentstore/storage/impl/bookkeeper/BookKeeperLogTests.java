@@ -388,6 +388,10 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
     @Test
     public void testReconcileMetadata() throws Exception {
+        @Cleanup
+        BookKeeperAdmin a = new BookKeeperAdmin(this.factory.get().getBookKeeperClient());
+        val initialLedgers = Sets.newHashSet(a.listLedgers());
+
         // Test initialization (node creation).
         try (val log = new TestBookKeeperLog()) {
             // Data not persisted and we throw an error - this is a real fencing event.
@@ -425,9 +429,8 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         }
 
         // Verify ledger cleanup.
-        @Cleanup
-        BookKeeperAdmin a = new BookKeeperAdmin(this.factory.get().getBookKeeperClient());
         val allLedgers = Sets.newHashSet(a.listLedgers());
+        allLedgers.removeAll(initialLedgers);
         Assert.assertEquals("Unexpected ledgers in BK.", expectedLedgerIds, allLedgers);
     }
 
