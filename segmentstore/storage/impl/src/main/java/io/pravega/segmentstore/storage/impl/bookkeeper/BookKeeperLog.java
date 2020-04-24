@@ -925,27 +925,6 @@ class BookKeeperLog implements DurableDataLog {
     }
 
 
-    /**
-     * Persists the given metadata into ZooKeeper, overwriting whatever was there previously.
-     *
-     * @param metadata Thew metadata to write.
-     * @throws IllegalStateException    If this BookKeeperLog is not disabled.
-     * @throws IllegalArgumentException If `metadata.getUpdateVersion` does not match the current version in ZooKeeper.
-     * @throws DurableDataLogException  If another kind of exception occurred. See {@link #persistMetadata}.
-     */
-    @VisibleForTesting
-    void overWriteMetadata(LogMetadata metadata) throws DurableDataLogException {
-        LogMetadata currentMetadata = loadMetadata();
-        boolean create = currentMetadata == null;
-        if (!create) {
-            Preconditions.checkState(!currentMetadata.isEnabled(), "Cannot overwrite metadata if BookKeeperLog is enabled.");
-            Preconditions.checkArgument(currentMetadata.getUpdateVersion() == metadata.getUpdateVersion(),
-                    "Wrong Update Version; expected %s, given %s.", currentMetadata.getUpdateVersion(), metadata.getUpdateVersion());
-        }
-
-        persistMetadata(metadata, create);
-    }
-
     //endregion
 
     //region Ledger Rollover
