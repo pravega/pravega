@@ -52,4 +52,35 @@ public interface ReadOnlyLogMetadata {
      * @return The Truncation Address.
      */
     LedgerAddress getTruncationAddress();
+
+    /**
+     * Determines whether this {@link ReadOnlyLogMetadata} is equivalent to the other one.
+     *
+     * @param other The other instance.
+     * @return True if equivalent, false otherwise.
+     */
+    default boolean equals(ReadOnlyLogMetadata other) {
+        if (other == null) {
+            return false;
+        }
+
+        List<LedgerMetadata> ledgers = getLedgers();
+        List<LedgerMetadata> otherLedgers = other.getLedgers();
+        if (this.isEnabled() != other.isEnabled()
+                || this.getEpoch() != other.getEpoch()
+                || !this.getTruncationAddress().equals(other.getTruncationAddress())
+                || ledgers.size() != otherLedgers.size()) {
+            return false;
+        }
+
+        // Check each ledger.
+        for (int i = 0; i < ledgers.size(); i++) {
+            if (!ledgers.get(i).equals(otherLedgers.get(i))) {
+                return false;
+            }
+        }
+
+        // All tests have passed.
+        return true;
+    }
 }
