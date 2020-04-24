@@ -812,7 +812,11 @@ class BookKeeperLog implements DurableDataLog {
 
         try {
             persistMetadata(currentMetadata, create);
-        } catch (DurableDataLogException ex) {
+        } catch (DataLogWriterNotPrimaryException ex) {
+            // Only attempt to cleanup the newly created ledger if we were fenced out. Any other exception is not indicative
+            // of whether we were able to persist the metadata or not, so it's safer to leave the ledger behind in case
+            // it is still used. If indeed our metadata has been updated, a subsequent recovery will pick it up and delete it
+            // because it (should be) empty.
             try {
                 Ledgers.delete(newLedger.getId(), this.bookKeeper);
             } catch (Exception deleteEx) {
@@ -820,6 +824,9 @@ class BookKeeperLog implements DurableDataLog {
                 ex.addSuppressed(deleteEx);
             }
 
+            throw ex;
+        } catch (Exception ex) {
+            log.warn("{}: Error while using ZooKeeper. Leaving orphaned ledger {} behind.", this.traceObjectId, newLedger.getId());
             throw ex;
         }
 
@@ -840,34 +847,60 @@ class BookKeeperLog implements DurableDataLog {
     private void persistMetadata(LogMetadata metadata, boolean create) throws DurableDataLogException {
         try {
             byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize(metadata).getCopy();
-            Stat result;
-            if (create) {
-                result = new Stat();
-                this.zkClient.create()
-                             .creatingParentsIfNeeded()
-                             .storingStatIn(result)
-                             .forPath(this.logNodePath, serializedMetadata);
-            } else {
-                result = this.zkClient.setData()
-                                      .withVersion(metadata.getUpdateVersion())
-                                      .forPath(this.logNodePath, serializedMetadata);
-
-            }
-
+            Stat result = create
+                    ? createZkMetadata(serializedMetadata)
+                    : updateZkMetadata(serializedMetadata, metadata.getUpdateVersion());
             metadata.withUpdateVersion(result.getVersion());
         } catch (KeeperException.NodeExistsException | KeeperException.BadVersionException keeperEx) {
-            // We were fenced out. Clean up and throw appropriate exception.
-            throw new DataLogWriterNotPrimaryException(
-                    String.format("Unable to acquire exclusive write lock for log (path = '%s%s').", this.zkClient.getNamespace(), this.logNodePath),
-                    keeperEx);
+            if (reconcileMetadata(metadata)) {
+                log.info("{}: Received '{}' from ZooKeeper while persisting metadata (path = '{}{}'), however metadata has been persisted correctly. Not rethrowing.",
+                        this.traceObjectId, keeperEx.toString(), this.zkClient.getNamespace(), this.logNodePath);
+            } else {
+                // We were fenced out. Convert to an appropriate exception.
+                throw new DataLogWriterNotPrimaryException(
+                        String.format("Unable to acquire exclusive write lock for log (path = '%s%s').", this.zkClient.getNamespace(), this.logNodePath),
+                        keeperEx);
+            }
         } catch (Exception generalEx) {
-            // General exception. Clean up and rethrow appropriate exception.
+            // General exception. Convert to an appropriate exception.
             throw new DataLogInitializationException(
                     String.format("Unable to update ZNode for path '%s%s'.", this.zkClient.getNamespace(), this.logNodePath),
                     generalEx);
         }
 
         log.info("{} Metadata persisted ({}).", this.traceObjectId, metadata);
+    }
+
+    @VisibleForTesting
+    protected Stat createZkMetadata(byte[] serializedMetadata) throws Exception {
+        val result = new Stat();
+        this.zkClient.create().creatingParentsIfNeeded().storingStatIn(result).forPath(this.logNodePath, serializedMetadata);
+        return result;
+    }
+
+    @VisibleForTesting
+    protected Stat updateZkMetadata(byte[] serializedMetadata, int version) throws Exception {
+        return this.zkClient.setData().withVersion(version).forPath(this.logNodePath, serializedMetadata);
+    }
+
+    /**
+     * Verifies the given {@link LogMetadata} against the actual one stored in ZooKeeper.
+     *
+     * @param metadata The Metadata to check.
+     * @return True if the metadata stored in ZooKeeper is an identical match to the given one, false otherwise. If true,
+     * {@link LogMetadata#getUpdateVersion()} will also be updated with the one stored in ZooKeeper.
+     */
+    private boolean reconcileMetadata(LogMetadata metadata) {
+        try {
+            val actualMetadata = loadMetadata();
+            if (metadata.equals(actualMetadata)) {
+                metadata.withUpdateVersion(actualMetadata.getUpdateVersion());
+                return true;
+            }
+        } catch (DataLogInitializationException ex) {
+            log.warn("{}: Unable to verify persisted metadata (path = '{}{}').", this.traceObjectId, this.zkClient.getNamespace(), this.logNodePath, ex);
+        }
+        return false;
     }
 
     /**
@@ -890,6 +923,7 @@ class BookKeeperLog implements DurableDataLog {
 
         persistMetadata(metadata, create);
     }
+
 
     //endregion
 
