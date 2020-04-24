@@ -27,38 +27,38 @@ import lombok.SneakyThrows;
 public class ServiceConfig {
     //region Config Names
 
-    public static final Property<Integer> CONTAINER_COUNT = Property.named("container.count");
-    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPool.size", 30);
-    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("storageThreadPool.size", 200);
-    public static final Property<Integer> LISTENING_PORT = Property.named("service.listener.port", 12345);
-    public static final Property<Integer> PUBLISHED_PORT = Property.named("service.published.port");
-    public static final Property<String> LISTENING_IP_ADDRESS = Property.named("service.listener.ip", "");
-    public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("service.published.ip", "");
-    public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("container.parallelStarts.count", 1);
-    public static final Property<String> ZK_URL = Property.named("zk.connect.uri", "localhost:2181");
-    public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zk.connect.retries.interval.milliseconds", 5000);
-    public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zk.connect.retries.count.max", 5);
-    public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zk.connect.sessionTimeout.milliseconds", 10000);
-    public static final Property<Boolean> SECURE_ZK = Property.named("zk.connect.security.enable", false);
-    public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zk.connect.security.tls.trustStore.location", "");
-    public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zk.connect.security.tls.trustStore.pwd.location", "");
-    public static final Property<String> CLUSTER_NAME = Property.named("cluster.name", "pravega-cluster");
-    public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY);
-    public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS);
-    public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnly.enable", false);
-    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cache.size.max", 4L * 1024 * 1024 * 1024);
-    public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cache.utilization.percent.target", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION));
-    public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cache.utilization.percent.max", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION));
-    public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cache.time.seconds.max", 30 * 60);
-    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cache.generation.duration.seconds", 1);
-    public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("request.replyWithStackTraceOnError.enable", false);
+    public static final Property<Integer> CONTAINER_COUNT = Property.named("container.count", null, "containerCount");
+    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPool.size", 30, "threadPoolSize");
+    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("storageThreadPool.size", 200, "storageThreadPoolSize");
+    public static final Property<Integer> LISTENING_PORT = Property.named("service.listener.port", 12345, "listeningPort");
+    public static final Property<Integer> PUBLISHED_PORT = Property.named("service.published.port", null, "publishedPort");
+    public static final Property<String> LISTENING_IP_ADDRESS = Property.named("service.listener.ip", "", "listeningIPAddress");
+    public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("service.published.ip", "", "publishedIPAddress");
+    public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("container.parallelStarts.count", 1, "parallelContainerStarts");
+    public static final Property<String> ZK_URL = Property.named("zk.connect.uri", "localhost:2181", "zkURL");
+    public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zk.connect.retries.interval.milliseconds", 5000, "zkRetrySleepMs");
+    public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zk.connect.retries.count.max", 5, "zkRetryCount");
+    public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zk.connect.sessionTimeout.milliseconds", 10000, "zkSessionTimeoutMs");
+    public static final Property<Boolean> SECURE_ZK = Property.named("zk.connect.security.enable", false, "secureZK");
+    public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zk.connect.security.tls.trustStore.location", "", "zkTrustStore");
+    public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zk.connect.security.tls.trustStore.pwd.location", "", "zkTrustStorePasswordPath");
+    public static final Property<String> CLUSTER_NAME = Property.named("cluster.name", "pravega-cluster", "clusterName");
+    public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY, "dataLogImplementation");
+    public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS, "storageImplementation");
+    public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnly.enable", false, "readOnlySegmentStore");
+    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cache.size.max", 4L * 1024 * 1024 * 1024, "cacheMaxSize");
+    public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cache.utilization.percent.target", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION), "cacheTargetUtilizationPercent");
+    public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cache.utilization.percent.max", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION), "cacheMaxUtilizationPercent");
+    public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cache.time.seconds.max", 30 * 60, "cacheMaxTimeSeconds");
+    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cache.generation.duration.seconds", 1, "cacheGenerationTimeSeconds");
+    public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("request.replyWithStackTraceOnError.enable", false, "replyWithStackTraceOnError");
     public static final Property<String> INSTANCE_ID = Property.named("instance.id", "");
 
     // TLS-related config for the service
-    public static final Property<Boolean> ENABLE_TLS = Property.named("security.tls.enable", false);
-    public static final Property<String> CERT_FILE = Property.named("security.tls.server.certificate.location", "");
-    public static final Property<String> KEY_FILE = Property.named("security.tls.server.privateKey.location", "");
-    public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("security.tls.certificate.autoReload.enable", false);
+    public static final Property<Boolean> ENABLE_TLS = Property.named("security.tls.enable", false, "enableTls");
+    public static final Property<String> CERT_FILE = Property.named("security.tls.server.certificate.location", "", "certFile");
+    public static final Property<String> KEY_FILE = Property.named("security.tls.server.privateKey.location", "", "keyFile");
+    public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("security.tls.certificate.autoReload.enable", false, "enableTlsReload");
 
 
     public static final String COMPONENT_CODE = "pravegaservice";

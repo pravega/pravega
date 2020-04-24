@@ -21,18 +21,18 @@ import lombok.Getter;
 
 @Data
 public class AutoScalerConfig {
-    public static final Property<String> REQUEST_STREAM = Property.named("requestStream.name", "_requeststream");
-    public static final Property<Integer> COOLDOWN_IN_SECONDS = Property.named("cooldown.time.seconds", 10 * 60);
-    public static final Property<Integer> MUTE_IN_SECONDS = Property.named("mute.time.seconds", 10 * 60);
-    public static final Property<Integer> CACHE_CLEANUP_IN_SECONDS = Property.named("cache.cleanUp.interval.Seconds", 5 * 60);
-    public static final Property<Integer> CACHE_EXPIRY_IN_SECONDS = Property.named("cache.expiry.seconds", 20 * 60);
-    public static final Property<String> CONTROLLER_URI = Property.named("controller.connect.uri", "tcp://localhost:9090");
-    public static final Property<Boolean> TLS_ENABLED = Property.named("controller.connect.security.tls.enable", false);
-    public static final Property<String> TLS_CERT_FILE = Property.named("controller.connect.security.tls.truststore.location", "");
-    public static final Property<Boolean> AUTH_ENABLED = Property.named("controller.connect.security.auth.enable", false);
-    public static final Property<String> TOKEN_SIGNING_KEY = Property.named("security.auth.token.signingkey", "secret");
-    public static final Property<Boolean> VALIDATE_HOSTNAME = Property.named("validateHostName", true);
-    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 10);
+    public static final Property<String> REQUEST_STREAM = Property.named("requestStream.name", "_requeststream", "requestStream");
+    public static final Property<Integer> COOLDOWN_IN_SECONDS = Property.named("cooldown.time.seconds", 10 * 60, "cooldownInSeconds");
+    public static final Property<Integer> MUTE_IN_SECONDS = Property.named("mute.time.seconds", 10 * 60, "muteInSeconds");
+    public static final Property<Integer> CACHE_CLEANUP_IN_SECONDS = Property.named("cache.cleanUp.interval.Seconds", 5 * 60, "cacheCleanUpInSeconds");
+    public static final Property<Integer> CACHE_EXPIRY_IN_SECONDS = Property.named("cache.expiry.seconds", 20 * 60, "cacheExpiryInSeconds");
+    public static final Property<String> CONTROLLER_URI = Property.named("controller.connect.uri", "tcp://localhost:9090", "controllerUri");
+    public static final Property<Boolean> TLS_ENABLED = Property.named("controller.connect.security.tls.enable", false, "tlsEnabled");
+    public static final Property<String> TLS_CERT_FILE = Property.named("controller.connect.security.tls.truststore.location", "", "tlsCertFile");
+    public static final Property<Boolean> AUTH_ENABLED = Property.named("controller.connect.security.auth.enable", false, "authEnabled");
+    public static final Property<String> TOKEN_SIGNING_KEY = Property.named("security.auth.token.signingKey.basis", "secret", "tokenSigningKey");
+    public static final Property<Boolean> VALIDATE_HOSTNAME = Property.named("controller.connect.security.tls.hostNameVerification.enable", true, "validateHostName");
+    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 10, "threadPool.size");
 
     public static final String COMPONENT_CODE = "autoScale";
 

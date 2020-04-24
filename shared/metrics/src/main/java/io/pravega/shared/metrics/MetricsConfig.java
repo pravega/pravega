@@ -22,20 +22,20 @@ import java.time.Duration;
  */
 public class MetricsConfig {
     //region Config Names
-    public final static Property<Boolean> ENABLE_STATISTICS = Property.named("statistics.enable", true);
-    public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCache.size", 10000000L);
-    public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCache.eviction.duration.minutes", 3);
-    public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("output.frequency.seconds", 60);
-    public final static Property<String> METRICS_PREFIX = Property.named("metrics.prefix", "pravega");
-    public final static Property<String> STATSD_HOST = Property.named("statsD.connect.host", "localhost");
-    public final static Property<Integer> STATSD_PORT = Property.named("statsD.connect.port", 8125);
-    public final static Property<String> INFLUXDB_URI = Property.named("influxDB.connect.uri", "http://localhost:8086");
-    public final static Property<String> INFLUXDB_NAME = Property.named("influxDB.db.name", "pravega");
-    public final static Property<String> INFLUXDB_USERNAME = Property.named("influxDB.connect.security.auth.userName", "");
-    public final static Property<String> INFLUXDB_PASSWORD = Property.named("influxDB.connect.security.auth.pwd", "");
-    public final static Property<String> INFLUXDB_RETENTION_POLICY = Property.named("influxDB.retention", "");
-    public final static Property<Boolean> ENABLE_STATSD_REPORTER = Property.named("statsD.reporter.enable", true);
-    public final static Property<Boolean> ENABLE_INFLUXDB_REPORTER = Property.named("influxDB.reporter.enable", false);
+    public final static Property<Boolean> ENABLE_STATISTICS = Property.named("statistics.enable", true, "enableStatistics");
+    public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCache.size", 10000000L, "dynamicCacheSize");
+    public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCache.eviction.duration.minutes", 3, "dynamicCacheEvictionDurationMinutes");
+    public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("output.frequency.seconds", 60, "outputFrequencySeconds");
+    public final static Property<String> METRICS_PREFIX = Property.named("metrics.prefix", "pravega", "metricsPrefix");
+    public final static Property<String> STATSD_HOST = Property.named("statsD.connect.host", "localhost", "statsDHost");
+    public final static Property<Integer> STATSD_PORT = Property.named("statsD.connect.port", 8125, "statsDPort");
+    public final static Property<String> INFLUXDB_URI = Property.named("influxDB.connect.uri", "http://localhost:8086", "influxDBURI");
+    public final static Property<String> INFLUXDB_NAME = Property.named("influxDB.db.name", "pravega", "influxDBName");
+    public final static Property<String> INFLUXDB_USERNAME = Property.named("influxDB.connect.security.auth.userName", "", "influxDBUserName");
+    public final static Property<String> INFLUXDB_PASSWORD = Property.named("influxDB.connect.security.auth.pwd", "", "influxDBPassword");
+    public final static Property<String> INFLUXDB_RETENTION_POLICY = Property.named("influxDB.retention", "", "influxDBRetention");
+    public final static Property<Boolean> ENABLE_STATSD_REPORTER = Property.named("statsD.reporter.enable", true, "enableStatsDReporter");
+    public final static Property<Boolean> ENABLE_INFLUXDB_REPORTER = Property.named("influxDB.reporter.enable", false, "enableInfluxDBReporter");
     public static final String COMPONENT_CODE = "metrics";
 
     //endregion

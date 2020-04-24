@@ -24,6 +24,8 @@ public class Property<T> {
     private final String name;
     @Getter
     private final T defaultValue;
+    @Getter
+    private final String legacyName;
 
     /**
      * Creates a new instance of the Property class with no default value.
@@ -33,7 +35,7 @@ public class Property<T> {
      * @return A new instance of the Property class with no default value.
      */
     public static <T> Property<T> named(String name) {
-        return new Property<>(name, null);
+        return new Property<>(name, null, null);
     }
 
     /**
@@ -45,7 +47,11 @@ public class Property<T> {
      * @return A new instance of the Property class with the given default value.
      */
     public static <T> Property<T> named(String name, T defaultValue) {
-        return new Property<>(name, defaultValue);
+        return new Property<>(name, defaultValue, null);
+    }
+
+    public static <T> Property<T> named(String name, T defaultValue, String legacyName) {
+        return new Property<>(name, defaultValue, legacyName);
     }
 
     /**
@@ -53,6 +59,10 @@ public class Property<T> {
      */
     boolean hasDefaultValue() {
         return this.defaultValue != null;
+    }
+
+    boolean hasLegacyName() {
+        return this.legacyName != null;
     }
 
     @Override
