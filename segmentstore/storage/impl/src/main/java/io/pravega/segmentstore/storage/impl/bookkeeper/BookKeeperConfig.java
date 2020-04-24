@@ -38,7 +38,7 @@ public class BookKeeperConfig {
     public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("write.timeout.milliseconds", 60000, "bkWriteTimeoutMillis");
     public static final Property<Integer> BK_READ_TIMEOUT = Property.named("read.timeout.milliseconds", 30000, "readTimeoutMillis");
     public static final Property<Integer> BK_READ_BATCH_SIZE = Property.named("read.batch.size", 64, "readBatchSize");
-    public static final Property<Integer> MAX_OUTSTANDING_BYTES = Property.named("write.outstandingBytes.max", 256 * 1024 * 1024, "maxOutstandingBytes");
+    public static final Property<Integer> MAX_OUTSTANDING_BYTES = Property.named("write.outstanding.bytes.max", 256 * 1024 * 1024, "maxOutstandingBytes");
     public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("ledger.size.max", 1024 * 1024 * 1024, "bkLedgerMaxSize");
     public static final Property<String> BK_PASSWORD = Property.named("connect.security.auth.pwd", "", "bkPass");
     public static final Property<String> BK_LEDGER_PATH = Property.named("ledger.path", "", "bkLedgerPath");

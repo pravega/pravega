@@ -30,7 +30,7 @@ public class ExtendedS3StorageConfig {
     public static final Property<String> BUCKET = Property.named("bucket", "");
     public static final Property<String> PREFIX = Property.named("prefix", "/");
     public static final Property<Boolean> USENONEMATCH = Property.named("noneMatch.enable", false, "useNoneMatch");
-    public static final Property<Integer> SMALL_OBJECT_THRESHOLD = Property.named("smallObjectSizeLimitForConcat", 1024 * 1024);
+    public static final Property<Integer> SMALL_OBJECT_THRESHOLD = Property.named("concat.smallObject.threshold.size", 1024 * 1024, "smallObjectSizeLimitForConcat");
 
     private static final String COMPONENT_CODE = "extendeds3";
     private static final String PATH_SEPARATOR = "/";

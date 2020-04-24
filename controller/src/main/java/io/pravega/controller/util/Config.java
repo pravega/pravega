@@ -190,7 +190,7 @@ public final class Config {
             "security.auth.enable", false, "auth.enabled");
 
     private static final Property<String> PROPERTY_AUTH_PASSWORD_FILE = Property.named(
-            "security.pwdAuthHander.accountsDb.location", "", "auth.userPasswordFile");
+            "security.pwdAuthHandler.accountsDb.location", "", "auth.userPasswordFile");
 
     private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named(
             "security.auth.token.signingKey.basis", "", "auth.tokenSigningKey");
@@ -208,10 +208,10 @@ public final class Config {
             "security.tls.trustStore.location", "", "auth.tlsTrustStore");
 
     private static final Property<String> PROPERTY_TLS_KEY_FILE = Property.named(
-            "security.tls.server.privateKey.location", "", "uth.tlsKeyFile");
+            "security.tls.server.privateKey.location", "", "auth.tlsKeyFile");
 
     private static final Property<String> PROPERTY_TLS_ENABLED_FOR_SEGMENT_STORE = Property.named(
-            "segmentstore.connect.tls.enable", "", "auth.segmentStoreTlsEnabled");
+            "segmentstore.connect.channel.tls", "", "auth.segmentStoreTlsEnabled");
 
     private static final Property<String> PROPERTY_ZK_URL = Property.named(
             "zk.connect.uri", "localhost:2181", "zkURL");
