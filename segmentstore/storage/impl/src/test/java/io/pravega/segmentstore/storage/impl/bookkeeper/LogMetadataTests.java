@@ -11,6 +11,8 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -216,6 +218,51 @@ public class LogMetadataTests {
         Assert.assertEquals("Unexpected TruncationAddress.", m1.getTruncationAddress().getLedgerId(), m2.getTruncationAddress().getLedgerId());
         AssertExtensions.assertListEquals("Unexpected ledgers.", m1.getLedgers(), m2.getLedgers(),
                 (l1, l2) -> l1.getSequence() == l2.getSequence() && l1.getLedgerId() == l2.getLedgerId() && l1.getStatus() == l2.getStatus());
+    }
+
+    /**
+     * Tests {@link ReadOnlyLogMetadata#equals}.
+     */
+    @Test
+    public void testEquals() {
+        val m1 = LogMetadata.builder()
+                .enabled(true)
+                .epoch(1)
+                .updateVersion(2)
+                .truncationAddress(new LedgerAddress(100L, 100L))
+                .ledgers(Arrays.asList(new LedgerMetadata(1000L, 100, LedgerMetadata.Status.Unknown),
+                        new LedgerMetadata(2000L, 200, LedgerMetadata.Status.NotEmpty)))
+                .build();
+
+        // Check against null.
+        Assert.assertFalse(m1.equals(null));
+
+        // A copy of itself should be identical.
+        Assert.assertTrue(m1.equals(copyOf(m1)));
+
+        // Enabled/disabled.
+        Assert.assertFalse(m1.equals(m1.asDisabled()));
+        Assert.assertTrue(m1.equals(m1.asDisabled().asEnabled()));
+
+        // Update version is not part of the equality check.
+        Assert.assertTrue(m1.equals(m1.withUpdateVersion(234)));
+
+        // Truncation address.
+        Assert.assertFalse(m1.equals(m1.truncate(new LedgerAddress(200L, 100L))));
+
+        // Ledgers.
+        Assert.assertFalse(m1.equals(m1.updateLedgerStatus(Collections.singletonMap(1000L, Ledgers.NO_ENTRY_ID + 1))));
+        Assert.assertFalse(m1.equals(m1.addLedger(300)));
+    }
+
+    private LogMetadata copyOf(LogMetadata m) {
+        return LogMetadata.builder()
+                .enabled(m.isEnabled())
+                .epoch(m.getEpoch())
+                .updateVersion(m.getUpdateVersion())
+                .truncationAddress(new LedgerAddress(m.getTruncationAddress().getSequence(), m.getTruncationAddress().getLedgerSequence()))
+                .ledgers(m.getLedgers().stream().map(lm -> new LedgerMetadata(lm.getLedgerId(), lm.getSequence(), lm.getStatus())).collect(Collectors.toList()))
+                .build();
     }
 
     private void checkLedgerIds(List<Long> expectedLedgerIds, LogMetadata metadata) {
