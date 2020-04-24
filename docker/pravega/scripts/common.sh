@@ -33,3 +33,12 @@ add_system_property_ecs_config_uri() {
     echo "${name}" "${configUri}"
     add_system_property "${name}" "${configUri}"
 }
+
+# Add ECS certificates into Java truststore
+add_certs_into_truststore() {
+    CERTS=/etc/secret-volume/ca-bundle/*
+    for cert in $CERTS
+    do
+      yes | keytool -importcert -storepass changeit -file "${cert}" -alias "${cert}" -keystore /etc/ssl/certs/java/cacerts || true
+    done
+}
