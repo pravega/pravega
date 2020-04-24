@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
@@ -40,7 +41,6 @@ import io.pravega.common.Timer;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -374,14 +374,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @VisibleForTesting
     List<EventSegmentReader> getReaders() {
         synchronized (readers) {            
-            return Collections.unmodifiableList(readers);
+            return ImmutableList.copyOf(readers);
         }
     }
     
     @VisibleForTesting
     Map<Segment, Range> getRanges() {
         synchronized (readers) {
-            return Collections.unmodifiableMap(ranges);
+            return ImmutableMap.copyOf(ranges);
         }
     }
 

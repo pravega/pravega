@@ -85,7 +85,7 @@ public class EventStreamReaderTest {
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
     private final EventWriterConfig writerConfig = EventWriterConfig.builder().build();
 
-    @Test//(timeout = 10000)
+    @Test(timeout = 10000)
     public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
