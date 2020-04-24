@@ -1,3 +1,12 @@
+<!--
+Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # Watermarking
 
 Stream-processing applications may require a time-bounded set of metrics to make a calculation, make a decision, or commit a transaction. Pravega watermarking provides a way for applications to define time and know with some certainty that it has a complete set of data up to a watermark. All events earlier than a watermark can be processed, acted upon, or committed.   
