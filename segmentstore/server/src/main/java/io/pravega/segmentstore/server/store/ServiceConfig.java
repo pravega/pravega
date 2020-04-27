@@ -34,7 +34,6 @@ public class ServiceConfig {
     public static final Property<Integer> PUBLISHED_PORT = Property.named("publishedPort");
     public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
     public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("publishedIPAddress", "");
-    public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("parallelContainerStarts", 1);
     public static final Property<String> ZK_URL = Property.named("zkURL", "localhost:2181");
     public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
@@ -153,12 +152,6 @@ public class ServiceConfig {
      */
     @Getter
     private final String publishedIPAddress;
-
-    /**
-     * Number of segment containers that a Segment Store will start (and recover) in parallel.
-     */
-    @Getter
-    private final int parallelContainerStarts;
 
     /**
      * The Zookeeper URL.
@@ -309,7 +302,6 @@ public class ServiceConfig {
         } else {
             this.publishedIPAddress = publishedIPAddress;
         }
-        this.parallelContainerStarts = properties.getInt(PARALLEL_CONTAINER_STARTS);
         this.zkURL = properties.get(ZK_URL);
         this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
@@ -360,7 +352,6 @@ public class ServiceConfig {
                 .append(String.format("listeningIPAddress: %s, ", listeningIPAddress))
                 .append(String.format("publishedPort: %d, ", publishedPort))
                 .append(String.format("publishedIPAddress: %s, ", publishedIPAddress))
-                .append(String.format("parallelContainerStarts: %d, ", parallelContainerStarts))
                 .append(String.format("zkURL: %s, ", zkURL))
                 .append(String.format("zkRetrySleepMs: %d, ", zkRetrySleepMs))
                 .append(String.format("zkSessionTimeoutMs: %d, ", zkSessionTimeoutMs))
