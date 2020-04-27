@@ -212,48 +212,6 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof ObjectClosedException);
     }
 
-    @Test
-    public void testAllowFailures() {
-        val processedItems = Collections.synchronizedCollection(new HashSet<Integer>());
-        val processFutures = Collections.synchronizedList(new ArrayList<CompletableFuture<Integer>>());
-        val failedIndex = CAPACITY / 2;
-        Function<Integer, CompletableFuture<Integer>> itemProcessor = i -> {
-            if (!processedItems.add(i)) {
-                Assert.fail("Duplicate item detected: " + i);
-            }
-
-            CompletableFuture<Integer> result = new CompletableFuture<>();
-            if (i == failedIndex) {
-                // We throw a processing exception at position CAPACITY / 2.
-                throw new IntentionalException();
-            } else {
-                // Rest of futures should complete normally, after and before the exception.
-                result.complete(i);
-            }
-            processFutures.add(result);
-            return result;
-        };
-
-        // We instantiate
-        @Cleanup
-        val p = new TestProcessor(CAPACITY, itemProcessor, false, executorService());
-
-        // Fill up to capacity.
-        for (int i = 0; i < CAPACITY; i++) {
-            try {
-                p.process(i);
-            } catch (IntentionalException ex) {
-                // Ensure that the only IntentionalException happens at the given failedIndex.
-                Assert.assertEquals(i, failedIndex);
-            }
-        }
-
-        // The rest of futures (i.e. CAPACITY - 1) before and after the failure should have been completed.
-        for (int i = 0; i < CAPACITY - 1; i++) {
-            Assert.assertTrue("A future was expected to be completed, but it was not.", processFutures.get(i).isDone());
-        }
-    }
-
     /**
      * Tests that closing does cancel all pending items, except the processing ones.
      */
@@ -325,10 +283,6 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
 
         TestProcessor(int capacity, Function<Integer, CompletableFuture<Integer>> processor, Executor executor) {
             super(capacity, processor, executor);
-        }
-
-        TestProcessor(int capacity, Function<Integer, CompletableFuture<Integer>> processor, boolean closeOnException, Executor executor) {
-            super(capacity, processor, closeOnException, executor);
         }
 
         @Override
