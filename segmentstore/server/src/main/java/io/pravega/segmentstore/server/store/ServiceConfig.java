@@ -32,8 +32,8 @@ public class ServiceConfig {
     public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("storageThreadPool.size", 200, "storageThreadPoolSize");
     public static final Property<Integer> LISTENING_PORT = Property.named("service.listener.port", 12345, "listeningPort");
     public static final Property<Integer> PUBLISHED_PORT = Property.named("service.published.port", null, "publishedPort");
-    public static final Property<String> LISTENING_IP_ADDRESS = Property.named("service.listener.ip", "", "listeningIPAddress");
-    public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("service.published.ip", "", "publishedIPAddress");
+    public static final Property<String> LISTENING_IP_ADDRESS = Property.named("service.listener.host.nameOrIp", "", "listeningIPAddress");
+    public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("service.published.host.nameOrIp", "", "publishedIPAddress");
     public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("container.parallelStarts.count", 1, "parallelContainerStarts");
     public static final Property<String> ZK_URL = Property.named("zk.connect.uri", "localhost:2181", "zkURL");
     public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zk.connect.retries.interval.milliseconds", 5000, "zkRetrySleepMs");

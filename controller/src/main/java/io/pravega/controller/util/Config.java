@@ -160,13 +160,13 @@ public final class Config {
             "asyncTaskPool.size", 80, "service.asyncTaskPoolSize");
 
     private static final Property<String> PROPERTY_SERVICE_HOST_IP = Property.named(
-            "segmentstore.connect.ip", "localhost", "service.hostIp");
+            "segmentstore.connect.host.nameOrIp", "localhost", "service.hostIp");
 
     private static final Property<Integer> PROPERTY_SERVICE_HOST_PORT = Property.named(
             "segmentstore.connect.port", 12345, "service.hostPort");
 
     private static final Property<String> PROPERTY_RPC_HOST = Property.named(
-            "service.rpc.published.host", NULL_VALUE, "service.publishedRPCHost");
+            "service.rpc.published.host.nameOrIp", NULL_VALUE, "service.publishedRPCHost");
 
     private static final Property<Integer> PROPERTY_RPC_PORT = Property.named(
             "service.rpc.published.port", 9090, "service.publishedRPCPort");
@@ -175,7 +175,7 @@ public final class Config {
             "cluster.name", "pravega-cluster", "service.cluster");
 
     private static final Property<String> PROPERTY_REST_IP = Property.named(
-            "service.rest.listener.ip", "0.0.0.0", "service.restIp");
+            "service.rest.listener.host.ip", "0.0.0.0", "service.restIp");
 
     private static final Property<Integer> PROPERTY_REST_PORT = Property.named(
             "service.rest.listener.port", 9091, "service.restPort");
