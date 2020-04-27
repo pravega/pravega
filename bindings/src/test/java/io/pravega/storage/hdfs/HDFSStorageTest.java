@@ -435,12 +435,6 @@ public class HDFSStorageTest extends StorageTestBase {
         Assert.assertSame(iterator, Collections.emptyIterator());
     }
 
-    @Test
-    public void testListSegmentsFileName() {
-        TestHDFSStorage testHDFSStorage = new TestHDFSStorage(this.adapterConfig);
-        Mockito.doReturn(adapterConfig.getHdfsRoot() + Path.SEPARATOR).when(this.path).getName();
-        Iterator<SegmentProperties> iterator = testHDFSStorage.listSegments();
-    }
     // endregion
 
     //region RollingStorageTests
@@ -497,7 +491,6 @@ public class HDFSStorageTest extends StorageTestBase {
      * 'read-only' permission issues observed with that one.
      **/
     private static class TestHDFSStorage extends HDFSStorage {
-
         TestHDFSStorage(HDFSStorageConfig config) {
             super(config);
         }
@@ -506,8 +499,6 @@ public class HDFSStorageTest extends StorageTestBase {
         protected FileSystem openFileSystem(Configuration conf) throws IOException {
             return new FileSystemFixer(conf);
         }
-
-
     }
 
     private static class FileSystemFixer extends DistributedFileSystem {

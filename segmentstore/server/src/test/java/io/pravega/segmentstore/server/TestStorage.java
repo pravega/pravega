@@ -200,11 +200,6 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public String getClassName() {
-        return null;
-    }
-
-    @Override
     public CompletableFuture<Iterator<SegmentProperties>> listSegments() {
         return null;
     }

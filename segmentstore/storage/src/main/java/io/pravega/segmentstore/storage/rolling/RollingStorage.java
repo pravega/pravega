@@ -560,7 +560,8 @@ public class RollingStorage implements SyncStorage {
                             .name(segmentName)
                             .length(handle.length())
                             .sealed(handle.isSealed()).build();
-                } catch (StreamingException e) {
+                } catch (StreamSegmentException e) {
+                    log.error("Hit an exception!", e);
                 }
             }
             throw new NoSuchElementException();
