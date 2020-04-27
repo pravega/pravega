@@ -23,10 +23,12 @@ import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
@@ -51,6 +53,13 @@ public class CheckpointState {
      * Maps CheckpointId to remaining hosts.
      */
     private final Map<String, List<String>> uncheckpointedHosts;
+    
+    /**
+     * Reverse of {@link #uncheckpointedHosts}. (derived).
+     * Maps hosts to their outstanding checkpoints.
+     */
+    private Map<String, List<String>> checkpointIndex;
+    
     /**
      *  Maps CheckpointId to positions in segments.
      */
@@ -73,6 +82,7 @@ public class CheckpointState {
         this.uncheckpointedHosts = uncheckpointedHosts;
         this.checkpointPositions = checkpointPositions;
         this.lastCheckpointPosition = lastCheckpointPosition;
+        recomputeCheckpointIndex();
     }
 
     void beginNewCheckpoint(String checkpointId, Set<String> currentReaders, Map<Segment, Long> knownPositions) {
@@ -83,6 +93,7 @@ public class CheckpointState {
             checkpointPositions.put(checkpointId, new HashMap<>(knownPositions));
             checkpoints.add(checkpointId);
         }
+        recomputeCheckpointIndex();
     }
     
     String getCheckpointForReader(String readerName) {
@@ -95,16 +106,30 @@ public class CheckpointState {
     }
     
     private List<String> getCheckpointsForReader(String readerName) {
-        return uncheckpointedHosts.entrySet()
-            .stream()
-            .filter(entry -> entry.getValue().contains(readerName))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toList());
+        return checkpointIndex.getOrDefault(readerName, Collections.emptyList());
+    }
+    
+    private void recomputeCheckpointIndex() {
+        checkpointIndex = new HashMap<>();
+        for (Entry<String, List<String>> entry : uncheckpointedHosts.entrySet()) {
+            String checkpointId = entry.getKey();
+            for (String host : entry.getValue()) {
+                List<String> checkpointsForHost = checkpointIndex.get(host);
+                if (checkpointsForHost == null) {
+                    checkpointsForHost = new ArrayList<>();
+                    checkpointIndex.put(host, checkpointsForHost);
+                }
+                checkpointsForHost.add(checkpointId);
+            }
+        }
     }
 
     void removeReader(String readerName, Map<Segment, Long> position) {
-        for (String checkpointId : getCheckpointsForReader(readerName)) {            
-            readerCheckpointed(checkpointId, readerName, position);
+        List<String> toCheckpoint = checkpointIndex.remove(readerName);
+        if (toCheckpoint != null) {
+            for (String checkpointId : toCheckpoint) {            
+                readerCheckpointed(checkpointId, readerName, position);
+            }
         }
     }
     
@@ -114,6 +139,10 @@ public class CheckpointState {
         if (readers != null) {
             boolean removed = readers.remove(readerName);
             Preconditions.checkState(removed, "Reader already checkpointed.");
+            List<String> cps = checkpointIndex.get(readerName);
+            if (cps != null) {
+                cps.remove(checkpointId);                
+            }
             Map<Segment, Long> positions = checkpointPositions.get(checkpointId);
             positions.putAll(position);
             if (readers.isEmpty()) {
@@ -168,6 +197,7 @@ public class CheckpointState {
                 checkpointPositions.remove(cp);
                 iterator.remove();
             }
+            recomputeCheckpointIndex();
         }
     }
 
