@@ -74,7 +74,7 @@ public class SerializationTest {
 
     @Test
     public void testPosition() {
-        PositionImpl pos = new PositionImpl(ImmutableMap.of(new SegmentWithRange(Segment.fromScopedName("foo/bar/0"), 0, 0.5), 2L,
+        PositionImpl pos = new PositionImpl(ImmutableMap.of(new SegmentWithRange(Segment.fromScopedName("foo/bar/0"), 0, 0.5), 338906L,
                 new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0.5, 1.0), -1L));
         ByteBuffer bytes = pos.toBytes();
         Position pos1 = Position.fromBytes(bytes);
