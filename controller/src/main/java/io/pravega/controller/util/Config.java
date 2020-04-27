@@ -157,7 +157,7 @@ public final class Config {
             "service.rpc.listener.port", 9090, "service.port");
 
     private static final Property<Integer> PROPERTY_TASK_POOL_SIZE = Property.named(
-            "asyncTaskPool.size", 80, "service.asyncTaskPoolSize");
+            "service.asyncTaskPool.size", 80, "service.asyncTaskPoolSize");
 
     private static final Property<String> PROPERTY_SERVICE_HOST_IP = Property.named(
             "segmentstore.connect.host.nameOrIp", "localhost", "service.hostIp");
@@ -193,10 +193,10 @@ public final class Config {
             "security.pwdAuthHandler.accountsDb.location", "", "auth.userPasswordFile");
 
     private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named(
-            "security.auth.token.signingKey.basis", "", "auth.tokenSigningKey");
+            "security.auth.delegationToken.signingKey.basis", "", "auth.tokenSigningKey");
 
     private static final Property<Integer> PROPERTY_ACCESS_TOKEN_TTL_SECONDS = Property.named(
-            "security.auth.token.ttl.seconds", 600, "auth.accessTokenTtlSeconds");
+            "security.auth.delegationToken.ttl.seconds", 600, "auth.accessTokenTtlSeconds");
 
     private static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named(
             "security.tls.enable", false, "auth.tlsEnabled");
@@ -263,10 +263,10 @@ public final class Config {
 
 
     private static final Property<String> PROPERTY_SCALE_STREAM_NAME = Property.named(
-            "autoScale.request.stream.name", "_requeststream", "scale.streamName");
+            "scale.request.stream.name", "_requeststream", "scale.streamName");
 
     private static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named(
-            "autoScale.request.readerGroup.name", "scaleGroup", "scale.ReaderGroup");
+            "scale.request.readerGroup.name", "scaleGroup", "scale.ReaderGroup");
 
     private static final String COMPONENT_CODE = "controller";
 

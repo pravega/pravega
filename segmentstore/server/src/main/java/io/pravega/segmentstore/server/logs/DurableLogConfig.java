@@ -23,7 +23,7 @@ import lombok.Getter;
 public class DurableLogConfig {
     //region Config Names
     public static final Property<Integer> CHECKPOINT_MIN_COMMIT_COUNT = Property.named("checkpoint.commit.count.min", 300, "checkpointMinCommitCount");
-    public static final Property<Integer> CHECKPOINT_COMMIT_COUNT = Property.named("checkpoint.commit.threashold.count", 300, "checkpointCommitCountThreshold");
+    public static final Property<Integer> CHECKPOINT_COMMIT_COUNT = Property.named("checkpoint.commit.threshold.count", 300, "checkpointCommitCountThreshold");
     public static final Property<Long> CHECKPOINT_TOTAL_COMMIT_LENGTH = Property.named("checkpoint.commit.length.total", 256 * 1024 * 1024L, "checkpointTotalCommitLengthThreshold");
     public static final Property<Integer> START_RETRY_DELAY_MILLIS = Property.named("start.retry.delay.millis", 60 * 1000, "startRetryDelayMillis");
     private static final String COMPONENT_CODE = "durablelog";

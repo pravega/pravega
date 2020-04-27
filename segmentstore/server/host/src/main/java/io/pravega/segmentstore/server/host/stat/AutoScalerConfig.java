@@ -24,7 +24,7 @@ public class AutoScalerConfig {
     public static final Property<String> REQUEST_STREAM = Property.named("requestStream.name", "_requeststream", "requestStream");
     public static final Property<Integer> COOLDOWN_IN_SECONDS = Property.named("cooldown.time.seconds", 10 * 60, "cooldownInSeconds");
     public static final Property<Integer> MUTE_IN_SECONDS = Property.named("mute.time.seconds", 10 * 60, "muteInSeconds");
-    public static final Property<Integer> CACHE_CLEANUP_IN_SECONDS = Property.named("cache.cleanUp.interval.Seconds", 5 * 60, "cacheCleanUpInSeconds");
+    public static final Property<Integer> CACHE_CLEANUP_IN_SECONDS = Property.named("cache.cleanUp.interval.seconds", 5 * 60, "cacheCleanUpInSeconds");
     public static final Property<Integer> CACHE_EXPIRY_IN_SECONDS = Property.named("cache.expiry.seconds", 20 * 60, "cacheExpiryInSeconds");
     public static final Property<String> CONTROLLER_URI = Property.named("controller.connect.uri", "tcp://localhost:9090", "controllerUri");
     public static final Property<Boolean> TLS_ENABLED = Property.named("controller.connect.security.tls.enable", false, "tlsEnabled");
