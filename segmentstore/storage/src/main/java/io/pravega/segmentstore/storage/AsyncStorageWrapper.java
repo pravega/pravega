@@ -120,11 +120,6 @@ public class AsyncStorageWrapper implements Storage {
     }
 
     @Override
-    public String getClassName() {
-        return this.syncStorage.getClass().getSimpleName();
-    }
-
-    @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
         return supplyAsync(() -> this.syncStorage.openRead(streamSegmentName), streamSegmentName);
     }

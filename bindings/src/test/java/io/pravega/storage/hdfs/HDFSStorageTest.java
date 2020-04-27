@@ -9,6 +9,7 @@
  */
 package io.pravega.storage.hdfs;
 
+import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
@@ -29,8 +30,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
@@ -51,6 +54,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
 
 /**
  * Unit tests for HDFSStorage.
@@ -63,9 +67,11 @@ public class HDFSStorageTest extends StorageTestBase {
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
     private HDFSStorageConfig adapterConfig;
+    private Path path;
 
     @Before
     public void setUp() throws Exception {
+        this.path = Mockito.spy(new Path("A", "B"));
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
         this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
         this.adapterConfig = HDFSStorageConfig
@@ -283,6 +289,61 @@ public class HDFSStorageTest extends StorageTestBase {
     }
 
     /**
+     * Tests the ability to list Segments.
+     * @throws Exception if an unexpected error occurred.
+     */
+    @Test
+    public void testListSegmentsWithSeal() throws Exception {
+        HDFSStorage hdfsStorage = new HDFSStorage(adapterConfig);
+        Set<String> sealedSegments = new HashSet<>();
+        hdfsStorage.initialize(1);
+        int expectedCount = 5;
+        byte[] data = "data".getBytes();
+        for (int i = 0; i < expectedCount; i++) {
+            String segmentName = "segment-" + i;
+            SegmentHandle wh1 = hdfsStorage.create(segmentName);
+            // Write data.
+            hdfsStorage.write(wh1, 0, new ByteArrayInputStream(data), data.length);
+            if (i == 0) {
+                hdfsStorage.seal(wh1);
+                sealedSegments.add(segmentName);
+            }
+        }
+        Iterator<SegmentProperties> it = hdfsStorage.listSegments();
+        int actualCount = 0;
+        while (it.hasNext()) {
+            SegmentProperties curr = it.next();
+            ++actualCount;
+        }
+        Assert.assertEquals(actualCount, expectedCount);
+    }
+
+    /**
+     * Tests listSegments() on deleting some segments.
+     *
+     * @throws Exception if an unexpected error occurred.
+     */
+    @Test
+    public void testListSegmentsWithDeletes() throws Exception {
+        HDFSStorage hdfsStorage = new HDFSStorage(adapterConfig);
+        Set<String> deletedSegments = new HashSet<>();
+        hdfsStorage.initialize(1);
+        int expectedCount = 5;
+        for (int i = 0; i < expectedCount; i++) {
+            String segmentName = "segment-" + i;
+            SegmentHandle wh1 = hdfsStorage.create(segmentName);
+            // Write data.
+            if (i == 0) {
+                hdfsStorage.delete(wh1);
+                deletedSegments.add(segmentName);
+            }
+        }
+        Iterator<SegmentProperties> it = hdfsStorage.listSegments();
+        expectedCount -= deletedSegments.size();
+        Assert.assertEquals(expectedCount, Iterators.size(it));
+    }
+
+    /**
      * Tests a read scenario with no issues or failures.
      */
     @Test
@@ -369,11 +430,17 @@ public class HDFSStorageTest extends StorageTestBase {
      */
     @Test
     public void testListSegmentsNumberFormatException() {
-        HDFSStorage testHDFSStorage = new HDFSStorage(adapterConfig);
+        TestHDFSStorage testHDFSStorage = new TestHDFSStorage(this.adapterConfig);
         Iterator<SegmentProperties> iterator = testHDFSStorage.listSegments();
         Assert.assertSame(iterator, Collections.emptyIterator());
     }
 
+    @Test
+    public void testListSegmentsFileName() {
+        TestHDFSStorage testHDFSStorage = new TestHDFSStorage(this.adapterConfig);
+        Mockito.doReturn(adapterConfig.getHdfsRoot() + Path.SEPARATOR).when(this.path).getName();
+        Iterator<SegmentProperties> iterator = testHDFSStorage.listSegments();
+    }
     // endregion
 
     //region RollingStorageTests
@@ -430,6 +497,7 @@ public class HDFSStorageTest extends StorageTestBase {
      * 'read-only' permission issues observed with that one.
      **/
     private static class TestHDFSStorage extends HDFSStorage {
+
         TestHDFSStorage(HDFSStorageConfig config) {
             super(config);
         }
@@ -438,6 +506,8 @@ public class HDFSStorageTest extends StorageTestBase {
         protected FileSystem openFileSystem(Configuration conf) throws IOException {
             return new FileSystemFixer(conf);
         }
+
+
     }
 
     private static class FileSystemFixer extends DistributedFileSystem {
