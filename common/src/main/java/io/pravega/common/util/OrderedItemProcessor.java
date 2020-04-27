@@ -24,14 +24,12 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
  * Processes items in order, subject to capacity constraints.
  */
 @ThreadSafe
-@Slf4j
 public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable {
     //region members
 
@@ -41,7 +39,6 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     private final Function<ItemType, CompletableFuture<ResultType>> processor;
     @GuardedBy("stateLock")
     private final Deque<QueueItem> pendingItems;
-    private final boolean closeOnException;
     private final Executor executor;
 
     /**
@@ -70,23 +67,15 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
      * @param capacity  The maximum number of concurrent executions.
      * @param processor A Function that, given an Item, returns a CompletableFuture that indicates when the item has been
      *                  processed (successfully or not).
-     * @param closeOnException Whether or not the OrderedItemProcessor should shut down when it throws an exception
-     *                         processing an item. The default behavior is to close the processor on exception.
      * @param executor  An Executor for async invocations.
      */
-    public OrderedItemProcessor(int capacity, Function<ItemType, CompletableFuture<ResultType>> processor,
-                                boolean closeOnException, Executor executor) {
+    public OrderedItemProcessor(int capacity, Function<ItemType, CompletableFuture<ResultType>> processor, Executor executor) {
         Preconditions.checkArgument(capacity > 0, "capacity must be a non-negative number.");
         this.capacity = capacity;
         this.processor = Preconditions.checkNotNull(processor, "processor");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.pendingItems = new ArrayDeque<>();
         this.activeCount = 0;
-        this.closeOnException = closeOnException;
-    }
-
-    public OrderedItemProcessor(int capacity, Function<ItemType, CompletableFuture<ResultType>> processor, Executor executor) {
-        this(capacity, processor, true, executor);
     }
 
     //endregion
@@ -177,16 +166,12 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
         synchronized (this.stateLock) {
             // Release the spot occupied by this item's execution.
             this.activeCount--;
-            if (exception != null) {
-                log.warn("Exception thrown while processing item: ", exception);
-                // Only close the processor and cancel pending items if exceptions from processed items are not allowed.
-                if (!this.closed && this.closeOnException) {
-                    // Need to fail all future items and close to prevent new items from being processed.
-                    failEx = new ProcessingException("A previous item failed to commit. Cannot process new items.", exception);
-                    toFail = new ArrayList<>(this.pendingItems);
-                    this.pendingItems.clear();
-                    this.closed = true;
-                }
+            if (exception != null && !this.closed) {
+                // Need to fail all future items and close to prevent new items from being processed.
+                failEx = new ProcessingException("A previous item failed to commit. Cannot process new items.", exception);
+                toFail = new ArrayList<>(this.pendingItems);
+                this.pendingItems.clear();
+                this.closed = true;
             }
 
             if (this.emptyNotifier != null && this.activeCount == 0 && this.pendingItems.isEmpty()) {
