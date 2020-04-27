@@ -517,9 +517,9 @@ class HDFSStorage implements SyncStorage {
     }
 
     public static class HDFSSegmentIterator implements Iterator<SegmentProperties> {
-        public RemoteIterator<FileStatus> results;
-        public FileStatus current;
-        public java.util.function.Predicate<FileStatus> patternMatchPredicate;
+        RemoteIterator<FileStatus> results;
+        FileStatus current;
+        java.util.function.Predicate<FileStatus> patternMatchPredicate;
 
         HDFSSegmentIterator(RemoteIterator<FileStatus> results, java.util.function.Predicate<FileStatus> patternMatchPredicate) {
             this.results = results;

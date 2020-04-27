@@ -78,8 +78,6 @@ public class HDFSMockTests {
         Assert.assertFalse(hasNextValue);
     }
 
-
-
     /**
      * A derived class to mock a few methods called during method under test execution.
      */
