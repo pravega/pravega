@@ -20,19 +20,19 @@ public class ExponentialMovingAverage {
 
     private final double newSampleWeight;
     private final AtomicLong valueEncodedAsLong;
-    private final boolean logarithmicWeighting;
+    private final boolean sqrtWeighting;
     
     /**
      * Creates a new value to track.
      * 
      * @param initialValue The value to be used as the initial average
      * @param newSampleWeight The fractional weight to give to new samples. 0.0 - 1.0 (exclusive)
-     * @param logarithmicWeighting If the samples should be weighted logarithmically to reduce the impact of outliers.
+     * @param sqrtWeighting If the samples should be weighted according to the square root to reduce the impact of outliers.
      */
-    public ExponentialMovingAverage(double initialValue, double newSampleWeight, boolean logarithmicWeighting ) {
+    public ExponentialMovingAverage(double initialValue, double newSampleWeight, boolean sqrtWeighting ) {
         Preconditions.checkArgument(newSampleWeight > 0.0 && newSampleWeight < 1.0, "New sample weight must be between 0.0 and 1.0");       
         this.newSampleWeight = newSampleWeight;
-        this.logarithmicWeighting = logarithmicWeighting;
+        this.sqrtWeighting = sqrtWeighting;
         double value = calculateLog(initialValue);
         this.valueEncodedAsLong = new AtomicLong(Double.doubleToLongBits(value));
     }
@@ -62,19 +62,19 @@ public class ExponentialMovingAverage {
     }
 
     private double calculateLog(double newSample) {
-        if (!logarithmicWeighting) {
+        if (!sqrtWeighting) {
             return newSample;
         } 
         
-        return Math.signum(newSample) * Math.log1p(Math.abs(newSample));
+        return Math.signum(newSample) * Math.sqrt(Math.abs(newSample));
     }
     
     private double calculateExponential(double result) {
-        if (!logarithmicWeighting) {
+        if (!sqrtWeighting) {
             return result;
         } 
         
-        return Math.signum(result) * (Math.expm1(Math.abs(result)));
+        return result * Math.abs(result);
     }
     
     @Override

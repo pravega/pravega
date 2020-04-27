@@ -106,7 +106,7 @@ public class PositionImpl extends PositionInternal {
         return ToStringUtils.mapToString(ownedSegments);
     }
 
-    private static class PositionBuilder implements ObjectBuilder<PositionImpl> {
+    static class PositionBuilder implements ObjectBuilder<PositionImpl> {
     }
 
     private static class PositionSerializer extends VersionedSerializer.WithBuilder<PositionImpl, PositionBuilder> {
