@@ -200,7 +200,19 @@ class SegmentInputStreamImpl implements SegmentInputStream {
 
     @GuardedBy("$lock")
     private void cancelOutstandingRequest() {
+        // We need to make sure that we release the ByteBuf held on to by WireCommands.SegmentRead.
+        // We first attempt to cancel the request. If it has not already completed (and will complete successfully at one point),
+        // it will automatically release the buffer.
         outstandingRequest.cancel(true);
+
+        // If the request has already completed successfully, attempt to release it anyway. Doing so multiple times will
+        // have no adverse effect. We do this after attempting to cancel (as opposed to before) since the request may very
+        // well complete while we're executing this method and we want to ensure no SegmentRead instances are left hanging.
+        if (outstandingRequest.isDone() && !outstandingRequest.isCompletedExceptionally()) {
+            SegmentRead request = outstandingRequest.join();
+            request.release();
+        }
+
         log.debug("Completed cancelling outstanding read request for segment {}", asyncInput.getSegmentId());
         outstandingRequest = null;
     }

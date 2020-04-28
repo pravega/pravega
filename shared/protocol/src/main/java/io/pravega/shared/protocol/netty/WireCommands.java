@@ -798,7 +798,7 @@ public final class WireCommands {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     @Getter
     @ToString
-    @EqualsAndHashCode(exclude = "mustRelease")
+    @EqualsAndHashCode(exclude = {"mustRelease", "released"})
     public static final class SegmentRead implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_READ;
         final String segment;
@@ -808,6 +808,7 @@ public final class WireCommands {
         final ByteBuf data;
         final long requestId;
         private final boolean mustRelease;
+        private boolean released = false;
 
         public SegmentRead(String segment, long offset, boolean atTail, boolean endOfSegment, ByteBuf data, long requestId) {
             this(segment, offset, atTail, endOfSegment, data, requestId, false);
@@ -845,9 +846,11 @@ public final class WireCommands {
         }
 
         public void release() {
-            if (this.mustRelease) {
+            if (this.mustRelease && !this.released) {
                 this.data.release();
             }
+
+            this.released = true;
         }
 
         @Override

@@ -30,7 +30,9 @@ import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class WireCommandsTest {
@@ -524,22 +526,28 @@ public class WireCommandsTest {
         int originalRefCnt = buf.refCnt();
         WireCommands.SegmentRead sr = new WireCommands.SegmentRead(testString1, l, true, false, buf, l);
         assertFalse(sr.isMustRelease());
+        assertFalse(sr.isReleased());
         sr.release();
+        assertEquals(originalRefCnt, buf.refCnt());
+        assertTrue(sr.isReleased());
+        sr.release(); // Do this again. The second time should have no effect.
         assertEquals(originalRefCnt, buf.refCnt());
 
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         sr.writeFields(new DataOutputStream(bout));
-        ByteBuf buf = Unpooled.wrappedBuffer(bout.toByteArray());
-        WireCommands.SegmentRead read = (WireCommands.SegmentRead) WireCommands.SegmentRead.readFrom(new EnhancedByteBufInputStream(buf), bout.size());
+        ByteBuf buffer = Unpooled.wrappedBuffer(bout.toByteArray());
+        WireCommands.SegmentRead read = (WireCommands.SegmentRead) WireCommands.SegmentRead.readFrom(new EnhancedByteBufInputStream(buffer), bout.size());
         assertTrue(read.isMustRelease());
         assertEquals(2, read.getData().refCnt());
-        assertEquals(2, buf.refCnt());
-        buf.release();
+        assertEquals(2, buffer.refCnt());
+        buffer.release();
         assertEquals(1, read.getData().refCnt());
-        assertEquals(1, buf.refCnt());
+        assertEquals(1, buffer.refCnt());
         read.release();
         assertEquals(0, read.getData().refCnt());
-        assertEquals(0, buf.refCnt());
+        assertEquals(0, buffer.refCnt());
+        read.release(); // Do this again. The second time should have no effect.
+        assertEquals(0, buffer.refCnt());
     }
 
     @Test
