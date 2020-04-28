@@ -1671,6 +1671,102 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         AssertExtensions.assertArrayEquals("Unexpected data read back from segment.", append2.array(), 0, allData, append1.getLength(), append2.getLength());
     }
 
+    /**
+     * Tests a deadlock-prone scenario involving multiple Storage read requests from multiple segments, all hitting a
+     * CacheFullException while trying to process.
+     *
+     * Steps:
+     * 1. Segment 1: Storage Read Complete -> Ack -> Insert in Index -> Acquire (ReadIndex1.Lock[Thread1]) -> Insert in Cache [Request1]
+     * 2. Segment 2: Storage Read Complete -> Ack -> Insert in Index -> Acquire (ReadIndex2.Lock[Thread2]) -> Insert in Cache [Request2]
+     * 3. Cache is full. Deadlock occurs if:
+     * 3.1. [Request1] invokes Cache Eviction, which wants to acquire ReadIndex2.Lock, but it is owned by Thread2.
+     * 3.2. [Request2] invokes Cache Eviction, which wants to acquire ReadIndex1.Lock, but it is owned by Thread1.
+     *
+     * This test verifies that no deadlock occurs by simulating this exact scenario. It verifies that all requests eventually
+     * complete successfully (as the deadlock victim will back off and retry).
+     */
+    @Test
+    public void testCacheFullDeadlock() throws Exception {
+        val maxCacheSize = 2 * 1024 * 1024; // This is the actual cache size, even if we set a lower value than this.
+        val append1Size = (int) (0.75 * maxCacheSize); // Fill up most of the cache - this is also a candidate for eviction.
+        val append2Size = 1; // Dummy append - need to register the read index as a cache client.
+        val segmentSize = maxCacheSize + 1;
+
+        val config = ReadIndexConfig
+                .builder()
+                .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
+                .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, maxCacheSize)
+                .build();
+        CachePolicy cachePolicy = new CachePolicy(maxCacheSize, Duration.ZERO, Duration.ofMillis(1));
+        @Cleanup
+        TestContext context = new TestContext(config, cachePolicy, maxCacheSize);
+
+        // Block the first insert (this will be from segment 1
+        val append1Address = new AtomicInteger(0);
+        context.cacheStorage.insertCallback = a -> append1Address.compareAndSet(0, a);
+        val segment1Delete = new ReusableLatch();
+        context.cacheStorage.beforeDelete = deleteAddress -> {
+            if (deleteAddress == append1Address.get()) {
+                // Block eviction of the first segment 1 data (just the first; we want the rest to go through).
+                Exceptions.handleInterrupted(segment1Delete::await);
+            }
+        };
+
+        // Create segments and make each of them slightly bigger than the cache capacity.
+        long segment1Id = createSegment(0, context);
+        long segment2Id = createSegment(1, context);
+        val segment1Metadata = context.metadata.getStreamSegmentMetadata(segment1Id);
+        val segment2Metadata = context.metadata.getStreamSegmentMetadata(segment2Id);
+        segment1Metadata.setLength(segmentSize);
+        segment1Metadata.setStorageLength(segmentSize);
+        segment2Metadata.setLength(segmentSize);
+        segment2Metadata.setStorageLength(segmentSize);
+        createSegmentsInStorage(context);
+
+        context.storage.openWrite(segment1Metadata.getName())
+                .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[segmentSize]), segmentSize, TIMEOUT))
+                .join();
+        context.storage.openWrite(segment2Metadata.getName())
+                .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[segmentSize]), segmentSize, TIMEOUT))
+                .join();
+
+        // Write some data into the cache. This will become a candidate for eviction at the next step.
+        context.readIndex.append(segment1Id, 0, new ByteArraySegment(new byte[append1Size]));
+
+        // Write some data into Segment 2's index. This will have no effect on the cache, but we will register it with the Cache Manager.
+        context.readIndex.append(segment2Id, 0, new ByteArraySegment(new byte[append2Size]));
+
+        // Initiate the first Storage read. This should exceed the max cache size, so it should trigger the cleanup.
+        val segment1Read = context.readIndex.read(segment1Id, append1Size, segmentSize - append1Size, TIMEOUT).next();
+        Assert.assertEquals(ReadResultEntryType.Storage, segment1Read.getType());
+        segment1Read.requestContent(TIMEOUT);
+        segment1Read.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS); // This one should complete right away.
+
+        // Wait for the delete callback to be latched.
+        TestUtils.await(() -> segment1Delete.getQueueLength() > 0, 10, TIMEOUT.toMillis());
+
+        // Initiate the second Storage read. This should also exceed the max cache size and trigger another cleanup, but
+        // (most importantly) on a different thread.
+        val segment2Read = context.readIndex.read(segment2Id, append2Size, segmentSize - append2Size, TIMEOUT).next();
+        Assert.assertEquals(ReadResultEntryType.Storage, segment2Read.getType());
+        segment2Read.requestContent(TIMEOUT);
+        segment2Read.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS); // As with the first one, this should complete right away.
+
+        // We use yet another thread to validate that no deadlock occurs. This should briefly block on Segment 2's Read index's
+        // lock, but it should be unblocked when we release that (next step).
+        val append2Future = CompletableFuture.runAsync(() -> {
+            try {
+                context.readIndex.append(segment2Id, append2Size, new ByteArraySegment(new byte[append1Size]));
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+        }, executorService());
+
+        // Release the delete blocker. If all goes well, all the other operations should be unblocked at this point.
+        segment1Delete.release();
+        append2Future.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
     //endregion
 
     //region Helpers
@@ -1970,7 +2066,11 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
 
         TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy) {
-            this.cacheStorage = new TestCacheStorage(Integer.MAX_VALUE);
+            this(readIndexConfig, cachePolicy, Integer.MAX_VALUE);
+        }
+
+        TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy, int actualCacheSize) {
+            this.cacheStorage = new TestCacheStorage(Math.min(Integer.MAX_VALUE, actualCacheSize));
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.storage = new TestStorage(new InMemoryStorage(), executorService());
             this.storage.initialize(1);
@@ -2002,6 +2102,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     //region TestCacheStorage
 
     private static class TestCacheStorage extends DirectMemoryCache {
+        Consumer<Integer> beforeDelete;
         Consumer<Integer> insertCallback;
         Consumer<Integer> deleteCallback;
         boolean disableAppends;
@@ -2024,9 +2125,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         @Override
         public int insert(BufferView data) {
             int r = super.insert(data);
-            Consumer<Integer> callback = this.insertCallback;
-            if (callback != null) {
-                callback.accept(r);
+            Consumer<Integer> afterInsert = this.insertCallback;
+            if (afterInsert != null) {
+                afterInsert.accept(r);
             }
 
             return r;
@@ -2056,6 +2157,11 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         @Override
         public void delete(int address) {
+            Consumer<Integer> beforeDelete = this.beforeDelete;
+            if (beforeDelete != null) {
+                beforeDelete.accept(address);
+            }
+
             super.delete(address);
             Consumer<Integer> callback = this.deleteCallback;
             if (callback != null) {
