@@ -44,6 +44,7 @@ pages:
       - 'Wire Protocol': 'wire-protocol.md'
       - 'StateSynchronizer': 'state-synchronizer-design.md'
       - 'Reader Groups': 'reader-group-design.md'
+      - 'Watermarking': 'watermarking.md'
 
   - Developing Pravega Applications:
       - 'Java API Reference': 'javadoc.md'
