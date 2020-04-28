@@ -381,6 +381,11 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
             // Perform the same validation checks as the ReadIndex would do.
             SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+            if (sm.isDeleted()) {
+                // StorageWriterFactory.WriterDataSource returns null for inexistent segments.
+                return null;
+            }
+
             Preconditions.checkArgument(length >= 0, "length must be a non-negative number");
             Preconditions.checkArgument(startOffset >= sm.getStorageLength(),
                     "startOffset (%s) must refer to an offset beyond the Segment's StorageLength offset(%s).", startOffset, sm.getStorageLength());
