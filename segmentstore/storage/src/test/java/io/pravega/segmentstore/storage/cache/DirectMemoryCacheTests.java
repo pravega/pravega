@@ -230,7 +230,7 @@ public class DirectMemoryCacheTests {
      */
     @Test
     public void testCacheFull() {
-        final int cleanAfterInvocations = DirectMemoryCache.MAX_CLEANUP_ATTEMPTS;
+        final int cleanAfterInvocations = DirectMemoryCache.MAX_CLEANUP_ATTEMPTS - 1;
         final int maxSize = LAYOUT.bufferSize();
         final int maxStoredSize = maxSize - LAYOUT.blockSize();
         final BufferView toInsert = new ByteArraySegment(new byte[1]);
@@ -256,9 +256,9 @@ public class DirectMemoryCacheTests {
             }
 
             return reportClean.get();
-        });
+        }, 1);
 
-        // 1. No cleanup, no error, reporting the truth. We should only try once.
+        // 1. No cleanup, no error, reporting the truth. We should try as many times as possible.
         reportClean.set(false);
         actualClean.set(false);
         throwError.set(false);
@@ -267,7 +267,8 @@ public class DirectMemoryCacheTests {
                 "Expected CacheFullException when no cleanup and no error.",
                 () -> c.insert(toInsert),
                 ex -> ex instanceof CacheFullException);
-        Assert.assertEquals("Unexpected number of invocations when no cleanup and no error.", 1, invocationCount.get());
+        Assert.assertEquals("Unexpected number of invocations when no cleanup and no error.",
+                DirectMemoryCache.MAX_CLEANUP_ATTEMPTS, invocationCount.get());
 
         // 2. No cleanup, no error, reporting that we did clean up. We should try as many times as possible.
         reportClean.set(true);
