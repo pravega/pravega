@@ -74,8 +74,8 @@ class CompositeBufferView implements BufferView {
 
     @Override
     public BufferView slice(int offset, int length) {
-        Preconditions.checkArgument(offset >= 0 && offset < length && length <= this.length,
-                "offset and length must be non-negative and less than %s.", this.length);
+        Preconditions.checkArgument(offset >= 0 && length >= 0 && offset + length <= this.length,
+                "offset and length must be non-negative and less than %s. Given %s-%s", this.length, offset, length);
         if (offset == 0 && length == this.length) {
             return this;
         }
