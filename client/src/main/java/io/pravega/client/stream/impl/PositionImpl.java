@@ -132,10 +132,11 @@ public class PositionImpl extends PositionInternal {
         private void read00(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
             Map<Segment, Long> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), in -> {
                 long offset = in.readCompactLong();
-                if (offset == COMPACT_LONG_MAX)
+                if (offset == COMPACT_LONG_MAX) {
                     return -1L;
-                else
+                } else {
                     return offset;
+                }
             });
             builder.ownedSegments(map);
         }
