@@ -80,6 +80,17 @@ public class HDFSSegmentIteratorMockTests {
     }
 
     /**
+     * Tests the scenario when results is null.
+     */
+    @Test
+    public void testHasNextNullResult() {
+        HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
+                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(null, null);
+        boolean hasNextValue = testHDFSStorageSegmentIterator.hasNext();
+        Assert.assertFalse(hasNextValue);
+    }
+
+    /**
      * Tests the scenario when FileNameFormatException is thrown during the next() method execution.
      */
     @Test
@@ -89,6 +100,22 @@ public class HDFSSegmentIteratorMockTests {
         testHDFSStorageSegmentIterator.current = new FileStatus();
         org.apache.hadoop.fs.Path path = new org.apache.hadoop.fs.Path("/testmock");
         testHDFSStorageSegmentIterator.current.setPath(path);
+        boolean caughtException = false;
+        try {
+            testHDFSStorageSegmentIterator.next();
+        } catch (NoSuchElementException e) {
+            caughtException = true;
+        }
+        Assert.assertTrue(caughtException);
+    }
+
+    /**
+     * Tests the scenario when current is null.
+     */
+    @Test
+    public void testNextNullResults() {
+        HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
+                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(null, null);
         boolean caughtException = false;
         try {
             testHDFSStorageSegmentIterator.next();

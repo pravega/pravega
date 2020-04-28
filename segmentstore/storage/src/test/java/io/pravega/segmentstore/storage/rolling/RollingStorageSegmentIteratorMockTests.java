@@ -96,6 +96,35 @@ public class RollingStorageSegmentIteratorMockTests {
     }
 
     /**
+     * Tests when current is null.
+     */
+    @Test
+    public void testNextNullCurrent() {
+        RollingStorageSegmentIteratorMockTests.TestRollingStorageSegmentIterator testRollingStorageSegmentIterator = new
+                RollingStorageSegmentIteratorMockTests.TestRollingStorageSegmentIterator(null, null,
+                null);
+        boolean caughtException = false;
+        try {
+            testRollingStorageSegmentIterator.next();
+        } catch (NoSuchElementException e) {
+            caughtException = true;
+        }
+        Assert.assertTrue(caughtException);
+    }
+
+    /**
+     * Tests when results is null.
+     */
+    @Test
+    public void testHasNextNullResults() {
+        RollingStorageSegmentIteratorMockTests.TestRollingStorageSegmentIterator testRollingStorageSegmentIterator = new
+                RollingStorageSegmentIteratorMockTests.TestRollingStorageSegmentIterator(null, null,
+                null);
+        boolean hasNext = testRollingStorageSegmentIterator.hasNext();
+        Assert.assertFalse(hasNext);
+    }
+
+    /**
      * A derived class to mock a few methods called during method under test execution.
      */
     private static class TestRollingStorageSegmentIterator extends RollingStorage.RollingStorageSegmentIterator {
