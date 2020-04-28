@@ -54,7 +54,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-import org.mockito.Mockito;
 
 /**
  * Unit tests for HDFSStorage.
@@ -67,11 +66,9 @@ public class HDFSStorageTest extends StorageTestBase {
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
     private HDFSStorageConfig adapterConfig;
-    private Path path;
 
     @Before
     public void setUp() throws Exception {
-        this.path = Mockito.spy(new Path("A", "B"));
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
         this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
         this.adapterConfig = HDFSStorageConfig

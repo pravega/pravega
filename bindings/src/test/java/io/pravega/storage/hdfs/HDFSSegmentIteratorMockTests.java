@@ -19,14 +19,13 @@ import org.junit.rules.Timeout;
 
 import java.io.IOException;
 
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.NoSuchElementException;
 import java.util.function.Predicate;
 
 import org.mockito.Mockito;
 
-public class HDFSMockTests {
+public class HDFSSegmentIteratorMockTests {
     static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     @Rule
@@ -56,27 +55,37 @@ public class HDFSMockTests {
         });
     }
 
+    /**
+     * Tests the exception handling capacity of hasNext() method.
+     * @throws IOException RemoteIterator's hasNext() method was mocked to throw IOException.
+     */
     @Test
     public void testHasNextReturnFalse() throws IOException {
-        HDFSMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
-                HDFSMockTests.TestHDFSStorageSegmentIterator(this.results, this.patternMatchPredicate);
+        HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
+                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(this.results, this.patternMatchPredicate);
         Mockito.doThrow(new IOException()).when(this.results).hasNext();
         boolean hasNextValue = testHDFSStorageSegmentIterator.hasNext();
         Assert.assertFalse(hasNextValue);
     }
 
+    /**
+     * patternMatchPredicate.test() method was overridden to test the case when it returns true.
+     */
     @Test
-    public void testHasNextReturnTrue() throws IOException {
-        HDFSMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
-                HDFSMockTests.TestHDFSStorageSegmentIterator(this.results, this.patternMatchPredicate);
+    public void testHasNextReturnTrue() {
+        HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
+                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(this.results, this.patternMatchPredicate);
         boolean hasNextValue = testHDFSStorageSegmentIterator.hasNext();
         Assert.assertTrue(hasNextValue);
     }
 
+    /**
+     * Tests the scenario when FileNameFormatException is thrown during the next() method execution.
+     */
     @Test
     public void testNext() {
-        HDFSMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
-                HDFSMockTests.TestHDFSStorageSegmentIterator(null, null);
+        HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
+                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(null, null);
         testHDFSStorageSegmentIterator.current = new FileStatus();
         org.apache.hadoop.fs.Path path = new org.apache.hadoop.fs.Path("/testmock");
         testHDFSStorageSegmentIterator.current.setPath(path);
@@ -96,10 +105,6 @@ public class HDFSMockTests {
         public TestHDFSStorageSegmentIterator(RemoteIterator<FileStatus> results,
                                               java.util.function.Predicate<FileStatus> patternMatchPredicate) {
             super(results, patternMatchPredicate);
-        }
-
-        protected boolean isSealed(Path path) throws FileNameFormatException {
-            throw new FileNameFormatException("", "");
         }
     }
 }

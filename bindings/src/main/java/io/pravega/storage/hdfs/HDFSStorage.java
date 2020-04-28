@@ -537,7 +537,7 @@ class HDFSStorage implements SyncStorage {
                         }
                     }
                 }
-            } catch (Exception e) {
+            } catch (IOException e) {
                 log.error("Hit an exception", e);
             }
             current = null;

@@ -32,16 +32,20 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 
-public class RollingStorageMockTests {
-    private static final SegmentRollingPolicy DEFAULT_ROLLING_POLICY = new SegmentRollingPolicy(100);
+public class RollingStorageSegmentIteratorMockTests {
     static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+    private static final SegmentRollingPolicy DEFAULT_ROLLING_POLICY = new SegmentRollingPolicy(100);
 
+    /**
+     * Tests the scenario when openHandle method throws StreamingException exception during the method under test execution.
+     * @throws StreamingException openHandle method mocked to throw this exception.
+     */
     @Test
     public void testNext() throws StreamingException {
-        RollingStorageMockTests.TestRollingStorageSegmentIterator testRollingStorageSegmentIterator = new
-                RollingStorageMockTests.TestRollingStorageSegmentIterator(null, null,
+        RollingStorageSegmentIteratorMockTests.TestRollingStorageSegmentIterator testRollingStorageSegmentIterator = new
+                RollingStorageSegmentIteratorMockTests.TestRollingStorageSegmentIterator(null, null,
                 null);
         val baseStorage = new InMemoryStorage();
         testRollingStorageSegmentIterator.instance = Mockito.spy(new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY));
@@ -98,10 +102,6 @@ public class RollingStorageMockTests {
         public TestRollingStorageSegmentIterator(RollingStorage instance, Iterator<SegmentProperties> results,
                                                  java.util.function.Predicate<SegmentProperties> patternMatchPredicate) {
             super(instance, results, patternMatchPredicate);
-        }
-
-        protected RollingSegmentHandle openHandle(String segmentName, boolean readOnly) throws StreamingException {
-            throw new StreamingException("");
         }
     }
 }

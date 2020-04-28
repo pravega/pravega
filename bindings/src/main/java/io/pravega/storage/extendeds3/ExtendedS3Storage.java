@@ -190,7 +190,6 @@ public class ExtendedS3Storage implements SyncStorage {
         return new ExtendedS3SegmentIterator(s3object -> true);
     }
 
-
     public class ExtendedS3SegmentIterator implements Iterator<SegmentProperties> {
         ListObjectsResult results;
         S3Object current;
