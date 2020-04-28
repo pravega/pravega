@@ -21,6 +21,7 @@ import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Vector;
@@ -43,7 +44,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class SegmentInputStreamTest {
+public class SegmentInputStreamTest extends LeakDetectorTestSuite {
 
     private final Segment segment = new Segment("scope", "foo", 0);
     private final long requestId = 1;

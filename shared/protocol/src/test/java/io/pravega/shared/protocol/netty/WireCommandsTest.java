@@ -13,6 +13,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
@@ -35,7 +36,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-public class WireCommandsTest {
+public class WireCommandsTest extends LeakDetectorTestSuite {
 
     private final UUID uuid = UUID.randomUUID();
     private final String testString1 = "testString1";

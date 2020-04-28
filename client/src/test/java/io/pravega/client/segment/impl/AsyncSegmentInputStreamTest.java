@@ -25,6 +25,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
@@ -49,7 +50,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class AsyncSegmentInputStreamTest {
+public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
     private static final int SERVICE_PORT = 12345;
 
     @Test(timeout = 10000)
