@@ -1584,6 +1584,32 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof DataCorruptionException);
     }
 
+    /**
+     * Tests a scenario where the Segment has been deleted (in the metadata) while it was actively flushing. This verifies
+     * that an ongoing flush operation will abort (i.e., eventually complete) so that the next iteration of the StorageWriter
+     * may properly delete the segment.
+     */
+    @Test
+    public void testSegmentDeletedWhileFlushing() throws Exception {
+        final WriterConfig config = DEFAULT_CONFIG;
+
+        @Cleanup
+        TestContext context = new TestContext(config);
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        // Add one append, followed by a Seal.
+        StorageOperation appendOp = generateAppendAndUpdateMetadata(SEGMENT_ID, new byte[config.getFlushThresholdBytes() - 1], context);
+        context.segmentAggregator.add(appendOp);
+        context.segmentAggregator.add(generateSealAndUpdateMetadata(SEGMENT_ID, context));
+        Assert.assertTrue("Unexpected value returned by mustFlush().", context.segmentAggregator.mustFlush());
+
+        // Meanwhile, delete the segment (but do not notify the StorageWriter yet).
+        val sm = (UpdateableSegmentMetadata) context.segmentAggregator.getMetadata();
+        sm.markDeleted();
+        val flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+        Assert.assertEquals("Unexpected number of bytes flushed.", 0, flushResult.getFlushedBytes());
+    }
+
     //endregion
 
     //region Unknown outcome operation reconciliation
