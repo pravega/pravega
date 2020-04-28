@@ -10,10 +10,6 @@
 package io.pravega.test.integration;
 
 import io.netty.channel.Channel;
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.netty.impl.ConnectionPoolImpl;
@@ -37,6 +33,7 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
@@ -51,16 +48,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-public class AppendReconnectTest {
-    private Level originalLevel;
+public class AppendReconnectTest extends LeakDetectorTestSuite {
     private ServiceBuilder serviceBuilder;
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     @Before
     public void setup() throws Exception {
-        originalLevel = ResourceLeakDetector.getLevel();
-        ResourceLeakDetector.setLevel(Level.PARANOID);
-        InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.initialize();
     }
@@ -68,7 +61,6 @@ public class AppendReconnectTest {
     @After
     public void teardown() {
         this.serviceBuilder.close();
-        ResourceLeakDetector.setLevel(originalLevel);
     }
 
     @Test(timeout = 30000)

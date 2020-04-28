@@ -9,10 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.Revisioned;
@@ -27,6 +23,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,16 +38,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-public class StateSynchronizerTest {
+public class StateSynchronizerTest extends LeakDetectorTestSuite {
 
-    private Level originalLevel;
     private ServiceBuilder serviceBuilder;
 
     @Before
     public void setup() throws Exception {
-        originalLevel = ResourceLeakDetector.getLevel();
-        ResourceLeakDetector.setLevel(Level.PARANOID);
-        InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.initialize();
     }
@@ -58,7 +51,6 @@ public class StateSynchronizerTest {
     @After
     public void teardown() {
         this.serviceBuilder.close();
-        ResourceLeakDetector.setLevel(originalLevel);
     }
     
     @Data
