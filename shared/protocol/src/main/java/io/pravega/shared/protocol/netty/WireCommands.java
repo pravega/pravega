@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -799,6 +800,7 @@ public final class WireCommands {
     @Getter
     @ToString
     @EqualsAndHashCode(exclude = {"mustRelease", "released"})
+    @NotThreadSafe
     public static final class SegmentRead implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_READ;
         final String segment;
