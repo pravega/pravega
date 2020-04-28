@@ -34,9 +34,9 @@ import static org.mockito.Mockito.mock;
 
 public class RollingStorageSegmentIteratorMockTests {
     static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final SegmentRollingPolicy DEFAULT_ROLLING_POLICY = new SegmentRollingPolicy(100);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
-    private static final SegmentRollingPolicy DEFAULT_ROLLING_POLICY = new SegmentRollingPolicy(100);
 
     /**
      * Tests the scenario when openHandle method throws StreamingException exception during the method under test execution.
