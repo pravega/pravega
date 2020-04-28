@@ -53,7 +53,7 @@ import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
  */
 public abstract class StorageTestBase extends ThreadPooledTestSuite {
     //region General Test arguments
-    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(300);
     protected static final long DEFAULT_EPOCH = 1;
     protected static final int APPENDS_PER_SEGMENT = 10;
     protected static final String APPEND_FORMAT = "Segment_%s_Append_%d";

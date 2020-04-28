@@ -39,7 +39,7 @@ public class HDFSMockTests {
         this.results = Mockito.spy(new RemoteIterator<FileStatus>() {
             @Override
             public boolean hasNext() throws IOException {
-                return false;
+                return true;
             }
 
             @Override
@@ -48,18 +48,38 @@ public class HDFSMockTests {
             }
         });
 
-        this.patternMatchPredicate = new Predicate<FileStatus>() {
+        this.patternMatchPredicate = Mockito.spy(new Predicate<FileStatus>() {
             @Override
             public boolean test(FileStatus fileStatus) {
-                return false;
+                return true;
             }
-        };
+        });
+    }
+
+    @Test
+    public void testHasNextReturnFalse() throws IOException {
+        HDFSMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
+                HDFSMockTests.TestHDFSStorageSegmentIterator(this.results, this.patternMatchPredicate);
+        Mockito.doThrow(new IOException()).when(this.results).hasNext();
+        boolean hasNextValue = testHDFSStorageSegmentIterator.hasNext();
+        Assert.assertFalse(hasNextValue);
+    }
+
+    @Test
+    public void testHasNextReturnTrue() throws IOException {
+        HDFSMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
+                HDFSMockTests.TestHDFSStorageSegmentIterator(this.results, this.patternMatchPredicate);
+        boolean hasNextValue = testHDFSStorageSegmentIterator.hasNext();
+        Assert.assertTrue(hasNextValue);
     }
 
     @Test
     public void testNext() {
         HDFSMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
                 HDFSMockTests.TestHDFSStorageSegmentIterator(null, null);
+        testHDFSStorageSegmentIterator.current = new FileStatus();
+        org.apache.hadoop.fs.Path path = new org.apache.hadoop.fs.Path("/testmock");
+        testHDFSStorageSegmentIterator.current.setPath(path);
         boolean caughtException = false;
         try {
             testHDFSStorageSegmentIterator.next();
@@ -67,15 +87,6 @@ public class HDFSMockTests {
             caughtException = true;
         }
         Assert.assertTrue(caughtException);
-    }
-
-    @Test
-    public void testHasNext() throws IOException {
-        HDFSMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
-                HDFSMockTests.TestHDFSStorageSegmentIterator(this.results, this.patternMatchPredicate);
-        Mockito.doThrow(new IOException()).when(results).hasNext();
-        boolean hasNextValue = testHDFSStorageSegmentIterator.hasNext();
-        Assert.assertFalse(hasNextValue);
     }
 
     /**

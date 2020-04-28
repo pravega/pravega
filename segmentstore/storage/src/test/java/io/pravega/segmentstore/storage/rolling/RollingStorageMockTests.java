@@ -34,7 +34,7 @@ import static org.mockito.Mockito.mock;
 
 public class RollingStorageMockTests {
     private static final SegmentRollingPolicy DEFAULT_ROLLING_POLICY = new SegmentRollingPolicy(100);
-    static final Duration TIMEOUT = Duration.ofSeconds(600);
+    static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
