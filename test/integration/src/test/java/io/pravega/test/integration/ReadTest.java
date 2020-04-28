@@ -12,10 +12,6 @@ package io.pravega.test.integration;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -60,6 +56,7 @@ import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -81,10 +78,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-public class ReadTest {
+public class ReadTest extends LeakDetectorTestSuite {
 
     private static final int TIMEOUT_MILLIS = 30000;
-    private Level originalLevel;
     private ServiceBuilder serviceBuilder;
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
     @Rule
@@ -92,9 +88,6 @@ public class ReadTest {
 
     @Before
     public void setup() throws Exception {
-        originalLevel = ResourceLeakDetector.getLevel();
-        ResourceLeakDetector.setLevel(Level.PARANOID);
-        InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.initialize();
     }
@@ -102,7 +95,6 @@ public class ReadTest {
     @After
     public void teardown() {
         this.serviceBuilder.close();
-        ResourceLeakDetector.setLevel(originalLevel);
     }
 
     @Test(timeout = 10000)
