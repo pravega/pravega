@@ -9,9 +9,11 @@
  */
 package io.pravega.storage.filesystem;
 
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import lombok.Getter;
 import lombok.Setter;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -27,6 +29,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -48,6 +52,18 @@ public class FileSystemMockTests {
                 .builder()
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .build();
+    }
+
+    /**
+     *  It tests the case when listSegments method encounters an exception and returns an empty iterator.
+     */
+    @Test
+    public void testListSegmentsNumberIoException() {
+        FileChannel channel1 = mock(FileChannel.class);
+        FileSystemStorageConfig storageConfig = FileSystemStorageConfig.builder().build();
+        TestFileSystemStorage testFileSystemStorage = new TestFileSystemStorage(storageConfig, channel1);
+        Iterator<SegmentProperties> iterator = testFileSystemStorage.listSegments();
+        Assert.assertSame(iterator, Collections.emptyIterator());
     }
 
     @Test
