@@ -253,8 +253,13 @@ public final class Futures {
         }
 
         val result = new CompletableFuture<T>();
-        source.thenAccept(result::complete);
-        Futures.exceptionListener(source, result::completeExceptionally);
+        source.whenComplete((r, ex) -> {
+            if (ex == null) {
+                result.complete(r);
+            } else {
+                result.completeExceptionally(ex);
+            }
+        });
         Futures.exceptionListener(result, ex -> {
             if (ex instanceof CancellationException && !source.isCancelled()) {
                 source.thenAccept(onCancel);
