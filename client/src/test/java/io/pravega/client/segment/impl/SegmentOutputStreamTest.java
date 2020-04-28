@@ -11,8 +11,6 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.collect.ImmutableList;
 import io.netty.buffer.Unpooled;
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ClientConnection.CompletedCallback;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -33,7 +31,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.ThreadPooledTestSuite;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -48,8 +46,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.List;
 import lombok.Cleanup;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
@@ -74,26 +70,14 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
+public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
     private static final String SEGMENT = "test/0";
     private static final String TXN_SEGMENT = "scope/stream/0.#epoch.0#transaction.00000000000000000000000000000001";
     private static final int SERVICE_PORT = 12345;
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 1, 2);
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
-    private Level originalLevel;
-    
-    @Before
-    public void setup() throws Exception {
-        originalLevel = ResourceLeakDetector.getLevel();
-        ResourceLeakDetector.setLevel(Level.PARANOID);
-    }
 
-    @After
-    public void teardown() {
-        ResourceLeakDetector.setLevel(originalLevel);
-    }
-    
     private static ByteBuffer getBuffer(String s) {
         return ByteBuffer.wrap(s.getBytes());
     }
