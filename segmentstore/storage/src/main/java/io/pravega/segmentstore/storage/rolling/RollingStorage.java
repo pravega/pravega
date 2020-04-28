@@ -552,7 +552,7 @@ public class RollingStorage implements SyncStorage {
 
         @Override
         public SegmentProperties next() throws NoSuchElementException {
-            if (null != current) {
+            if (null != this.current) {
                 try {
                     String segmentName = NameUtils.getSegmentNameFromHeader(current.getName());
                     val handle = instance.openHandle(segmentName, true);
@@ -718,7 +718,7 @@ public class RollingStorage implements SyncStorage {
                 && lastTarget.getLength() + lastSource.getLength() <= target.getRollingPolicy().getMaxLength();
     }
 
-    private RollingSegmentHandle openHandle(String segmentName, boolean readOnly) throws StreamSegmentException {
+    public RollingSegmentHandle openHandle(String segmentName, boolean readOnly) throws StreamSegmentException {
         // Load up the handle from Storage.
         RollingSegmentHandle handle;
         try {
