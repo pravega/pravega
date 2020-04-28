@@ -646,6 +646,10 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * Determines whether flushFully can continue given the current state of this SegmentAggregator.
      */
     private boolean canContinueFlushingFully() {
+        if (this.metadata.isDeleted()) {
+            return false; // No point in flushing if the segment has been deleted in the meantime.
+        }
+
         StorageOperation next = this.operations.getFirst();
         return isAppendOperation(next) || isTruncateOperation(next);
     }
