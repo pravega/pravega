@@ -154,6 +154,7 @@ public class RawClient implements AutoCloseable {
             CompletableFuture<Void> timer = Futures.futureWithTimeout(timeout, connectionFactory.getInternalExecutor());
             Futures.onTimeout(timer, ex -> {
                 synchronized (lock) {
+                    log.debug("Request {} times out after {}", requestId, timeout.toString());
                     requests.remove(requestId);
                 }
                 reply.completeExceptionally(ex);
