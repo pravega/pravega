@@ -30,6 +30,8 @@ import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 
+import static io.pravega.common.io.serialization.RevisionDataOutput.COMPACT_LONG_MAX;
+
 @EqualsAndHashCode(callSuper = false)
 public class PositionImpl extends PositionInternal {
 
@@ -124,24 +126,27 @@ public class PositionImpl extends PositionInternal {
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00)
-                      .revision(1, this::write01, this::read01)
-                      .revision(2, this::write02, this::read02);
+                      .revision(1, this::write01, this::read01);
         }
 
         private void read00(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
-            // RevisionDataInput::readCompactSignedLong can read data written using RevisionDataOutput.writeCompactLong
-            Map<Segment, Long> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), RevisionDataInput::readCompactSignedLong);
+            Map<Segment, Long> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), in -> {
+                long offset = in.readCompactLong();
+                if (offset == COMPACT_LONG_MAX)
+                    return -1L;
+                else
+                    return offset;
+            });
             builder.ownedSegments(map);
         }
 
         private void write00(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
-            // This is used to ensure serialized data can be read by the older client.
             // Note: the older client does not serialize if the offset has -1L as value.
             Map<Segment, Long> map = position.getOwnedSegmentsWithOffsets();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
                                         (out, offset) -> {
-                                            if ( offset < 0) {
-                                                out.writeCompactSignedLong(offset);
+                                            if (offset < 0) {
+                                                out.writeCompactLong(COMPACT_LONG_MAX);
                                             } else {
                                                 out.writeCompactLong(offset);
                                             }
@@ -156,19 +161,6 @@ public class PositionImpl extends PositionInternal {
         private void write01(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
             Map<Segment, Range> map = position.segmentRanges;
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializer::writeRange);
-        }
-
-        private void write02(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
-            // serialize offset segment again as CompactSignedLong ensure serialization
-            Map<Segment, Long> map = position.getOwnedSegmentsWithOffsets();
-            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
-                    RevisionDataOutput::writeCompactSignedLong);
-        }
-
-        // This method is invoked only if the data is serialized with revision as 2.
-        private void read02(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
-            Map<Segment, Long> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), RevisionDataInput::readCompactSignedLong);
-            builder.ownedSegments(map);
         }
 
         private static void writeRange(RevisionDataOutput out, Range range) throws IOException {

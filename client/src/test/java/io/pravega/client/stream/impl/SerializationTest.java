@@ -74,7 +74,7 @@ public class SerializationTest {
 
     @Test
     public void testPosition() {
-        PositionImpl pos = new PositionImpl(ImmutableMap.of(new SegmentWithRange(Segment.fromScopedName("foo/bar/0"), 0, 0.5), 338906L,
+        PositionImpl pos = new PositionImpl(ImmutableMap.of(new SegmentWithRange(Segment.fromScopedName("foo/bar/0"), 0, 0.5), 9999999L,
                 new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0.5, 1.0), -1L));
         ByteBuffer bytes = pos.toBytes();
         Position pos1 = Position.fromBytes(bytes);
@@ -84,19 +84,20 @@ public class SerializationTest {
     @Test
     public void testPositionImplBackwardCompatibility() throws Exception {
         PositionImpl pos = new PositionImpl(ImmutableMap
-                .of(new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0, 1), 2L));
+                .of(new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0, 1), 9999999L));
 
         // Serialize via the old serialization logic.
         // Note: the older serialization logic does not work with -1L as offset.
         final byte[] bufOld = new PositionSerializerR1().serialize(new PositionR1(pos)).array();
         // deserialize it using latest revision and ensure compatibility.
-        assertEquals(pos, Position.fromBytes(ByteBuffer.wrap(bufOld)));
+        Position newp = Position.fromBytes(ByteBuffer.wrap(bufOld));
+        assertEquals(pos, newp);
     }
 
     @Test
     public void testPositionImplForwardCompatibility() throws Exception {
         PositionImpl pos = new PositionImpl(ImmutableMap
-                .of(new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0, 1), 2L));
+                .of(new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0, 1), 9999999L));
         ByteBuffer newBuf = pos.toBytes();
 
         // deserialize it using the old serialization logic and ensure compatibility.
