@@ -34,7 +34,6 @@ public class ServiceConfig {
     public static final Property<Integer> PUBLISHED_PORT = Property.named("service.published.port", null, "publishedPort");
     public static final Property<String> LISTENING_IP_ADDRESS = Property.named("service.listener.host.nameOrIp", "", "listeningIPAddress");
     public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("service.published.host.nameOrIp", "", "publishedIPAddress");
-    public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("container.parallelStarts.count", 1, "parallelContainerStarts");
     public static final Property<String> ZK_URL = Property.named("zk.connect.uri", "localhost:2181", "zkURL");
     public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zk.connect.retries.interval.milliseconds", 5000, "zkRetrySleepMs");
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zk.connect.retries.count.max", 5, "zkRetryCount");
@@ -153,12 +152,6 @@ public class ServiceConfig {
      */
     @Getter
     private final String publishedIPAddress;
-
-    /**
-     * Number of segment containers that a Segment Store will start (and recover) in parallel.
-     */
-    @Getter
-    private final int parallelContainerStarts;
 
     /**
      * The Zookeeper URL.
@@ -309,7 +302,6 @@ public class ServiceConfig {
         } else {
             this.publishedIPAddress = publishedIPAddress;
         }
-        this.parallelContainerStarts = properties.getInt(PARALLEL_CONTAINER_STARTS);
         this.zkURL = properties.get(ZK_URL);
         this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
@@ -360,7 +352,6 @@ public class ServiceConfig {
                 .append(String.format("listeningIPAddress: %s, ", listeningIPAddress))
                 .append(String.format("publishedPort: %d, ", publishedPort))
                 .append(String.format("publishedIPAddress: %s, ", publishedIPAddress))
-                .append(String.format("parallelContainerStarts: %d, ", parallelContainerStarts))
                 .append(String.format("zkURL: %s, ", zkURL))
                 .append(String.format("zkRetrySleepMs: %d, ", zkRetrySleepMs))
                 .append(String.format("zkSessionTimeoutMs: %d, ", zkSessionTimeoutMs))
