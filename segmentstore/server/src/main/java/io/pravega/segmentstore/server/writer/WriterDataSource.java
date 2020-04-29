@@ -9,13 +9,13 @@
  */
 package io.pravega.segmentstore.server.writer;
 
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.Map;
@@ -116,9 +116,9 @@ interface WriterDataSource {
      * @param streamSegmentId The Id of the StreamSegment to fetch data for.
      * @param startOffset     The offset where to begin fetching data from.
      * @param length          The number of bytes to fetch.
-     * @return An InputStream with the requested data, of the requested length, or null if not available.
+     * @return An {@link BufferView} with the requested data, of the requested length, or null if not available.
      */
-    InputStream getAppendData(long streamSegmentId, long startOffset, int length);
+    BufferView getAppendData(long streamSegmentId, long startOffset, int length);
 
     /**
      * Gets a value indicating whether the given Operation Sequence Number is a valid Truncation Point, as set by

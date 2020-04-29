@@ -348,7 +348,7 @@ class SegmentStoreReader implements StoreReader {
 
             val contents = entry.getContent().join();
             this.readLength.addAndGet(contents.getLength());
-            this.callback.accept(contents.getData(), entry.getStreamSegmentOffset(), contents.getLength());
+            this.callback.accept(contents.getReader(), entry.getStreamSegmentOffset(), contents.getLength());
             return !this.cancellationToken.isCancellationRequested();
         }
 

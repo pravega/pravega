@@ -13,14 +13,15 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
-import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -31,7 +32,6 @@ import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -82,7 +82,6 @@ import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -100,7 +99,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import lombok.SneakyThrows;
 import lombok.val;
 import org.slf4j.LoggerFactory;
 
@@ -130,7 +128,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
-    private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
     private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore segmentStore;
     private final TableStore tableStore;
@@ -225,7 +222,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     private void handleReadResult(ReadSegment request, ReadResult result) {
         String segment = request.getSegment();
-        ArrayList<ReadResultEntryContents> cachedEntries = new ArrayList<>();
+        ArrayList<BufferView> cachedEntries = new ArrayList<>();
         ReadResultEntry nonCachedEntry = collectCachedEntries(request.getOffset(), result, cachedEntries);
         final String operation = "readSegment";
 
@@ -235,10 +232,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         if (!cachedEntries.isEmpty() || endOfSegment) {
             // We managed to collect some data. Send it.
-            ByteBuffer data = copyData(cachedEntries);
+            ByteBuf data = getData(cachedEntries);
             SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data, request.getRequestId());
             connection.send(reply);
-            this.statsRecorder.read(segment, reply.getData().array().length);
+            this.statsRecorder.read(segment, reply.getData().readableBytes());
         } else if (truncated) {
             // We didn't collect any data, instead we determined that the current read offset was truncated.
             // Determine the current Start Offset and send that back.
@@ -253,12 +250,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             nonCachedEntry.requestContent(TIMEOUT);
             nonCachedEntry.getContent()
                     .thenAccept(contents -> {
-                        ByteBuffer data = copyData(Collections.singletonList(contents));
+                        ByteBuf data = getData(Collections.singletonList(contents));
                         SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(),
-                                                            false, endOfSegment,
-                                                            data, request.getRequestId());
+                                false, endOfSegment,
+                                data, request.getRequestId());
                         connection.send(reply);
-                        this.statsRecorder.read(segment, reply.getData().array().length);
+                        this.statsRecorder.read(segment, reply.getData().readableBytes());
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentTruncatedException) {
@@ -297,15 +294,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * Reads all of the cachedEntries from the ReadResult and puts their content into the cachedEntries list.
      * Upon encountering a non-cached entry, it stops iterating and returns it.
      */
-    private ReadResultEntry collectCachedEntries(long initialOffset, ReadResult readResult,
-                                                 ArrayList<ReadResultEntryContents> cachedEntries) {
+    private ReadResultEntry collectCachedEntries(long initialOffset, ReadResult readResult, ArrayList<BufferView> cachedEntries) {
         long expectedOffset = initialOffset;
         while (readResult.hasNext()) {
             ReadResultEntry entry = readResult.next();
             if (entry.getType() == Cache) {
                 Preconditions.checkState(entry.getStreamSegmentOffset() == expectedOffset,
                         "Data returned from read was not contiguous.");
-                ReadResultEntryContents content = entry.getContent().getNow(null);
+                BufferView content = entry.getContent().getNow(null);
                 expectedOffset += content.getLength();
                 cachedEntries.add(content);
             } else {
@@ -316,20 +312,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     /**
-     * Copy all of the contents provided into a byteBuffer and return it.
+     * Collect all the data from the given contents into a {@link ByteBuf}.
      */
-    @SneakyThrows(IOException.class)
-    private ByteBuffer copyData(List<ReadResultEntryContents> contents) {
-        int totalSize = contents.stream().mapToInt(ReadResultEntryContents::getLength).sum();
-
-        ByteBuffer data = ByteBuffer.allocate(totalSize);
-        int bytesCopied = 0;
-        for (ReadResultEntryContents content : contents) {
-            int copied = StreamHelpers.readAll(content.getData(), data.array(), bytesCopied, totalSize - bytesCopied);
-            Preconditions.checkState(copied == content.getLength(), "Read fewer bytes than available.");
-            bytesCopied += copied;
+    private ByteBuf getData(List<BufferView> contents) {
+        val compositeView = BufferView.wrap(contents);
+        val rawBuffers = compositeView.getContents();
+        val result = Unpooled.compositeBuffer(rawBuffers.size());
+        for (ByteBuffer b : rawBuffers) {
+            result.addComponent(Unpooled.wrappedBuffer(b));
         }
-        return data;
+
+        return result.writerIndex(result.capacity()).resetReaderIndex();
     }
 
     @Override
@@ -944,8 +937,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             invokeSafely(connection::send, new WrongHost(requestId, segment, "", clientReplyStackTrace), failureHandler);
         } else if (u instanceof ReadCancellationException) {
             log.info(requestId, "Sending empty response on connection {} while reading segment {} due to CancellationException.",
-                     connection, segment);
-            invokeSafely(connection::send, new SegmentRead(segment, offset, true, false, EMPTY_BYTE_BUFFER, requestId), failureHandler);
+                    connection, segment);
+            invokeSafely(connection::send, new SegmentRead(segment, offset, true, false, EMPTY_BUFFER, requestId), failureHandler);
         } else if (u instanceof CancellationException) {
             log.info(requestId, "Closing connection {} while performing {} due to {}.",
                     connection, operation, u.toString());
