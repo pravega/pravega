@@ -64,6 +64,15 @@ public class CompositeByteArraySegmentTests {
             Assert.assertEquals("Unexpected value via getCopy() at index " + i, expectedValue, getCopyContents[i]);
             Assert.assertEquals("Unexpected value via getReader() at index " + i, expectedValue, getReaderContents[i]);
         }
+
+        val buffers = s.getContents();
+        Assert.assertEquals("Unexpected number of buffers.", ARRAY_COUNT, buffers.size());
+        for (int i = 0; i < buffers.size(); i++) {
+            val b = buffers.get(i);
+            int expectedSize = i == ARRAY_COUNT - 1 ? LENGTH % ARRAY_SIZE : ARRAY_SIZE;
+            Assert.assertEquals("Unexpected buffer size at array index " + i, expectedSize, b.remaining());
+            AssertExtensions.assertArrayEquals("", getCopyContents, i * ARRAY_SIZE, b.array(), b.arrayOffset(), expectedSize);
+        }
     }
 
     /**

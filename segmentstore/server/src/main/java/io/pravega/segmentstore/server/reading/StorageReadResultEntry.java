@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import com.google.common.base.Preconditions;
 import java.time.Duration;
@@ -50,6 +50,6 @@ class StorageReadResultEntry extends ReadResultEntryBase {
 
     @FunctionalInterface
     interface ContentFetcher {
-        void accept(long streamSegmentOffset, int requestedReadLength, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback, Duration timeout);
+        void accept(long streamSegmentOffset, int requestedReadLength, Consumer<BufferView> successCallback, Consumer<Throwable> failureCallback, Duration timeout);
     }
 }

@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.security.auth.DelegationTokenProvider;
@@ -17,7 +18,6 @@ import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -25,7 +25,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.AssertExtensions;
-import java.nio.ByteBuffer;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
@@ -50,7 +50,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class AsyncSegmentInputStreamTest {
+public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
     private static final int SERVICE_PORT = 12345;
 
     @Test(timeout = 10000)
@@ -67,9 +67,9 @@ public class AsyncSegmentInputStreamTest {
         ClientConnection c = mock(ClientConnection.class);
         InOrder inOrder = Mockito.inOrder(c);
         connectionFactory.provideConnection(endpoint, c);
-        
+
         WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false,
-                                                                            ByteBufferUtils.EMPTY, in.getRequestId());
+                Unpooled.EMPTY_BUFFER, in.getRequestId());
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -123,7 +123,7 @@ public class AsyncSegmentInputStreamTest {
         connectionFactory.provideConnection(endpoint, c);
 
         WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false,
-                ByteBufferUtils.EMPTY, in.getRequestId());
+                Unpooled.EMPTY_BUFFER, in.getRequestId());
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -178,7 +178,7 @@ public class AsyncSegmentInputStreamTest {
         successfulConnection.complete(c);
 
         WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false,
-                                                                            ByteBufferUtils.EMPTY, in.getRequestId());
+                Unpooled.EMPTY_BUFFER, in.getRequestId());
         // simulate a establishConnection failure to segment store.
         Mockito.doReturn(failedConnection)
                .doCallRealMethod()
@@ -255,9 +255,9 @@ public class AsyncSegmentInputStreamTest {
                 DelegationTokenProviderFactory.createWithEmptyToken(), dataAvailable);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
-        
+
         WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false,
-                                                                            ByteBufferUtils.EMPTY, in.getRequestId());
+                Unpooled.EMPTY_BUFFER, in.getRequestId());
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
         assertEquals(0, dataAvailable.availablePermits());
         AssertExtensions.assertBlocks(() -> readFuture.get(), () -> {
@@ -304,7 +304,7 @@ public class AsyncSegmentInputStreamTest {
         verifyNoMoreInteractions(c);
         //Ensure that reads at a different offset can still happen on the same instance.
         WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 5656, false, false,
-                                                                            ByteBufferUtils.EMPTY, in.getRequestId());
+                Unpooled.EMPTY_BUFFER, in.getRequestId());
         CompletableFuture<SegmentRead> readFuture2 = in.read(5656, 5678);
         AssertExtensions.assertBlocks(() -> readFuture2.get(), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
@@ -336,14 +336,14 @@ public class AsyncSegmentInputStreamTest {
         assertEquals(0, dataAvailable.availablePermits());
         AssertExtensions.assertBlocks(() -> readFuture.get(), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-            processor.process(new WireCommands.SegmentRead(segment.getScopedName(), 1235, false, false, ByteBuffer.wrap(bad), in.getRequestId()));
-            processor.process(new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBuffer.wrap(good), in.getRequestId()));
+            processor.process(new WireCommands.SegmentRead(segment.getScopedName(), 1235, false, false, Unpooled.wrappedBuffer(bad), in.getRequestId()));
+            processor.process(new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, Unpooled.wrappedBuffer(good), in.getRequestId()));
         });
         assertEquals(2, dataAvailable.availablePermits());
         verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId() )),
                             Mockito.any(ClientConnection.CompletedCallback.class));
         assertTrue(Futures.isSuccessful(readFuture));
-        assertEquals(ByteBuffer.wrap(good), readFuture.join().getData());
+        assertEquals(Unpooled.wrappedBuffer(good), readFuture.join().getData());
         verifyNoMoreInteractions(c);
     }
 

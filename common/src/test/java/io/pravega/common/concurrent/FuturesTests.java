@@ -51,6 +51,45 @@ public class FuturesTests {
     }
 
     /**
+     * Tests {@link Futures#cancellableFuture}.
+     */
+    @Test
+    public void testCancellableFuture() {
+        // Null input.
+        Assert.assertNull(Futures.cancellableFuture(null, AtomicInteger::incrementAndGet));
+
+        // Input completes first.
+        val f1 = new CompletableFuture<AtomicInteger>();
+        val f1r1 = Futures.cancellableFuture(f1, i -> i.addAndGet(10));
+        val f1r2 = Futures.cancellableFuture(f1, i -> i.addAndGet(100));
+        f1.complete(new AtomicInteger(1));
+        Assert.assertEquals(f1.join(), f1r1.join());
+        f1r2.cancel(true);
+        Assert.assertEquals(f1.join(), f1r2.join());
+        Assert.assertEquals(1, f1.join().get());
+
+        // Input is completed exceptionally.
+        val f2 = new CompletableFuture<AtomicInteger>();
+        val f2r1 = Futures.cancellableFuture(f2, i -> i.addAndGet(20));
+        val f2r2 = Futures.cancellableFuture(f2, i -> i.addAndGet(200));
+        f2.completeExceptionally(new IntentionalException());
+        Assert.assertTrue(f2r1.isCompletedExceptionally() && Futures.getException(f2r1) instanceof IntentionalException);
+        f2r2.cancel(true);
+        Assert.assertTrue(f2r2.isCompletedExceptionally() && Futures.getException(f2r2) instanceof IntentionalException);
+
+        // Result is cancelled.
+        val f3 = new CompletableFuture<AtomicInteger>();
+        val f3r1 = Futures.cancellableFuture(f3, i -> i.addAndGet(1000)); // This one won't be cancelled.
+        val f3r2 = Futures.cancellableFuture(f3, i -> i.addAndGet(100)); // This one will be cancelled.
+
+        f3r2.cancel(true);
+        Assert.assertFalse(f3.isDone() || f3r1.isDone());
+        f3.complete(new AtomicInteger(1));
+        Assert.assertEquals(101, f3.join().get());
+        Assert.assertEquals(f3.join(), f3r1.join());
+    }
+
+    /**
      * Tests the exceptionListener() method.
      */
     @Test

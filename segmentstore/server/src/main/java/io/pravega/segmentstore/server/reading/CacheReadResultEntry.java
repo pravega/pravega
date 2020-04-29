@@ -10,10 +10,9 @@
 package io.pravega.segmentstore.server.reading;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 
 /**
  * Read Result Entry for data that is readily available for reading (in memory).
@@ -31,7 +30,7 @@ class CacheReadResultEntry extends ReadResultEntryBase {
      */
     @VisibleForTesting
     CacheReadResultEntry(long streamSegmentOffset, byte[] data, int dataOffset, int dataLength) {
-        this(streamSegmentOffset + dataOffset, new ByteArrayInputStream(data, dataOffset, dataLength), dataLength);
+        this(streamSegmentOffset + dataOffset, new ByteArraySegment(data, dataOffset, dataLength));
     }
 
     /**
@@ -39,10 +38,9 @@ class CacheReadResultEntry extends ReadResultEntryBase {
      *
      * @param streamSegmentOffset The offset within the StreamSegment where this ReadResultEntry starts at.
      * @param data                An InputStream representing the data to be read.
-     * @param dataLength          The length of the data that this ReadResultEntry has (length of the given InputStream).
      */
-    CacheReadResultEntry(long streamSegmentOffset, InputStream data, int dataLength) {
-        super(ReadResultEntryType.Cache, streamSegmentOffset, dataLength);
-        complete(new ReadResultEntryContents(data, dataLength));
+    CacheReadResultEntry(long streamSegmentOffset, BufferView data) {
+        super(ReadResultEntryType.Cache, streamSegmentOffset, data.getLength());
+        complete(data);
     }
 }
