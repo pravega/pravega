@@ -10,8 +10,8 @@
 package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.ObjectClosedException;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.test.common.AssertExtensions;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,7 +61,7 @@ public class StreamSegmentReadResultTests {
             Assert.assertEquals("Unexpected value from getConsumedLength after returning a value but before completing result future.", expectedConsumedLength, r.getConsumedLength());
 
             // Verify the StreamSegmentReadResult updates itself after the last returned result's future is completed.
-            nextEntry.get().complete(new ReadResultEntryContents(null, READ_ITEM_LENGTH));
+            nextEntry.get().complete(new ByteArraySegment(new byte[READ_ITEM_LENGTH]));
             expectedConsumedLength += READ_ITEM_LENGTH;
             Assert.assertEquals("Unexpected value from getConsumedLength after returning a value and completing result future.", expectedConsumedLength, r.getConsumedLength());
         }
@@ -104,7 +104,7 @@ public class StreamSegmentReadResultTests {
             final int expectedReadLength = MAX_RESULT_LENGTH - i;
             nextEntry.set(TestReadResultEntry.cache(expectedStartOffset, expectedReadLength));
             r.next();
-            nextEntry.get().complete(new ReadResultEntryContents(null, READ_ITEM_LENGTH));
+            nextEntry.get().complete(new ByteArraySegment(new byte[READ_ITEM_LENGTH]));
         }
 
         // Verify we have not reached the end.
@@ -166,7 +166,7 @@ public class StreamSegmentReadResultTests {
                 r::next,
                 ex -> ex instanceof IllegalStateException);
 
-        firstEntry.complete(new ReadResultEntryContents(null, READ_ITEM_LENGTH));
+        firstEntry.complete(new ByteArraySegment(new byte[READ_ITEM_LENGTH]));
         ReadResultEntry secondEntry = r.next();
         Assert.assertEquals("Unexpected result from nextEntry.", nextEntry.get(), secondEntry);
     }
