@@ -47,7 +47,6 @@ import org.apache.curator.shaded.com.google.common.base.Charsets;
 
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionDropped;
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionFailed;
-import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 
 /**
  * Helper class for all table related queries to segment store. This class invokes appropriate wire command calls into
