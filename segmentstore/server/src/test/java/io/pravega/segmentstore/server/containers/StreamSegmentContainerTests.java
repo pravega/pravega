@@ -17,7 +17,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.TypedProperties;
@@ -28,7 +28,6 @@ import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -94,6 +93,7 @@ import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -731,9 +731,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ReadResult readResult = context.container.read(segmentName, 0, actualData.length, TIMEOUT).join();
         while (readResult.hasNext()) {
             ReadResultEntry readEntry = readResult.next();
-            ReadResultEntryContents readEntryContents = readEntry.getContent().join();
+            BufferView readEntryContents = readEntry.getContent().join();
             AssertExtensions.assertLessThanOrEqual("Too much to read.", actualData.length, offset + actualData.length);
-            StreamHelpers.readAll(readEntryContents.getData(), actualData, offset, actualData.length);
+            readEntryContents.copyTo(ByteBuffer.wrap(actualData, offset, actualData.length));
             offset += actualData.length;
         }
 
@@ -908,7 +908,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 } else {
                     Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment before reaching end of sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
                     Assert.assertTrue("getContent() did not return a completed future for segment" + segmentName, readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
-                    ReadResultEntryContents readEntryContents = readEntry.getContent().join();
+                    BufferView readEntryContents = readEntry.getContent().join();
                     expectedCurrentOffset += readEntryContents.getLength();
                     readLength += readEntryContents.getLength();
                 }
@@ -1751,7 +1751,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             firstEntry.requestContent(TIMEOUT);
             val entryContents = firstEntry.getContent().join();
             Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, entryContents.getLength());
-            StreamHelpers.readAll(entryContents.getData(), readBuffer, 0, readBuffer.length);
+            entryContents.copyTo(ByteBuffer.wrap(readBuffer));
             AssertExtensions.assertArrayEquals("Unexpected data read back.", appendData, 1, readBuffer, 0, readBuffer.length);
         }
     }
@@ -1862,9 +1862,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 Assert.assertTrue("getContent() did not return a completed future for segment" + segmentName, readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
                 Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment for non-sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
 
-                ReadResultEntryContents readEntryContents = readEntry.getContent().join();
-                byte[] actualData = new byte[readEntryContents.getLength()];
-                StreamHelpers.readAll(readEntryContents.getData(), actualData, 0, actualData.length);
+                BufferView readEntryContents = readEntry.getContent().join();
+                byte[] actualData = readEntryContents.getCopy();
                 AssertExtensions.assertArrayEquals("Unexpected data read from segment " + segmentName + " at offset " + expectedCurrentOffset, expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
                 expectedCurrentOffset += readEntryContents.getLength();
             }

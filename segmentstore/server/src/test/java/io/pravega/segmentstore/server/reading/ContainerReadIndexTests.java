@@ -11,13 +11,11 @@ package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -43,8 +41,6 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -218,8 +214,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             }
 
             // Check the entry contents.
-            byte[] entryData = new byte[entry.getContent().join().getLength()];
-            StreamHelpers.readAll(entry.getContent().join().getData(), entryData, 0, entryData.length);
+            byte[] entryData = entry.getContent().join().getCopy();
             AssertExtensions.assertArrayEquals("Unexpected data read at offset " + expectedCurrentOffset, segmentData, (int) expectedCurrentOffset, entryData, 0, entryData.length);
             expectedCurrentOffset += entryData.length;
 
@@ -283,8 +278,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Verify that any reads overlapping a merged transaction return null (that is, we cannot retrieve the requested data).
         for (long offset = mergedTxOffset - 1; offset < endOfMergedDataOffset; offset++) {
-            InputStream resultStream = context.readIndex.readDirect(segmentId, offset, 2);
-            Assert.assertNull("readDirect() returned data overlapping a partially merged transaction", resultStream);
+            val resultData = context.readIndex.readDirect(segmentId, offset, 2);
+            Assert.assertNull("readDirect() returned data overlapping a partially merged transaction", resultData);
         }
 
         // Verify that we can read from any other offset.
@@ -292,26 +287,17 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         BiConsumer<Long, Long> verifyReadResult = (startOffset, endOffset) -> {
             int readLength = (int) (endOffset - startOffset);
             while (readLength > 0) {
-                InputStream actualDataStream;
+                BufferView actualDataBuffer;
                 try {
-                    actualDataStream = context.readIndex.readDirect(segmentId, startOffset, readLength);
+                    actualDataBuffer = context.readIndex.readDirect(segmentId, startOffset, readLength);
                 } catch (StreamSegmentNotExistsException ex) {
                     throw new CompletionException(ex);
                 }
                 Assert.assertNotNull(
                         String.format("Unexpected result when data is readily available for Offset = %s, Length = %s.", startOffset, readLength),
-                        actualDataStream);
+                        actualDataBuffer);
 
-                byte[] actualData = new byte[readLength];
-                try {
-                    int bytesCopied = StreamHelpers.readAll(actualDataStream, actualData, 0, readLength);
-                    Assert.assertEquals(
-                            String.format("Unexpected number of bytes read for Offset = %s, Length = %s (pre-partial-merge).", startOffset, readLength),
-                            readLength, bytesCopied);
-                } catch (IOException ex) {
-                    throw new UncheckedIOException(ex); // Technically not possible.
-                }
-
+                byte[] actualData = actualDataBuffer.getCopy();
                 AssertExtensions.assertArrayEquals("Unexpected data read from the segment at offset " + startOffset,
                         expectedData, startOffset.intValue(), actualData, 0, actualData.length);
 
@@ -825,7 +811,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                     // Check all the appended data. It must not have been overridden.
                     val appendedDataStream = context.readIndex.readDirect(metadata.getId(), metadata.getStorageLength(), appendedData.get().getLength());
                     Assert.assertNotNull("Unable to read appended data.", appendedDataStream);
-                    val actualAppendedData = StreamHelpers.readAll(appendedDataStream, appendedData.get().getLength());
+                    val actualAppendedData = appendedDataStream.getCopy();
                     AssertExtensions.assertArrayEquals("Unexpected appended data read back.",
                             appendedData.get().array(), 0, actualAppendedData, 0, appendedData.get().getLength());
 
@@ -1164,7 +1150,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                     insertedInCache.complete(null);
                 };
                 resultEntry.requestContent(TIMEOUT);
-                ReadResultEntryContents contents = resultEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                BufferView contents = resultEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 Assert.assertFalse("Not expecting more data to be available for reading.", result.hasNext());
                 Assert.assertEquals("Unexpected ReadResultEntry length when trying to load up data into the ReadIndex Cache.", appendSize, contents.getLength());
 
@@ -1374,10 +1360,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
             // Request contents and store for later use.
             entry.requestContent(TIMEOUT);
-            ReadResultEntryContents contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            byte[] readBuffer = new byte[contents.getLength()];
-            StreamHelpers.readAll(contents.getData(), readBuffer, 0, readBuffer.length);
-            readStream.write(readBuffer);
+            BufferView contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            contents.copyTo(readStream);
             expectedOffset += contents.getLength();
         }
 
@@ -1411,10 +1395,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         ReadResultEntry entry = setupMergeRead(parentId, transactionId, writeData.getCopy(), context);
         context.readIndex.completeMerge(parentId, transactionId);
 
-        ReadResultEntryContents contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        byte[] readData = new byte[contents.getLength()];
-        StreamHelpers.readAll(contents.getData(), readData, 0, readData.length);
-
+        BufferView contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        byte[] readData = contents.getCopy();
         Assert.assertArrayEquals("Unexpected data read from parent segment.", writeData.getCopy(), readData);
     }
 
@@ -1662,7 +1644,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // readDirect() should return an InputStream for the second append range.
         val readData = context.readIndex.readDirect(segmentId, append1.getLength(), append2.getLength());
         Assert.assertNotNull("Expected append2 to be read back.", readData);
-        AssertExtensions.assertStreamEquals("Unexpected data read back from append2.", append2.getReader(), readData, append2.getLength());
+        AssertExtensions.assertStreamEquals("Unexpected data read back from append2.", append2.getReader(), readData.getReader(), append2.getLength());
 
         // Reading the whole segment should work well too.
         byte[] allData = new byte[append1.getLength() + append2.getLength()];
@@ -1934,11 +1916,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
                 // Request content, in case it wasn't returned yet.
                 readEntry.requestContent(TIMEOUT);
-                ReadResultEntryContents readEntryContents = readEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                BufferView readEntryContents = readEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 AssertExtensions.assertGreaterThan(testId + ": getContent() returned an empty result entry for segment " + segmentId, 0, readEntryContents.getLength());
 
-                byte[] actualData = new byte[readEntryContents.getLength()];
-                StreamHelpers.readAll(readEntryContents.getData(), actualData, 0, actualData.length);
+                byte[] actualData = readEntryContents.getCopy();
                 AssertExtensions.assertArrayEquals(testId + ": Unexpected data read from segment " + segmentId + " at offset " + expectedCurrentOffset, expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
 
                 expectedCurrentOffset += readEntryContents.getLength();
@@ -1967,8 +1948,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             }
 
             int readLength = (int) (segmentLength - startOffset);
-            InputStream readData = context.readIndex.readDirect(segmentId, startOffset, readLength);
-            byte[] actualData = StreamHelpers.readAll(readData, readLength);
+            byte[] actualData = context.readIndex.readDirect(segmentId, startOffset, readLength).getCopy();
             AssertExtensions.assertArrayEquals("Unexpected data read.", expectedData, (int) startOffset, actualData, 0, actualData.length);
         }
     }

@@ -16,7 +16,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -24,7 +24,6 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -699,9 +698,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment for non-sealed segment " + segmentName,
                     ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
 
-            ReadResultEntryContents readEntryContents = readEntry.getContent().join();
-            byte[] actualData = new byte[readEntryContents.getLength()];
-            StreamHelpers.readAll(readEntryContents.getData(), actualData, 0, actualData.length);
+            BufferView readEntryContents = readEntry.getContent().join();
+            byte[] actualData = readEntryContents.getCopy();
             AssertExtensions.assertArrayEquals("Unexpected data read from segment " + segmentName + " at offset " + expectedCurrentOffset,
                     expectedData, (int) expectedCurrentOffset.get(), actualData, 0, readEntryContents.getLength());
             expectedCurrentOffset.addAndGet(readEntryContents.getLength());
@@ -766,9 +764,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment for non-sealed segment " + segmentName,
                             ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
 
-                    ReadResultEntryContents readEntryContents = readEntry.getContent().join();
-                    byte[] actualData = new byte[readEntryContents.getLength()];
-                    StreamHelpers.readAll(readEntryContents.getData(), actualData, 0, actualData.length);
+                    BufferView readEntryContents = readEntry.getContent().join();
+                    byte[] actualData = readEntryContents.getCopy();
                     AssertExtensions.assertArrayEquals("Unexpected data read from segment " + segmentName + " at offset " + expectedCurrentOffset,
                             expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
                     expectedCurrentOffset += readEntryContents.getLength();

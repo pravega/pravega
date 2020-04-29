@@ -10,6 +10,7 @@
 package io.pravega.client.netty.impl;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -40,7 +41,6 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,7 +75,7 @@ public class ConnectionPoolingTest {
     private Function<Long, WireCommands.ReadSegment> readRequestGenerator = id ->
             new WireCommands.ReadSegment(seg, offset, length, "", id);
     private Function<Long, WireCommands.SegmentRead> readResponseGenerator = id ->
-            new WireCommands.SegmentRead(seg, offset, true, false, ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8)), id);
+            new WireCommands.SegmentRead(seg, offset, true, false, Unpooled.wrappedBuffer(data.getBytes(StandardCharsets.UTF_8)), id);
 
     private class EchoServerHandler extends ChannelInboundHandlerAdapter {
 

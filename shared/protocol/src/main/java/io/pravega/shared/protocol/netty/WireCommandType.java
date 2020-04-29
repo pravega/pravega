@@ -10,7 +10,6 @@
 package io.pravega.shared.protocol.netty;
 
 import com.google.common.base.Preconditions;
-import io.netty.buffer.ByteBufInputStream;
 import java.io.IOException;
 
 /**
@@ -118,7 +117,7 @@ public enum WireCommandType {
         return code;
     }
 
-    public WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+    public WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
         return factory.readFrom(in, length);
     }
 }
