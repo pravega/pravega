@@ -159,7 +159,7 @@ public class Utils {
                                // auth
                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                                .controllerURI(controllerUri)
-                               .rawclientTimeout(Duration.ofSeconds(3600))
+                               .serverRequestTimeout(Duration.ofSeconds(3600))
                                .build();
         }
 
