@@ -15,7 +15,6 @@ import com.google.common.base.Throwables;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.security.JwtUtils;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
@@ -113,9 +112,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .nextRequestProcessor(new FailingRequestProcessor())
                 .statsRecorder(SegmentStatsRecorder.noOp())
                 .connectionTracker(new ConnectionTracker())
-                .replyWithStackTraceOnError(false)
-                .tokenExpiryHandlerExecutor(ExecutorServiceHelpers.newScheduledThreadPool(2,
-                        "test-token-expiry-handler"));
+                .replyWithStackTraceOnError(false);
     }
 
     //endregion
@@ -199,7 +196,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         }
                     } catch (RuntimeException e) {
                         // Log and ignore
-                        log.debug("Unable to inform writer {} that sent request {}, about token expiry for segment {}",
+                        log.warn("Unable to inform writer {} that sent request {}, about token expiry for segment {}",
                                 writerId, requestId, segment);
                     }
                 }

@@ -217,10 +217,13 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          new AppendDecoder(),
                          lsh);
 
-                 lsh.setRequestProcessor(new AppendProcessor(store, lsh, connectionTracker,
-                         new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder,
-                                 tokenVerifier, replyWithStackTraceOnError),
-                         statsRecorder, tokenVerifier, replyWithStackTraceOnError, tokenExpiryHandlerExecutor));
+                 lsh.setRequestProcessor(new AppendProcessor(store,
+                         lsh,
+                         connectionTracker,
+                         new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError),
+                         statsRecorder,
+                         tokenVerifier,
+                         replyWithStackTraceOnError, tokenExpiryHandlerExecutor));
              }
          });
 

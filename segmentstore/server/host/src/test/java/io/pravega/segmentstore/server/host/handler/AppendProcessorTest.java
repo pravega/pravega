@@ -47,6 +47,7 @@ import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.JwtBody;
 import io.pravega.test.common.JwtTestUtils;
@@ -60,6 +61,7 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -173,9 +175,13 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         StreamSegmentStore mockStore = mock(StreamSegmentStore.class);
         ServerConnection mockConnection = mock(ServerConnection.class);
+
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = new InlineExecutor();
         AppendProcessor processor = AppendProcessor.defaultBuilder()
                 .store(mockStore)
                 .connection(mockConnection)
+                .tokenExpiryHandlerExecutor(executor)
                 .build();
 
         // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
@@ -202,9 +208,12 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         StreamSegmentStore mockStore = mock(StreamSegmentStore.class);
         ServerConnection mockConnection = mock(ServerConnection.class);
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = new InlineExecutor();
         AppendProcessor processor = AppendProcessor.defaultBuilder()
                 .store(mockStore)
                 .connection(mockConnection)
+                .tokenExpiryHandlerExecutor(executor)
                 .build();
 
         // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
