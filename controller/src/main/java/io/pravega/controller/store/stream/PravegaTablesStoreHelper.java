@@ -49,8 +49,11 @@ import org.apache.curator.shaded.com.google.common.base.Charsets;
 
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionDropped;
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionFailed;
+<<<<<<< HEAD
 import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 >>>>>>> Issue 4639: Table store helper to retry only on unknownhost and auth failure for update requests (#4641)
+=======
+>>>>>>> Build fix
 
 /**
  * Helper class for all table related queries to segment store. This class invokes appropriate wire command calls into
