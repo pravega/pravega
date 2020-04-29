@@ -33,7 +33,7 @@ public class MockConnectionFactoryImpl implements ConnectionFactory {
     Map<PravegaNodeUri, ReplyProcessor> processors = new HashMap<>();
     @Setter
     ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "testClientInternal");
-    private ClientConfig clientConfig = ClientConfig.builder().rawclientTimeout(Duration.ofSeconds(3600)).build();
+    private ClientConfig clientConfig = ClientConfig.builder().serverRequestTimeout(Duration.ofSeconds(3600)).build();
 
     @Override
     @Synchronized

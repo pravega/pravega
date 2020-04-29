@@ -28,11 +28,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.SneakyThrows;
@@ -514,6 +510,28 @@ public final class Futures {
      */
     public static <T> void onTimeout(CompletableFuture<T> future, Consumer<TimeoutException> callback) {
         exceptionListener(future, TimeoutException.class, callback);
+    }
+
+    /**
+     * Attaches the given callback as an exception listener to the given CompletableFuture, which will be invoked when
+     * the a timer(CompletableFuture) times out.
+     *
+     * @param future          The future to attach to.
+     * @param timeout         The timeout for the future.
+     * @param executorService An ExecutorService that will be used to invoke the timeout on.
+     * @param callback        The callback to invoke.
+     * @param <T>             The Type of the future's result.
+     */
+    public static <T> void onTimeout(CompletableFuture<T> future, Duration timeout, ScheduledExecutorService executorService, Consumer<TimeoutException> callback) {
+        CompletableFuture<T> timer = new CompletableFuture<>();
+        ScheduledFuture<Boolean> sf = executorService.schedule(() -> timer.completeExceptionally(new TimeoutException()), timeout.toMillis(), TimeUnit.MILLISECONDS);
+        future.whenComplete((r, ex) -> sf.cancel(true));
+        timer.whenComplete((r, ex) -> {
+            if (!future.isDone() && ex instanceof TimeoutException) {
+                exceptionListener(future, TimeoutException.class, callback);
+                future.completeExceptionally(ex);
+            }
+        });
     }
 
     /**

@@ -91,7 +91,7 @@ public class RawClient implements AutoCloseable {
         this.segmentId = null;
         this.connectionFactory = connectionFactory;
         this.connection = connectionFactory.establishConnection(flow, uri, responseProcessor);
-        this.connectionTimeout = this.connectionFactory.getClientConfig().getRawclientTimeout();
+        this.connectionTimeout = this.connectionFactory.getClientConfig().getServerRequestTimeout();
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -100,7 +100,7 @@ public class RawClient implements AutoCloseable {
         this.connectionFactory = connectionFactory;
         this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
                                     .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(flow, uri, responseProcessor));
-        this.connectionTimeout = this.connectionFactory.getClientConfig().getRawclientTimeout();
+        this.connectionTimeout = this.connectionFactory.getClientConfig().getServerRequestTimeout();
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -151,8 +151,8 @@ public class RawClient implements AutoCloseable {
             synchronized (lock) {
                 requests.put(requestId, reply);
             }
-            CompletableFuture<Void> timer = Futures.futureWithTimeout(timeout, connectionFactory.getInternalExecutor());
-            Futures.onTimeout(timer, ex -> {
+
+            Futures.onTimeout(reply, timeout, connectionFactory.getInternalExecutor(), ex -> {
                 synchronized (lock) {
                     log.debug("Request {} times out after {}", requestId, timeout.toString());
                     requests.remove(requestId);
@@ -160,6 +160,7 @@ public class RawClient implements AutoCloseable {
                 reply.completeExceptionally(ex);
                 closeConnection(ex);
             });
+
             c.sendAsync(request, cfe -> {
                 if (cfe != null) {
                     synchronized (lock) {
@@ -168,7 +169,6 @@ public class RawClient implements AutoCloseable {
                     reply.completeExceptionally(cfe);
                     closeConnection(cfe);
                 }
-                timer.cancel(true);
             });
             return reply;
         });

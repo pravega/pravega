@@ -110,11 +110,11 @@ public class ClientConfig implements Serializable {
     private final MetricListener metricListener;
 
     /**
-     * If the flag is set, RawClient will timeout the future if it doesn't receive response from Segment store
+     * If the flag is set, a server request will time out if it doesn't receive response from Segment store
      * in a given time period. Notice that we don't want this feature enabled in testing since it might mask some
      * bugs.
      */
-    private final Duration rawclientTimeout;
+    private final Duration serverRequestTimeout;
 
     /**
      * Returns whether TLS is enabled for client-to-server (Controller and Segment Store) communications.
@@ -172,7 +172,7 @@ public class ClientConfig implements Serializable {
 
         private boolean deriveTlsEnabledFromControllerURI = true;
 
-        private Duration rawclientTimeout = Duration.ofSeconds(30);
+        private Duration serverRequestTimeout = Duration.ofSeconds(30);
 
         /**
          * Note: by making this method private, we intend to hide the corresponding property
@@ -207,7 +207,7 @@ public class ClientConfig implements Serializable {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
             }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
-                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore, metricListener, rawclientTimeout);
+                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore, metricListener, serverRequestTimeout);
         }
 
         /**
