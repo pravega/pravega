@@ -96,10 +96,10 @@ public class RollingStorageSegmentIteratorMockTests {
     }
 
     /**
-     * Tests when current is null.
+     * Tests when SegmentProperties is null.
      */
     @Test
-    public void testNextNullCurrent() {
+    public void testNextNullSegmentProperties() {
         RollingStorageSegmentIteratorMockTests.TestRollingStorageSegmentIterator testRollingStorageSegmentIterator = new
                 RollingStorageSegmentIteratorMockTests.TestRollingStorageSegmentIterator(null, null,
                 null);
@@ -113,10 +113,10 @@ public class RollingStorageSegmentIteratorMockTests {
     }
 
     /**
-     * Tests when results is null.
+     * Tests when Iterator for SSegmentProperties is null.
      */
     @Test
-    public void testHasNextNullResults() {
+    public void testHasNextNullIterator() {
         RollingStorageSegmentIteratorMockTests.TestRollingStorageSegmentIterator testRollingStorageSegmentIterator = new
                 RollingStorageSegmentIteratorMockTests.TestRollingStorageSegmentIterator(null, null,
                 null);

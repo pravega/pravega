@@ -524,6 +524,9 @@ public class RollingStorage implements SyncStorage {
                 props -> NameUtils.isHeaderSegment(props.getName()));
     }
 
+    /**
+     * Iterator for segments in Rolling storage.
+     */
     public static class RollingStorageSegmentIterator implements Iterator<SegmentProperties> {
         RollingStorage instance;
         Iterator<SegmentProperties> results;
@@ -561,7 +564,7 @@ public class RollingStorage implements SyncStorage {
                             .length(handle.length())
                             .sealed(handle.isSealed()).build();
                 } catch (StreamSegmentException e) {
-                    log.error("Hit an exception!", e);
+                    log.error("Exception occurred while fetching the next segment.", e);
                 }
             }
             throw new NoSuchElementException();

@@ -202,7 +202,7 @@ public class FileSystemStorage implements SyncStorage {
                     .map(path -> (SegmentProperties) getStreamSegmentInformation(config.getRoot(), path))
                     .iterator();
         } catch (IOException e) {
-            log.error("Hit an exception: ", e);
+            log.error("Exception occurred while listing the segments.", e);
         }
         return Collections.emptyIterator();
     }

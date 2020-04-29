@@ -497,7 +497,6 @@ class HDFSStorage implements SyncStorage {
         try {
             return new HDFSSegmentIterator(this.fileSystem.listStatusIterator(new Path(config.getHdfsRoot() + Path.SEPARATOR)),
                     fileStatus -> {
-                        // There has to be a better way than this!
                         String fileName = fileStatus.getPath().getName();
                         int index = fileName.lastIndexOf(PART_SEPARATOR);
                         if (fileName.endsWith(PART_SEPARATOR + SEALED)) {
@@ -511,11 +510,14 @@ class HDFSStorage implements SyncStorage {
                         return true;
                     });
         } catch (Exception e) {
-            log.error("Hit an exception: ", e);
+            log.error("Exception occurred while listing the segments.", e);
         }
         return Collections.emptyIterator();
     }
 
+    /**
+     * Iterator for segments in HDFS Storage.
+     */
     public static class HDFSSegmentIterator implements Iterator<SegmentProperties> {
         RemoteIterator<FileStatus> results;
         FileStatus current;
@@ -538,7 +540,7 @@ class HDFSStorage implements SyncStorage {
                     }
                 }
             } catch (IOException e) {
-                log.error("Hit an exception", e);
+                log.error("Exception occurred while trying to check the next object.", e);
             }
             current = null;
             return false;
@@ -554,7 +556,7 @@ class HDFSStorage implements SyncStorage {
                             .length(current.getLen())
                             .sealed(isSealed).build();
                 } catch (FileNameFormatException e) {
-                    log.error("Hit an exception", e);
+                    log.error("Exception occurred while trying to get the next object.", e);
                 }
             }
             throw new NoSuchElementException();
