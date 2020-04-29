@@ -1584,6 +1584,32 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof DataCorruptionException);
     }
 
+    /**
+     * Tests a scenario where the Segment has been deleted (in the metadata) while it was actively flushing. This verifies
+     * that an ongoing flush operation will abort (i.e., eventually complete) so that the next iteration of the StorageWriter
+     * may properly delete the segment.
+     */
+    @Test
+    public void testSegmentDeletedWhileFlushing() throws Exception {
+        final WriterConfig config = DEFAULT_CONFIG;
+
+        @Cleanup
+        TestContext context = new TestContext(config);
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        // Add one append, followed by a Seal.
+        StorageOperation appendOp = generateAppendAndUpdateMetadata(SEGMENT_ID, new byte[config.getFlushThresholdBytes() - 1], context);
+        context.segmentAggregator.add(appendOp);
+        context.segmentAggregator.add(generateSealAndUpdateMetadata(SEGMENT_ID, context));
+        Assert.assertTrue("Unexpected value returned by mustFlush().", context.segmentAggregator.mustFlush());
+
+        // Meanwhile, delete the segment (but do not notify the StorageWriter yet).
+        val sm = (UpdateableSegmentMetadata) context.segmentAggregator.getMetadata();
+        sm.markDeleted();
+        val flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+        Assert.assertEquals("Unexpected number of bytes flushed.", 0, flushResult.getFlushedBytes());
+    }
+
     //endregion
 
     //region Unknown outcome operation reconciliation
@@ -1639,6 +1665,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final WriterConfig config = DEFAULT_CONFIG;
         final int appendCount = 1000;
         final int failEvery = 3;
+        final int partialFailEvery = 6;
 
         @Cleanup
         TestContext context = new TestContext(config);
@@ -1648,14 +1675,21 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         AtomicInteger writeCount = new AtomicInteger();
         AtomicReference<Exception> setException = new AtomicReference<>();
         context.storage.setWriteInterceptor((segmentName, offset, data, length, storage) -> {
-            if (writeCount.incrementAndGet() % failEvery == 0) {
+            int wc = writeCount.incrementAndGet();
+            if (wc % failEvery == 0) {
+                if (wc % partialFailEvery == 0) {
+                    // Only a part of the operation has been written. Verify that we can reconcile partially written
+                    // operations as well.
+                    length /= 2;
+                }
+
                 // Time to wreak some havoc.
                 return storage.write(writeHandle(segmentName), offset, data, length, TIMEOUT)
-                              .thenAccept(v -> {
-                                  IntentionalException ex = new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
-                                  setException.set(ex);
-                                  throw ex;
-                              });
+                        .thenAccept(v -> {
+                            IntentionalException ex = new IntentionalException(String.format("S=%s,O=%d", segmentName, offset));
+                            setException.set(ex);
+                            throw ex;
+                        });
             } else {
                 setException.set(null);
                 return null;

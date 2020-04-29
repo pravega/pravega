@@ -13,10 +13,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenExpiredException;
-import io.pravega.client.netty.impl.Flow;
-import io.pravega.client.nonetty.impl.TcpClientConnection;
-import io.pravega.client.nonetty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.Flow;
+import io.pravega.client.nonetty.impl.ClientConnection;
+import io.pravega.client.nonetty.impl.TcpClientConnection;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
@@ -41,14 +41,15 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.util.AbstractMap;
+import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -109,7 +110,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @GuardedBy("lock")
         private Throwable exception = null;
         @GuardedBy("lock")
-        private final ConcurrentSkipListMap<Long, PendingEvent> inflight = new ConcurrentSkipListMap<>();
+        private final ArrayDeque<Entry<Long, PendingEvent>> inflight = new ArrayDeque<>();
         @GuardedBy("lock")
         private long eventNumber = 0;
         @GuardedBy("lock")
@@ -236,7 +237,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             synchronized (lock) {
                 eventNumber++;
                 log.trace("Adding event {} to inflight on writer {}", eventNumber, writerId);
-                inflight.put(eventNumber, event);
+                inflight.addLast(new SimpleImmutableEntry<>(eventNumber, event));
                 if (!needSuccessors.get()) {
                     waitingInflight.reset();
                 }
@@ -249,17 +250,22 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          */
         private List<PendingEvent> removeInflightBelow(long ackLevel) {
             synchronized (lock) {
-                ConcurrentNavigableMap<Long, PendingEvent> acked = inflight.headMap(ackLevel, true);
-                List<PendingEvent> result = new ArrayList<>(acked.values());
-                acked.clear();
+                List<PendingEvent> result = new ArrayList<>();
+                Entry<Long, PendingEvent> entry = inflight.peekFirst();
+                while (entry != null && entry.getKey() <= ackLevel) {
+                    inflight.pollFirst();
+                    result.add(entry.getValue());
+                    entry = inflight.peekFirst();
+                }
                 releaseIfEmptyInflight(); // release waitingInflight under the same re-entrant lock.
                 return result;
             }
         }
 
-        private Long getInFlightBelow(long ackLevel) {
+        private Long getLowestInflight() {
             synchronized (lock) {
-                return inflight.floorKey(ackLevel);
+                Entry<Long, PendingEvent> entry = inflight.peekFirst();
+                return entry == null ? null : entry.getKey();
             }
         }
 
@@ -274,13 +280,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         private List<Map.Entry<Long, PendingEvent>> getAllInflight() {
             synchronized (lock) {
-                return new ArrayList<>(inflight.entrySet());
+                return new ArrayList<>(inflight);
             }
         }
 
         private List<PendingEvent> getAllInflightEvents() {
             synchronized (lock) {
-                return new ArrayList<>(inflight.values());
+                return inflight.stream().map(entry -> entry.getValue()).collect(Collectors.toList());
             }
         }
 
@@ -429,9 +435,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             // we only care that the lowest in flight level is higher than previous ack level.
             // it may be higher by more than 1 (eg: in the case of a prior failed conditional appends).
             // this is because client never decrements eventNumber.
-            Long inFlightBelowPreviousAckLevel = state.getInFlightBelow(previousAckLevel);
-            checkState(inFlightBelowPreviousAckLevel == null, "Missed ack from server - previousAckLevel = %s, ackLevel = %s, inFlightLevel = %s",
-                       previousAckLevel, ackLevel, inFlightBelowPreviousAckLevel);
+            Long lowest = state.getLowestInflight();
+            checkState(lowest > previousAckLevel, "Missed ack from server - previousAckLevel = %s, ackLevel = %s, inFlightLevel = %s",
+                       previousAckLevel, ackLevel, lowest);
         }
 
         @Override
@@ -456,7 +462,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Override
     public void write(PendingEvent event) {
         //State is set to sealed during a Transaction abort and the segment writer should not throw an {@link IllegalStateException} in such a case.
-        checkState(NameUtils.isTransactionSegment(segmentName) || !state.isAlreadySealed(), "Segment: %s is already sealed", segmentName);
+        checkState(!state.isAlreadySealed() || NameUtils.isTransactionSegment(segmentName), "Segment: %s is already sealed", segmentName);
         synchronized (writeOrderLock) {
             ClientConnection connection;
             try {
