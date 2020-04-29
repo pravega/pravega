@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.List;
 
 /**
  * Defines a generic read-only view of a readable memory buffer with a known length.
@@ -50,6 +51,16 @@ public interface BufferView {
      * @return The InputStream.
      */
     InputStream getReader(int offset, int length);
+
+    /**
+     * Equivalent to invoking {@link #slice(int, int)} with offset 0 and getLength(). Depending on the implementation,
+     * this may return this instance or a new instance that is a copy of this one but pointing to the same backing buffer.
+     *
+     * @return A {@link BufferView}.
+     */
+    default BufferView slice() {
+        return this;
+    }
 
     /**
      * Creates a new {@link BufferView} that represents a sub-range of this {@link BufferView} instance. The new instance
@@ -103,5 +114,29 @@ public interface BufferView {
      */
     default void release() {
         // Default implementation intentionally left blank. Any derived class may implement if needed.
+    }
+
+    /**
+     * Gets a list of {@link ByteBuffer} that represent the contents of this {@link BufferView}.
+     *
+     * @return A List of {@link ByteBuffer}.
+     */
+    List<ByteBuffer> getContents();
+
+    /**
+     * Wraps the given {@link BufferView} into a single instance.
+     *
+     * @param components The components to wrap.
+     * @return An empty {@link BufferView} (if the component list is empty), the first item in the list (if the component
+     * list has 1 element) or a {@link CompositeBufferView} wrapping all the given instances otherwise.
+     */
+    static BufferView wrap(List<BufferView> components) {
+        if (components.size() == 0) {
+            return new ByteArraySegment(new byte[0]);
+        } else if (components.size() == 1) {
+            return components.get(0).slice();
+        } else {
+            return new CompositeBufferView(components);
+        }
     }
 }

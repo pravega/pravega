@@ -16,7 +16,6 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufInputStream;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import lombok.Cleanup;
@@ -45,7 +44,7 @@ public class CommandDecoder extends ByteToMessageDecoder {
     @VisibleForTesting
     public static WireCommand parseCommand(ByteBuf in) throws IOException {
         @Cleanup
-        ByteBufInputStream is = new ByteBufInputStream(in);
+        EnhancedByteBufInputStream is = new EnhancedByteBufInputStream(in);
         int readableBytes = in.readableBytes();
         if (readableBytes < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
             throw new InvalidMessageException("Not enough bytes to read.");

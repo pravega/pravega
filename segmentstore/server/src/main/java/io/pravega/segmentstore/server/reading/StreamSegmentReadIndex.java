@@ -21,7 +21,6 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SortedIndex;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.CacheManager;
@@ -29,8 +28,6 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.cache.CacheFullException;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
-import java.io.InputStream;
-import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -737,7 +734,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                     entry.requestContent(this.config.getStorageReadDefaultTimeout());
                 }
 
-                CompletableFuture<ReadResultEntryContents> entryContent = entry.getContent();
+                CompletableFuture<BufferView> entryContent = entry.getContent();
                 entryContent.thenAccept(r::complete);
                 Futures.exceptionListener(entryContent, r::fail);
             }
@@ -760,7 +757,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @throws IllegalStateException    If the read index is in recovery mode.
      * @throws IllegalArgumentException If the parameters are invalid (offset, length or offset+length are not in the Segment's range).
      */
-    InputStream readDirect(long startOffset, int length) {
+    BufferView readDirect(long startOffset, int length) {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
         Preconditions.checkArgument(length >= 0, "length must be a non-negative number");
@@ -788,8 +785,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         assert Futures.isSuccessful(nextEntry.getContent()) : "Found CacheReadResultEntry that is not completed yet: " + nextEntry;
         val entryContents = nextEntry.getContent().join();
 
-        ArrayList<InputStream> contents = new ArrayList<>();
-        contents.add(entryContents.getData());
+        ArrayList<BufferView> contents = new ArrayList<>();
+        contents.add(entryContents);
         int readLength = entryContents.getLength();
         while (readLength < length) {
             BufferView entryData;
@@ -810,12 +807,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
             int entryReadLength = Math.min(entryData.getLength(), length - readLength);
             assert entryReadLength > 0 : "about to have fetched zero bytes from a cache entry";
-            contents.add(entryData.getReader(0, entryReadLength));
+            contents.add(entryData.slice(0, entryReadLength));
             readLength += entryReadLength;
         }
 
-        // Coalesce the results into a single InputStream and return the result.
-        return new SequenceInputStream(Iterators.asEnumeration(contents.iterator()));
+        return BufferView.wrap(contents);
     }
 
     /**
@@ -955,11 +951,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         // Collect the contents of congruent Index Entries into a list, as long as we still encounter data in the cache.
-        ArrayList<InputStream> contents = new ArrayList<>();
+        ArrayList<BufferView> contents = new ArrayList<>();
         do {
             assert Futures.isSuccessful(nextEntry.getContent()) : "Found CacheReadResultEntry that is not completed yet: " + nextEntry;
             val entryContents = nextEntry.getContent().join();
-            contents.add(entryContents.getData());
+            contents.add(entryContents);
             readLength += entryContents.getLength();
             if (readLength >= this.config.getMemoryReadMinLength() || readLength >= maxLength) {
                 break;
@@ -969,7 +965,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         } while (nextEntry != null);
 
         // Coalesce the results into a single InputStream and return the result.
-        return new CacheReadResultEntry(resultStartOffset, new SequenceInputStream(Iterators.asEnumeration(contents.iterator())), readLength);
+        return new CacheReadResultEntry(resultStartOffset, BufferView.wrap(contents));
     }
 
     /**
@@ -1068,6 +1064,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param streamSegmentOffset The Offset in the StreamSegment where to the ReadResultEntry starts at.
      * @param maxLength           The maximum length of the Read, from the Offset of this ReadResultEntry.
      */
+    @GuardedBy("lock")
     private ReadResultEntryBase createDataNotAvailableRead(long streamSegmentOffset, int maxLength) {
         maxLength = getLengthUntilNextEntry(streamSegmentOffset, maxLength);
         long storageLength = this.metadata.getStorageLength();
@@ -1115,7 +1112,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             entry.setGeneration(generation);
         }
 
-        return new CacheReadResultEntry(entry.getStreamSegmentOffset() + entryOffset, data.getReader(entryOffset, length), length);
+        return new CacheReadResultEntry(entry.getStreamSegmentOffset() + entryOffset, data.slice(entryOffset, length));
     }
 
     /**
@@ -1128,14 +1125,14 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         return new StorageReadResultEntry(streamSegmentOffset, readLength, this::queueStorageRead);
     }
 
-    private void queueStorageRead(long offset, int length, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
+    private void queueStorageRead(long offset, int length, Consumer<BufferView> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
         // Create a callback that inserts into the ReadIndex (and cache) and invokes the success callback.
         Consumer<StorageReadManager.Result> doneCallback = result -> {
             try {
                 ByteArraySegment data = result.getData();
 
                 // Make sure we invoke our callback first, before any chance of exceptions from insert() may block it.
-                successCallback.accept(new ReadResultEntryContents(data.getReader(), data.getLength()));
+                successCallback.accept(data);
                 if (!result.isDerived()) {
                     // Only insert primary results into the cache. Derived results are always sub-portions of primaries
                     // and there is no need to insert them too, as they are already contained within.

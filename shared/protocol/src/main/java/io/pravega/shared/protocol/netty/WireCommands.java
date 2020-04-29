@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.BufferOverflowException;
-import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,7 +29,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import javax.annotation.concurrent.NotThreadSafe;
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.Accessors;
 
@@ -76,7 +80,7 @@ public final class WireCommands {
 
     @FunctionalInterface
     interface Constructor {
-        WireCommand readFrom(ByteBufInputStream in, int length) throws IOException;
+        WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException;
     }
 
     @Data
@@ -792,15 +796,25 @@ public final class WireCommands {
         }
     }
 
-    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    @Getter
+    @ToString
+    @EqualsAndHashCode(exclude = {"mustRelease", "released"})
+    @NotThreadSafe
     public static final class SegmentRead implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_READ;
         final String segment;
         final long offset;
         final boolean atTail; //TODO: Is sometimes false when actual state is unknown.
         final boolean endOfSegment;
-        final ByteBuffer data;
+        final ByteBuf data;
         final long requestId;
+        private final boolean mustRelease;
+        private boolean released = false;
+
+        public SegmentRead(String segment, long offset, boolean atTail, boolean endOfSegment, ByteBuf data, long requestId) {
+            this(segment, offset, atTail, endOfSegment, data, requestId, false);
+        }
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -813,13 +827,13 @@ public final class WireCommands {
             out.writeLong(offset);
             out.writeBoolean(atTail);
             out.writeBoolean(endOfSegment);
-            int dataLength = data.remaining();
+            int dataLength = data.readableBytes();
             out.writeInt(dataLength);
-            out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
+            this.data.getBytes(this.data.readerIndex(), (OutputStream) out, dataLength);
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
             String segment = in.readUTF();
             long offset = in.readLong();
             boolean atTail = in.readBoolean();
@@ -828,10 +842,17 @@ public final class WireCommands {
             if (dataLength > length) {
                 throw new BufferOverflowException();
             }
-            byte[] data = new byte[dataLength];
-            in.readFully(data);
-            long requestId =  in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new SegmentRead(segment, offset, atTail, endOfSegment, ByteBuffer.wrap(data), requestId);
+            ByteBuf data = in.readFully(dataLength).retain();
+            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            return new SegmentRead(segment, offset, atTail, endOfSegment, data, requestId, true);
+        }
+
+        public void release() {
+            if (this.mustRelease && !this.released) {
+                this.data.release();
+            }
+
+            this.released = true;
         }
 
         @Override
@@ -1727,6 +1748,7 @@ public final class WireCommands {
             return new TableKeysRemoved(requestId, segment);
         }
     }
+
 
     @Data
     public static final class ReadTable implements Request, WireCommand {

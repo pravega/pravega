@@ -9,6 +9,9 @@
  */
 package io.pravega.common.util;
 
+import java.nio.ByteBuffer;
+import java.util.List;
+
 /**
  * Defines a generic view of a composite, index-based, array-like structure that is made up of one or more individual
  * arrays.
@@ -65,6 +68,17 @@ public interface CompositeArrayView extends BufferView {
      *                    and the exception will be bubbled up.
      */
     <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectArray) throws ExceptionT;
+
+    /**
+     * {@inheritDoc}
+     * Gets a list of {@link ByteBuffer} that represent the contents of this {@link CompositeArrayView}. Since the
+     * {@link CompositeArrayView} is a sparse array implementation, any "gaps" that are not allocated within this object
+     * will be returned as {@link ByteBuffer}s containing zeroes.
+     *
+     * @return A List of {@link ByteBuffer}.
+     */
+    @Override
+    List<ByteBuffer> getContents();
 
     /**
      * Defines a collector function that can be applied to a range of an array.

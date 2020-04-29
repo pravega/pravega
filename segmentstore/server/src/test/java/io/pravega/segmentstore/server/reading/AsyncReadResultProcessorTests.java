@@ -12,9 +12,9 @@ package io.pravega.segmentstore.server.reading;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -107,7 +107,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
                 return null;
             }
 
-            Supplier<ReadResultEntryContents> entryContentsSupplier = () -> new ReadResultEntryContents(new ByteArrayInputStream(entries.get(idx)), entries.get(idx).length);
+            Supplier<BufferView> entryContentsSupplier = () -> new ByteArraySegment(entries.get(idx));
             return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executorService());
         };
 
@@ -140,7 +140,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
 
         // Setup an entry provider supplier that returns Future Reads, which will eventually fail.
         StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
-            Supplier<ReadResultEntryContents> entryContentsSupplier = () -> {
+            Supplier<BufferView> entryContentsSupplier = () -> {
                 barrier.acquireUninterruptibly();
                 throw new IntentionalException("Intentional");
             };
@@ -184,8 +184,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
             int idx = currentIndex.getAndIncrement();
             if (idx == entries.size() - 1) {
                 // Future read result.
-                Supplier<ReadResultEntryContents> entryContentsSupplier =
-                        () -> new ReadResultEntryContents(new ByteArrayInputStream(entries.get(idx)), entries.get(idx).length);
+                Supplier<BufferView> entryContentsSupplier = () -> new ByteArraySegment(entries.get(idx));
                 return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executorService());
             } else if (idx >= entries.size()) {
                 return null;
@@ -199,7 +198,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
         @Cleanup
         StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
         val result = AsyncReadResultProcessor.processAll(rr, executorService(), TIMEOUT);
-        val actualData = result.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val actualData = result.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).getReader();
         val expectedData = new SequenceInputStream(Iterators.asEnumeration(entries.stream().map(ByteArrayInputStream::new).iterator()));
         AssertExtensions.assertStreamEquals("Unexpected data read back.", expectedData, actualData, totalLength);
     }
@@ -236,9 +235,8 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
         public boolean processEntry(ReadResultEntry e) {
             try {
                 Assert.assertTrue("Received Entry that is not ready to serve data yet.", Futures.isSuccessful(e.getContent()));
-                ReadResultEntryContents c = e.getContent().join();
-                byte[] data = new byte[c.getLength()];
-                StreamHelpers.readAll(c.getData(), data, 0, data.length);
+                BufferView c = e.getContent().join();
+                byte[] data = c.getCopy();
                 int idx = readEntryCount.getAndIncrement();
                 AssertExtensions.assertLessThan("Read too many entries.", entries.size(), idx);
                 byte[] expected = entries.get(idx);
@@ -272,17 +270,17 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
     }
 
     private static class TestFutureReadResultEntry extends FutureReadResultEntry {
-        private final Supplier<ReadResultEntryContents> resultSupplier;
+        private final Supplier<BufferView> resultSupplier;
         private final Executor executor;
 
-        TestFutureReadResultEntry(long streamSegmentOffset, int requestedReadLength, Supplier<ReadResultEntryContents> resultSupplier, Executor executor) {
+        TestFutureReadResultEntry(long streamSegmentOffset, int requestedReadLength, Supplier<BufferView> resultSupplier, Executor executor) {
             super(streamSegmentOffset, requestedReadLength);
             this.resultSupplier = resultSupplier;
             this.executor = executor;
         }
 
         @Override
-        public void complete(ReadResultEntryContents contents) {
+        public void complete(BufferView contents) {
             super.complete(contents);
         }
 

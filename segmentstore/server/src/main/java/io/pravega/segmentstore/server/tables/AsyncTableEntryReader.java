@@ -15,10 +15,10 @@ import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -174,11 +174,8 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
         try {
             Preconditions.checkArgument(entry.getContent().isDone(), "Entry Contents is not yet fetched.");
-            ReadResultEntryContents contents = entry.getContent().join();
-
-            // TODO: most of these transfers are from memory to memory. It's a pity that we need an extra buffer to do the copy.
-            // TODO: https://github.com/pravega/pravega/issues/2924
-            this.readData.write(StreamHelpers.readAll(contents.getData(), contents.getLength()));
+            BufferView contents = entry.getContent().join();
+            contents.copyTo(this.readData);
             if (this.header == null && this.readData.size() >= EntrySerializer.HEADER_LENGTH) {
                 // We now have enough to read the header.
                 this.header = this.serializer.readHeader(this.readData.getData());
