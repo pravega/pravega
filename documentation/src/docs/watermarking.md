@@ -195,7 +195,7 @@ To prevent Readers from waiting indefinitely for a Writer, you can configure the
 on a stream. This parameter configures the amount of time after which a Writer that has not been heard from will be
 excluded from the time window calculation.  Set this parameter on a stream when the stream is defined.
 
-### Integration with applications
+## Integration with applications
 
 Typically, an application running a Pravega reader interested in processing with time obtains the low watermark from
 the time window. The application then needs downstream operators to process the watermark. For example, Apache Flink
