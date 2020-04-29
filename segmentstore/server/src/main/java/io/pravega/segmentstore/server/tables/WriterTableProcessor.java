@@ -10,10 +10,10 @@
 package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -28,7 +28,6 @@ import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendO
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -343,7 +342,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     @SneakyThrows(IOException.class)
     private KeyUpdateCollection readKeysFromSegment(DirectSegmentAccess segment, long firstOffset, long lastOffset, TimeoutTimer timer) {
         KeyUpdateCollection keyUpdates = new KeyUpdateCollection();
-        try (InputStream input = readFromInMemorySegment(segment, firstOffset, lastOffset, timer)) {
+        try (InputStream input = readFromInMemorySegment(segment, firstOffset, lastOffset, timer).getReader()) {
             long segmentOffset = firstOffset;
             while (segmentOffset < lastOffset) {
                 segmentOffset += indexSingleKey(input, segmentOffset, keyUpdates);
@@ -380,12 +379,12 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * @param startOffset The offset to start reading from.
      * @param endOffset   The offset to stop reading at.
      * @param timer       Timer for the operation.
-     * @return An Enumeration of InputStreams representing the read data.
+     * @return A {@link BufferView} with the requested data.
      */
-    private InputStream readFromInMemorySegment(DirectSegmentAccess segment, long startOffset, long endOffset, TimeoutTimer timer) {
+    private BufferView readFromInMemorySegment(DirectSegmentAccess segment, long startOffset, long endOffset, TimeoutTimer timer) {
         long readOffset = startOffset;
         long remainingLength = endOffset - startOffset;
-        ArrayList<InputStream> inputs = new ArrayList<>();
+        ArrayList<BufferView> inputs = new ArrayList<>();
         while (remainingLength > 0) {
             int readLength = (int) Math.min(remainingLength, Integer.MAX_VALUE);
             try (ReadResult readResult = segment.read(readOffset, readLength, timer.getRemaining())) {
@@ -396,7 +395,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
             }
         }
 
-        return new SequenceInputStream(Iterators.asEnumeration(inputs.iterator()));
+        return BufferView.wrap(inputs);
     }
 
     /**

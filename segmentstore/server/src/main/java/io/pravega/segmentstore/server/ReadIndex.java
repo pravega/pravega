@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.Collection;
 
@@ -75,7 +74,7 @@ public interface ReadIndex extends AutoCloseable {
      * <ul>
      * <li> This method allows reading from partially merged transactions (on which beginMerge was called but not completeMerge).
      * This is acceptable because this method is only meant to be used by internal clients (not by an outside request)
-     * and it prebuilds the result into the returned InputStream.
+     * and it prebuilds the result into the returned {@link BufferView}.
      * <li> This method will not cause cache statistics to be updated. As such, Cache entry generations will not be
      * updated for those entries that are touched.
      * </ul>
@@ -83,12 +82,12 @@ public interface ReadIndex extends AutoCloseable {
      * @param streamSegmentId The Id of the StreamSegment to read from.
      * @param startOffset     The offset in the StreamSegment where to start reading.
      * @param length          The number of bytes to read.
-     * @return An InputStream containing the requested data, or null if all of the conditions of this read cannot be met.
+     * @return A {@link BufferView} containing the requested data, or null if all of the conditions of this read cannot be met.
      * @throws StreamSegmentNotExistsException If streamSegmentId is mapped to a Segment that is marked as Deleted.
      * @throws IllegalStateException    If the read index is in recovery mode.
      * @throws IllegalArgumentException If the parameters are invalid (offset, length or offset+length are not in the Segment's range).
      */
-    InputStream readDirect(long streamSegmentId, long startOffset, int length) throws StreamSegmentNotExistsException;
+    BufferView readDirect(long streamSegmentId, long startOffset, int length) throws StreamSegmentNotExistsException;
 
     /**
      * Reads a number of bytes from the StreamSegment ReadIndex.

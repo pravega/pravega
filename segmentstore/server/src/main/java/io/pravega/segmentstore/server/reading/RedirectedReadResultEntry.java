@@ -15,7 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import java.time.Duration;
@@ -34,7 +34,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     private final long adjustedOffset;
     private CompletableReadResultEntry secondEntry;
     private TimeoutTimer timer;
-    private final CompletableFuture<ReadResultEntryContents> result;
+    private final CompletableFuture<BufferView> result;
     private final GetEntry retryGetEntry;
     private final long redirectedSegmentId;
 
@@ -91,7 +91,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     }
 
     @Override
-    public CompletableFuture<ReadResultEntryContents> getContent() {
+    public CompletableFuture<BufferView> getContent() {
         return this.result;
     }
 
@@ -202,7 +202,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     }
 
     private void setOutcomeAfterSecondEntry() {
-        CompletableFuture<ReadResultEntryContents> sourceFuture = this.secondEntry.getContent();
+        CompletableFuture<BufferView> sourceFuture = this.secondEntry.getContent();
         sourceFuture.thenAccept(this.result::complete);
         Futures.exceptionListener(sourceFuture, this.result::completeExceptionally);
     }

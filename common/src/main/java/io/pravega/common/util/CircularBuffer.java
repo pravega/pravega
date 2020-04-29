@@ -85,6 +85,24 @@ public class CircularBuffer {
         return fillFrom.position() - origionalPos;
     }
 
+    /**
+     * Copies from the given ByteBuffers.
+     *
+     * @param fillFrom An array of ByteBuffer to read from.
+     * @return the number of bytes read from fillFrom
+     */
+    public int fill(ByteBuffer[] fillFrom) {
+        int result = 0;
+        for (ByteBuffer bb : fillFrom) {
+            int copied = fill(bb);
+            result += copied;
+            if (copied == 0) {
+                break;
+            }
+        }
+        return result;
+    }
+
     private void fillHelper(ByteBuffer fillFrom) {
         int fillLimit = fillBuffer.limit();
         int toAdd = Math.min(fillFrom.remaining(), fillBuffer.remaining());
