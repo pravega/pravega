@@ -793,7 +793,7 @@ public class SegmentHelperTest {
         private ReplyProcessor rp;
         private ClientConnection connection;
         private ScheduledExecutorService executor;
-        private ClientConfig clientConfig = ClientConfig.builder().rawclientTimeout(Duration.ofSeconds(3600)).build();
+        private ClientConfig clientConfig = ClientConfig.builder().serverRequestTimeout(Duration.ofSeconds(3600)).build();
 
         public MockConnectionFactory() {
             this.executor = new InlineExecutor();

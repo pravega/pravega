@@ -353,7 +353,7 @@ public class SegmentStoreConnectionManagerTest {
     private class MockConnectionFactory implements ConnectionFactory {
         @Getter
         private ReplyProcessor rp;
-        private ClientConfig clientConfig = ClientConfig.builder().rawclientTimeout(Duration.ofSeconds(3600)).build();
+        private ClientConfig clientConfig = ClientConfig.builder().serverRequestTimeout(Duration.ofSeconds(3600)).build();
 
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
