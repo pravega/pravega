@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.pravega.client.ClientConfig;
@@ -42,9 +43,9 @@ import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -57,6 +58,7 @@ import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.UUID;
@@ -115,9 +117,11 @@ public class ReadTest extends LeakDetectorTestSuite {
 
             // Each ReadResultEntryContents may be of an arbitrary length - we should make no assumptions.
             // Also put a timeout when fetching the response in case we get back a Future read and it never completes.
-            ReadResultEntryContents contents = entry.getContent().get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+            BufferView contents = entry.getContent().get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+            @Cleanup
+            InputStream contentStream = contents.getReader();
             byte next;
-            while ((next = (byte) contents.getData().read()) != -1) {
+            while ((next = (byte) contentStream.read()) != -1) {
                 byte expected = data[index % data.length];
                 assertEquals(expected, next);
                 index++;
@@ -139,28 +143,28 @@ public class ReadTest extends LeakDetectorTestSuite {
         @Cleanup
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
 
-        ByteBuffer actual = ByteBuffer.allocate(entries * data.length);
-        while (actual.position() < actual.capacity()) {
-            SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.position(), 10000, "", 1L));
+        ByteBuf actual = Unpooled.buffer(entries * data.length);
+        while (actual.writerIndex() < actual.capacity()) {
+            SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.writerIndex(), 10000, "", 1L));
             assertEquals(segmentName, result.getSegment());
-            assertEquals(result.getOffset(), actual.position());
+            assertEquals(result.getOffset(), actual.writerIndex());
             assertTrue(result.isAtTail());
             assertFalse(result.isEndOfSegment());
-            actual.put(result.getData());
-            if (actual.position() < actual.capacity()) {
+            actual.writeBytes(result.getData());
+            if (actual.writerIndex() < actual.capacity()) {
                 // Prevent entering a tight loop by giving the store a bit of time to process al the appends internally
                 // before trying again.
                 Thread.sleep(10);
             }
         }
 
-        ByteBuffer expected = ByteBuffer.allocate(entries * data.length);
+        ByteBuf expected = Unpooled.buffer(entries * data.length);
         for (int i = 0; i < entries; i++) {
-            expected.put(data);
+            expected.writeBytes(data);
         }
 
-        expected.rewind();
-        actual.rewind();
+        expected.writerIndex(expected.capacity()).resetReaderIndex();
+        actual.writerIndex(actual.capacity()).resetReaderIndex();
         assertEquals(expected, actual);
     }
 
