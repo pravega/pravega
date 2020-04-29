@@ -29,6 +29,7 @@ import org.junit.Before;
 public abstract class LeakDetectorTestSuite extends ThreadPooledTestSuite {
     private ResourceLeakDetector.Level originalLevel;
 
+    @Override
     @Before
     public void before() {
         super.before();
@@ -37,6 +38,7 @@ public abstract class LeakDetectorTestSuite extends ThreadPooledTestSuite {
         ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.PARANOID);
     }
 
+    @Override
     @After
     public void after() throws InterruptedException {
         super.after();
