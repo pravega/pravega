@@ -78,7 +78,7 @@ class KeyValueTableIteratorState {
 
         private void read00(RevisionDataInput revisionDataInput, KeyValueTableIteratorState.KeyValueTableIteratorStateBuilder builder) throws IOException {
             builder.keyValueTableName(revisionDataInput.readUTF());
-            builder.segmentId(revisionDataInput.readCompactLong());
+            builder.segmentId(revisionDataInput.readLong());
             byte[] array = revisionDataInput.readArray();
             if (array != null && array.length > 0) {
                 builder.segmentIteratorState(Unpooled.wrappedBuffer(array));
@@ -87,7 +87,7 @@ class KeyValueTableIteratorState {
 
         private void write00(KeyValueTableIteratorState checkpoint, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeUTF(checkpoint.keyValueTableName);
-            revisionDataOutput.writeCompactLong(checkpoint.segmentId);
+            revisionDataOutput.writeLong(checkpoint.segmentId);
             revisionDataOutput.writeBuffer(checkpoint.segmentIteratorState == null ? null : new ByteBufWrapper(checkpoint.segmentIteratorState));
         }
     }

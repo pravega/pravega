@@ -9,9 +9,9 @@
  */
 package io.pravega.client.tables.impl;
 
-import io.pravega.common.util.BitConverter;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.test.common.AssertExtensions;
-import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import lombok.val;
@@ -50,9 +50,9 @@ public class KeyFamilySerializerTests {
             String expectedKF = e.getKey().length() == 0 ? null : e.getKey();
             String expectedValue = e.getValue().length() == 0 ? null : e.getValue();
 
-            ByteBuffer s1 = this.serializer.serialize(expectedKF);
-            ByteBuffer s2 = expectedValue == null ? ByteBuffer.allocate(0) : KeyFamilySerializer.ENCODING.encode(expectedValue);
-            ByteBuffer serialized = (ByteBuffer) ByteBuffer.allocate(s1.remaining() + s2.remaining()).put(s1).put(s2).position(0);
+            ByteBuf s1 = this.serializer.serialize(expectedKF);
+            ByteBuf s2 = expectedValue == null ? Unpooled.EMPTY_BUFFER : Unpooled.wrappedBuffer(KeyFamilySerializer.ENCODING.encode(expectedValue));
+            ByteBuf serialized = Unpooled.wrappedBuffer(s1, s2).readerIndex(0);
 
             String actualKF = this.serializer.deserialize(serialized);
             Assert.assertEquals("Unexpected KeyFamily deserialized.", expectedKF, actualKF);
@@ -73,27 +73,27 @@ public class KeyFamilySerializerTests {
         // If buffer is shorter than prefix.
         AssertExtensions.assertThrows(
                 "Deserialized worked with short prefix.",
-                () -> this.serializer.deserialize(ByteBuffer.wrap(new byte[KeyFamilySerializer.PREFIX_LENGTH - 1])),
+                () -> this.serializer.deserialize(Unpooled.wrappedBuffer(new byte[KeyFamilySerializer.PREFIX_LENGTH - 1])),
                 ex -> ex instanceof SerializationException);
 
         // When buffer can't accommodate declared key family length.
         val kf = "KeyFamily";
-        val s1 = (ByteBuffer) this.serializer.serialize(kf);
+        val s1 = this.serializer.serialize(kf);
         AssertExtensions.assertThrows(
                 "Deserialized worked with invalid key family length.",
-                () -> this.serializer.deserialize(ByteBuffer.wrap(s1.array(), 0, s1.remaining() - 1)),
+                () -> this.serializer.deserialize(s1.slice(0, s1.readableBytes() - 1)),
                 ex -> ex instanceof SerializationException);
 
         // When deserialized key length is invalid.
-        val s2 = (ByteBuffer) this.serializer.serialize(kf);
-        BitConverter.writeShort(s2.array(), 0, (short) -1);
+        val s2 = this.serializer.serialize(kf);
+        s2.setShort(0, -1);
         AssertExtensions.assertThrows(
                 "Deserialized worked with negative key family length.",
                 () -> this.serializer.deserialize(s2),
                 ex -> ex instanceof SerializationException);
 
-        s2.position(0);
-        BitConverter.writeShort(s2.array(), 0, (short) (KeyFamilySerializer.MAX_KEY_FAMILY_LENGTH + 1));
+        s2.readerIndex(0);
+        s2.setShort(0, KeyFamilySerializer.MAX_KEY_FAMILY_LENGTH + 1);
         AssertExtensions.assertThrows(
                 "Deserialized worked with overflowing key family length.",
                 () -> this.serializer.deserialize(s2),

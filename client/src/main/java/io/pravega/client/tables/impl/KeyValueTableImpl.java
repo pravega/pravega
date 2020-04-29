@@ -26,7 +26,6 @@ import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -58,7 +57,7 @@ import org.apache.commons.lang3.SerializationException;
 public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, ValueT>, AutoCloseable {
     //region Members
 
-    private static final Serializer<String> KEY_FAMILY_SERIALIZER = new KeyFamilySerializer();
+    private static final KeyFamilySerializer KEY_FAMILY_SERIALIZER = new KeyFamilySerializer();
     private final KeyValueTableInfo kvt;
     private final Serializer<KeyT> keySerializer;
     private final Serializer<ValueT> valueSerializer;
@@ -342,15 +341,14 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     }
 
     private ByteBuf serializeKey(String keyFamily, KeyT k) {
-        ByteBuf keyFamilySerialization = Unpooled.wrappedBuffer(KEY_FAMILY_SERIALIZER.serialize(keyFamily));
+        ByteBuf keyFamilySerialization = KEY_FAMILY_SERIALIZER.serialize(keyFamily);
         ByteBuf keySerialization = Unpooled.wrappedBuffer(this.keySerializer.serialize(k));
         return Unpooled.wrappedBuffer(keyFamilySerialization, keySerialization);
     }
 
     private DeserializedKey deserializeKey(ByteBuf keySerialization) {
-        ByteBuffer buf = keySerialization.nioBuffer();
-        String keyFamily = KEY_FAMILY_SERIALIZER.deserialize(buf);
-        KeyT key = this.keySerializer.deserialize(buf);
+        String keyFamily = KEY_FAMILY_SERIALIZER.deserialize(keySerialization);
+        KeyT key = this.keySerializer.deserialize(keySerialization.nioBuffer());
         keySerialization.release();
         return new DeserializedKey(key, keyFamily);
     }
