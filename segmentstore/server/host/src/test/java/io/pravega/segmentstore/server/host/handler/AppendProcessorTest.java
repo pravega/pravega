@@ -88,6 +88,7 @@ import static org.mockito.Mockito.when;
 public class AppendProcessorTest extends ThreadPooledTestSuite {
     private final long requestId = 1L;
 
+    @Override
     protected int getThreadPoolSize() {
         return 2;
     }

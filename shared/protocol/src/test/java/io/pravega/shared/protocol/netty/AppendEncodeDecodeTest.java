@@ -17,8 +17,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.EventExecutorGroup;
 import io.netty.util.concurrent.Future;
@@ -28,6 +26,7 @@ import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -44,7 +43,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -58,7 +56,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(MockitoJUnitRunner.class)
-public class AppendEncodeDecodeTest {
+public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
 
     private final int appendBlockSize = 1024;  
     private final UUID writerId = new UUID(1, 2);
@@ -67,7 +65,6 @@ public class AppendEncodeDecodeTest {
     private final CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
     private final FakeLengthDecoder lengthDecoder = new FakeLengthDecoder();
     private final AppendDecoder appendDecoder = new AppendDecoder();
-    private Level origionalLogLevel;
 
     private EventExecutor executor = new EventExecutor() {
         private final ScheduledExecutorService scheduler  = Executors.newSingleThreadScheduledExecutor();
@@ -234,13 +231,6 @@ public class AppendEncodeDecodeTest {
         Mockito.when(ctx.executor()).thenReturn(executor);
         idBatchSizeTrackerMap.put(0L, new FixedBatchSizeTracker(appendBlockSize));
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        origionalLogLevel = ResourceLeakDetector.getLevel();
-        ResourceLeakDetector.setLevel(Level.PARANOID);
-    }
-
-    @After
-    public void teardown() {
-        ResourceLeakDetector.setLevel(origionalLogLevel);
     }
 
     @RequiredArgsConstructor
