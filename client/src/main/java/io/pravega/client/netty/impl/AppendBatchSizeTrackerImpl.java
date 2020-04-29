@@ -31,9 +31,9 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private static final int MAX_BATCH_TIME_MILLIS = 100;
     private static final double NANOS_PER_MILLI = 1000000;
     
-    private static final int BASE_TIME_NANOS = 660000;
-    private static final int BASE_SIZE = 32 * 1024;
-    private static final double OUTSTANDING_FRACTION = 0.66;
+    private static final int BASE_TIME_NANOS = 0;
+    private static final int BASE_SIZE = 0;
+    private static final double OUTSTANDING_FRACTION = 0.5;
     
     private final Supplier<Long> clock;
     private final AtomicLong lastAppendNumber;
