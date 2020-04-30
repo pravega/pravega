@@ -12,6 +12,8 @@ package io.pravega.common.concurrent;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -19,9 +21,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -535,6 +535,27 @@ public class FuturesTests {
                 "Unexpected completion for failed future whose handler also threw an exception.",
                 () -> f3,
                 ex -> ex instanceof IntentionalException);
+    }
+
+    @Test
+    public void testOnTimeoutWithCallback() {
+        AtomicInteger count = new AtomicInteger(0);
+        val timeoutFuture = new CompletableFuture<Integer>();
+        val executor = Executors.newScheduledThreadPool(1);
+        Futures.onTimeout(timeoutFuture, Duration.ofSeconds(0), executor, (e) -> count.getAndIncrement());
+        executor.shutdown();
+        try {
+            executor.awaitTermination(10, TimeUnit.SECONDS);
+        } catch (Exception e){
+            Assert.fail();
+        }
+        Assert.assertTrue(executor.isShutdown());
+        Assert.assertTrue(timeoutFuture.isCompletedExceptionally());
+        AssertExtensions.assertSuppliedFutureThrows(
+                "timeout future should fail with TimeoutException",
+                () -> timeoutFuture,
+                ex -> ex instanceof TimeoutException);
+        Assert.assertEquals(count.get(), 1);
     }
 
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {
