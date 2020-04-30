@@ -540,9 +540,17 @@ public class FuturesTests {
     @Test
     public void testOnTimeoutWithCallback() {
         AtomicInteger count = new AtomicInteger(0);
-        val timeoutFuture = new CompletableFuture<Integer>();
+
+        // 1. Verify when future completes successfully, the callback is not called.
+        val successfulFuture = new CompletableFuture<Integer>();
         val executor = Executors.newScheduledThreadPool(1);
-        Futures.onTimeout(timeoutFuture, Duration.ofSeconds(0), executor, (e) -> count.getAndIncrement());
+        Futures.onTimeout(successfulFuture, Duration.ofSeconds(1), executor, (e) -> count.getAndIncrement());
+        successfulFuture.complete(0);
+        Assert.assertEquals(count.get(), 0);
+
+        // 2. Verify after timeout the attached callback is actually called
+        val failedFuture = new CompletableFuture<Integer>();
+        Futures.onTimeout(failedFuture, Duration.ofSeconds(0), executor, (e) -> count.getAndIncrement());
         executor.shutdown();
         try {
             executor.awaitTermination(10, TimeUnit.SECONDS);
@@ -550,10 +558,10 @@ public class FuturesTests {
             Assert.fail();
         }
         Assert.assertTrue(executor.isShutdown());
-        Assert.assertTrue(timeoutFuture.isCompletedExceptionally());
+        Assert.assertTrue(failedFuture.isCompletedExceptionally());
         AssertExtensions.assertSuppliedFutureThrows(
                 "timeout future should fail with TimeoutException",
-                () -> timeoutFuture,
+                () -> failedFuture,
                 ex -> ex instanceof TimeoutException);
         Assert.assertEquals(count.get(), 1);
     }
