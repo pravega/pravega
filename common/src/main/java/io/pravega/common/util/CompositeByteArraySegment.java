@@ -21,6 +21,7 @@ import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import lombok.Getter;
 import lombok.NonNull;
@@ -215,6 +216,21 @@ public class CompositeByteArraySegment implements CompositeArrayView {
         int length = Math.min(this.length, target.remaining());
         collect(target::put, length);
         return length;
+    }
+
+    @Override
+    public List<ByteBuffer> getContents() {
+        ArrayList<ByteBuffer> result = new ArrayList<>();
+        for (int i = 0; i < this.arrays.length; i++) {
+            byte[] a = getArray(i, false);
+            if (a == null) {
+                int size = i == this.arrays.length - 1 ? this.length % this.arraySize : this.arraySize;
+                result.add(ByteBuffer.allocate(size));
+            } else {
+                result.add(ByteBuffer.wrap(a));
+            }
+        }
+        return result;
     }
 
     //endregion
