@@ -30,6 +30,8 @@ import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 
+import static io.pravega.common.io.serialization.RevisionDataOutput.COMPACT_LONG_MAX;
+
 @EqualsAndHashCode(callSuper = false)
 public class PositionImpl extends PositionInternal {
 
@@ -53,7 +55,7 @@ public class PositionImpl extends PositionInternal {
     }
     
     @Builder(builderClassName = "PositionBuilder")
-    private PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges) {
+    PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges) {
         this.ownedSegments = ownedSegments;
         if (segmentRanges == null) {
             this.segmentRanges = Collections.emptyMap();
@@ -128,14 +130,28 @@ public class PositionImpl extends PositionInternal {
         }
 
         private void read00(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
-            Map<Segment, Long> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), RevisionDataInput::readCompactLong);
+            Map<Segment, Long> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), in -> {
+                long offset = in.readCompactLong();
+                if (offset == COMPACT_LONG_MAX) {
+                    return -1L;
+                } else {
+                    return offset;
+                }
+            });
             builder.ownedSegments(map);
         }
 
         private void write00(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
+            // Note: the older client does not serialize if the offset has -1L as value.
             Map<Segment, Long> map = position.getOwnedSegmentsWithOffsets();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
-                                        (out, offset) -> out.writeCompactLong(offset));
+                                        (out, offset) -> {
+                                            if (offset < 0) {
+                                                out.writeCompactLong(COMPACT_LONG_MAX);
+                                            } else {
+                                                out.writeCompactLong(offset);
+                                            }
+                                        });
         }
         
         private void read01(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
@@ -147,7 +163,7 @@ public class PositionImpl extends PositionInternal {
             Map<Segment, Range> map = position.segmentRanges;
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializer::writeRange);
         }
-        
+
         private static void writeRange(RevisionDataOutput out, Range range) throws IOException {
             double low, high;
             if (range == null) {
@@ -174,7 +190,7 @@ public class PositionImpl extends PositionInternal {
         ByteArraySegment serialized = SERIALIZER.serialize(this);
         return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
     }
-    
+
     @SneakyThrows(IOException.class)
     public static Position fromBytes(ByteBuffer buff) {
         return SERIALIZER.deserialize(new ByteArraySegment(buff));
