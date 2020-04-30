@@ -21,7 +21,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -544,17 +549,17 @@ public class FuturesTests {
         // 1. Verify when future completes successfully, the callback is not called.
         val successfulFuture = new CompletableFuture<Integer>();
         val executor = Executors.newScheduledThreadPool(1);
-        Futures.onTimeout(successfulFuture, Duration.ofSeconds(1), executor, (e) -> count.getAndIncrement());
+        Futures.onTimeout(successfulFuture, Duration.ofSeconds(1), executor, e -> count.getAndIncrement());
         successfulFuture.complete(0);
         Assert.assertEquals(count.get(), 0);
 
         // 2. Verify after timeout the attached callback is actually called
         val failedFuture = new CompletableFuture<Integer>();
-        Futures.onTimeout(failedFuture, Duration.ofSeconds(0), executor, (e) -> count.getAndIncrement());
+        Futures.onTimeout(failedFuture, Duration.ofSeconds(0), executor, e -> count.getAndIncrement());
         executor.shutdown();
         try {
             executor.awaitTermination(10, TimeUnit.SECONDS);
-        } catch (Exception e){
+        } catch (Exception e) {
             Assert.fail();
         }
         Assert.assertTrue(executor.isShutdown());
