@@ -9,9 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableInfo;
@@ -53,7 +50,6 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final String SCOPE = "Scope";
     private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder().partitionCount(5).build();
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private ResourceLeakDetector.Level originalLevel;
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
     private PravegaConnectionListener serverListener;
@@ -64,9 +60,6 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     @Before
     public void setup() throws Exception {
         super.setup();
-        this.originalLevel = ResourceLeakDetector.getLevel();
-        ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.PARANOID);
-        InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.initialize();
         this.tableStore = this.serviceBuilder.createTableStoreService();
@@ -86,7 +79,6 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         this.connectionFactory.close();
         this.serverListener.close();
         this.serviceBuilder.close();
-        ResourceLeakDetector.setLevel(this.originalLevel);
     }
 
     /**

@@ -20,7 +20,7 @@ import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.ThreadPooledTestSuite;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,7 +45,7 @@ import org.junit.Test;
  * and currently applies both to {@link KeyValueTableImplTests} (using mocked Controller and Segment Store) and
  * `io.pravega.test.integration.KeyValueTableImplTests` (using real Segment Store and Wire Protocol).
  */
-public abstract class KeyValueTableTestBase extends ThreadPooledTestSuite {
+public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
     //region Members
 
     protected static final String NULL_KEY_FAMILY = "[NULL]"; // Used for HashMap keys.
