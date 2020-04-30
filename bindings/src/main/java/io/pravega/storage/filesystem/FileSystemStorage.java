@@ -192,9 +192,6 @@ public class FileSystemStorage implements SyncStorage {
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "OS_OPEN_STREAM", justification = "Rare operation. The leaked object is collected by GC. In case of a iteraror in a for loop this would be fast.")
     @Override
     public Iterator<SegmentProperties> listSegments() {
-        if (log.isDebugEnabled()) {
-            log.debug("config.getRoot() {}", config.getRoot());
-        }
         try {
             return Files.find(Paths.get(config.getRoot()),
                     Integer.MAX_VALUE,

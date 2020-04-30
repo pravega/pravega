@@ -9,7 +9,6 @@
  */
 package io.pravega.storage.hdfs;
 
-import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
@@ -30,10 +29,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
@@ -283,61 +280,6 @@ public class HDFSStorageTest extends StorageTestBase {
             // Not exists.
             Assert.assertFalse("Unexpected result for missing segment (no files).", s.exists("nonexistent", null).join());
         }
-    }
-
-    /**
-     * Tests the ability to list Segments.
-     * @throws Exception if an unexpected error occurred.
-     */
-    @Test
-    public void testListSegmentsWithSeal() throws Exception {
-        HDFSStorage hdfsStorage = new HDFSStorage(adapterConfig);
-        Set<String> sealedSegments = new HashSet<>();
-        hdfsStorage.initialize(1);
-        int expectedCount = 5;
-        byte[] data = "data".getBytes();
-        for (int i = 0; i < expectedCount; i++) {
-            String segmentName = "segment-" + i;
-            SegmentHandle wh1 = hdfsStorage.create(segmentName);
-            // Write data.
-            hdfsStorage.write(wh1, 0, new ByteArrayInputStream(data), data.length);
-            if (i == 0) {
-                hdfsStorage.seal(wh1);
-                sealedSegments.add(segmentName);
-            }
-        }
-        Iterator<SegmentProperties> it = hdfsStorage.listSegments();
-        int actualCount = 0;
-        while (it.hasNext()) {
-            SegmentProperties curr = it.next();
-            ++actualCount;
-        }
-        Assert.assertEquals(actualCount, expectedCount);
-    }
-
-    /**
-     * Tests listSegments() on deleting some segments.
-     *
-     * @throws Exception if an unexpected error occurred.
-     */
-    @Test
-    public void testListSegmentsWithDeletes() throws Exception {
-        HDFSStorage hdfsStorage = new HDFSStorage(adapterConfig);
-        Set<String> deletedSegments = new HashSet<>();
-        hdfsStorage.initialize(1);
-        int expectedCount = 5;
-        for (int i = 0; i < expectedCount; i++) {
-            String segmentName = "segment-" + i;
-            SegmentHandle wh1 = hdfsStorage.create(segmentName);
-            // Write data.
-            if (i == 0) {
-                hdfsStorage.delete(wh1);
-                deletedSegments.add(segmentName);
-            }
-        }
-        Iterator<SegmentProperties> it = hdfsStorage.listSegments();
-        expectedCount -= deletedSegments.size();
-        Assert.assertEquals(expectedCount, Iterators.size(it));
     }
 
     /**

@@ -52,7 +52,7 @@ public class RollingStorageSegmentIteratorMockTests {
         testRollingStorageSegmentIterator.current = new SegmentProperties() {
             @Override
             public String getName() {
-                return "x$header";
+                return "x$header"; // A dummy name to pass the Precondition check.
             }
 
             @Override
