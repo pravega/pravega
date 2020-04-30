@@ -605,7 +605,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 .thenAcceptAsync(inputData -> {
                     // Parse out all Table Keys and collect their latest offsets, as well as whether they were deleted.
                     val updates = new TailUpdates(sorted);
-                    collectLatestOffsets(inputStream, lastIndexedOffset, (int) tailIndexLength, updates);
+                    collectLatestOffsets(inputData, lastIndexedOffset, (int) tailIndexLength, updates);
 
                     // Incorporate that into the cache.
                     this.cache.includeTailCache(segment.getSegmentId(), updates.byBucket);
