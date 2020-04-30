@@ -9,9 +9,9 @@
  */
 package io.pravega.segmentstore.storage.rolling;
 
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamingException;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
@@ -24,9 +24,7 @@ import org.mockito.Mockito;
 
 import java.time.Duration;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -49,42 +47,9 @@ public class RollingStorageSegmentIteratorMockTests {
                 null);
         val baseStorage = new InMemoryStorage();
         testRollingStorageSegmentIterator.instance = Mockito.spy(new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY));
-        testRollingStorageSegmentIterator.current = new SegmentProperties() {
-            @Override
-            public String getName() {
-                return "x$header"; // A dummy name to pass the Precondition check.
-            }
-
-            @Override
-            public boolean isSealed() {
-                return false;
-            }
-
-            @Override
-            public boolean isDeleted() {
-                return false;
-            }
-
-            @Override
-            public ImmutableDate getLastModified() {
-                return null;
-            }
-
-            @Override
-            public long getStartOffset() {
-                return 0;
-            }
-
-            @Override
-            public long getLength() {
-                return 0;
-            }
-
-            @Override
-            public Map<UUID, Long> getAttributes() {
-                return null;
-            }
-        };
+        testRollingStorageSegmentIterator.current = StreamSegmentInformation.builder()
+                .name("x$header")
+                .build();
         Mockito.doThrow(mock(StreamSegmentException.class)).when(testRollingStorageSegmentIterator.instance).openHandle(anyString(), anyBoolean());
         boolean caughtException = false;
         try {
