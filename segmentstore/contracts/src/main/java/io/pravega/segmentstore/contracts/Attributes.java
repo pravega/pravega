@@ -32,7 +32,7 @@ public class Attributes {
     /**
      * When used as an Attribute Value for a Boolean-like attribute, indicates a value equivalent to {@link Boolean#FALSE}.
      */
-    public static final long BOOLEAN_FALSE= 0L;
+    public static final long BOOLEAN_FALSE = 0L;
 
     /**
      * The Attribute ID at which Table Attributes can begin at. Everything with an ID smaller than this is a general
