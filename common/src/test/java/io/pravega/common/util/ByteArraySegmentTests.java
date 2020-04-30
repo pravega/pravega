@@ -18,6 +18,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -255,6 +256,18 @@ public class ByteArraySegmentTests {
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment.", segment.slice(0, 1).isReadOnly());
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment (when attempting to create a non-read-only segment).", segment.subSegment(0, 1, false).isReadOnly());
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment.", new ByteArraySegment(buffer).subSegment(0, 1, true).isReadOnly());
+    }
+
+    @Test
+    public void testGetContents() {
+        final byte[] buffer = createFormattedBuffer();
+        val segment = new ByteArraySegment(buffer, 1, buffer.length - 3, true);
+        val contents = segment.getContents();
+        Assert.assertEquals(1, contents.size());
+        val b = contents.get(0);
+        Assert.assertEquals(segment.getLength(), b.remaining());
+        AssertExtensions.assertArrayEquals("", segment.array(), segment.arrayOffset(),
+                b.array(), b.arrayOffset() + b.position(), b.remaining());
     }
 
     private void checkReadOnlyException(String methodName, AssertExtensions.RunnableWithException code) {
