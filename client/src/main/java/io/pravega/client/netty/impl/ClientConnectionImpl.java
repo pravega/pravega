@@ -19,6 +19,7 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
+import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -64,9 +65,12 @@ public class ClientConnectionImpl implements ClientConnection {
         checkClientConnectionClosed();
         nettyHandler.setRecentMessage();
         write(append);
-        nettyHandler.getMetricNotifier()
+        // Monitoring appends has a performance cost (e.g., split strings); only do that if we configure a metric notifier.
+        if (!nettyHandler.getMetricNotifier().equals(MetricNotifier.NO_OP_METRIC_NOTIFIER)) {
+            nettyHandler.getMetricNotifier()
                     .updateSuccessMetric(CLIENT_APPEND_LATENCY, segmentTags(append.getSegment(), append.getWriterId().toString()),
-                                         timer.getElapsedMillis());
+                            timer.getElapsedMillis());
+        }
     }
 
     private void write(Append cmd) throws ConnectionFailedException {

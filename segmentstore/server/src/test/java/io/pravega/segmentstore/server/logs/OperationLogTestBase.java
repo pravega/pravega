@@ -12,12 +12,12 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.collect.Iterators;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -276,13 +276,13 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
             ReadResult readResult = readIndex.read(e.getKey(), 0, expectedLength, TIMEOUT);
             int readLength = 0;
             while (readResult.hasNext()) {
-                ReadResultEntryContents entry = readResult.next().getContent().join();
+                BufferView entry = readResult.next().getContent().join();
                 int length = entry.getLength();
                 readLength += length;
                 int streamSegmentOffset = expectedLengths.getOrDefault(e.getKey(), 0);
                 expectedLengths.put(e.getKey(), streamSegmentOffset + length);
                 AssertExtensions.assertStreamEquals(String.format("Unexpected data returned from ReadIndex. StreamSegmentId = %d, Offset = %d.",
-                        e.getKey(), streamSegmentOffset), e.getValue(), entry.getData(), length);
+                        e.getKey(), streamSegmentOffset), e.getValue(), entry.getReader(), length);
             }
 
             Assert.assertEquals("Not enough bytes were read from the ReadIndex for StreamSegment " + e.getKey(), expectedLength, readLength);
