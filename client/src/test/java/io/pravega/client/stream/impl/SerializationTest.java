@@ -124,7 +124,11 @@ public class SerializationTest {
         }
 
         public PositionImpl getPostionImpl() {
+<<<<<<< HEAD
             return new PositionImpl(ownedSegments, segmentRanges, null);
+=======
+            return new PositionImpl(ownedSegments, segmentRanges);
+>>>>>>> Issue 4669: (Bugfix) Fix serialization in PositionImpl. (#4746)
         }
     }
 

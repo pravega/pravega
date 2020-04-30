@@ -33,6 +33,10 @@ import lombok.SneakyThrows;
 
 import static io.pravega.common.io.serialization.RevisionDataOutput.COMPACT_LONG_MAX;
 
+<<<<<<< HEAD
+=======
+@EqualsAndHashCode(callSuper = false)
+>>>>>>> Issue 4669: (Bugfix) Fix serialization in PositionImpl. (#4746)
 public class PositionImpl extends PositionInternal {
 
     private static final PositionSerializer SERIALIZER = new PositionSerializer();
@@ -76,10 +80,15 @@ public class PositionImpl extends PositionInternal {
      *                                   build the internal state of the object.
      */
     @Builder(builderClassName = "PositionBuilder")
+<<<<<<< HEAD
     PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges, List<Entry<Segment, Long>> updatesToSegmentOffsets) {
         this.ownedSegments = Collections.unmodifiableMap(ownedSegments);
         this.updatesToSegmentOffsets = (updatesToSegmentOffsets != null) ? Collections.unmodifiableList(updatesToSegmentOffsets) : null;
         this.version = (updatesToSegmentOffsets != null) ? updatesToSegmentOffsets.size() : 0;
+=======
+    PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges) {
+        this.ownedSegments = ownedSegments;
+>>>>>>> Issue 4669: (Bugfix) Fix serialization in PositionImpl. (#4746)
         if (segmentRanges == null) {
             this.segmentRanges = Collections.emptyMap();
         } else {
