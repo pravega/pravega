@@ -17,7 +17,6 @@ import com.emc.object.s3.bean.AccessControlList;
 import com.emc.object.s3.bean.CanonicalUser;
 import com.emc.object.s3.bean.CopyPartResult;
 import com.emc.object.s3.bean.Grant;
-import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
@@ -40,6 +39,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
+
+import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.SortedSet;
@@ -263,18 +264,10 @@ public class ExtendedS3Storage implements SyncStorage {
 
     private boolean doExists(String streamSegmentName) {
         try {
-            ListObjectsResult result = client.listObjects(config.getBucket(), config.getPrefix() + streamSegmentName);
-            return !result.getObjects().isEmpty();
+            S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(),
+                    config.getPrefix() + streamSegmentName);
+            return true;
         } catch (S3Exception e) {
-            /*
-             * TODO: This implementation is supporting both an empty list and a no such key
-             * exception to indicate that the segment doesn't exist. It is trying to be safe,
-             * but this is an indication that the behavior is not well understood. We need to
-             * investigate the exact behavior we should expect out of this call and react
-             * accordingly rather than guess.
-             *
-             * See https://github.com/pravega/pravega/issues/1559
-             */
             if ( e.getErrorCode().equals("NoSuchKey")) {
                 return false;
             } else {
@@ -395,23 +388,57 @@ public class ExtendedS3Storage implements SyncStorage {
      * completeMultiPartUpload call. Specifically, to concatenate, we are copying the target segment T and the
      * source segment S to T, so essentially we are doing T <- T + S.
      */
-    private Void doConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentNotExistsException {
+    private Void doConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws Exception {
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "target handle must not be read-only.");
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(), offset, sourceSegment);
         Timer timer = new Timer();
-        SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
-        String targetPath = config.getPrefix() + targetHandle.getSegmentName();
-        String uploadId = client.initiateMultipartUpload(config.getBucket(), targetPath);
 
+        String targetPath = config.getPrefix() + targetHandle.getSegmentName();
         // check whether the target exists
         if (!doExists(targetHandle.getSegmentName())) {
             throw new StreamSegmentNotExistsException(targetHandle.getSegmentName());
         }
         // check whether the source is sealed
         SegmentProperties si = doGetStreamSegmentInfo(sourceSegment);
+        String sourcePath = config.getPrefix() + sourceSegment;
         Preconditions.checkState(si.isSealed(), "Cannot concat segment '%s' into '%s' because it is not sealed.",
                 sourceSegment, targetHandle.getSegmentName());
 
+        if (config.getSmallObjectSizeLimitForConcat() < si.getLength()) {
+            doConcatWithMultipartUpload(targetPath, sourceSegment, offset);
+            ExtendedS3Metrics.LARGE_CONCAT_COUNT.inc();
+        } else {
+            doConcatWithAppend(targetPath, sourcePath, offset, si.getLength());
+        }
+        // Now delete the source object.
+        client.deleteObject(config.getBucket(), sourcePath);
+
+        Duration elapsed = timer.getElapsed();
+        log.debug("Concat target={} source={} offset={} bytesWritten={} latency={}.", targetHandle.getSegmentName(), sourceSegment, offset, si.getLength(), elapsed.toMillis());
+
+        ExtendedS3Metrics.CONCAT_LATENCY.reportSuccessEvent(elapsed);
+        ExtendedS3Metrics.CONCAT_BYTES.add(si.getLength());
+        ExtendedS3Metrics.CONCAT_COUNT.inc();
+
+        LoggerHelpers.traceLeave(log, "concat", traceId);
+
+        return null;
+    }
+
+    private void doConcatWithAppend(String targetPath, String sourcePath, long offset, long length) throws Exception {
+        try (InputStream reader = client.readObjectStream(config.getBucket(),
+                sourcePath, Range.fromOffsetLength(0, length))) {
+            client.putObject(this.config.getBucket(),
+                    targetPath,
+                    Range.fromOffsetLength(offset, length),
+                    new BufferedInputStream(reader, Math.toIntExact(length)));
+        }
+    }
+
+    private void doConcatWithMultipartUpload(String targetPath, String sourceSegment, long offset) {
+        String uploadId = client.initiateMultipartUpload(config.getBucket(), targetPath);
+
+        SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
         //Copy the first part
         CopyPartRequest copyRequest = new CopyPartRequest(config.getBucket(),
                 targetPath,
@@ -441,19 +468,6 @@ public class ExtendedS3Storage implements SyncStorage {
         //Close the upload
         client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getBucket(),
                 targetPath, uploadId).withParts(partEtags));
-
-        client.deleteObject(config.getBucket(), config.getPrefix() + sourceSegment);
-        Duration elapsed = timer.getElapsed();
-
-        log.debug("Concat target={} source={} offset={} bytesWritten={} latency={}.", targetHandle.getSegmentName(), sourceSegment, offset, si.getLength(), elapsed.toMillis());
-
-        ExtendedS3Metrics.CONCAT_LATENCY.reportSuccessEvent(elapsed);
-        ExtendedS3Metrics.CONCAT_BYTES.add(si.getLength());
-        ExtendedS3Metrics.CONCAT_COUNT.inc();
-
-        LoggerHelpers.traceLeave(log, "concat", traceId);
-
-        return null;
     }
 
     private Void doDelete(SegmentHandle handle) {

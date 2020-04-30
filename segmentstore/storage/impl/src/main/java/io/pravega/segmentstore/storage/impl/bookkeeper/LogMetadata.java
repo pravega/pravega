@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -39,23 +40,27 @@ class LogMetadata implements ReadOnlyLogMetadata {
     /**
      * The initial epoch to use for the Log.
      */
-    private static final long INITIAL_EPOCH = 1;
+    @VisibleForTesting
+    static final long INITIAL_EPOCH = 1;
 
     /**
      * The initial version for the metadata (for an empty log). Every time the metadata is persisted, its version is incremented.
      */
-    private static final int INITIAL_VERSION = -1;
+    @VisibleForTesting
+    static final int INITIAL_VERSION = -1;
 
     /**
      * Sequence number of the first ledger in the log.
      */
-    private static final int INITIAL_LEDGER_SEQUENCE = 1;
+    @VisibleForTesting
+    static final int INITIAL_LEDGER_SEQUENCE = 1;
 
     /**
      * A LogAddress to be used when the log is not truncated (initially). Setting all values to 0 is OK as BookKeeper never
      * has a LedgerId that is 0, so this will never overlap with the first entry in the log.
      */
-    private static final LedgerAddress INITIAL_TRUNCATION_ADDRESS = new LedgerAddress(INITIAL_LEDGER_SEQUENCE - 1, 0, 0);
+    @VisibleForTesting
+    static final LedgerAddress INITIAL_TRUNCATION_ADDRESS = new LedgerAddress(INITIAL_LEDGER_SEQUENCE - 1, 0, 0);
 
     /**
      * The current epoch of the metadata. The epoch is incremented upon every successful recovery (as opposed from version,

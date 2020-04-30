@@ -11,6 +11,10 @@ package io.pravega.common.util;
 
 import java.nio.ByteBuffer;
 
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Defines a generic read-only view of an index-based, array-like structure.
  */
@@ -59,5 +63,10 @@ public interface ArrayView extends BufferView {
      */
     default ByteBuffer asByteBuffer() {
         return ByteBuffer.wrap(array(), arrayOffset(), getLength());
+    }
+
+    @Override
+    default List<ByteBuffer> getContents() {
+        return Collections.singletonList(asByteBuffer());
     }
 }
