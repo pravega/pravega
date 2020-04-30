@@ -10,14 +10,12 @@
 package io.pravega.segmentstore.contracts;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.common.io.StreamHelpers;
-import java.io.IOException;
-import java.io.InputStream;
+import io.pravega.common.util.BufferView;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import lombok.SneakyThrows;
 
 /**
  * Represents a Read Result from a Stream Segment. This is essentially an Iterator over smaller, continuous ReadResultEntries.
@@ -92,7 +90,6 @@ public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
      * @return The number of bytes read.
      */
     @VisibleForTesting
-    @SneakyThrows(IOException.class)
     default int readRemaining(byte[] target, Duration fetchTimeout) {
         int bytesRead = 0;
         while (hasNext() && bytesRead < target.length) {
@@ -104,25 +101,25 @@ public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
                 entry.requestContent(fetchTimeout);
             }
 
-            ReadResultEntryContents contents = entry.getContent().join();
-            StreamHelpers.readAll(contents.getData(), target, bytesRead, Math.min(contents.getLength(), target.length - bytesRead));
-            bytesRead += contents.getLength();
+            BufferView contents = entry.getContent().join();
+            int copied = contents.copyTo(ByteBuffer.wrap(target, bytesRead, Math.min(contents.getLength(), target.length - bytesRead)));
+            bytesRead += copied;
         }
 
         return bytesRead;
     }
 
     /**
-     * Reads the remaining contents of the ReadResult and returns an ordered List of InputStreams that contain its contents.
+     * Reads the remaining contents of the ReadResult and returns a list of {@link BufferView}s that contain its contents.
      * This will stop when either the given maximum length or the end of the ReadResult has been reached.
      *
      * @param maxLength    The maximum number of bytes to read.
      * @param fetchTimeout A timeout to use when needing to fetch the contents of an entry that is not in the Cache.
-     * @return A List containing InputStreams with the data read.
+     * @return A list of {@link BufferView}s with the data read.
      */
-    default List<InputStream> readRemaining(int maxLength, Duration fetchTimeout) {
+    default List<BufferView> readRemaining(int maxLength, Duration fetchTimeout) {
         int bytesRead = 0;
-        ArrayList<InputStream> result = new ArrayList<>();
+        ArrayList<BufferView> result = new ArrayList<>();
         while (hasNext() && bytesRead < maxLength) {
             ReadResultEntry entry = next();
             if (entry.getType() == ReadResultEntryType.EndOfStreamSegment || entry.getType() == ReadResultEntryType.Future) {
@@ -131,7 +128,7 @@ public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
             } else if (!entry.getContent().isDone()) {
                 entry.requestContent(fetchTimeout);
             }
-            result.add(entry.getContent().join().getData());
+            result.add(entry.getContent().join());
         }
         return result;
     }

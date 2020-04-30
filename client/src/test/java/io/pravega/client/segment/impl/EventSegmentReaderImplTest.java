@@ -12,6 +12,7 @@ package io.pravega.client.segment.impl;
 
 
 import io.pravega.shared.protocol.netty.WireCommandType;
+import io.pravega.shared.protocol.netty.WireCommands;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -19,6 +20,7 @@ import org.junit.rules.Timeout;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -54,12 +56,11 @@ public class EventSegmentReaderImplTest {
         // Setup Mocks
         SegmentInputStream segmentInputStream = mock(SegmentInputStream.class);
         EventSegmentReaderImpl segmentReader = new EventSegmentReaderImpl(segmentInputStream);
-        //return a value less than WireCommands.TYPE_PLUS_LENGTH_SIZE = 8 bytes.
         doAnswer(i -> {
             ByteBuffer headerReadingBuffer = i.getArgument(0);
             headerReadingBuffer.putInt(WireCommandType.EVENT.getCode());
             headerReadingBuffer.putInt(10);
-            return 8;
+            return WireCommands.TYPE_PLUS_LENGTH_SIZE;
         }).when(segmentInputStream).read(any(ByteBuffer.class), eq(1000L));
         // simulate a timeout while reading the remaining data.
         when(segmentInputStream.read(any(ByteBuffer.class), eq(EventSegmentReaderImpl.PARTIAL_DATA_TIMEOUT))).thenReturn(0);
@@ -73,16 +74,36 @@ public class EventSegmentReaderImplTest {
     }
 
     @Test
+    public void testEventDataTimeoutZeroLength() throws SegmentTruncatedException, EndOfSegmentException {
+        // Setup Mocks
+        SegmentInputStream segmentInputStream = mock(SegmentInputStream.class);
+        EventSegmentReaderImpl segmentReader = new EventSegmentReaderImpl(segmentInputStream);
+        doAnswer(i -> {
+            ByteBuffer headerReadingBuffer = i.getArgument(0);
+            headerReadingBuffer.putInt(WireCommandType.EVENT.getCode());
+            headerReadingBuffer.putInt(0);
+            return WireCommands.TYPE_PLUS_LENGTH_SIZE;
+        }).when(segmentInputStream).read(any(ByteBuffer.class), eq(1000L));
+        // simulate a timeout while reading the remaining data.
+        when(segmentInputStream.read(any(ByteBuffer.class), eq(EventSegmentReaderImpl.PARTIAL_DATA_TIMEOUT))).thenReturn(0);
+        when(segmentInputStream.getSegmentId()).thenReturn(new Segment("scope", "stream", 0L));
+
+        // Invoke read.
+        ByteBuffer readData = segmentReader.read(1000);
+        assertEquals("Empty message received from Segment store", 0, readData.capacity());
+        verify(segmentInputStream, times(0)).setOffset(0);
+    }
+
+    @Test
     public void testEventDataPartialTimeout() throws SegmentTruncatedException, EndOfSegmentException {
         // Setup Mocks
         SegmentInputStream segmentInputStream = mock(SegmentInputStream.class);
         EventSegmentReaderImpl segmentReader = new EventSegmentReaderImpl(segmentInputStream);
-        //return a value less than WireCommands.TYPE_PLUS_LENGTH_SIZE = 8 bytes.
         doAnswer(i -> {
             ByteBuffer headerReadingBuffer = i.getArgument(0);
             headerReadingBuffer.putInt(WireCommandType.EVENT.getCode());
             headerReadingBuffer.putInt(10);
-            return 8;
+            return WireCommands.TYPE_PLUS_LENGTH_SIZE;
         }).when(segmentInputStream).read(any(ByteBuffer.class), eq(1000L));
         // simulate a partial read followed by timeout.
         doAnswer(i -> {

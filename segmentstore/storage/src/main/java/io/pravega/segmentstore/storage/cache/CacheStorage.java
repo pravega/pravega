@@ -19,6 +19,11 @@ import lombok.NonNull;
  */
 public interface CacheStorage extends AutoCloseable {
     /**
+     * Gets a value representing a "null" address.
+     */
+    int NO_ADDRESS = CacheLayout.NO_ADDRESS;
+
+    /**
      * Gets a value representing the size of one block. For efficiency purposes, it is highly recommended that all inserted
      * data align to this value (i.e., have a length that is a multiple of this value).
      *
@@ -109,10 +114,11 @@ public interface CacheStorage extends AutoCloseable {
     /**
      * Sets a callback that will be invoked during {@link #insert} if there is insufficient capacity to add more entries.
      *
-     * @param cacheFullCallback The callback to invoke. This should return `true` if a cache cleanup was performed, and
-     *                          `false` otherwise.
+     * @param cacheFullCallback    The callback to invoke. This should return `true` if a cache cleanup was performed, and
+     *                             `false` otherwise.
+     * @param retryDelayBaseMillis The amount of time to wait between retries if cacheFullCallback returns `false`.
      */
-    void setCacheFullCallback(@NonNull Supplier<Boolean> cacheFullCallback);
+    void setCacheFullCallback(@NonNull Supplier<Boolean> cacheFullCallback, int retryDelayBaseMillis);
 
     /**
      * Closes this {@link CacheStorage} instance and releases all resources used by it.
