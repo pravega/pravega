@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -26,7 +27,6 @@ import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.Storage;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -157,7 +157,7 @@ public class StorageWriterFactory implements WriterFactory {
         }
 
         @Override
-        public InputStream getAppendData(long streamSegmentId, long startOffset, int length) {
+        public BufferView getAppendData(long streamSegmentId, long startOffset, int length) {
             try {
                 return this.readIndex.readDirect(streamSegmentId, startOffset, length);
             } catch (StreamSegmentNotExistsException ex) {
