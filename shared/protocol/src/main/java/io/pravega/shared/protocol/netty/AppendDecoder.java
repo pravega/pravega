@@ -193,11 +193,6 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             }
         }
 
-        // Make a copy of the ByteBuf as the readable bytes of the result may be significantly less than the total allocated
-        // memory for this buffer. This problem is exacerbated with connection pooling where we may have a good amount of
-        // padding around each append. Since this Append ByteBuf is expected to live for as long as the Segment Store
-        // needs to process it, we need to compact this so that we don't use an excessive amount of heap memory which could
-        // lead to out-of-memory situations.
         return appendDataBuf;
     }
 

@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import lombok.Data;
 import org.junit.Test;
 
@@ -70,11 +72,23 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testAppendBlock() throws IOException {
         testCommand(new WireCommands.AppendBlock(uuid));
+
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.AppendBlock(uuid, buf),
+                WireCommands.AppendBlock::readFrom,
+                ab -> ab.getData().refCnt());
     }
 
     @Test
     public void testAppendBlockEnd() throws IOException {
         testCommand(new WireCommands.AppendBlockEnd(uuid, i, buf, i, i, l));
+
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.AppendBlockEnd(uuid, i, buf, i, i, l),
+                WireCommands.AppendBlockEnd::readFrom,
+                abe -> abe.getData().refCnt());
     }
 
     @Data
@@ -115,6 +129,12 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         ConditionalAppendV7 commandV7 = new ConditionalAppendV7(uuid, l, l, new Event(buf));
         commandV7.writeFields(new DataOutputStream(bout));
         testCommandFromByteArray(bout.toByteArray(), new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), -1));
+
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), -1),
+                WireCommands.ConditionalAppend::readFrom,
+                ce -> ce.getEvent().getData().refCnt());
     }
 
     @Test
@@ -518,34 +538,13 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testSegmentRead() throws IOException {
         testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buf, l));
-    }
 
-    @Test
-    public void testSegmentReadRelease() throws IOException {
-        // If we pass in the buffer ourselves, there should be no need to release.
-        int originalRefCnt = buf.refCnt();
-        WireCommands.SegmentRead sr = new WireCommands.SegmentRead(testString1, l, true, false, buf, l);
-        assertTrue(sr.isReleased());
-        sr.release();
-        assertEquals(originalRefCnt, buf.refCnt());
-        assertTrue(sr.isReleased());
-        sr.release(); // Do this again. The second time should have no effect.
-        assertEquals(originalRefCnt, buf.refCnt());
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.SegmentRead(testString1, l, true, false, buf, l),
+                WireCommands.SegmentRead::readFrom,
+                sr -> sr.getData().refCnt());
 
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        sr.writeFields(new DataOutputStream(bout));
-        ByteBuf buffer = Unpooled.wrappedBuffer(bout.toByteArray());
-        WireCommands.SegmentRead read = (WireCommands.SegmentRead) WireCommands.SegmentRead.readFrom(new EnhancedByteBufInputStream(buffer), bout.size());
-        assertEquals(2, read.getData().refCnt());
-        assertEquals(2, buffer.refCnt());
-        buffer.release();
-        assertEquals(1, read.getData().refCnt());
-        assertEquals(1, buffer.refCnt());
-        read.release();
-        assertEquals(0, read.getData().refCnt());
-        assertEquals(0, buffer.refCnt());
-        read.release(); // Do this again. The second time should have no effect.
-        assertEquals(0, buffer.refCnt());
     }
 
     @Test
@@ -797,7 +796,34 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         testCommand(cmd);
     }
 
+    @SuppressWarnings("unchecked")
+    private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(
+            Supplier<T> fromBuf, WireCommands.Constructor fromStream, Function<T, Integer> getRefCnt) throws IOException {
+        // If we pass in the buffer ourselves, there should be no need to release.
+        int originalRefCnt = buf.refCnt();
+        T command = fromBuf.get();
+        assertTrue(command.isReleased());
+        command.release();
+        assertEquals(originalRefCnt, buf.refCnt());
+        assertTrue(command.isReleased());
+        command.release(); // Do this again. The second time should have no effect.
+        assertEquals(originalRefCnt, buf.refCnt());
 
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        command.writeFields(new DataOutputStream(bout));
+        ByteBuf buffer = Unpooled.wrappedBuffer(bout.toByteArray());
+        T command2 = (T) fromStream.readFrom(new EnhancedByteBufInputStream(buffer), bout.size());
+        assertEquals(2, (int) getRefCnt.apply(command2));
+        assertEquals(2, buffer.refCnt());
+        buffer.release();
+        assertEquals(1, (int) getRefCnt.apply(command2));
+        assertEquals(1, buffer.refCnt());
+        command2.release();
+        assertEquals(0, (int) getRefCnt.apply(command2));
+        assertEquals(0, buffer.refCnt());
+        command2.release(); // Do this again. The second time should have no effect.
+        assertEquals(0, buffer.refCnt());
+    }
 
     private void testCommand(WireCommand command) throws IOException {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
