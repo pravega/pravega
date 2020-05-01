@@ -64,9 +64,6 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
     @Override
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, long length, boolean isSealed
             /*TODO: pass in generic params */) {
-        if (log.isDebugEnabled()) {
-            log.debug("createStreamSegment called for {}", streamSegmentName);
-        }
         StreamSegmentInformation segmentProp = StreamSegmentInformation.builder()
                 .name(streamSegmentName)
                 .length(length)
