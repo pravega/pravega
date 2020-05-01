@@ -63,7 +63,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Consumer;
 
 /**
  * Tests for DebugStreamSegmentContainer class.
@@ -163,8 +162,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         localContainer.stopAsync().awaitTerminated();
     }
 
-    private class MetadataCleanupContainer extends DebugStreamSegmentContainer {
-        private Consumer<Collection<String>> metadataCleanupFinishedCallback = null;
+    private static class MetadataCleanupContainer extends DebugStreamSegmentContainer {
         private final ScheduledExecutorService executor;
 
         MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
@@ -185,12 +183,12 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private class TestContext implements AutoCloseable {
         final SegmentContainerFactory containerFactory;
         final SegmentContainer container;
-        protected final WatchableInMemoryStorageFactory storageFactory;
-        protected final DurableDataLogFactory dataLogFactory;
+        private final WatchableInMemoryStorageFactory storageFactory;
+        private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
-        protected final ReadIndexFactory readIndexFactory;
-        protected final AttributeIndexFactory attributeIndexFactory;
-        protected final WriterFactory writerFactory;
+        private final ReadIndexFactory readIndexFactory;
+        private final AttributeIndexFactory attributeIndexFactory;
+        private final WriterFactory writerFactory;
         private final CacheStorage cacheStorage;
         private final CacheManager cacheManager;
         private final Storage storage;
