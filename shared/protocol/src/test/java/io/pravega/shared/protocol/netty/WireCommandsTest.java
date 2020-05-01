@@ -153,8 +153,19 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 () -> WireCommands.ConditionalAppend.readFrom(new EnhancedByteBufInputStream(buf), buf.capacity()),
                 t -> t instanceof EOFException);
         assertThrows("Unsupported operation",
-                     () -> cmd.process(mock(RequestProcessor.class)),
-                     t -> t instanceof UnsupportedOperationException);
+                () -> cmd.process(mock(RequestProcessor.class)),
+                t -> t instanceof UnsupportedOperationException);
+    }
+
+    @Test
+    public void testPartialEvent() throws IOException {
+        testCommand(new WireCommands.PartialEvent(buf));
+
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.PartialEvent(buf),
+                WireCommands.PartialEvent::readFrom,
+                pe -> pe.getData().refCnt());
     }
 
     @Test

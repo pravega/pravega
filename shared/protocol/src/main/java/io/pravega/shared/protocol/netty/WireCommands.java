@@ -804,7 +804,7 @@ public final class WireCommands {
             long offset = in.readLong();
             int suggestedLength = in.readInt();
             String delegationToken = in.readUTF();
-            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            long requestId = in.available()  >= Long.BYTES ? in.readLong() : -1L;
             return new ReadSegment(segment, offset, suggestedLength, delegationToken, requestId);
         }
 
