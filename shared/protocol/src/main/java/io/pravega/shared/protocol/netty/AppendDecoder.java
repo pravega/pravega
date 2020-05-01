@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
+import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -63,6 +64,25 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
 
     @VisibleForTesting
     public Request processCommand(WireCommand command) throws Exception {
+        try {
+            return processCommandInternal(command);
+        } catch (Throwable ex) {
+            // Clean up.
+            if (command instanceof WireCommands.ReleasableCommand) {
+                // Release whatever data the current command holds on to.
+                ((WireCommands.ReleasableCommand) command).release();
+            }
+
+            if (currentBlock != null) {
+                // Release the current block we were holding on to.
+                currentBlock.release();
+                currentBlock = null;
+            }
+            throw ex;
+        }
+    }
+
+    private Request processCommandInternal(WireCommand command) throws Exception {
         if (currentBlock != null && command.getType() != WireCommandType.APPEND_BLOCK_END) {
             log.warn("Invalid message received {}. CurrentBlock {}", command, currentBlock);
             throw new InvalidMessageException("Unexpected " + command.getType() + " following a append block.");
@@ -79,6 +99,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             result = append;
             break;
         case CONDITIONAL_APPEND:
+            @Cleanup("release") // We can release this when we're done as we're making a copy of its data.
             WireCommands.ConditionalAppend ca = (WireCommands.ConditionalAppend) command;
             segment = getSegment(ca.getWriterId());
             if (ca.getEventNumber() < segment.lastEventNumber) {
@@ -163,7 +184,8 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 // Work around a bug in netty:
                 // See https://github.com/netty/netty/issues/5597
                 if (appendDataBuf.readableBytes() == 0) {
-                    appendDataBuf.release();
+                    assert currentBlock.getData().readableBytes() == 0;
+                    currentBlock.release();
                     appendDataBuf = wrappedBuffer(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
                 } else {
                     appendDataBuf = wrappedBuffer(appendDataBuf, ((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
@@ -176,9 +198,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
         // padding around each append. Since this Append ByteBuf is expected to live for as long as the Segment Store
         // needs to process it, we need to compact this so that we don't use an excessive amount of heap memory which could
         // lead to out-of-memory situations.
-        ByteBuf result = appendDataBuf.copy();
-        appendDataBuf.release();
-        return result;
+        return appendDataBuf;
     }
 
     private Segment getSegment(UUID writerId) {

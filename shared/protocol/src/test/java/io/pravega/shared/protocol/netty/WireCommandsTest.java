@@ -10,7 +10,6 @@
 package io.pravega.shared.protocol.netty;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.test.common.LeakDetectorTestSuite;
@@ -127,12 +126,12 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
         // Invalid length scenario.
         assertThrows("Read with invalid buffer length.",
-                     () -> WireCommands.ConditionalAppend.readFrom(new ByteBufInputStream(wrappedBuffer(bytes)), 4),
-                     t -> t instanceof InvalidMessageException);
+                () -> WireCommands.ConditionalAppend.readFrom(new EnhancedByteBufInputStream(wrappedBuffer(bytes)), 4),
+                t -> t instanceof InvalidMessageException);
         // Invalid buffer data.
         assertThrows("Read with invalid data.",
-                     () -> WireCommands.ConditionalAppend.readFrom(new ByteBufInputStream(buf), buf.capacity()),
-                     t -> t instanceof EOFException);
+                () -> WireCommands.ConditionalAppend.readFrom(new EnhancedByteBufInputStream(buf), buf.capacity()),
+                t -> t instanceof EOFException);
         assertThrows("Unsupported operation",
                      () -> cmd.process(mock(RequestProcessor.class)),
                      t -> t instanceof UnsupportedOperationException);
@@ -526,8 +525,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         // If we pass in the buffer ourselves, there should be no need to release.
         int originalRefCnt = buf.refCnt();
         WireCommands.SegmentRead sr = new WireCommands.SegmentRead(testString1, l, true, false, buf, l);
-        assertFalse(sr.isMustRelease());
-        assertFalse(sr.isReleased());
+        assertTrue(sr.isReleased());
         sr.release();
         assertEquals(originalRefCnt, buf.refCnt());
         assertTrue(sr.isReleased());
@@ -538,7 +536,6 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         sr.writeFields(new DataOutputStream(bout));
         ByteBuf buffer = Unpooled.wrappedBuffer(bout.toByteArray());
         WireCommands.SegmentRead read = (WireCommands.SegmentRead) WireCommands.SegmentRead.readFrom(new EnhancedByteBufInputStream(buffer), bout.size());
-        assertTrue(read.isMustRelease());
         assertEquals(2, read.getData().refCnt());
         assertEquals(2, buffer.refCnt());
         buffer.release();
