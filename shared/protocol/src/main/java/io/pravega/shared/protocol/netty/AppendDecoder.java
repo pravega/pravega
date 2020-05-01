@@ -33,6 +33,9 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  * which must be an AppendBlockEnd.
  * The AppendBlockEnd command should have all of the information need to construct a single
  * Append object with all of the Events in the block.
+ * <p>
+ * The {@link #decode} method invokes {@link #processCommand(WireCommand)} to generate {@link Request} instances. Please
+ * refer to {@link #processCommand(WireCommand)} Javadoc for important information about returned objects.
  *
  * @see CommandEncoder For details about handling of PartialEvents
  */
@@ -62,8 +65,24 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
         }
     }
 
+    /**
+     * Processes inbound {@link WireCommand} instances and converts them to {@link Request} instances.
+     *
+     * @param command Inbound {@link WireCommand}. Supported types are: {@link WireCommandType#PADDING},
+     *                {@link WireCommandType#SETUP_APPEND}, {@link WireCommandType#CONDITIONAL_APPEND},
+     *                {@link WireCommandType#APPEND_BLOCK} and {@link WireCommandType#APPEND_BLOCK_END}.
+     * @return One of the following:
+     * - null if command type is {@link WireCommandType#PADDING} or {@link WireCommandType#APPEND_BLOCK}.
+     * - command if command type is A {@link WireCommandType#SETUP_APPEND}.
+     * - An {@link Append} instance for any other types. {@link Append#getData()} will be a {@link ByteBuf} that wraps
+     * one or more {@link ByteBuf}s that are part of the supplied command instance(s) and will have a {@link ByteBuf#refCnt()}
+     * at least equal to 1. It is very important that {@link Append#getData()}{@link ByteBuf#release()} is invoked on this
+     * instance when it is no longer needed so that any direct memory used by it can be properly freed.
+     * @throws InvalidMessageException If commands are received out of order or otherwise form an illegal Append.
+     * @throws IOException             If unable to read from the command's data buffer.
+     */
     @VisibleForTesting
-    public Request processCommand(WireCommand command) throws Exception {
+    Request processCommand(WireCommand command) throws InvalidMessageException, IOException {
         try {
             return processCommandInternal(command);
         } catch (Throwable ex) {
@@ -82,7 +101,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
         }
     }
 
-    private Request processCommandInternal(WireCommand command) throws Exception {
+    private Request processCommandInternal(WireCommand command) throws InvalidMessageException, IOException {
         if (currentBlock != null && command.getType() != WireCommandType.APPEND_BLOCK_END) {
             log.warn("Invalid message received {}. CurrentBlock {}", command, currentBlock);
             throw new InvalidMessageException("Unexpected " + command.getType() + " following a append block.");

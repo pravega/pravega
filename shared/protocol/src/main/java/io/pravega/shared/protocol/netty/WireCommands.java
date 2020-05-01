@@ -2189,18 +2189,31 @@ public final class WireCommands {
         @Getter
         private boolean released = true;
 
-        abstract void releaseInternal();
-
+        /**
+         * Marks the fact that this instance requires {@link #release()} to be invoked in order to free up resources.
+         *
+         * @return This instance.
+         */
         WireCommand requireRelease() {
             this.released = false;
             return this;
         }
 
+        /**
+         * Releases any resources used by this command, if needed ({@link #isReleased()} is false. This method has no
+         * effect if invoked multiple times or if no resource release is required.
+         */
         public void release() {
             if (!this.released) {
                 releaseInternal();
                 this.released = true;
             }
         }
+
+        /**
+         * Internal implementation of {@link #release()}. Do not invoke directly as this method offers no protection
+         * against multiple invocations.
+         */
+        abstract void releaseInternal();
     }
 }
