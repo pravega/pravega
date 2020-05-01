@@ -69,7 +69,7 @@ public class HDFSSegmentIteratorMockTests {
     }
 
     /**
-     * Tests the case ehrn patternMatchPredicate.test() method returns true.
+     * Tests the case when patternMatchPredicate.test() method returns true during the method under test execution.
      */
     @Test
     public void testHasNextPatternMatchPredicateReturnsTrue() {
@@ -83,7 +83,7 @@ public class HDFSSegmentIteratorMockTests {
      * Tests the scenario when RemoteIterator of FileStatus objects is null.
      */
     @Test
-    public void testHasNextNullResult() {
+    public void testHasNextNullRemoteIterator() {
         HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
                 HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(null, null);
         boolean hasNextValue = testHDFSStorageSegmentIterator.hasNext();

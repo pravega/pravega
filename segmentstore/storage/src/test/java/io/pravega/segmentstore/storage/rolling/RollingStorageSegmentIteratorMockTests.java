@@ -61,7 +61,7 @@ public class RollingStorageSegmentIteratorMockTests {
     }
 
     /**
-     * Tests when SegmentProperties is null.
+     * Tests when SegmentProperties is null during the method under test execution.
      */
     @Test
     public void testNextNullSegmentProperties() {
@@ -78,7 +78,7 @@ public class RollingStorageSegmentIteratorMockTests {
     }
 
     /**
-     * Tests when Iterator for SSegmentProperties is null.
+     * Tests when Iterator for SegmentProperties is null.
      */
     @Test
     public void testHasNextNullIterator() {
