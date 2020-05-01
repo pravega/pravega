@@ -847,6 +847,22 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         sendAndVerifyEvents(streamName, writerId, 2, size, 2);
     }
 
+    @Test
+    public void testConditionalAppend() throws Exception {
+        @Cleanup("release")
+        val received = new ReceivedCommands();
+        setupAppend(streamName, writerId, fakeNetwork);
+
+        val event = new Event(Unpooled.wrappedBuffer(new byte[appendBlockSize]));
+        val append1 = new WireCommands.ConditionalAppend(writerId, 10, 123, event, 1);
+        encoder.encode(ctx, append1, fakeNetwork);
+        read(fakeNetwork, received);
+        assertEquals(1, received.size());
+        Append readAppend1 = (Append) received.get(0);
+        assertEquals((long) readAppend1.expectedLength, append1.expectedOffset);
+        assertEquals(event.getAsByteBuf(), readAppend1.getData());
+    }
+
     private void setupAppend(String testStream, UUID writerId, ByteBuf fakeNetwork) throws Exception {
         SetupAppend setupAppend = new SetupAppend(1, writerId, testStream, "");
         encoder.encode(ctx, setupAppend, fakeNetwork);

@@ -203,7 +203,6 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 // Work around a bug in netty:
                 // See https://github.com/netty/netty/issues/5597
                 if (appendDataBuf.readableBytes() == 0) {
-                    assert currentBlock.getData().readableBytes() == 0;
                     currentBlock.release();
                     appendDataBuf = wrappedBuffer(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
                 } else {
