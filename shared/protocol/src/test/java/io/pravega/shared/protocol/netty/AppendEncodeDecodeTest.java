@@ -67,12 +67,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
     private final CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
     private final FakeLengthDecoder lengthDecoder = new FakeLengthDecoder();
     private final AppendDecoder appendDecoder = new AppendDecoder();
-
-    protected int getThreadPoolSize() {
-        return 1;
-    }
-
-    private final EventExecutor executor = new EventExecutor() {
+    private EventExecutor executor = new EventExecutor() {
         @Override
         public EventExecutor next() {
             return null;
@@ -224,13 +219,16 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
 
         }
     };
-
     @Mock
     private ChannelHandlerContext ctx;
     @Mock
     private Channel ch;
     private ByteBuf fakeNetwork;
     private BufferReleaseVerifier releaseVerifier;
+
+    protected int getThreadPoolSize() {
+        return 1;
+    }
 
     @Before
     public void setup() {
