@@ -339,14 +339,14 @@ public class ReaderGroupStateManager {
             if (acquireTimer.hasRemaining()) {
                 return false;
             }
-            if (state.getCheckpointForReader(readerId) != null) {
-                return false;
-            }
             if (state.getNumberOfUnassignedSegments() == 0) {
                 // Reduce the number of load imbalance checks for efficiency reasons.
                 if (!fetchStateTimer.hasRemaining() && doesReaderOwnTooManySegments(state)) {
                     acquireTimer.reset(calculateAcquireTime(readerId, state));
                 }
+                return false;
+            }
+            if (state.getCheckpointForReader(readerId) != null) {
                 return false;
             }
             acquireTimer.reset(UPDATE_WINDOW);
