@@ -19,16 +19,7 @@ public class TaskExceptions {
         private final String message;
         private final Throwable cause;
     }
-
-    /**
-     * This Exception is thrown if the task has not been started yet but the event is picked up for processing.
-     */
-    public static class StartException extends StreamTaskException {
-        public StartException(String message) {
-            super(message, null);
-        }
-    }
-
+    
     /**
      * This exception is thrown if we are unable to post the event into request stream.
      */
