@@ -12,6 +12,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
@@ -119,9 +120,8 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                             } 
 
                             if (isManualScale) {
-                                future = future.thenApply(x -> {
-                                    throw new TaskExceptions.StartException("Scale Stream not started yet.");
-                                });
+                                log.info("Found empty epoch transition record, scale processing is already completed.");
+                                return Futures.toVoid(future);
                             } else {
                                 future = future.thenCompose(r -> streamMetadataStore.submitScale(scope, stream, scaleInput.getSegmentsToSeal(),
                                         new ArrayList<>(scaleInput.getNewRanges()), scaleInput.getScaleTime(), record, context, executor));
@@ -133,7 +133,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                                         reference.get(), context, delegationToken, requestId));
                     }));
     }
-
+    
     private CompletableFuture<Void> processScale(String scope, String stream, boolean isManualScale,
                                                  VersionedMetadata<EpochTransitionRecord> metadata,
                                                  VersionedMetadata<State> state, OperationContext context,

@@ -67,7 +67,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenAccept(state -> {
                     if (!state.equals(State.SEALING) && !state.equals(State.SEALED)) {
-                        throw new TaskExceptions.StartException("Seal stream task not started yet.");
+                        throw new IllegalStateException("Seal stream not started.");
                     }
                 })
                 .thenCompose(x -> abortTransaction(context, scope, stream, requestId)
