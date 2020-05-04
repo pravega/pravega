@@ -133,6 +133,23 @@ public class ByteBufWrapperTests {
         }
     }
 
+    @Test
+    public void testCopyToByteBuffer() {
+        val data1 = newData();
+        val data2 = newData();
+        val b1 = new ByteBufWrapper(Unpooled.wrappedBuffer(data1));
+        val b2 = new ByteBufWrapper(Unpooled.wrappedBuffer(data2));
+        val target = new byte[b1.getLength() + b2.getLength()];
+        val targetBuffer = ByteBuffer.wrap(target);
+        b1.copyTo(targetBuffer);
+        b2.copyTo(targetBuffer);
+
+        val expectedData = new byte[data1.length + data2.length];
+        System.arraycopy(data1, 0, expectedData, 0, data1.length);
+        System.arraycopy(data2, 0, expectedData, data1.length, data2.length);
+        Assert.assertArrayEquals(expectedData, target);
+    }
+
     /**
      * Tests the ability of {@link ByteBufWrapper} to return slices of itself.
      */

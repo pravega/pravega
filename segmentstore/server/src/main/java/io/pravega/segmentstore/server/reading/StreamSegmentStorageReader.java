@@ -12,12 +12,12 @@ package io.pravega.segmentstore.server.reading;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.Callbacks;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -114,7 +114,7 @@ public final class StreamSegmentStorageReader {
             }
         }
 
-        private void fetchContents(long segmentOffset, int readLength, Consumer<ReadResultEntryContents> successCallback,
+        private void fetchContents(long segmentOffset, int readLength, Consumer<BufferView> successCallback,
                                    Consumer<Throwable> failureCallback, Duration timeout) {
             try {
                 byte[] readBuffer = new byte[readLength];
@@ -136,8 +136,8 @@ public final class StreamSegmentStorageReader {
             }
         }
 
-        private ReadResultEntryContents toReadResultEntry(byte[] readBuffer, int size) {
-            return new ReadResultEntryContents(new ByteArrayInputStream(readBuffer, 0, size), size);
+        private BufferView toReadResultEntry(byte[] readBuffer, int size) {
+            return new ByteArraySegment(readBuffer, 0, size);
         }
 
         private CompletableFuture<SegmentHandle> getHandle() {
