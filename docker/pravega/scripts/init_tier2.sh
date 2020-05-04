@@ -10,7 +10,7 @@
 #
 
 init_tier2() {
-    add_system_property "pravegaservice.storageImplementation" "${TIER2_STORAGE}"
+    add_system_property "pravegaservice.storage.impl.name" "${TIER2_STORAGE}"
 
     case "${TIER2_STORAGE}" in
     FILESYSTEM)
@@ -36,9 +36,9 @@ init_tier2() {
     ;;
 
     HDFS)
-    add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"
-    add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
-    add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
+    add_system_property "hdfs.connect.uri" "${HDFS_URL}"
+    add_system_property "hdfs.root" "${HDFS_ROOT}"
+    add_system_property "hdfs.replication.factor" "${HDFS_REPLICATION}"
     ;;
     EXTENDEDS3)
     EXTENDEDS3_PREFIX=${EXTENDEDS3_PREFIX:-"/"}
@@ -66,7 +66,7 @@ init_tier2() {
         echo "Looping till the container is restarted with all these variables set."
         sleep 60
     done
-    add_system_property_ecs_config_uri "extendeds3.configUri" "${EXTENDEDS3_CONFIGURI}" "${EXTENDEDS3_ACCESS_KEY_ID}" "${EXTENDEDS3_SECRET_KEY}"
+    add_system_property_ecs_config_uri "extendeds3.connect.config.uri" "${EXTENDEDS3_CONFIGURI}" "${EXTENDEDS3_ACCESS_KEY_ID}" "${EXTENDEDS3_SECRET_KEY}"
     add_system_property "extendeds3.bucket" "${EXTENDEDS3_BUCKET}"
     add_system_property "extendeds3.prefix" "${EXTENDEDS3_PREFIX}"
     add_certs_into_truststore
