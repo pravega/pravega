@@ -22,15 +22,12 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
-import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 
-import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import org.junit.Test;
-import org.mockito.internal.verification.Times;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
