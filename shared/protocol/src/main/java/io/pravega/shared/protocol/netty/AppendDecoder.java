@@ -11,17 +11,12 @@ package io.pravega.shared.protocol.netty;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
-import io.pravega.common.util.ByteArraySegment;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
-import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -106,84 +101,91 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             log.warn("Invalid message received {}. CurrentBlock {}", command, currentBlock);
             throw new InvalidMessageException("Unexpected " + command.getType() + " following a append block.");
         }
-        Request result;
-        Segment segment;
+        Request result = null;
         switch (command.getType()) {
-        case PADDING:
-            result = null;
-            break;
-        case SETUP_APPEND:
-            WireCommands.SetupAppend append = (WireCommands.SetupAppend) command;
-            appendingSegments.put(append.getWriterId(), new Segment(append.getSegment()));
-            result = append;
-            break;
-        case CONDITIONAL_APPEND:
-            @Cleanup("release") // We can release this when we're done as we're making a copy of its data.
-            WireCommands.ConditionalAppend ca = (WireCommands.ConditionalAppend) command;
-            segment = getSegment(ca.getWriterId());
-            if (ca.getEventNumber() < segment.lastEventNumber) {
-                throw new InvalidMessageException("Last event number went backwards.");
-            }
-            segment.lastEventNumber = ca.getEventNumber();
-            EnhancedByteArrayOutputStream bout = new EnhancedByteArrayOutputStream();
-            ca.getEvent().writeFields(new DataOutputStream(bout));
-            ByteArraySegment data = bout.getData();
-            result = new Append(segment.getName(),
-                    ca.getWriterId(),
-                    ca.getEventNumber(),
-                    1,
-                    Unpooled.wrappedBuffer(data.array(), data.arrayOffset(), data.getLength()),
-                    ca.getExpectedOffset(), ca.getRequestId());
-            break;
-        case APPEND_BLOCK:
-            currentBlock = (WireCommands.AppendBlock) command;
-            getSegment(currentBlock.getWriterId());
-            result = null;
-            break;
-        case APPEND_BLOCK_END:
-            WireCommands.AppendBlockEnd blockEnd = (WireCommands.AppendBlockEnd) command;
-            UUID writerId = blockEnd.getWriterId();
-            segment = getSegment(writerId);
-            int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();
-            ByteBuf appendDataBuf;
-            if (blockEnd.numEvents <= 0) {
-                throw new InvalidMessageException("Invalid number of events in block. numEvents : " + blockEnd.numEvents);
-            }
-            if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
-                throw new InvalidMessageException(
-                        String.format("Last event number went backwards, " +
-                                "Segment last Event number : %d , Append block End Event number : %d," +
-                                "for writer ID: %s and Segment Name: %s", segment.lastEventNumber,
-                                blockEnd.getLastEventNumber(), writerId, segment.name));
-            }
-            if (currentBlock != null) {
-               if (!currentBlock.getWriterId().equals(writerId)) {
-                   throw new InvalidMessageException(
-                           String.format("Writer ID mismatch between Append Block and Append block End, " +
-                                   "Append block Writer ID : %s, Append block End Writer ID: %s",
-                                   currentBlock.getWriterId(), writerId));
-               }
-               if (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0) {
-                    throw new InvalidMessageException(
-                            String.format("Invalid SizeOfWholeEvents in block : %d, Append block data bytes : %d",
-                                    sizeOfWholeEventsInBlock, currentBlock.getData().readableBytes()));
-               }
-               appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
-            } else {
-               appendDataBuf = blockEnd.getData();
-            }
-            if (appendDataBuf == null) {
-               throw new InvalidMessageException("Invalid data in block");
-            }
-            segment.lastEventNumber = blockEnd.getLastEventNumber();
-            currentBlock = null;
-            result = new Append(segment.name, writerId, segment.lastEventNumber, blockEnd.numEvents, appendDataBuf, null, blockEnd.getRequestId());
-            break;
+            case PADDING:
+                // Nothing to do.
+                break;
+            case SETUP_APPEND:
+                result = processSetupAppend((WireCommands.SetupAppend) command);
+                break;
+            case CONDITIONAL_APPEND:
+                result = processConditionalAppend((WireCommands.ConditionalAppend) command);
+                break;
+            case APPEND_BLOCK:
+                processAppendBlock((WireCommands.AppendBlock) command);
+                break;
+            case APPEND_BLOCK_END:
+                result = processAppendBlockEnd((WireCommands.AppendBlockEnd) command);
+                break;
             //$CASES-OMITTED$
-        default:
-            throw new IllegalStateException("Unexpected case: " + command);
+            default:
+                throw new IllegalStateException("Unexpected case: " + command);
         }
         return result;
+    }
+
+    private WireCommands.SetupAppend processSetupAppend(WireCommands.SetupAppend setup) {
+        appendingSegments.put(setup.getWriterId(), new Segment(setup.getSegment()));
+        return setup;
+    }
+
+    private Append processConditionalAppend(WireCommands.ConditionalAppend ca) {
+        Segment segment = getSegment(ca.getWriterId());
+        if (ca.getEventNumber() < segment.lastEventNumber) {
+            throw new InvalidMessageException("Last event number went backwards.");
+        }
+        segment.lastEventNumber = ca.getEventNumber();
+        return new Append(segment.getName(),
+                ca.getWriterId(),
+                ca.getEventNumber(),
+                1,
+                ca.getEvent().getAsByteBuf(),
+                ca.getExpectedOffset(), ca.getRequestId());
+    }
+
+    private void processAppendBlock(WireCommands.AppendBlock appendBlock) {
+        currentBlock = appendBlock;
+        getSegment(currentBlock.getWriterId());
+    }
+
+    private Append processAppendBlockEnd(WireCommands.AppendBlockEnd blockEnd) throws InvalidMessageException, IOException {
+        UUID writerId = blockEnd.getWriterId();
+        Segment segment = getSegment(writerId);
+        int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();
+        ByteBuf appendDataBuf;
+        if (blockEnd.numEvents <= 0) {
+            throw new InvalidMessageException("Invalid number of events in block. numEvents : " + blockEnd.numEvents);
+        }
+        if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
+            throw new InvalidMessageException(
+                    String.format("Last event number went backwards, " +
+                                    "Segment last Event number : %d , Append block End Event number : %d," +
+                                    "for writer ID: %s and Segment Name: %s", segment.lastEventNumber,
+                            blockEnd.getLastEventNumber(), writerId, segment.name));
+        }
+        if (currentBlock != null) {
+            if (!currentBlock.getWriterId().equals(writerId)) {
+                throw new InvalidMessageException(
+                        String.format("Writer ID mismatch between Append Block and Append block End, " +
+                                        "Append block Writer ID : %s, Append block End Writer ID: %s",
+                                currentBlock.getWriterId(), writerId));
+            }
+            if (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0) {
+                throw new InvalidMessageException(
+                        String.format("Invalid SizeOfWholeEvents in block : %d, Append block data bytes : %d",
+                                sizeOfWholeEventsInBlock, currentBlock.getData().readableBytes()));
+            }
+            appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
+        } else {
+            appendDataBuf = blockEnd.getData();
+        }
+        if (appendDataBuf == null) {
+            throw new InvalidMessageException("Invalid data in block");
+        }
+        segment.lastEventNumber = blockEnd.getLastEventNumber();
+        currentBlock = null;
+        return new Append(segment.name, writerId, segment.lastEventNumber, blockEnd.numEvents, appendDataBuf, null, blockEnd.getRequestId());
     }
 
     private ByteBuf getAppendDataBuf(WireCommands.AppendBlockEnd blockEnd, int sizeOfWholeEventsInBlock) throws IOException {
