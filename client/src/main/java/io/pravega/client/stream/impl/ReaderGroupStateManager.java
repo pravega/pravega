@@ -343,7 +343,8 @@ public class ReaderGroupStateManager {
                 return false;
             }
             if (state.getNumberOfUnassignedSegments() == 0) {
-                if (!releaseTimer.hasRemaining() && doesReaderOwnTooManySegments(state)) {
+                // Reduce the number of load imbalance checks for efficiency reasons.
+                if (!fetchStateTimer.hasRemaining() && doesReaderOwnTooManySegments(state)) {
                     acquireTimer.reset(calculateAcquireTime(readerId, state));
                 }
                 return false;
