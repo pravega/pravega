@@ -10,54 +10,47 @@
 package io.pravega.client.tables;
 
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
-import java.io.Serializable;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
+import io.pravega.client.tables.impl.VersionImpl;
 
 /**
  * Version of a Key in a Table.
  */
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public class Version implements Serializable {
+public interface Version {
     /**
      * {@link Version} that indicates no specific version is desired. Using this will result in an unconditional
      * update or removal being performed. See {@link KeyValueTable} for details on conditional/unconditional updates.
      */
-    public static final Version NO_VERSION = new Version(null, TableSegmentKeyVersion.NO_VERSION);
+    Version NO_VERSION = new VersionImpl(VersionImpl.NO_SEGMENT_ID, TableSegmentKeyVersion.NO_VERSION);
     /**
      * {@link Version} that indicates the {@link TableKey} must not exist. Using this will result in an conditional
      * update or removal being performed, conditioned on the {@link TableKey} not existing at the time of the operation.
      * See {@link KeyValueTable} for details on conditional/unconditional updates.
      */
-    public static final Version NOT_EXISTS = new Version(null, TableSegmentKeyVersion.NOT_EXISTS);
+    Version NOT_EXISTS = new VersionImpl(VersionImpl.NO_SEGMENT_ID, TableSegmentKeyVersion.NOT_EXISTS);
 
     /**
-     * The Segment where this Key resides. May be null if this is a {@link #NOT_EXISTS} or {@link #NO_VERSION}
-     * {@link Version}.
-     */
-    private final String segmentName;
-    /**
-     * The internal version inside the Table Segment for this Key.
-     */
-    private final TableSegmentKeyVersion segmentVersion;
-
-    /**
-     * Creates a new instance of the {@link Version} class.
+     * Returns the actual instance.
+     * This method prevents other classes from implementing this interface.
      *
-     * @param segmentName    The name of the Table Segment that contains the {@link TableKey}.
-     * @param segmentVersion The version within the Table Segment for the {@link TableKey}.
+     * @return Implementation of the {@link Version} interface.
      */
-    Version(String segmentName, long segmentVersion) {
-        this.segmentName = segmentName;
-        this.segmentVersion = TableSegmentKeyVersion.from(segmentVersion);
-    }
+    VersionImpl asImpl();
 
     /**
-     * The internal version inside the Table Segment for this Key.
+     * Serializes the {@link Version} to a human readable string.
      *
-     * @return The Segment Version
+     * @return A string representation of the {@link Version}.
      */
-    long getSegmentVersion() {
-        return this.segmentVersion.getSegmentVersion();
+    @Override
+    String toString();
+
+    /**
+     * Deserializes the {@link Version} from its serialized form obtained from calling {@link #toString()}.
+     *
+     * @param str A serialized {@link Version}.
+     * @return The {@link Version} object.
+     */
+    static Version fromString(String str) {
+        return VersionImpl.fromString(str);
     }
 }

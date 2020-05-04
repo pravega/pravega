@@ -57,7 +57,6 @@ public class AsyncIteratorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertListEquals("Unexpected result.", expected, result, Integer::equals);
     }
 
-
     /**
      * Tests the {@link AsyncIterator#collectRemaining(Predicate)} method.
      */

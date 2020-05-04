@@ -8,6 +8,7 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.common.util;
+
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.SequentialProcessor;
 import java.util.concurrent.CompletableFuture;
@@ -99,7 +100,7 @@ public interface AsyncIterator<T> {
     }
 
     /**
-     * Returns a new {@link AsyncIterator} that wraps this instane and converts all items from this one into items of a
+     * Returns a new {@link AsyncIterator} that wraps this instance and converts all items from this one into items of a
      * new type.
      *
      * @param converter A {@link Function} that will convert {@link T} to {@link U}.
