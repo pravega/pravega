@@ -26,7 +26,7 @@ public class MetricsConfig {
     public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCache.size", 10000000L, "dynamicCacheSize");
     public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCache.eviction.duration.minutes", 3, "dynamicCacheEvictionDurationMinutes");
     public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("output.frequency.seconds", 60, "outputFrequencySeconds");
-    public final static Property<String> METRICS_PREFIX = Property.named("metrics.prefix", "pravega", "metricsPrefix");
+    public final static Property<String> METRICS_PREFIX = Property.named("prefix", "pravega", "metricsPrefix");
     public final static Property<String> STATSD_HOST = Property.named("statsD.connect.host", "localhost", "statsDHost");
     public final static Property<Integer> STATSD_PORT = Property.named("statsD.connect.port", 8125, "statsDPort");
     public final static Property<String> INFLUXDB_URI = Property.named("influxDB.connect.uri", "http://localhost:8086", "influxDBURI");
