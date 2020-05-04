@@ -10,6 +10,7 @@
 package io.pravega.client.tables;
 
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
+import io.pravega.client.tables.impl.VersionImpl;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -19,16 +20,16 @@ import org.junit.Test;
 public class VersionTests {
     @Test
     public void testSpecialVersions() {
-        Assert.assertEquals(TableSegmentKeyVersion.NOT_EXISTS.getSegmentVersion(), Version.NOT_EXISTS.getSegmentVersion());
-        Assert.assertEquals(TableSegmentKeyVersion.NO_VERSION.getSegmentVersion(), Version.NO_VERSION.getSegmentVersion());
+        Assert.assertEquals(TableSegmentKeyVersion.NOT_EXISTS.getSegmentVersion(), Version.NOT_EXISTS.asImpl().getSegmentVersion());
+        Assert.assertEquals(TableSegmentKeyVersion.NO_VERSION.getSegmentVersion(), Version.NO_VERSION.asImpl().getSegmentVersion());
     }
 
     @Test
     public void testConstructor() {
         long version = 123L;
-        String segmentName = "Segment";
-        Version v = new Version(segmentName, version);
-        Assert.assertEquals(version, v.getSegmentVersion());
+        long segmentId = 4565L;
+        Version v = new VersionImpl(segmentId, TableSegmentKeyVersion.from(version));
+        Assert.assertEquals(version, v.asImpl().getSegmentVersion());
     }
 }
 

@@ -56,7 +56,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 9;
+    public static final int WIRE_VERSION = 10;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -1099,6 +1099,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
         final long requestId;
         final String segment;
+        final boolean sorted;
         @ToString.Exclude
         final String delegationToken;
 
@@ -1112,14 +1113,19 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeBoolean(sorted);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
+            boolean sorted = false;
+            if (in.available() >= 1) {
+                sorted = in.readBoolean();
+            }
 
-            return new CreateTableSegment(requestId, segment, delegationToken);
+            return new CreateTableSegment(requestId, segment, sorted, delegationToken);
         }
     }
 

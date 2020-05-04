@@ -53,8 +53,18 @@ public interface ArrayView extends BufferView {
      */
     void copyTo(byte[] target, int targetOffset, int length);
 
+    /**
+     * Returns a new {@link ByteBuffer} that wraps the contents of this {@link ArrayView}.
+     *
+     * @return A {@link ByteBuffer} that shares the same backing array as this {@link ArrayView}. Any changes made to
+     * the {@link ByteBuffer} will be reflected in this {@link ArrayView} and viceversa.
+     */
+    default ByteBuffer asByteBuffer() {
+        return ByteBuffer.wrap(array(), arrayOffset(), getLength());
+    }
+
     @Override
     default List<ByteBuffer> getContents() {
-        return Collections.singletonList(ByteBuffer.wrap(array(), arrayOffset(), getLength()));
+        return Collections.singletonList(asByteBuffer());
     }
 }

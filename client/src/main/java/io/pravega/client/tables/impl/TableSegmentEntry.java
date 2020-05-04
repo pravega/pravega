@@ -68,7 +68,7 @@ public class TableSegmentEntry {
      * @param value   A {@link ByteBuf} representing the Table Entry Value.
      * @param version The version to set. Consider using {@link #unversioned}, {@link #notExists} or {@link #notFound}
      *                for special-case versions.
-     * @return An versioned {@link TableSegmentEntry}.
+     * @return A versioned {@link TableSegmentEntry}.
      */
     public static TableSegmentEntry versioned(ByteBuf key, ByteBuf value, long version) {
         return new TableSegmentEntry(new TableSegmentKey(key, TableSegmentKeyVersion.from(version)), value);
@@ -83,7 +83,7 @@ public class TableSegmentEntry {
      * @param value   A byte array representing the contents Table Entry Value. This will be wrapped in a {@link ByteBuf}.
      * @param version The version to set. Consider using {@link #unversioned}, {@link #notExists} or {@link #notFound}
      *                for special-case versions.
-     * @return An versioned {@link TableSegmentEntry}.
+     * @return A versioned {@link TableSegmentEntry}.
      */
     public static TableSegmentEntry versioned(byte[] key, byte[] value, long version) {
         return versioned(Unpooled.wrappedBuffer(key), Unpooled.wrappedBuffer(value), version);
@@ -96,7 +96,7 @@ public class TableSegmentEntry {
      *
      * @param key   A {@link ByteBuf} representing the contents of the Table Entry Key.
      * @param value A {@link ByteBuf} representing the Table Entry Value.
-     * @return An {@link TableSegmentEntry} with a version set to {@link TableSegmentKeyVersion#NOT_EXISTS}.
+     * @return A {@link TableSegmentEntry} with a version set to {@link TableSegmentKeyVersion#NOT_EXISTS}.
      */
     public static TableSegmentEntry notExists(ByteBuf key, ByteBuf value) {
         return new TableSegmentEntry(new TableSegmentKey(key, TableSegmentKeyVersion.NOT_EXISTS), value);
@@ -109,7 +109,7 @@ public class TableSegmentEntry {
      *
      * @param key   A byte array representing the contents of the Table Key. This will be wrapped in a {@link ByteBuf}.
      * @param value A byte array representing the contents Table Entry Value. This will be wrapped in a {@link ByteBuf}.
-     * @return An {@link TableSegmentEntry} with a version set to {@link TableSegmentKeyVersion#NOT_EXISTS}.
+     * @return A {@link TableSegmentEntry} with a version set to {@link TableSegmentKeyVersion#NOT_EXISTS}.
      */
     public static TableSegmentEntry notExists(byte[] key, byte[] value) {
         return notExists(Unpooled.wrappedBuffer(key), Unpooled.wrappedBuffer(value));
@@ -122,7 +122,7 @@ public class TableSegmentEntry {
      * This {@link TableSegmentEntry} should not be used as an argument for {@link TableSegment#put} calls.
      *
      * @param key A {@link ByteBuf} representing the contents of the Table Entry Key.
-     * @return An {@link TableSegmentEntry} with a version set to {@link TableSegmentKeyVersion#NOT_EXISTS} and a
+     * @return A {@link TableSegmentEntry} with a version set to {@link TableSegmentKeyVersion#NOT_EXISTS} and a
      * {@link #getValue()} set to null.
      */
     public static TableSegmentEntry notFound(ByteBuf key) {
