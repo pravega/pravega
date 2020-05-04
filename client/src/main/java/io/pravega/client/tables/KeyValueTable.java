@@ -96,7 +96,7 @@ import lombok.NonNull;
  * @param <ValueT> Table Value Type.
  */
 @Beta
-public interface KeyValueTable<KeyT, ValueT> {
+public interface KeyValueTable<KeyT, ValueT> extends AutoCloseable {
     /**
      * Unconditionally inserts a new or updates an existing Entry in the {@link KeyValueTable}.
      *
@@ -272,4 +272,12 @@ public interface KeyValueTable<KeyT, ValueT> {
      */
     AsyncIterator<IteratorItem<TableEntry<KeyT, ValueT>>> entryIterator(@NonNull String keyFamily, int maxEntriesAtOnce,
                                                                         @Nullable IteratorState state);
+
+    /**
+     * Closes the {@link KeyValueTable}. No more updates, removals, retrievals or iterators may be performed using it.
+     *
+     * @see java.lang.AutoCloseable#close()
+     */
+    @Override
+    void close();
 }

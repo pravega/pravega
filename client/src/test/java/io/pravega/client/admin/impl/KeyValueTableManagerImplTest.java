@@ -53,7 +53,7 @@ public class KeyValueTableManagerImplTest {
         this.connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
         Mockito.doAnswer(invocation -> {
-            WireCommands.CreateSegment request = invocation.getArgument(0);
+            WireCommands.CreateTableSegment request = invocation.getArgument(0);
             if (segments.add(request.getSegment())) {
                 this.connectionFactory.getProcessor(SERVER_LOCATION).process(
                         new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
@@ -62,11 +62,11 @@ public class KeyValueTableManagerImplTest {
                         new WireCommands.SegmentAlreadyExists(request.getRequestId(), request.getSegment(), ""));
             }
             return null;
-        }).when(connection).sendAsync(Mockito.any(WireCommands.CreateSegment.class),
+        }).when(connection).sendAsync(Mockito.any(WireCommands.CreateTableSegment.class),
                 Mockito.any(ClientConnection.CompletedCallback.class));
 
         Mockito.doAnswer(invocation -> {
-            WireCommands.DeleteSegment request = invocation.getArgument(0);
+            WireCommands.DeleteTableSegment request = invocation.getArgument(0);
             if (segments.remove(request.getSegment())) {
                 this.connectionFactory.getProcessor(SERVER_LOCATION).process(
                         new WireCommands.SegmentDeleted(request.getRequestId(), request.getSegment()));
@@ -75,7 +75,7 @@ public class KeyValueTableManagerImplTest {
                         new WireCommands.NoSuchSegment(request.getRequestId(), request.getSegment(), "", 0L));
             }
             return null;
-        }).when(connection).sendAsync(Mockito.any(WireCommands.DeleteSegment.class),
+        }).when(connection).sendAsync(Mockito.any(WireCommands.DeleteTableSegment.class),
                 Mockito.any(ClientConnection.CompletedCallback.class));
 
         this.connectionFactory.provideConnection(SERVER_LOCATION, connection);

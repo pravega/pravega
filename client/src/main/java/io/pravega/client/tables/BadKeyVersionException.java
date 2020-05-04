@@ -22,4 +22,14 @@ public class BadKeyVersionException extends ConditionalTableUpdateException {
     public BadKeyVersionException(String tableName) {
         super(tableName);
     }
+
+    /**
+     * Creates a new instance of the {@link BadKeyVersionException} class.
+     *
+     * @param tableName The name of the {@link KeyValueTable} affected.
+     * @param message   The message to add.
+     */
+    public BadKeyVersionException(String tableName, String message) {
+        super(tableName, message);
+    }
 }

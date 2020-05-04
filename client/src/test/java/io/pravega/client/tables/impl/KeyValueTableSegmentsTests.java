@@ -42,7 +42,7 @@ public class KeyValueTableSegmentsTests {
         val rnd = new Random(0);
 
         for (int i = 0; i < testCount; i++) {
-            byte[] a1 = new byte[2];
+            byte[] a1 = new byte[KeyFamilySerializer.PREFIX_LENGTH];
             byte[] a2 = new byte[128];
             rnd.nextBytes(a1);
             rnd.nextBytes(a2);
