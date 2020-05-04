@@ -13,6 +13,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
@@ -30,10 +31,12 @@ import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-public class WireCommandsTest {
+public class WireCommandsTest extends LeakDetectorTestSuite {
 
     private final UUID uuid = UUID.randomUUID();
     private final String testString1 = "testString1";
@@ -515,14 +518,44 @@ public class WireCommandsTest {
 
     @Test
     public void testSegmentRead() throws IOException {
-        testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buffer, l));
+        testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buf, l));
     }
-    
+
+    @Test
+    public void testSegmentReadRelease() throws IOException {
+        // If we pass in the buffer ourselves, there should be no need to release.
+        int originalRefCnt = buf.refCnt();
+        WireCommands.SegmentRead sr = new WireCommands.SegmentRead(testString1, l, true, false, buf, l);
+        assertFalse(sr.isMustRelease());
+        assertFalse(sr.isReleased());
+        sr.release();
+        assertEquals(originalRefCnt, buf.refCnt());
+        assertTrue(sr.isReleased());
+        sr.release(); // Do this again. The second time should have no effect.
+        assertEquals(originalRefCnt, buf.refCnt());
+
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        sr.writeFields(new DataOutputStream(bout));
+        ByteBuf buffer = Unpooled.wrappedBuffer(bout.toByteArray());
+        WireCommands.SegmentRead read = (WireCommands.SegmentRead) WireCommands.SegmentRead.readFrom(new EnhancedByteBufInputStream(buffer), bout.size());
+        assertTrue(read.isMustRelease());
+        assertEquals(2, read.getData().refCnt());
+        assertEquals(2, buffer.refCnt());
+        buffer.release();
+        assertEquals(1, read.getData().refCnt());
+        assertEquals(1, buffer.refCnt());
+        read.release();
+        assertEquals(0, read.getData().refCnt());
+        assertEquals(0, buffer.refCnt());
+        read.release(); // Do this again. The second time should have no effect.
+        assertEquals(0, buffer.refCnt());
+    }
+
     @Test
     public void testUpdateSegmentAttribute() throws IOException {
         testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, l, l, ""));
     }
-    
+
     @Test
     public void testSegmentAttributeUpdated() throws IOException {
         testCommand(new WireCommands.SegmentAttributeUpdated(l, true));
@@ -773,13 +806,13 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         command.writeFields(new DataOutputStream(bout));
         byte[] array = bout.toByteArray();
-        WireCommand read = command.getType().readFrom(new ByteBufInputStream(Unpooled.wrappedBuffer(array)),
+        WireCommand read = command.getType().readFrom(new EnhancedByteBufInputStream(Unpooled.wrappedBuffer(array)),
                                                       array.length);
         assertEquals(command, read);
     }
 
     private void testCommandFromByteArray(byte[] bytes, WireCommand compatibleCommand) throws IOException {
-        WireCommand read = compatibleCommand.getType().readFrom(new ByteBufInputStream(Unpooled.wrappedBuffer(bytes)),
+        WireCommand read = compatibleCommand.getType().readFrom(new EnhancedByteBufInputStream(Unpooled.wrappedBuffer(bytes)),
                 bytes.length);
         assertEquals(compatibleCommand, read);
     }
