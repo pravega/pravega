@@ -20,7 +20,10 @@ import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTable;
+<<<<<<< HEAD
 import io.pravega.client.tables.KeyValueTableMap;
+=======
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
@@ -107,11 +110,14 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     //region KeyValueTable Implementation
 
     @Override
+<<<<<<< HEAD
     public KeyValueTableMap<KeyT, ValueT> getMapFor(String keyFamily) {
         return new KeyValueTableMapImpl<>(this, keyFamily);
     }
 
     @Override
+=======
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
     public CompletableFuture<Version> put(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value) {
         ByteBuf keySerialization = serializeKey(keyFamily, key);
         TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
@@ -131,6 +137,7 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
         return updateToSegment(s, toTableSegmentEntries(s, keyFamily, entries, e -> TableEntry.unversioned(e.getKey(), e.getValue())));
     }
 
+<<<<<<< HEAD
     /**
      * Same as {@link #putAll(String, Iterable)}, but accepts an iterator.
      *
@@ -148,6 +155,11 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     @Override
     public CompletableFuture<Version> replace(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value,
                                               @NonNull Version version) {
+=======
+    @Override
+    public CompletableFuture<Version> replace(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value,
+                                                 @NonNull Version version) {
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
         ByteBuf keySerialization = serializeKey(keyFamily, key);
         TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
         validateKeyVersionSegment(s, version);
@@ -323,6 +335,7 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
         return new TableSegmentKey(key, toTableSegmentVersion(keyVersion));
     }
 
+<<<<<<< HEAD
     private <T> Iterator<TableSegmentEntry> toTableSegmentEntries(TableSegment tableSegment, String keyFamily, Iterator<T> entries,
                                                                   Function<T, TableEntry<KeyT, ValueT>> getEntry) {
         return Iterators.transform(entries, e -> toTableSegmentEntry(tableSegment, keyFamily, e, getEntry));
@@ -343,6 +356,20 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
         return toTableSegmentEntry(serializeKey(keyFamily, key.getKey()), serializeValue(entry.getValue()), key.getVersion());
     }
 
+=======
+    private <T> Iterator<TableSegmentEntry> toTableSegmentEntries(TableSegment tableSegment, String keyFamily, Iterable<T> entries,
+                                                                  Function<T, TableEntry<KeyT, ValueT>> getEntry) {
+        return StreamSupport.stream(entries.spliterator(), false)
+                .map(e -> {
+                    TableEntry<KeyT, ValueT> entry = getEntry.apply(e);
+                    TableKey<KeyT> key = entry.getKey();
+                    validateKeyVersionSegment(tableSegment, key.getVersion());
+                    return toTableSegmentEntry(serializeKey(keyFamily, key.getKey()), serializeValue(entry.getValue()), key.getVersion());
+                })
+                .iterator();
+    }
+
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
     private TableSegmentEntry toTableSegmentEntry(ByteBuf keySerialization, ByteBuf valueSerialization, Version keyVersion) {
         return new TableSegmentEntry(toTableSegmentKey(keySerialization, keyVersion), valueSerialization);
     }

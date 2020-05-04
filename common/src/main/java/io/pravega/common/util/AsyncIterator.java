@@ -101,7 +101,11 @@ public interface AsyncIterator<T> {
     }
 
     /**
+<<<<<<< HEAD
      * Returns a new {@link AsyncIterator} that wraps this instance and converts all items from this one into items of a
+=======
+     * Returns a new {@link AsyncIterator} that wraps this instane and converts all items from this one into items of a
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
      * new type.
      *
      * @param converter A {@link Function} that will convert {@link T} to {@link U}.
@@ -111,6 +115,7 @@ public interface AsyncIterator<T> {
     default <U> AsyncIterator<U> thenApply(@NonNull Function<? super T, ? extends U> converter) {
         return () -> AsyncIterator.this.getNext().thenApply(item -> item == null ? null : converter.apply(item));
     }
+<<<<<<< HEAD
 
     /**
      * Returns a new {@link AsyncIterator} that wraps this instance and converts all items from this one into items of a
@@ -133,4 +138,6 @@ public interface AsyncIterator<T> {
     default Iterator<T> asIterator() {
         return new BlockingAsyncIterator<>(this);
     }
+=======
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 }

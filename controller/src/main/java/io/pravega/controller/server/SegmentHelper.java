@@ -20,9 +20,12 @@ import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import io.pravega.client.control.impl.ModelHelper;
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
+=======
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.impl.IteratorStateImpl;
@@ -342,7 +345,11 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().asLong();
 
         // All Controller Metadata Segments are non-sorted.
+<<<<<<< HEAD
         return sendRequest(connection, requestId, new WireCommands.CreateTableSegment(requestId, tableName, sortedTableSegment, delegationToken))
+=======
+        return sendRequest(connection, requestId, new WireCommands.CreateTableSegment(requestId, tableName, false, delegationToken))
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
                 .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.CreateTableSegment.class, type));
     }
 

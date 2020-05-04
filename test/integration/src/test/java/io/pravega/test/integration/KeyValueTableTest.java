@@ -15,21 +15,32 @@ import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+<<<<<<< HEAD
+=======
+import io.pravega.client.stream.mock.MockController;
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableFactoryImpl;
 import io.pravega.client.tables.impl.KeyValueTableTestBase;
+<<<<<<< HEAD
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
 
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+=======
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
+<<<<<<< HEAD
 import java.util.Collections;
 import java.time.Duration;
 import java.util.HashMap;
@@ -51,6 +62,23 @@ import org.junit.Test;
  *
  */
 @Slf4j
+=======
+import java.time.Duration;
+import java.util.Collections;
+import lombok.val;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
+
+import static org.mockito.Mockito.mock;
+
+/**
+ * Integration test for {@link KeyValueTable}s using real Segment Store and connection.
+ * The only simulated component is the {@link Controller} which is provided via the {@link MockController}.
+ */
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final String ENDPOINT = "localhost";
     private static final String SCOPE = "Scope";
@@ -58,6 +86,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
+<<<<<<< HEAD
     private PravegaConnectionListener serverListener = null;
     private ConnectionFactory connectionFactory;
     private TestingServer zkTestServer = null;
@@ -68,10 +97,17 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private final String serviceHost = ENDPOINT;
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
+=======
+    private PravegaConnectionListener serverListener;
+    private ConnectionFactory connectionFactory;
+    private Controller controller;
+    private KeyValueTableFactory keyValueTableFactory;
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 
     @Before
     public void setup() throws Exception {
         super.setup();
+<<<<<<< HEAD
 
         // 1. Start ZK
         this.zkTestServer = new TestingServerStarter().start();
@@ -157,6 +193,27 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         Assert.assertEquals(1, countMap.get(kvt1.getKeyValueTableName()).intValue());
         Assert.assertEquals(1, countMap.get(kvt2.getKeyValueTableName()).intValue());
         Assert.assertEquals(1, countMap.get(kvt3.getKeyValueTableName()).intValue());
+=======
+        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        this.serviceBuilder.initialize();
+        this.tableStore = this.serviceBuilder.createTableStoreService();
+        int port = TestUtils.getAvailableListenPort();
+        this.serverListener = new PravegaConnectionListener(false, port, mock(StreamSegmentStore.class), this.tableStore);
+        this.serverListener.startListening();
+
+        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        this.controller = new MockController(ENDPOINT, port, this.connectionFactory, true);
+        this.controller.createScope(SCOPE);
+        this.keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE, this.controller, this.connectionFactory);
+    }
+
+    @After
+    public void tearDown() {
+        this.controller.close();
+        this.connectionFactory.close();
+        this.serverListener.close();
+        this.serviceBuilder.close();
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
     }
 
     /**
@@ -164,6 +221,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
      */
     @Test
     public void testCreateDeleteKeyValueTable() {
+<<<<<<< HEAD
         Assert.assertTrue(isScopeCreated);
         val kvt1 = newKeyValueTableName();
         boolean created = this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join();
@@ -190,6 +248,40 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
 
+=======
+        val kvt = newKeyValueTableName();
+        boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join();
+        Assert.assertTrue(created);
+        val segments = this.controller.getCurrentSegmentsForKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName()).join();
+        Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), segments.getSegments().size());
+        for (val s : segments.getSegments()) {
+            // We know there's nothing in these segments. But if the segments hadn't been created, then this will throw
+            // an exception.
+            this.tableStore.get(s.getScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT).join();
+        }
+
+        // Verify re-creation does not work.
+        Assert.assertFalse(this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join());
+
+        // Delete and verify segments have been deleted too.
+        val deleted = this.controller.deleteKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName()).join();
+        Assert.assertTrue(deleted);
+        Assert.assertFalse(this.controller.deleteKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName()).join());
+        for (val s : segments.getSegments()) {
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "Segment " + s + " has not been deleted.",
+                    () -> this.tableStore.get(s.getScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT),
+                    ex -> ex instanceof StreamSegmentNotExistsException);
+        }
+    }
+
+    @Test
+    @Override
+    @Ignore
+    public void testIterators() {
+        // TODO: iterators not yet supported server-side.
+        super.testIterators();
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
     }
 
     @Override
@@ -202,7 +294,11 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     }
 
     private KeyValueTableInfo newKeyValueTableName() {
+<<<<<<< HEAD
         return new KeyValueTableInfo(SCOPE, String.format("KVT-%d", System.nanoTime()));
+=======
+        return new KeyValueTableInfo(SCOPE, String.format("KVT_%d", System.nanoTime()));
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
     }
 
 }

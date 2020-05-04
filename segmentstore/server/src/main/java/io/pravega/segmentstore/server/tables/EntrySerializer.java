@@ -17,6 +17,11 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+<<<<<<< HEAD
+=======
+import java.io.IOException;
+import java.io.InputStream;
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -41,7 +46,10 @@ class EntrySerializer {
     static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
     static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
     static final int MAX_SERIALIZATION_LENGTH = TableStore.MAXIMUM_KEY_LENGTH + TableStore.MAXIMUM_VALUE_LENGTH;
+<<<<<<< HEAD
     static final int MAX_BATCH_SIZE = 32 * MAX_SERIALIZATION_LENGTH;
+=======
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
     private static final int VERSION_POSITION = 0;
     private static final int KEY_POSITION = VERSION_POSITION + 1;
     private static final int VALUE_POSITION = KEY_POSITION + Integer.BYTES;

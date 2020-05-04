@@ -597,7 +597,11 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testCreateTableSegment() throws IOException {
+<<<<<<< HEAD
         testCommand(new WireCommands.CreateTableSegment(l, testString1, true, ""));
+=======
+         testCommand(new WireCommands.CreateTableSegment(l, testString1, true, ""));
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
     }
 
     @Test

@@ -54,10 +54,14 @@ public class KeyValueTableManagerImplTest {
         ClientConnection connection = mock(ClientConnection.class);
         Mockito.doAnswer(invocation -> {
 <<<<<<< HEAD
+<<<<<<< HEAD
             WireCommands.CreateTableSegment request = invocation.getArgument(0);
 =======
             WireCommands.CreateSegment request = invocation.getArgument(0);
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+            WireCommands.CreateTableSegment request = invocation.getArgument(0);
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
             if (segments.add(request.getSegment())) {
                 this.connectionFactory.getProcessor(SERVER_LOCATION).process(
                         new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
@@ -66,6 +70,7 @@ public class KeyValueTableManagerImplTest {
                         new WireCommands.SegmentAlreadyExists(request.getRequestId(), request.getSegment(), ""));
             }
             return null;
+<<<<<<< HEAD
 <<<<<<< HEAD
         }).when(connection).sendAsync(Mockito.any(WireCommands.CreateTableSegment.class),
                 Mockito.any(ClientConnection.CompletedCallback.class));
@@ -79,6 +84,13 @@ public class KeyValueTableManagerImplTest {
         Mockito.doAnswer(invocation -> {
             WireCommands.DeleteSegment request = invocation.getArgument(0);
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+        }).when(connection).sendAsync(Mockito.any(WireCommands.CreateTableSegment.class),
+                Mockito.any(ClientConnection.CompletedCallback.class));
+
+        Mockito.doAnswer(invocation -> {
+            WireCommands.DeleteTableSegment request = invocation.getArgument(0);
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
             if (segments.remove(request.getSegment())) {
                 this.connectionFactory.getProcessor(SERVER_LOCATION).process(
                         new WireCommands.SegmentDeleted(request.getRequestId(), request.getSegment()));
@@ -88,10 +100,14 @@ public class KeyValueTableManagerImplTest {
             }
             return null;
 <<<<<<< HEAD
+<<<<<<< HEAD
         }).when(connection).sendAsync(Mockito.any(WireCommands.DeleteTableSegment.class),
 =======
         }).when(connection).sendAsync(Mockito.any(WireCommands.DeleteSegment.class),
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+        }).when(connection).sendAsync(Mockito.any(WireCommands.DeleteTableSegment.class),
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
                 Mockito.any(ClientConnection.CompletedCallback.class));
 
         this.connectionFactory.provideConnection(SERVER_LOCATION, connection);

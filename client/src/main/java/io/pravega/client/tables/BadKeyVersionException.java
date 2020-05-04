@@ -32,4 +32,8 @@ public class BadKeyVersionException extends ConditionalTableUpdateException {
     public BadKeyVersionException(String tableName, String message) {
         super(tableName, message);
     }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)

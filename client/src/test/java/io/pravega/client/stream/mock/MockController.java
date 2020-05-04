@@ -70,9 +70,13 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import java.util.function.Consumer;
 =======
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+import java.util.function.Consumer;
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -141,11 +145,16 @@ public class MockController implements Controller {
 
     private CompletableFuture<Boolean> createStreamInternal(String scope, String streamName, StreamConfiguration streamConfig) {
 <<<<<<< HEAD
+<<<<<<< HEAD
         return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams,
                 this::getSegmentsForStream, Segment::getScopedName, this::createSegment);
 =======
         return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams, this::getSegmentsForStream);
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+        return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams,
+                this::getSegmentsForStream, this::createSegment);
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
     }
     
     @Synchronized
@@ -244,11 +253,16 @@ public class MockController implements Controller {
     @Synchronized
     public CompletableFuture<Boolean> deleteStream(String scope, String streamName) {
 <<<<<<< HEAD
+<<<<<<< HEAD
         return deleteFromScope(scope, new StreamImpl(scope, streamName), s -> s.streams, this::getSegmentsForStream,
                 Segment::getScopedName, this::deleteSegment);
 =======
         return deleteFromScope(scope, new StreamImpl(scope, streamName), s -> s.streams, this::getSegmentsForStream);
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+        return deleteFromScope(scope, new StreamImpl(scope, streamName), s -> s.streams, this::getSegmentsForStream,
+                this::deleteSegment);
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
     }
 
     private boolean createSegment(String name) {
@@ -363,11 +377,14 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
+<<<<<<< HEAD
     }
 
     @Override
     public CompletableFuture<StreamSegments> getEpochSegments(String scope, String stream, int epoch) {
         return CompletableFuture.completedFuture(getCurrentSegments(new StreamImpl(scope, stream)));
+=======
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
     }
 
     @Override
@@ -642,7 +659,6 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(null);
     }
 
-
     //region KeyValueTables
 
     @Override
@@ -746,13 +762,15 @@ public class MockController implements Controller {
     @Synchronized
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
-        return createInScope(scope, new KeyValueTableInfo(scope, kvtName), kvtConfig, s -> s.keyValueTables, this::getSegmentsForKeyValueTable);
+        return createInScope(scope, new KeyValueTableInfo(scope, kvtName), kvtConfig, s -> s.keyValueTables,
+                this::getSegmentsForKeyValueTable, this::createTableSegment);
     }
 
     @Override
     @Synchronized
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
-        return deleteFromScope(scope, new KeyValueTableInfo(scope, kvtName), s -> s.keyValueTables, this::getSegmentsForKeyValueTable);
+        return deleteFromScope(scope, new KeyValueTableInfo(scope, kvtName), s -> s.keyValueTables,
+                this::getSegmentsForKeyValueTable, this::deleteTableSegment);
     }
 
     @Override
@@ -796,7 +814,8 @@ public class MockController implements Controller {
     @Synchronized
     private <ItemT, ConfigT> CompletableFuture<Boolean> createInScope(String scope, ItemT item, ConfigT config,
                                                                       Function<MockScope, Map<ItemT, ConfigT>> getScopeContents,
-                                                                      Function<ItemT, List<Segment>> getSegments) {
+                                                                      Function<ItemT, List<Segment>> getSegments,
+                                                                      Consumer<String> createSegment) {
         MockScope s = createdScopes.get(scope);
         if (s == null) {
             return Futures.failedFuture(new IllegalArgumentException("Scope does not exist."));
@@ -809,21 +828,21 @@ public class MockController implements Controller {
 
         scopeContents.put(item, config);
         for (Segment segment : getSegments.apply(item)) {
-            createSegment(segment.getScopedName());
+            createSegment.accept(segment.getScopedName());
         }
         return CompletableFuture.completedFuture(true);
     }
 
     @Synchronized
     private <T> CompletableFuture<Boolean> deleteFromScope(String scope, T toDelete, Function<MockScope, Map<T, ?>> getItems,
-                                                           Function<T, List<Segment>> getSegments) {
+                                                           Function<T, List<Segment>> getSegments, Consumer<String> deleteSegment) {
         MockScope s = createdScopes.get(scope);
         if (s == null || !getItems.apply(s).containsKey(toDelete)) {
             return CompletableFuture.completedFuture(false);
         }
 
         for (Segment segment : getSegments.apply(toDelete)) {
-            deleteSegment(segment.getScopedName());
+            deleteSegment.accept(segment.getScopedName());
         }
         getItems.apply(s).remove(toDelete);
         return CompletableFuture.completedFuture(true);

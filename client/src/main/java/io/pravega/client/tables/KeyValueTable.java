@@ -97,10 +97,14 @@ import lombok.NonNull;
  */
 @Beta
 <<<<<<< HEAD
+<<<<<<< HEAD
 public interface KeyValueTable<KeyT, ValueT> extends AutoCloseable {
 =======
 public interface KeyValueTable<KeyT, ValueT> {
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+public interface KeyValueTable<KeyT, ValueT> extends AutoCloseable {
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
     /**
      * Unconditionally inserts a new or updates an existing Entry in the {@link KeyValueTable}.
      *
@@ -284,6 +288,7 @@ public interface KeyValueTable<KeyT, ValueT> {
      */
     @Override
     void close();
+<<<<<<< HEAD
 
     /**
      * Exposes this {@link KeyValueTable} instance as a {@link Map}. Please refer to the {@link KeyValueTableMap}
@@ -299,4 +304,6 @@ public interface KeyValueTable<KeyT, ValueT> {
      * @return A new {@link KeyValueTableMap} instance bound to this {@link KeyValueTable} and Key Family.
      */
     KeyValueTableMap<KeyT, ValueT> getMapFor(@Nullable String keyFamily);
+=======
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 }

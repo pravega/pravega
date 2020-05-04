@@ -569,7 +569,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(createTableSegment.getRequestId(), "Creating table segment {}.", createTableSegment);
         val timer = new Timer();
+<<<<<<< HEAD
         tableStore.createSegment(createTableSegment.getSegment(), createTableSegment.isSorted(), TIMEOUT)
+=======
+        // TODO: wire in CreateTableSegment.isSorted. https://github.com/pravega/pravega/issues/4656
+        tableStore.createSegment(createTableSegment.getSegment(), TIMEOUT)
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
                   .thenAccept(v -> {
                       connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment()));
                       this.tableStatsRecorder.createTableSegment(createTableSegment.getSegment(), timer.getElapsed());
@@ -637,8 +642,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
+<<<<<<< HEAD
         log.debug(updateTableEntries.getRequestId(), "Update Table Segment Entries: Segment={}, Offset={}, Count={}.",
                 updateTableEntries.getSegment(), updateTableEntries.getTableSegmentOffset(), updateTableEntries.getTableEntries().getEntries().size());
+=======
+        log.debug(updateTableEntries.getRequestId(), "Updating table segment {}.", updateTableEntries);
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
         val entries = new ArrayList<TableEntry>(updateTableEntries.getTableEntries().getEntries().size());
         val conditional = new AtomicBoolean(false);
         for (val e : updateTableEntries.getTableEntries().getEntries()) {
@@ -669,8 +678,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
+<<<<<<< HEAD
         log.debug(removeTableKeys.getRequestId(), "Remove Table Segment Keys: Segment={}, Offset={}, Count={}.",
                 removeTableKeys.getSegment(), removeTableKeys.getTableSegmentOffset(), removeTableKeys.getKeys().size());
+=======
+        log.debug(removeTableKeys.getRequestId(), "Removing table keys {}.", removeTableKeys);
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
         val keys = new ArrayList<TableKey>(removeTableKeys.getKeys().size());
         val conditional = new AtomicBoolean(false);
         for (val k : removeTableKeys.getKeys()) {
@@ -701,8 +714,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
+<<<<<<< HEAD
         log.debug(readTable.getRequestId(), "Get Table Segment Keys: Segment={}, Count={}.",
                 readTable.getSegment(), readTable.getKeys());
+=======
+        log.debug(readTable.getRequestId(), "Reading from table {}.", readTable);
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 
         final List<BufferView> keys = readTable.getKeys().stream()
                 .map(k -> new ByteBufWrapper(k.getData()))
@@ -726,8 +743,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
+<<<<<<< HEAD
         log.debug(readTableKeys.getRequestId(), "Iterate Table Segment Keys: Segment={}, Count={}.",
                 readTableKeys.getSegment(), readTableKeys.getSuggestedKeyCount());
+=======
+        log.debug(readTableKeys.getRequestId(), "Fetching keys from {}.", readTableKeys);
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 
         final int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
         final IteratorArgs args = getIteratorArgs(readTableKeys.getContinuationToken(), readTableKeys.getPrefixFilter());
@@ -811,8 +832,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
+<<<<<<< HEAD
         log.debug(readTableEntries.getRequestId(), "Iterate Table Segment Entries: Segment={}, Count={}.",
                 readTableEntries.getSegment(), readTableEntries.getSuggestedEntryCount());
+=======
+        log.debug(readTableEntries.getRequestId(), "Fetching keys from {}.", readTableEntries);
+>>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 
         final int suggestedEntryCount = readTableEntries.getSuggestedEntryCount();
         final IteratorArgs args = getIteratorArgs(readTableEntries.getContinuationToken(), readTableEntries.getPrefixFilter());
@@ -895,7 +920,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             args.serializedState(getArrayView(token));
         }
         if (prefix != null && !prefix.equals(EMPTY_BUFFER)) {
-            args.prefixFilter(getArrayView(token));
+            args.prefixFilter(getArrayView(prefix));
         }
         return args.build();
     }
