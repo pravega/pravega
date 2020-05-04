@@ -10,8 +10,6 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -26,7 +24,7 @@ import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.CollectingExecutor;
-import io.pravega.test.common.ThreadPooledTestSuite;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,8 +38,6 @@ import java.util.function.Consumer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -52,21 +48,7 @@ import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
-public class EventStreamWriterTest extends ThreadPooledTestSuite {
-    
-    private Level originalLevel;
-    
-    @Before
-    public void setup() throws Exception {
-        originalLevel = ResourceLeakDetector.getLevel();
-        ResourceLeakDetector.setLevel(Level.PARANOID);
-    }
-
-    @After
-    public void teardown() {
-        ResourceLeakDetector.setLevel(originalLevel);
-    }
-    
+public class EventStreamWriterTest extends LeakDetectorTestSuite {
     @Test
     public void testWrite() {
         String scope = "scope";

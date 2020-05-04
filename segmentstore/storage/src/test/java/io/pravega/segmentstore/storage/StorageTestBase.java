@@ -308,75 +308,79 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     public void testConcat() throws Exception {
         final String context = createSegmentName("Concat");
         try (Storage s = createStorage()) {
-            s.initialize(DEFAULT_EPOCH);
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
-
-            // Check invalid segment name.
-            val firstSegmentName = getSegmentName(0, context);
-            val firstSegmentHandle = s.openWrite(firstSegmentName).join();
-            val sealedSegmentName = createSegmentName("SealedSegment");
-            createSegment(sealedSegmentName, s);
-            val sealedSegmentHandle = s.openWrite(sealedSegmentName).join();
-            s.write(sealedSegmentHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT).join();
-            s.seal(sealedSegmentHandle, TIMEOUT).join();
-            AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName,
-                    TIMEOUT).join().getLength());
-            assertSuppliedFutureThrows("concat() did not throw for non-existent target segment name.",
-                    () -> s.concat(createInexistentSegmentHandle(s, false), 0, sealedSegmentName, TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
-
-            assertSuppliedFutureThrows("concat() did not throw for invalid source StreamSegment name.",
-                    () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), "foo2", TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
-
-            ArrayList<String> concatOrder = new ArrayList<>();
-            concatOrder.add(firstSegmentName);
-            for (String sourceSegment : appendData.keySet()) {
-                if (sourceSegment.equals(firstSegmentName)) {
-                    // FirstSegment is where we'll be concatenating to.
-                    continue;
-                }
-
-                assertSuppliedFutureThrows("Concat allowed when source segment is not sealed.",
-                        () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT),
-                        ex -> ex instanceof IllegalStateException);
-
-                // Seal the source segment and then re-try the concat
-                val sourceWriteHandle = s.openWrite(sourceSegment).join();
-                s.seal(sourceWriteHandle, TIMEOUT).join();
-                SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
-                SegmentProperties sourceProps = s.getStreamSegmentInfo(sourceSegment, TIMEOUT).join();
-
-                s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT).join();
-                concatOrder.add(sourceSegment);
-                SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
-                Assert.assertFalse("concat() did not delete source segment", s.exists(sourceSegment, TIMEOUT).join());
-
-                // Only check lengths here; we'll check the contents at the end.
-                Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.",
-                        preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());
-                firstSegmentLength.set(postConcatTargetProps.getLength());
-            }
-
-            // Check the contents of the first StreamSegment. We already validated that the length is correct.
-            SegmentProperties segmentProperties = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
-            byte[] readBuffer = new byte[(int) segmentProperties.getLength()];
-
-            // Read the entire StreamSegment.
-            int bytesRead = s.read(firstSegmentHandle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
-            Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
-
-            // Check, concat-by-concat, that the final data is correct.
-            int offset = 0;
-            for (String segmentName : concatOrder) {
-                byte[] concatData = appendData.get(segmentName).toByteArray();
-                AssertExtensions.assertArrayEquals("Unexpected concat data.", concatData, 0, readBuffer, offset,
-                        concatData.length);
-                offset += concatData.length;
-            }
-
-            Assert.assertEquals("Concat included more bytes than expected.", offset, readBuffer.length);
+            testConcat(context, s);
         }
+    }
+
+    protected void testConcat(String context, Storage s) throws Exception {
+        s.initialize(DEFAULT_EPOCH);
+        HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
+
+        // Check invalid segment name.
+        val firstSegmentName = getSegmentName(0, context);
+        val firstSegmentHandle = s.openWrite(firstSegmentName).join();
+        val sealedSegmentName = createSegmentName("SealedSegment");
+        createSegment(sealedSegmentName, s);
+        val sealedSegmentHandle = s.openWrite(sealedSegmentName).join();
+        s.write(sealedSegmentHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT).join();
+        s.seal(sealedSegmentHandle, TIMEOUT).join();
+        AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName,
+                TIMEOUT).join().getLength());
+        assertSuppliedFutureThrows("concat() did not throw for non-existent target segment name.",
+                () -> s.concat(createInexistentSegmentHandle(s, false), 0, sealedSegmentName, TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        assertSuppliedFutureThrows("concat() did not throw for invalid source StreamSegment name.",
+                () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), "foo2", TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        ArrayList<String> concatOrder = new ArrayList<>();
+        concatOrder.add(firstSegmentName);
+        for (String sourceSegment : appendData.keySet()) {
+            if (sourceSegment.equals(firstSegmentName)) {
+                // FirstSegment is where we'll be concatenating to.
+                continue;
+            }
+
+            assertSuppliedFutureThrows("Concat allowed when source segment is not sealed.",
+                    () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT),
+                    ex -> ex instanceof IllegalStateException);
+
+            // Seal the source segment and then re-try the concat
+            val sourceWriteHandle = s.openWrite(sourceSegment).join();
+            s.seal(sourceWriteHandle, TIMEOUT).join();
+            SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
+            SegmentProperties sourceProps = s.getStreamSegmentInfo(sourceSegment, TIMEOUT).join();
+
+            s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT).join();
+            concatOrder.add(sourceSegment);
+            SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
+            Assert.assertFalse("concat() did not delete source segment", s.exists(sourceSegment, TIMEOUT).join());
+
+            // Only check lengths here; we'll check the contents at the end.
+            Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.",
+                    preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());
+            firstSegmentLength.set(postConcatTargetProps.getLength());
+        }
+
+        // Check the contents of the first StreamSegment. We already validated that the length is correct.
+        SegmentProperties segmentProperties = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
+        byte[] readBuffer = new byte[(int) segmentProperties.getLength()];
+
+        // Read the entire StreamSegment.
+        int bytesRead = s.read(firstSegmentHandle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+        Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
+
+        // Check, concat-by-concat, that the final data is correct.
+        int offset = 0;
+        for (String segmentName : concatOrder) {
+            byte[] concatData = appendData.get(segmentName).toByteArray();
+            AssertExtensions.assertArrayEquals("Unexpected concat data.", concatData, 0, readBuffer, offset,
+                    concatData.length);
+            offset += concatData.length;
+        }
+
+        Assert.assertEquals("Concat included more bytes than expected.", offset, readBuffer.length);
     }
 
     /**
@@ -406,8 +410,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
                 byte[] writeData = String.format(APPEND_FORMAT, segmentName, j).getBytes();
 
-                // Append some garbage at the end to make sure we only write as much as instructed, and not the whole InputStream.
-                val dataStream = new SequenceInputStream(new ByteArrayInputStream(writeData), new ByteArrayInputStream(extraData));
+                val dataStream = new ByteArrayInputStream(writeData);
                 s.write(writeHandle, offset, dataStream, writeData.length, TIMEOUT).join();
                 writeStream.write(writeData);
                 offset += writeData.length;

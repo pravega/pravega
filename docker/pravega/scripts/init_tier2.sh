@@ -44,19 +44,9 @@ init_tier2() {
     EXTENDEDS3_PREFIX=${EXTENDEDS3_PREFIX:-"/"}
 
     # Determine whether there is any variable missing
-    if [ -z ${EXTENDEDS3_ACCESS_KEY_ID} ]
+    if [ -z ${EXTENDEDS3_CONFIGURI} ]
     then
-        echo "EXTENDEDS3_ACCESS_KEY_ID is missing."
-    fi
-
-    if [ -z ${EXTENDEDS3_SECRET_KEY} ]
-    then
-        echo "EXTENDEDS3_SECRET_KEY is missing."
-    fi
-
-    if [ -z ${EXTENDEDS3_URI} ]
-    then
-        echo "EXTENDEDS3_URI is missing."
+        echo "EXTENDEDS3_CONFIGURI is missing."
     fi
 
     if [ -z ${EXTENDEDS3_BUCKET} ]
@@ -64,21 +54,22 @@ init_tier2() {
         echo "EXTENDEDS3_BUCKET is missing."
     fi
 
+    if [ -z ${EXTENDEDS3_PREFIX} ]
+    then
+        echo "EXTENDEDS3_PREFIX is missing."
+    fi
+
     # Loop until all variables are set
-    while [ -z ${EXTENDEDS3_ACCESS_KEY_ID} ] ||
-          [ -z ${EXTENDEDS3_SECRET_KEY} ] ||
-          [ -z ${EXTENDEDS3_URI} ] ||
+    while [ -z ${EXTENDEDS3_CONFIGURI} ] ||
           [ -z ${EXTENDEDS3_BUCKET} ]
     do
         echo "Looping till the container is restarted with all these variables set."
         sleep 60
     done
-    add_system_property "extendeds3.prefix" "${EXTENDEDS3_PREFIX}"
-    add_system_property "extendeds3.accessKey" "${EXTENDEDS3_ACCESS_KEY_ID}"
-    add_system_property "extendeds3.secretKey" "${EXTENDEDS3_SECRET_KEY}"
-    add_system_property "extendeds3.url" "${EXTENDEDS3_URI}"
+    add_system_property_ecs_config_uri "extendeds3.configUri" "${EXTENDEDS3_CONFIGURI}" "${EXTENDEDS3_ACCESS_KEY_ID}" "${EXTENDEDS3_SECRET_KEY}"
     add_system_property "extendeds3.bucket" "${EXTENDEDS3_BUCKET}"
-    add_system_property "extendeds3.namespace" "${EXTENDEDS3_NAMESPACE}"
+    add_system_property "extendeds3.prefix" "${EXTENDEDS3_PREFIX}"
+    add_certs_into_truststore
     ;;
     esac
 }
