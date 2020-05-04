@@ -25,7 +25,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
-import java.util.Collections;
 import java.util.Iterator;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -189,9 +188,10 @@ public class FileSystemStorage implements SyncStorage {
         return false;
     }
 
-    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "OS_OPEN_STREAM", justification = "Rare operation. The leaked object is collected by GC. In case of a iteraror in a for loop this would be fast.")
+    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "OS_OPEN_STREAM", justification = "Rare operation. " +
+            "The leaked object is collected by GC. In case of a iterator in a loop this would be faster.")
     @Override
-    public Iterator<SegmentProperties> listSegments() {
+    public Iterator<SegmentProperties> listSegments() throws IOException {
         try {
             return Files.find(Paths.get(config.getRoot()),
                     Integer.MAX_VALUE,
@@ -200,8 +200,8 @@ public class FileSystemStorage implements SyncStorage {
                     .iterator();
         } catch (IOException e) {
             log.error("Exception occurred while listing the segments.", e);
+            throw e;
         }
-        return Collections.emptyIterator();
     }
 
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings

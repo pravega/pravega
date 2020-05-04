@@ -15,6 +15,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.function.RunnableWithException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Arrays;
@@ -140,8 +142,8 @@ public class AsyncStorageWrapper implements Storage {
     }
 
     @Override
-    public CompletableFuture<Iterator<SegmentProperties>> listSegments() {
-        return CompletableFuture.completedFuture(this.syncStorage.listSegments());
+    public Iterator<SegmentProperties> listSegments() throws IOException {
+        return this.syncStorage.listSegments();
     }
 
     //endregion

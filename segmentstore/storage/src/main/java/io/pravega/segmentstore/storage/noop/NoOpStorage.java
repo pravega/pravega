@@ -16,6 +16,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
+
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
@@ -195,7 +197,7 @@ class NoOpStorage implements SyncStorage {
     }
 
     @Override
-    public Iterator<SegmentProperties> listSegments() {
+    public Iterator<SegmentProperties> listSegments() throws IOException {
         return baseStorage.listSegments();
     }
 

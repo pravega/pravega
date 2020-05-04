@@ -14,6 +14,8 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
 
@@ -219,7 +221,7 @@ public interface SyncStorage extends AutoCloseable {
      *
      * @return Iterator that can be used to enumerate and retrieve properties of all the segments.
      */
-    Iterator<SegmentProperties> listSegments();
+    Iterator<SegmentProperties> listSegments() throws IOException;
 
     @Override
     void close();

@@ -519,7 +519,7 @@ public class RollingStorage implements SyncStorage {
     }
 
     @Override
-    public Iterator<SegmentProperties> listSegments() {
+    public Iterator<SegmentProperties> listSegments() throws IOException {
         return new RollingStorageSegmentIterator(this, this.baseStorage.listSegments(),
                 props -> NameUtils.isHeaderSegment(props.getName()));
     }
@@ -528,10 +528,10 @@ public class RollingStorage implements SyncStorage {
      * Iterator for segments in Rolling storage.
      */
     public static class RollingStorageSegmentIterator implements Iterator<SegmentProperties> {
-        RollingStorage instance;
-        Iterator<SegmentProperties> results;
-        SegmentProperties current;
-        java.util.function.Predicate<SegmentProperties> patternMatchPredicate;
+        protected RollingStorage instance;
+        protected SegmentProperties current;
+        private final Iterator<SegmentProperties> results;
+        private final java.util.function.Predicate<SegmentProperties> patternMatchPredicate;
 
         RollingStorageSegmentIterator(RollingStorage instance, Iterator<SegmentProperties> results, java.util.function.Predicate<SegmentProperties> patternMatchPredicate) {
             this.instance = instance;
@@ -541,9 +541,10 @@ public class RollingStorage implements SyncStorage {
 
         @Override
         public boolean hasNext() {
-            if (results != null) {
-                while (results.hasNext()) {
-                    current = results.next();
+            Iterator<SegmentProperties> tempIterator = results;
+            if (tempIterator != null) {
+                while (tempIterator.hasNext()) {
+                    current = tempIterator.next();
                     if (patternMatchPredicate.test(current)) {
                         return true;
                     }
@@ -555,8 +556,14 @@ public class RollingStorage implements SyncStorage {
 
         @Override
         public SegmentProperties next() throws NoSuchElementException {
-            if (null != this.current) {
+            if (hasNext()) { // Check if next exists. Also checks if RemoteIterator results is null or not.
                 try {
+                    while (results.hasNext()) {
+                        current = results.next();
+                        if (patternMatchPredicate.test(current)) {
+                            break;
+                        }
+                    }
                     String segmentName = NameUtils.getSegmentNameFromHeader(current.getName());
                     val handle = instance.openHandle(segmentName, true);
                     return StreamSegmentInformation.builder()

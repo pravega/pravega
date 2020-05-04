@@ -36,6 +36,7 @@ public class HDFSSegmentIteratorMockTests {
     @Before
     public void setUp() throws Exception {
         this.results = Mockito.spy(new RemoteIterator<FileStatus>() {
+            // All methods defined here are mocked to return required values.
             @Override
             public boolean hasNext() throws IOException {
                 return true;
@@ -43,7 +44,10 @@ public class HDFSSegmentIteratorMockTests {
 
             @Override
             public FileStatus next() throws IOException {
-                return null;
+                FileStatus fileStatus = new FileStatus();
+                org.apache.hadoop.fs.Path path = new org.apache.hadoop.fs.Path("/testmock"); // Wrong format of path
+                fileStatus.setPath(path);
+                return fileStatus;
             }
         });
 
@@ -62,7 +66,7 @@ public class HDFSSegmentIteratorMockTests {
     @Test
     public void testHasNextIOException() throws IOException {
         HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
-                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(this.results, this.patternMatchPredicate);
+                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(this.results, null);
         Mockito.doThrow(new IOException()).when(this.results).hasNext();
         boolean hasNextValue = testHDFSStorageSegmentIterator.hasNext();
         Assert.assertFalse(hasNextValue);
@@ -95,11 +99,9 @@ public class HDFSSegmentIteratorMockTests {
      */
     @Test
     public void testNextFileNameFormatException() {
-        HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
-                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(null, null);
-        testHDFSStorageSegmentIterator.current = new FileStatus();
-        org.apache.hadoop.fs.Path path = new org.apache.hadoop.fs.Path("/testmock"); // Wrong format of path
-        testHDFSStorageSegmentIterator.current.setPath(path);
+        HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = Mockito.spy(new
+                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(this.results, this.patternMatchPredicate));
+        Mockito.doReturn(true).when(testHDFSStorageSegmentIterator).hasNext();
         boolean caughtException = false;
         try {
             testHDFSStorageSegmentIterator.next();
@@ -110,10 +112,10 @@ public class HDFSSegmentIteratorMockTests {
     }
 
     /**
-     * Tests the scenario when FileStatus is null.
+     * Tests the scenario when hasNext method returns false during the method under the test execution.
      */
     @Test
-    public void testNextNullCurrent() {
+    public void testNextWhenHasNextReturnsFalse() {
         HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
                 HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(null, null);
         boolean caughtException = false;

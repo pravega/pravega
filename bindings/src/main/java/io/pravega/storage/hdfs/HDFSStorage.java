@@ -29,7 +29,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -493,7 +492,7 @@ class HDFSStorage implements SyncStorage {
     }
 
     @Override
-    public Iterator<SegmentProperties> listSegments() {
+    public Iterator<SegmentProperties> listSegments() throws IOException {
         try {
             return new HDFSSegmentIterator(this.fileSystem.listStatusIterator(new Path(config.getHdfsRoot() + Path.SEPARATOR)),
                     fileStatus -> {
@@ -511,17 +510,17 @@ class HDFSStorage implements SyncStorage {
                     });
         } catch (Exception e) {
             log.error("Exception occurred while listing the segments.", e);
+            throw e;
         }
-        return Collections.emptyIterator();
     }
 
     /**
      * Iterator for segments in HDFS Storage.
      */
     public static class HDFSSegmentIterator implements Iterator<SegmentProperties> {
-        RemoteIterator<FileStatus> results;
-        FileStatus current;
-        java.util.function.Predicate<FileStatus> patternMatchPredicate;
+        protected FileStatus current;
+        private final RemoteIterator<FileStatus> results;
+        private final java.util.function.Predicate<FileStatus> patternMatchPredicate;
 
         HDFSSegmentIterator(RemoteIterator<FileStatus> results, java.util.function.Predicate<FileStatus> patternMatchPredicate) {
             this.results = results;
@@ -530,10 +529,11 @@ class HDFSStorage implements SyncStorage {
 
         @Override
         public boolean hasNext() {
+            RemoteIterator<FileStatus> tempIterator = results;
             try {
-                if (results != null) {
-                    while (results.hasNext()) {
-                        current = results.next();
+                if (tempIterator != null) {
+                    while (tempIterator.hasNext()) {
+                        current = tempIterator.next();
                         if (patternMatchPredicate.test(current)) {
                             return true;
                         }
@@ -548,14 +548,20 @@ class HDFSStorage implements SyncStorage {
 
         @Override
         public SegmentProperties next() throws NoSuchElementException {
-            if (null != current) {
+            if (hasNext()) { // Check if next exists. Also checks if RemoteIterator results is null or not.
                 try {
+                    while (results.hasNext()) {
+                        current = results.next();
+                        if (patternMatchPredicate.test(current)) {
+                            break;
+                        }
+                    }
                     boolean isSealed = isSealed(current.getPath());
                     return StreamSegmentInformation.builder()
                             .name(getSegmentNameFromPath(current.getPath()))
                             .length(current.getLen())
                             .sealed(isSealed).build();
-                } catch (FileNameFormatException e) {
+                } catch (IOException e) {
                     log.error("Exception occurred while trying to get the next object.", e);
                 }
             }

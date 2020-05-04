@@ -257,14 +257,14 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     public void testListSegmentsBatch() throws Exception {
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
-            Iterator<SegmentProperties> iterator = s.listSegments().join();
+            Iterator<SegmentProperties> iterator = s.listSegments();
             Assert.assertFalse(iterator.hasNext());
             int expectedCount = 1001; // Create more segments than 1000 which is the maximum number of segments in one batch.
             for (int i = 0; i < expectedCount; i++) {
                 String segmentName = "segment-" + i;
                 createSegment(segmentName, s);
             }
-            iterator = s.listSegments().join();
+            iterator = s.listSegments();
             int actualCount = 0;
             while (iterator.hasNext()) {
                 SegmentProperties prop = iterator.next();

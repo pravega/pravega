@@ -23,6 +23,7 @@ import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -98,14 +99,14 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
      * Tests the exists API.
      */
     @Test
-    public void testListSegmentsWithOneSegment() {
+    public void testListSegmentsWithOneSegment() throws IOException {
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
-            Iterator<SegmentProperties> iterator = s.listSegments().join();
+            Iterator<SegmentProperties> iterator = s.listSegments();
             Assert.assertFalse(iterator.hasNext());
             createSegment(segmentName, s);
-            iterator = s.listSegments().join();
+            iterator = s.listSegments();
             Assert.assertTrue(iterator.hasNext());
             SegmentProperties prop = iterator.next();
             Assert.assertEquals(prop.getName(), segmentName);

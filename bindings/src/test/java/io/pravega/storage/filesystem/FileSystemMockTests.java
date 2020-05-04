@@ -29,7 +29,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -59,11 +58,16 @@ public class FileSystemMockTests {
      */
     @Test
     public void testListSegmentsNumberIoException() {
+        boolean caughtException = false;
         FileChannel channel1 = mock(FileChannel.class);
         FileSystemStorageConfig storageConfig = FileSystemStorageConfig.builder().build();
         TestFileSystemStorage testFileSystemStorage = new TestFileSystemStorage(storageConfig, channel1);
-        Iterator<SegmentProperties> iterator = testFileSystemStorage.listSegments();
-        Assert.assertSame(iterator, Collections.emptyIterator());
+        try {
+            Iterator<SegmentProperties> iterator = testFileSystemStorage.listSegments();
+        } catch (IOException e) {
+            caughtException = true;
+        }
+        Assert.assertTrue(caughtException);
     }
 
     @Test
