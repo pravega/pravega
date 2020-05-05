@@ -219,7 +219,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             }
         }
         atCheckpoint = null;
-        if (acquireSegmentsIfNeeded(position) || groupState.updateLagIfNeeded(getLag(), position)) {
+        // Update last read position on watermark readers if watermarking is enabled.
+        if (!waterMarkReaders.isEmpty() && (acquireSegmentsIfNeeded(position) || groupState.updateLagIfNeeded(getLag(), position))) {
             waterMarkReaders.forEach((stream, reader) -> {
                 reader.advanceTo(groupState.getLastReadpositions(stream));
             });
