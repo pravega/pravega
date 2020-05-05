@@ -340,8 +340,8 @@ public class ReaderGroupStateManager {
                 return false;
             }
             if (state.getNumberOfUnassignedSegments() == 0) {
-                // Reduce the number of load imbalance checks for efficiency reasons.
-                if (!fetchStateTimer.hasRemaining() && doesReaderOwnTooManySegments(state)) {
+                // Only check whether if this reader has too many segments when the release timer is consumed.
+                if (!releaseTimer.hasRemaining() && doesReaderOwnTooManySegments(state)) {
                     acquireTimer.reset(calculateAcquireTime(readerId, state));
                 }
                 return false;
