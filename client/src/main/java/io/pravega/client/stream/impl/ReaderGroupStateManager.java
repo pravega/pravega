@@ -47,9 +47,9 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 /**
  * Manages the state of the reader group on behalf of a reader.
  * 
- * {@link #initializeReader(long)}  must be called upon reader startup before any other methods.
+ * {@link #initializeReader(long)} must be called upon reader startup before any other methods.
  * 
- * {@link #readerShutdown(Position)}  should be called when the reader is shutting down. After this
+ * {@link #readerShutdown(Position)} should be called when the reader is shutting down. After this
  * method is called no other methods should be called on this class.
  * 
  * This class updates makes transitions using the {@link ReaderGroupState} object. If there are available
@@ -81,6 +81,7 @@ public class ReaderGroupStateManager {
     private final TimeoutTimer fetchStateTimer;
     private final TimeoutTimer checkpointTimer;
     private final TimeoutTimer lagUpdateTimer;
+    private final TimeoutTimer periodicSegmentOffloadTimer;
 
     ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
         Preconditions.checkNotNull(readerId);
@@ -98,6 +99,7 @@ public class ReaderGroupStateManager {
         fetchStateTimer = new TimeoutTimer(Duration.ZERO, nanoClock);
         checkpointTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         lagUpdateTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
+        periodicSegmentOffloadTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
 
     /**
@@ -340,9 +342,10 @@ public class ReaderGroupStateManager {
                 return false;
             }
             if (state.getNumberOfUnassignedSegments() == 0) {
-                // Only check whether if this reader has too many segments when the release timer is consumed.
-                if (!releaseTimer.hasRemaining() && doesReaderOwnTooManySegments(state)) {
+                // Periodically check whether this reader has too many segments, so it can offload.
+                if (!periodicSegmentOffloadTimer.hasRemaining() && doesReaderOwnTooManySegments(state)) {
                     acquireTimer.reset(calculateAcquireTime(readerId, state));
+                    periodicSegmentOffloadTimer.reset(TIME_UNIT);
                 }
                 return false;
             }
