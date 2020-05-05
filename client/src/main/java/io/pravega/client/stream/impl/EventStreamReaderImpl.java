@@ -219,7 +219,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             }
         }
         atCheckpoint = null;
-        if (groupState.updateLagIfNeeded(getLag(), position) || acquireSegmentsIfNeeded(position)) {
+        if (acquireSegmentsIfNeeded(position) || groupState.updateLagIfNeeded(getLag(), position)) {
             waterMarkReaders.forEach((stream, reader) -> {
                 reader.advanceTo(groupState.getLastReadpositions(stream));
             });
