@@ -10,15 +10,20 @@
 package io.pravega.client.batch.impl;
 
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
+import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.test.common.AssertExtensions;
+
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
@@ -28,6 +33,10 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class SegmentIteratorTest {
 
@@ -112,6 +121,22 @@ public class SegmentIteratorTest {
         assertTrue(iter2.hasNext());
         assertEquals("3", iter2.next());
         assertFalse(iter.hasNext());
+    }
+
+    @Test(timeout = 5000)
+    public void testTimeoutError() throws SegmentTruncatedException, EndOfSegmentException {
+        Segment segment = new Segment("Scope", "Stream", 1);
+        int endOffset = 10;
+        SegmentInputStreamFactory factory = mock(SegmentInputStreamFactory.class);
+        EventSegmentReader input = mock(EventSegmentReader.class);
+        when(factory.createEventReaderForSegment(segment)).thenReturn(input);
+        when(input.read()).thenReturn(null).thenReturn(stringSerializer.serialize("s"));
+        @Cleanup
+        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, endOffset);
+        assertEquals("s", iter.next());
+        verify(input, times(2)).read();
+        when(input.read()).thenThrow(SegmentTruncatedException.class);
+        assertThrows(TruncatedDataException.class, () -> iter.next());
     }
 
     private void sendData(String data, SegmentOutputStream outputStream) {
