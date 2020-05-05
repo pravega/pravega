@@ -20,7 +20,6 @@ import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
@@ -69,11 +68,8 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
-    private static final Collection<UUID> AUTO_ATTRIBUTES = Collections.unmodifiableSet(
-            Sets.newHashSet(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO));
     private static final int CONTAINER_ID = 1234567;
     private static final int EXPECTED_PINNED_SEGMENT_COUNT = 1;
-    private static final String EXPECTED_METADATA_SEGMENT_NAME = NameUtils.getMetadataSegmentName(CONTAINER_ID);
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final int TEST_TIMEOUT_MILLIS = 100 * 1000;
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
@@ -111,11 +107,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
 
-    @Override
-    protected int getThreadPoolSize() {
-        return 5;
-    }
-
     /**
      * Tests the ability to create Segments.
      */
@@ -148,7 +139,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         localContainer.startAsync().awaitRunning();
 
         // Create the segments.
-        val segments = new ArrayList<String>();
+        // Alternate segments are sealed.
+        ArrayList<String> segments = new ArrayList<>();
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         boolean sealed = false;
         for (int i = 0; i < createdSegmentCount; i++) {
@@ -158,9 +150,23 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             sealed = !sealed;
         }
         Futures.allOf(futures).join();
-        checkActiveSegments(localContainer, 0);
+        // Verify the Segments are still there.
+        sealed = false;
+        for (String sn : segments) {
+            SegmentProperties props = localContainer.getStreamSegmentInfo(sn, TIMEOUT).join();
+            if (!sealed) {
+                Assert.assertFalse("segment was marked as unsealed in metadata.", props.isSealed());
+            } else {
+                Assert.assertTrue("segment was marked as sealed in metadata.", props.isSealed());
+            }
+            sealed = !sealed;
+        }
         localContainer.stopAsync().awaitTerminated();
     }
+
+    //endregion
+
+    //region MetadataCleanupContainer
 
     private static class MetadataCleanupContainer extends DebugStreamSegmentContainer {
         private final ScheduledExecutorService executor;
@@ -263,26 +269,5 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                         .thenRun(() -> truncationOffsets.put(handle.getSegmentName(), offset));
             }
         }
-    }
-
-    private void checkActiveSegments(DebugStreamSegmentContainer container, int expectedCount) {
-        val initialActiveSegments = container.getActiveSegments();
-        int ignoredSegments = 0;
-        for (SegmentProperties sp : initialActiveSegments) {
-            if (sp.getName().equals(EXPECTED_METADATA_SEGMENT_NAME)) {
-                ignoredSegments++;
-                continue;
-            }
-
-            val expectedSp = container.getStreamSegmentInfo(sp.getName(), TIMEOUT).join();
-            Assert.assertEquals("Unexpected length (from getActiveSegments) for segment " + sp.getName(), expectedSp.getLength(), sp.getLength());
-            Assert.assertEquals("Unexpected sealed (from getActiveSegments) for segment " + sp.getName(), expectedSp.isSealed(), sp.isSealed());
-            Assert.assertEquals("Unexpected deleted (from getActiveSegments) for segment " + sp.getName(), expectedSp.isDeleted(), sp.isDeleted());
-            SegmentMetadataComparer.assertSameAttributes("Unexpected attributes (from getActiveSegments) for segment " + sp.getName(),
-                    expectedSp.getAttributes(), sp, AUTO_ATTRIBUTES);
-        }
-
-        Assert.assertEquals("Unexpected result from getActiveSegments with freshly created segments.",
-                expectedCount + ignoredSegments, initialActiveSegments.size());
     }
 }
