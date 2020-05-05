@@ -214,6 +214,7 @@ public class ExtendedS3Storage implements SyncStorage {
                 while (tempIterator.hasNext()) { // Loops through the objects in the batch
                     tempS3Object = tempIterator.next();
                     if (patternMatchPredicate.test(tempS3Object)) {
+                        isAvailable = true;
                         return true;
                     }
                 }

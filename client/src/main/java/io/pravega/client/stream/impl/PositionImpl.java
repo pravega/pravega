@@ -30,6 +30,8 @@ import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 
+import static io.pravega.common.io.serialization.RevisionDataOutput.COMPACT_LONG_MAX;
+
 @EqualsAndHashCode(callSuper = false)
 public class PositionImpl extends PositionInternal {
 
@@ -106,7 +108,7 @@ public class PositionImpl extends PositionInternal {
         return ToStringUtils.mapToString(ownedSegments);
     }
 
-    private static class PositionBuilder implements ObjectBuilder<PositionImpl> {
+    static class PositionBuilder implements ObjectBuilder<PositionImpl> {
     }
 
     private static class PositionSerializer extends VersionedSerializer.WithBuilder<PositionImpl, PositionBuilder> {
@@ -128,8 +130,14 @@ public class PositionImpl extends PositionInternal {
         }
 
         private void read00(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
-            // RevisionDataInput::readCompactSignedLong can read data written using RevisionDataOutput.writeCompactLong
-            Map<Segment, Long> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), RevisionDataInput::readCompactSignedLong);
+            Map<Segment, Long> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), in -> {
+                long offset = in.readCompactLong();
+                if (offset == COMPACT_LONG_MAX) {
+                    return -1L;
+                } else {
+                    return offset;
+                }
+            });
             builder.ownedSegments(map);
         }
 
@@ -138,8 +146,8 @@ public class PositionImpl extends PositionInternal {
             Map<Segment, Long> map = position.getOwnedSegmentsWithOffsets();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
                                         (out, offset) -> {
-                                            if ( offset < 0) {
-                                                out.writeCompactSignedLong(offset);
+                                            if (offset < 0) {
+                                                out.writeCompactLong(COMPACT_LONG_MAX);
                                             } else {
                                                 out.writeCompactLong(offset);
                                             }

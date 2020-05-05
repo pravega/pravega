@@ -1369,7 +1369,7 @@ public abstract class StreamMetadataStoreTest {
         map4.put(0L, 40L);
         map4.put(computeSegmentId(3, 1), 10L);
         size = store.getSizeTillStreamCut(scope, stream, map4, Optional.empty(), null, executor).join();
-        assertEquals(new Long(90L), size);
+        assertEquals(Long.valueOf(90L), size);
         StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime + 30, size, ImmutableMap.copyOf(map4));
         store.addStreamCutToRetentionSet(scope, stream, streamCut4, null, executor).get();
 
