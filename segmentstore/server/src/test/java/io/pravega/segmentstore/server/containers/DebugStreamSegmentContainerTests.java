@@ -9,9 +9,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
-import com.google.common.collect.Sets;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -43,7 +41,6 @@ import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
-import io.pravega.shared.NameUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.val;
@@ -54,10 +51,8 @@ import org.junit.rules.Timeout;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
