@@ -8,13 +8,13 @@
  */
 package io.pravega.client.nonetty.impl;
 
-import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.AppendBatchSizeTrackerImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.EnhancedByteBufInputStream;
 import io.pravega.shared.protocol.netty.InvalidMessageException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -78,7 +78,7 @@ public class TcpClientConnection implements ClientConnection {
 
                         ByteBuffer payload = ByteBuffer.allocate(length);
                         fillFromChannel(payload, channel);
-                        WireCommand command = type.readFrom(new ByteBufInputStream(Unpooled.wrappedBuffer(payload)), length);
+                        WireCommand command = type.readFrom(new EnhancedByteBufInputStream(Unpooled.wrappedBuffer(payload)), length);
                         if (command instanceof WireCommands.DataAppended) {
                             WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
                             batchSizeTracker.recordAck(dataAppended.getEventNumber());
