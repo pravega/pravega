@@ -29,7 +29,6 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.State;
@@ -885,13 +884,15 @@ public abstract class ScaleRequestHandlerTest {
         // now set the state to SCALING
         this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
         
-        // rerun same manual scaling job. It should fail with StartException but after having reset the state to active
-        AssertExtensions.assertSuppliedFutureThrows("", () -> scaleRequestHandler.execute(event),
-                e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
+        // rerun same manual scaling job. It should succeed after simply resetting the state back to active.
+        scaleRequestHandler.execute(event).join();
         // verify that state is reset
         assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
         assertEquals(1, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
 
+        // rerun same manual scaling job. This time it should not do anything at all. 
+        scaleRequestHandler.execute(event).join();
+        
         // run scale 2.. this time auto scale
         ScaleOpEvent event2 = new ScaleOpEvent(scope, stream, Lists.newArrayList(one),
                 newRange, false, System.currentTimeMillis(), System.currentTimeMillis());
