@@ -147,6 +147,11 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
+    public Reader getBufferViewReader() {
+        throw new UnsupportedOperationException("getBufferViewReader() not supported.");
+    }
+
+    @Override
     public void copyTo(byte[] target, int targetOffset, int length) {
         throw new UnsupportedOperationException("copyTo() not supported.");
     }
