@@ -81,6 +81,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private Sequence lastRead;
     @GuardedBy("readers")
     private String atCheckpoint;
+    @GuardedBy("readers")
+    private PositionInternal lastPosition;
     private final ReaderGroupStateManager groupState;
     private final Supplier<Long> clock;
     private final Controller controller;
@@ -154,8 +156,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         } 
         lastRead = Sequence.create(segment.getSegmentId(), offset);
         int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
-        return new EventReadImpl<>(deserializer.deserialize(buffer), getPosition(),
-                                   new EventPointerImpl(segment, offset, length), null);
+        lastPosition = getPosition();
+        return new EventReadImpl<>(deserializer.deserialize(buffer), lastPosition, new EventPointerImpl(segment, offset, length), null);
     }
 
     private void blockFor(long timeoutMs) {
@@ -195,7 +197,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
      */
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
-        PositionInternal position = getPosition();
+        PositionInternal position = (lastPosition == null) ? getPosition() : lastPosition;
         if (atCheckpoint != null) {
             groupState.checkpoint(atCheckpoint, position);
             log.info("Reader {} completed checkpoint {}", groupState.getReaderId(), atCheckpoint);
