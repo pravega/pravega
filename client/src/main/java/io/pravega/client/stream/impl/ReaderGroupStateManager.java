@@ -217,7 +217,7 @@ public class ReaderGroupStateManager {
      */
     private boolean doesReaderOwnTooManySegments(ReaderGroupState state) {
         // The previous calculation for this method is cached during TIME_UNIT to prevent excessive per-event computations.
-        if (periodicSegmentOffloadTimer.hasRemaining()){
+        if (periodicSegmentOffloadTimer.hasRemaining()) {
             return readerHasTooManySegments.get();
         }
         periodicSegmentOffloadTimer.reset(TIME_UNIT);
