@@ -82,6 +82,7 @@ public class ReaderGroupStateManager {
     private final TimeoutTimer checkpointTimer;
     private final TimeoutTimer lagUpdateTimer;
     private final TimeoutTimer periodicSegmentOffloadTimer;
+    private final AtomicBoolean readerHasTooManySegments = new AtomicBoolean();
 
     ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
         Preconditions.checkNotNull(readerId);
@@ -99,7 +100,7 @@ public class ReaderGroupStateManager {
         fetchStateTimer = new TimeoutTimer(Duration.ZERO, nanoClock);
         checkpointTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         lagUpdateTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
-        periodicSegmentOffloadTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
+        periodicSegmentOffloadTimer = new TimeoutTimer(Duration.ZERO, nanoClock);
     }
 
     /**
@@ -215,13 +216,21 @@ public class ReaderGroupStateManager {
      * the reader with the least assigned to it.
      */
     private boolean doesReaderOwnTooManySegments(ReaderGroupState state) {
-        Map<String, Double> sizesOfAssignemnts = state.getRelativeSizes();
+        // The previous calculation for this method is cached during TIME_UNIT to do not make this computation be done
+        // on each event read.
+        if (periodicSegmentOffloadTimer.hasRemaining()){
+            return readerHasTooManySegments.get();
+        } else {
+            periodicSegmentOffloadTimer.reset(TIME_UNIT);
+        }
+        Map<String, Double> sizesOfAssignments = state.getRelativeSizes();
         Set<Segment> assignedSegments = state.getSegments(readerId);
-        if (sizesOfAssignemnts.isEmpty() || assignedSegments == null || assignedSegments.size() <= 1) {
+        if (sizesOfAssignments.isEmpty() || assignedSegments == null || assignedSegments.size() <= 1) {
             return false;
         }
-        double min = sizesOfAssignemnts.values().stream().min(Double::compareTo).get();
-        return sizesOfAssignemnts.get(readerId) > min + Math.max(1, state.getNumberOfUnassignedSegments());
+        double min = sizesOfAssignments.values().stream().min(Double::compareTo).get();
+        readerHasTooManySegments.set(sizesOfAssignments.get(readerId) > min + Math.max(1, state.getNumberOfUnassignedSegments()));
+        return readerHasTooManySegments.get();
     }
 
     /**
@@ -342,10 +351,8 @@ public class ReaderGroupStateManager {
                 return false;
             }
             if (state.getNumberOfUnassignedSegments() == 0) {
-                // Periodically check whether this reader has too many segments, so it can offload.
-                if (!periodicSegmentOffloadTimer.hasRemaining() && doesReaderOwnTooManySegments(state)) {
+                if (doesReaderOwnTooManySegments(state)) {
                     acquireTimer.reset(calculateAcquireTime(readerId, state));
-                    periodicSegmentOffloadTimer.reset(TIME_UNIT);
                 }
                 return false;
             }
