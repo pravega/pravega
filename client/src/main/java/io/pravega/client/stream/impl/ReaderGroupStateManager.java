@@ -219,9 +219,8 @@ public class ReaderGroupStateManager {
         // The previous calculation for this method is cached during TIME_UNIT to prevent excessive per-event computations.
         if (periodicSegmentOffloadTimer.hasRemaining()){
             return readerHasTooManySegments.get();
-        } else {
-            periodicSegmentOffloadTimer.reset(TIME_UNIT);
         }
+        periodicSegmentOffloadTimer.reset(TIME_UNIT);
         Map<String, Double> sizesOfAssignments = state.getRelativeSizes();
         Set<Segment> assignedSegments = state.getSegments(readerId);
         if (sizesOfAssignments.isEmpty() || assignedSegments == null || assignedSegments.size() <= 1) {
