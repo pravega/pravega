@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -38,6 +39,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
+import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -193,25 +195,27 @@ class TableCompactor {
     private CompletableFuture<CompactionArgs> readCandidates(DirectSegmentAccess segment, long startOffset, int maxLength, TimeoutTimer timer) {
         ReadResult rr = segment.read(startOffset, maxLength, timer.getRemaining());
         return AsyncReadResultProcessor.processAll(rr, this.executor, timer.getRemaining())
-                                       .thenApply(inputStream -> parseEntries(inputStream, startOffset, maxLength));
+                .thenApply(inputData -> parseEntries(inputData, startOffset, maxLength));
     }
 
     /**
      * Parses out a {@link CompactionArgs} object containing Compaction {@link Candidate}s from the given InputStream
      * representing Segment data.
      *
-     * @param input       An InputStream representing a continuous range of bytes in the Segment.
+     * @param inputData   A BufferView representing a continuous range of bytes in the Segment.
      * @param startOffset The offset at which the InputStream begins. This should be the Compaction Offset.
      * @param maxLength   The maximum number of bytes read. The given InputStream should have at most this number of
      *                    bytes in it.
      * @return A {@link CompactionArgs} object containing the result.
      */
     @SneakyThrows(IOException.class)
-    private CompactionArgs parseEntries(InputStream input, long startOffset, int maxLength) {
+    private CompactionArgs parseEntries(BufferView inputData, long startOffset, int maxLength) {
         val entries = new HashMap<UUID, CandidateSet>();
         int count = 0;
         long nextOffset = startOffset;
         final long maxOffset = startOffset + maxLength;
+        @Cleanup
+        InputStream input = inputData.getReader();
         try {
             while (nextOffset < maxOffset) {
                 // TODO: Handle error when compaction offset is not on Entry boundary (https://github.com/pravega/pravega/issues/3560).

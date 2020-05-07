@@ -11,10 +11,11 @@ package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -27,9 +28,6 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.test.common.ErrorInjector;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -374,13 +372,18 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public InputStream getAppendData(long streamSegmentId, long startOffset, int length) {
+    public BufferView getAppendData(long streamSegmentId, long startOffset, int length) {
         AppendData ad;
         synchronized (this.lock) {
             ErrorInjector.throwSyncExceptionIfNeeded(this.getAppendDataErrorInjector);
 
             // Perform the same validation checks as the ReadIndex would do.
             SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+            if (sm.isDeleted()) {
+                // StorageWriterFactory.WriterDataSource returns null for inexistent segments.
+                return null;
+            }
+
             Preconditions.checkArgument(length >= 0, "length must be a non-negative number");
             Preconditions.checkArgument(startOffset >= sm.getStorageLength(),
                     "startOffset (%s) must refer to an offset beyond the Segment's StorageLength offset(%s).", startOffset, sm.getStorageLength());
@@ -595,8 +598,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             this.data.put(segmentOffset, data);
         }
 
-        synchronized InputStream read(final long segmentOffset, final int length) {
-            ArrayList<InputStream> result = new ArrayList<>();
+        synchronized BufferView read(final long segmentOffset, final int length) {
+            ArrayList<BufferView> result = new ArrayList<>();
 
             // Locate first entry.
             long currentOffset = segmentOffset;
@@ -611,7 +614,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             int remainingLength = length;
             while (entryData != null && remainingLength > 0) {
                 int entryLength = Math.min(remainingLength, entryData.length - entryOffset);
-                result.add(new ByteArrayInputStream(entryData, entryOffset, entryLength));
+                result.add(new ByteArraySegment(entryData, entryOffset, entryLength));
                 currentOffset += entryLength;
                 remainingLength -= entryLength;
                 entryOffset = 0;
@@ -622,7 +625,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                 return null;
             }
 
-            return new SequenceInputStream(Iterators.asEnumeration(result.iterator()));
+            return BufferView.wrap(result);
         }
     }
 }

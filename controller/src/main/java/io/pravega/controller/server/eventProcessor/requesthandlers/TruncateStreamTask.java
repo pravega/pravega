@@ -70,7 +70,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                                     return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
                                             versionedState, context, executor));
                                 } else {
-                                    throw new TaskExceptions.StartException("Truncate Stream not started yet.");
+                                    return CompletableFuture.completedFuture(null);
                                 }
                             } else {
                                 return processTruncate(scope, stream, versionedMetadata, versionedState, context, requestId);
