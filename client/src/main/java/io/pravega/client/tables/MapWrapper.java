@@ -14,6 +14,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import lombok.NonNull;
@@ -41,11 +42,19 @@ public interface MapWrapper<KeyT, ValueT> extends Map<KeyT, ValueT> {
     @Override
     ValueT put(@NonNull KeyT key, @NonNull ValueT value);
 
+    void putDirect(@NonNull KeyT key, @NonNull ValueT value);
+
+    @Override
+    ValueT putIfAbsent(@NonNull KeyT key, @NonNull ValueT value);
+
     @Override
     void putAll(@NonNull Map<? extends KeyT, ? extends ValueT> map);
 
     @Override
-    ValueT putIfAbsent(@NonNull KeyT key, @NonNull ValueT value);
+    boolean replace(@NonNull KeyT key, @NonNull ValueT expectedValue, @NonNull ValueT newValue);
+
+    @Override
+    ValueT replace(@NonNull KeyT key, @NonNull ValueT value);
 
     @Override
     void replaceAll(@NonNull BiFunction<? super KeyT, ? super ValueT, ? extends ValueT> convert);
@@ -56,14 +65,16 @@ public interface MapWrapper<KeyT, ValueT> extends Map<KeyT, ValueT> {
     @Override
     boolean remove(@NonNull Object key, Object expectedValue);
 
-    @Override
-    boolean replace(@NonNull KeyT key, @NonNull ValueT expectedValue, @NonNull ValueT newValue);
-
-    @Override
-    ValueT replace(@NonNull KeyT key, @NonNull ValueT value);
+    void removeDirect(@NonNull KeyT key);
 
     @Override
     ValueT compute(@NonNull KeyT key, @NonNull BiFunction<? super KeyT, ? super ValueT, ? extends ValueT> toCompute);
+
+    @Override
+    ValueT computeIfPresent(@NonNull KeyT key, BiFunction<? super KeyT, ? super ValueT, ? extends ValueT> toCompute);
+
+    @Override
+    ValueT computeIfAbsent(@NonNull KeyT key, Function<? super KeyT, ? extends ValueT> toCompute);
 
     @Override
     KeySet<KeyT> keySet();
@@ -88,18 +99,13 @@ public interface MapWrapper<KeyT, ValueT> extends Map<KeyT, ValueT> {
         boolean contains(Object key);
 
         @Override
-        boolean add(KeyT key);
-
-        @Override
-        default boolean addAll(Collection<? extends KeyT> keys) {
-            throw new UnsupportedOperationException("Cannot add Keys without Values. Use MapWrapper.putAll() instead.");
-        }
+        boolean containsAll(Collection<?> keyCollection);
 
         @Override
         boolean remove(Object key);
 
         @Override
-        boolean containsAll(Collection<?> keyCollection);
+        boolean removeIf(Predicate<? super KeyT> filter);
 
         @Override
         boolean removeAll(Collection<?> keyCollection);
@@ -124,11 +130,6 @@ public interface MapWrapper<KeyT, ValueT> extends Map<KeyT, ValueT> {
 
         @Override
         Object[] toArray();
-
-        @Override
-        default <V> V[] toArray(V[] ts) {
-            throw new UnsupportedOperationException("toArray(T[])");
-        }
     }
 
     interface EntrySet<KeyT, ValueT> extends Set<Entry<KeyT, ValueT>> {
@@ -146,6 +147,9 @@ public interface MapWrapper<KeyT, ValueT> extends Map<KeyT, ValueT> {
 
         @Override
         boolean remove(Object o);
+
+        @Override
+        boolean removeIf(Predicate<? super Entry<KeyT, ValueT>> filter);
 
         @Override
         boolean removeAll(Collection<?> collection);
@@ -172,16 +176,6 @@ public interface MapWrapper<KeyT, ValueT> extends Map<KeyT, ValueT> {
     interface ValuesCollection<ValueT> extends Collection<ValueT> {
         @Override
         boolean contains(@NonNull Object o);
-
-        @Override
-        default boolean add(ValueT valueT) {
-            throw new UnsupportedOperationException("Cannot add a Value without a Key. Use MapWrapper.put(KeyT, ValueT) instead.");
-        }
-
-        @Override
-        default boolean addAll(Collection<? extends ValueT> collection) {
-            throw new UnsupportedOperationException("Cannot add Values without Keys. Use MapWrapper.putAll() instead.");
-        }
 
         @Override
         boolean remove(Object o);

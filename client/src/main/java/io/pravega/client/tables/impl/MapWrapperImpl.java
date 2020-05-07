@@ -73,6 +73,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
 
     @Override
     public boolean containsValue(@NonNull Object o) {
+        requiresKeyFamily("containsValue");
         ValueT value = (ValueT) o;
         return entryStream().anyMatch(e -> areSame(e.getValue(), value));
     }
@@ -101,7 +102,8 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
         return oldValue.get();
     }
 
-    private void putDirect(@NonNull KeyT key, @NonNull ValueT value) {
+    @Override
+    public void putDirect(@NonNull KeyT key, @NonNull ValueT value) {
         this.kvt.put(this.keyFamily, key, value).join();
     }
 
@@ -121,6 +123,34 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
                 ex -> ex instanceof BadKeyVersionException,
                 () -> this.kvt.get(this.keyFamily, key).thenApply(TableEntry::getValue))
                 .join();
+    }
+
+    @Override
+    public boolean replace(@NonNull KeyT key, @NonNull ValueT expectedValue, @NonNull ValueT newValue) {
+        return RETRY.run(
+                () -> this.kvt.get(this.keyFamily, key)
+                        .thenCompose(e -> {
+                            if (e != null && areSame(expectedValue, e.getValue())) {
+                                return this.kvt.replace(this.keyFamily, key, newValue, e.getKey().getVersion())
+                                        .thenApply(v -> true);
+                            } else {
+                                return CompletableFuture.completedFuture(false);
+                            }
+                        }).join());
+    }
+
+    @Override
+    public ValueT replace(@NonNull KeyT key, @NonNull ValueT value) {
+        return RETRY.run(
+                () -> this.kvt.get(this.keyFamily, key)
+                        .thenCompose(e -> {
+                            if (e != null) {
+                                return this.kvt.replace(this.keyFamily, key, value, e.getKey().getVersion())
+                                        .thenApply(v -> e.getValue());
+                            } else {
+                                return CompletableFuture.completedFuture(null);
+                            }
+                        }).join());
     }
 
     @Override
@@ -177,36 +207,9 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
                         }).join());
     }
 
-    private void removeDirect(KeyT key) {
+    @Override
+    public void removeDirect(KeyT key) {
         this.kvt.remove(this.keyFamily, key).join();
-    }
-
-    @Override
-    public boolean replace(@NonNull KeyT key, @NonNull ValueT expectedValue, @NonNull ValueT newValue) {
-        return RETRY.run(
-                () -> this.kvt.get(this.keyFamily, key)
-                        .thenCompose(e -> {
-                            if (e != null && areSame(expectedValue, e.getValue())) {
-                                return this.kvt.replace(this.keyFamily, key, newValue, e.getKey().getVersion())
-                                        .thenApply(v -> true);
-                            } else {
-                                return CompletableFuture.completedFuture(false);
-                            }
-                        }).join());
-    }
-
-    @Override
-    public ValueT replace(@NonNull KeyT key, @NonNull ValueT value) {
-        return RETRY.run(
-                () -> this.kvt.get(this.keyFamily, key)
-                        .thenCompose(e -> {
-                            if (e != null) {
-                                return this.kvt.replace(this.keyFamily, key, value, e.getKey().getVersion())
-                                        .thenApply(v -> e.getValue());
-                            } else {
-                                return CompletableFuture.completedFuture(null);
-                            }
-                        }).join());
     }
 
     @Override
@@ -220,8 +223,41 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
 
             return null;
         } else {
-            putDirect(key, newValue);
+            if (!areSame(existingValue, newValue)) {
+                putDirect(key, newValue);
+            }
             return newValue;
+        }
+    }
+
+    @Override
+    public ValueT computeIfPresent(@NonNull KeyT key, BiFunction<? super KeyT, ? super ValueT, ? extends ValueT> toCompute) {
+        ValueT existingValue = get(key);
+        if (existingValue != null) {
+            ValueT newValue = toCompute.apply(key, existingValue);
+            if (newValue != null) {
+                if (!areSame(existingValue, newValue)) {
+                    putDirect(key, newValue);
+                }
+            } else {
+                removeDirect(key);
+            }
+            return newValue;
+        }
+        return null;
+    }
+
+    @Override
+    public ValueT computeIfAbsent(@NonNull KeyT key, Function<? super KeyT, ? extends ValueT> toCompute) {
+        ValueT existingValue = get(key);
+        if (existingValue == null) {
+            ValueT newValue = toCompute.apply(key);
+            if (newValue != null) {
+                putDirect(key, newValue);
+            }
+            return newValue;
+        } else {
+            return existingValue;
         }
     }
 
@@ -300,7 +336,8 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
     private boolean areSame(List<TableEntry<KeyT, ValueT>> expected, List<ValueT> actual) {
         assert expected.size() == actual.size();
         for (int i = 0; i < expected.size(); i++) {
-            if (!areSame(actual.get(i), expected.get(i).getValue())) {
+            TableEntry<KeyT, ValueT> e = expected.get(i);
+            if (((e == null) != (actual == null)) || !areSame(actual.get(i), expected.get(i).getValue())) {
                 return false;
             }
         }
@@ -346,7 +383,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
 
         @Override
         public Iterator<T> iterator() {
-            return stream().iterator();
+            return stream().iterator(); // TODO: implement iterator removal.
         }
 
         @Override
@@ -377,16 +414,6 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
         public String toString() {
             // AbstractSet.toString() invokes the iterator, so we shouldn't be using it.
             return this.getClass().getName();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            throw new UnsupportedOperationException("equals()");
-        }
-
-        @Override
-        public int hashCode() {
-            throw new UnsupportedOperationException("hashCode()");
         }
     }
 
