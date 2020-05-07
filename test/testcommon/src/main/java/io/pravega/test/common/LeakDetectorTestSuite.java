@@ -22,9 +22,18 @@ import org.junit.Before;
 /**
  * Base class for a unit test that wants to check for Netty (ByteBuf) resource leaks. Automatically fails any tests
  * for which {@link ResourceLeakDetector} reports a leak.
- *
+ * <p>
  * This works by attaching a specialized {@link Slf4JLoggerFactory} to the {@link ResourceLeakDetector} and invokes
  * {@link Assert#fail} when {@link InternalLogger#error} is invoked.
+ * <p>
+ * NOTE:
+ * Ensure that Log4j is properly configured in the (Test) Project where this is used. If you get a `WARN` when running
+ * your test saying that Log4j is not properly configured (no appenders set up), the Leak Detector WILL NOT WORK. At the
+ * very least, verify the following are included as dependencies in your Test Project:
+ * <pre><code>
+ * testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
+ * testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+ * </code></pre>
  */
 public abstract class LeakDetectorTestSuite extends ThreadPooledTestSuite {
     private ResourceLeakDetector.Level originalLevel;

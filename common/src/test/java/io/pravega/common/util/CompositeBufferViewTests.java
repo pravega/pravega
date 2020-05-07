@@ -80,6 +80,22 @@ public class CompositeBufferViewTests {
      * Tests {@link CompositeBufferView#getReader()}.
      */
     @Test
+    public void testGetBufferViewReader() throws IOException {
+        val components = createComponents();
+        val cb = BufferView.wrap(components);
+        val expectedSize = components.stream().mapToInt(BufferView::getLength).sum();
+        val asInputStream = new SequenceInputStream(Iterators.asEnumeration(components.stream().map(BufferView::getReader).iterator()));
+        val expected = StreamHelpers.readAll(asInputStream, expectedSize);
+        val reader = cb.getBufferViewReader();
+        val actual = reader.readFully(3);
+        AssertExtensions.assertArrayEquals("", expected, 0, actual.array(), actual.arrayOffset(), expectedSize);
+        Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
+    }
+
+    /**
+     * Tests {@link CompositeBufferView#getReader()}.
+     */
+    @Test
     public void testGetReader() throws IOException {
         val components = createComponents();
         val cb = BufferView.wrap(components);
