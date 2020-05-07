@@ -124,6 +124,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         Segment segment = null;
         long offset = -1;
         ByteBuffer buffer;
+        lastPosition = (lastPosition == null) ? getPosition() : lastPosition;
         do { 
             String checkpoint = updateGroupStateIfNeeded();
             if (checkpoint != null) {
@@ -197,36 +198,44 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
      */
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
-        PositionInternal position = (lastPosition == null) ? getPosition() : lastPosition;
-        if (atCheckpoint != null) {
-            groupState.checkpoint(atCheckpoint, position);
-            log.info("Reader {} completed checkpoint {}", groupState.getReaderId(), atCheckpoint);
-            releaseSegmentsIfNeeded(position);
-        }
-        String checkpoint = groupState.getCheckpoint();
-        while (checkpoint != null) {
-            log.info("{} at checkpoint {}", this, checkpoint);
-            if (groupState.isCheckpointSilent(checkpoint)) {
-                // Checkpoint the reader immediately with the current position. Checkpoint Event is not generated.
-                groupState.checkpoint(checkpoint, position);
-                if (atCheckpoint != null) {
-                    //In case the silent checkpoint held up releasing segments
-                    releaseSegmentsIfNeeded(position);
-                    atCheckpoint = null;
+        boolean potentialChangeInSegments = false;
+        try {
+            if (atCheckpoint != null) {
+                groupState.checkpoint(atCheckpoint, lastPosition);
+                log.info("Reader {} completed checkpoint {}", groupState.getReaderId(), atCheckpoint);
+                releaseSegmentsIfNeeded(lastPosition);
+                potentialChangeInSegments = true;
+            }
+            String checkpoint = groupState.getCheckpoint();
+            while (checkpoint != null) {
+                log.info("{} at checkpoint {}", this, checkpoint);
+                if (groupState.isCheckpointSilent(checkpoint)) {
+                    // Checkpoint the reader immediately with the current position. Checkpoint Event is not generated.
+                    groupState.checkpoint(checkpoint, lastPosition);
+                    if (atCheckpoint != null) {
+                        //In case the silent checkpoint held up releasing segments
+                        releaseSegmentsIfNeeded(lastPosition);
+                        atCheckpoint = null;
+                        potentialChangeInSegments = true;
+                    }
+                    checkpoint = groupState.getCheckpoint();
+                } else {
+                    atCheckpoint = checkpoint;
+                    return atCheckpoint;
                 }
-                checkpoint = groupState.getCheckpoint();
-            } else {
-                atCheckpoint = checkpoint;
-                return atCheckpoint;
+            }
+            atCheckpoint = null;
+            if (acquireSegmentsIfNeeded(lastPosition) || groupState.updateLagIfNeeded(getLag(), lastPosition)) {
+                waterMarkReaders.forEach((stream, reader) -> reader.advanceTo(groupState.getLastReadpositions(stream)));
+                potentialChangeInSegments = true;
+            }
+            return null;
+        } finally {
+            // Update the lastPosition according to the new state of the reader if there has been a change in segments.
+            if (potentialChangeInSegments) {
+                lastPosition = getPosition();
             }
         }
-        atCheckpoint = null;
-        if (acquireSegmentsIfNeeded(position) || groupState.updateLagIfNeeded(getLag(), position)) {
-            waterMarkReaders.forEach((stream, reader) -> {
-                reader.advanceTo(groupState.getLastReadpositions(stream));
-            });
-        }
-        return null;
     }
 
     /**
