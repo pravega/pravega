@@ -10,14 +10,17 @@
 package io.pravega.common.io.serialization;
 
 import com.google.common.base.Charsets;
+import io.pravega.common.io.BufferViewSink;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.function.Function;
@@ -53,6 +56,18 @@ public class RevisionDataOutputStreamTests {
         final int bufferSize = 1024 * 1024;
         @Cleanup
         val s = new FixedByteArrayOutputStream(new byte[bufferSize], 0, bufferSize);
+        @Cleanup
+        val impl = RevisionDataOutputStream.wrap(s);
+        testImpl(impl, s::getData);
+    }
+
+    /**
+     * Tests the RandomRevisionDataOutput class with an expandable RandomAccessOutputStream that implements {@link BufferViewSink}.
+     */
+    @Test
+    public void testBufferViewSink() throws Exception {
+        @Cleanup
+        val s = new BufferViewSinkOutputStream();
         @Cleanup
         val impl = RevisionDataOutputStream.wrap(s);
         testImpl(impl, s::getData);
@@ -249,5 +264,13 @@ public class RevisionDataOutputStreamTests {
             sb.append((char) i);
         }
         return sb.toString();
+    }
+
+
+    private static class BufferViewSinkOutputStream extends EnhancedByteArrayOutputStream implements BufferViewSink {
+        @Override
+        public void writeBuffer(BufferView buffer) throws IOException {
+            buffer.copyTo(this);
+        }
     }
 }

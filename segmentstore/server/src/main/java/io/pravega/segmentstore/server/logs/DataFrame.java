@@ -14,8 +14,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.io.SerializationException;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.CompositeArrayView;
 import io.pravega.common.util.CompositeByteArraySegment;
@@ -220,17 +220,17 @@ public class DataFrame {
     }
 
     /**
-     * Appends the contents of the ByteArraySegment to the DataFrame.
+     * Appends the contents of the {@link BufferView.Reader} to the DataFrame.
      *
-     * @param data The ByteArraySegment to append.
-     * @return The number of bytes written. If less than the length of the ByteArraySegment, the frame is full and cannot
+     * @param data The {@link BufferView.Reader} to append.
+     * @return The number of bytes written. If less than {@link BufferView.Reader#available()}, the frame is full and cannot
      * write anything anymore. The remaining bytes will need to be written to a new frame.
      * @throws IllegalStateException If the frame is sealed or no entry has been started.
      */
-    int append(ArrayView data) {
+    int append(BufferView.Reader data) {
         ensureAppendConditions();
 
-        int actualLength = Math.min(data.getLength(), getAvailableLength());
+        int actualLength = Math.min(data.available(), getAvailableLength());
         if (actualLength > 0) {
             this.contents.copyFrom(data, writePosition, actualLength);
             writePosition += actualLength;

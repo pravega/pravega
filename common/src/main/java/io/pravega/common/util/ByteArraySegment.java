@@ -115,6 +115,11 @@ public class ByteArraySegment implements ArrayView {
     }
 
     @Override
+    public Reader getBufferViewReader() {
+        return new Reader();
+    }
+
+    @Override
     public InputStream getReader() {
         return new ByteArrayInputStream(this.array, this.startOffset, this.length);
     }
@@ -256,21 +261,6 @@ public class ByteArraySegment implements ArrayView {
         return new ByteArraySegment(this.array, this.startOffset + offset, length, readOnly || this.readOnly);
     }
 
-    /**
-     * Returns a new ByteArraySegment that wraps the same underlying array that this ByteSegmentDoes, except that the
-     * new instance is marked as Read-Only.
-     * If this instance is already Read-Only, this instance is returned instead.
-     *
-     * @return  A new read-only ByteArraySegment.
-     */
-    public ByteArraySegment asReadOnly() {
-        if (isReadOnly()) {
-            return this;
-        } else {
-            return new ByteArraySegment(this.array, this.startOffset, this.length, true);
-        }
-    }
-
     @Override
     public String toString() {
         if (getLength() > 128) {
@@ -279,6 +269,27 @@ public class ByteArraySegment implements ArrayView {
             return String.format("{%s}", IntStream.range(arrayOffset(), arrayOffset() + getLength()).boxed()
                     .map(i -> Byte.toString(this.array[i]))
                     .collect(Collectors.joining(",")));
+        }
+    }
+
+    //endregion
+
+    //region Reader
+
+    private class Reader implements BufferView.Reader {
+        private int position = 0;
+
+        @Override
+        public int available() {
+            return ByteArraySegment.this.length - this.position;
+        }
+
+        @Override
+        public int readBytes(ByteArraySegment segment) {
+            int len = Math.min(available(), segment.getLength());
+            System.arraycopy(array(), arrayOffset() + this.position, segment.array(), segment.arrayOffset(), len);
+            this.position += len;
+            return len;
         }
     }
 

@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -34,6 +35,15 @@ public interface BufferView {
      * @return The length.
      */
     int getLength();
+
+    /**
+     * Creates a new {@link BufferView.Reader} that can be used to read this {@link BufferView}. This reader is
+     * preferable to {@link #getReader()} that returns an {@link InputStream} as it contains optimized methods for copying
+     * directly into other {@link BufferView} instances, such as {@link ByteArraySegment}s.
+     *
+     * @return A new {@link BufferView.Reader}.
+     */
+    BufferView.Reader getBufferViewReader();
 
     /**
      * Creates an InputStream that can be used to read the contents of this {@link BufferView}. The InputStream returned
@@ -137,6 +147,49 @@ public interface BufferView {
             return components.get(0).slice();
         } else {
             return new CompositeBufferView(components);
+        }
+    }
+
+    /**
+     * Defines a reader for a {@link BufferView}.
+     */
+    interface Reader {
+        /**
+         * Gets a value indicating the number of bytes available to read.
+         *
+         * @return The number of bytes available to read.
+         */
+        int available();
+
+        /**
+         * Reads a number of bytes into the given {@link ByteArraySegment} using the most efficient method for the
+         * implementation of this {@link BufferView}.
+         *
+         * @param segment The target {@link ByteArraySegment}.
+         * @return The number of bytes copied. This should be <pre><code>Math.min(available(), segment.getLength())</code></pre>.
+         * If this returns 0, then either the given {@link ByteArraySegment} has {@link ByteArraySegment#getLength()} equal
+         * to 0, or there are no more bytes to be read ({@link #available()} is 0).
+         */
+        int readBytes(ByteArraySegment segment);
+
+        /**
+         * Reads all the remaining bytes from this {@link BufferView.Reader} into a new {@link ByteArraySegment}.
+         *
+         * @param bufferSize The maximum number of bytes to copy at each iteration. Set to {@link Integer#MAX_VALUE}
+         *                   to attempt to copy the whole buffer at once.
+         * @return A new {@link ByteArraySegment} with the remaining contents of {@link BufferView.Reader}.
+         */
+        @VisibleForTesting
+        default ByteArraySegment readFully(int bufferSize) {
+            ByteArraySegment readBuffer = new ByteArraySegment(new byte[available()]);
+            int readOffset = 0;
+            while (readOffset < readBuffer.getLength()) {
+                int readLength = Math.min(available(), readBuffer.getLength() - readOffset);
+                int readBytes = readBytes(readBuffer.slice(readOffset, Math.min(bufferSize, readLength)));
+                readOffset += readBytes;
+            }
+            assert available() == 0;
+            return readBuffer;
         }
     }
 }

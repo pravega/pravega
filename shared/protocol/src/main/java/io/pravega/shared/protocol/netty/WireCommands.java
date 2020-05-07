@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
-import lombok.AccessLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -457,7 +456,8 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class PartialEvent implements WireCommand {
+    @EqualsAndHashCode(callSuper = false)
+    public static final class PartialEvent extends ReleasableCommand {
         final WireCommandType type = WireCommandType.PARTIAL_EVENT;
         final ByteBuf data;
 
@@ -466,10 +466,13 @@ public final class WireCommands {
             data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            byte[] msg = new byte[length];
-            in.readFully(msg);
-            return new PartialEvent(wrappedBuffer(msg));
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            return new PartialEvent(in.readFully(length).retain()).requireRelease();
+        }
+
+        @Override
+        void releaseInternal() {
+            this.data.release();
         }
     }
 
@@ -526,7 +529,8 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class AppendBlock implements WireCommand {
+    @EqualsAndHashCode(callSuper = false)
+    public static final class AppendBlock extends ReleasableCommand {
         final WireCommandType type = WireCommandType.APPEND_BLOCK;
         final UUID writerId;
         final ByteBuf data;
@@ -548,16 +552,21 @@ public final class WireCommands {
             // Data not written, as it should be null.
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
-            byte[] data = new byte[length - Long.BYTES * 2];
-            in.readFully(data);
-            return new AppendBlock(writerId, wrappedBuffer(data));
+            ByteBuf data = in.readFully(length - Long.BYTES * 2).retain();
+            return new AppendBlock(writerId, data).requireRelease();
+        }
+
+        @Override
+        void releaseInternal() {
+            this.data.release();
         }
     }
 
     @Data
-    public static final class AppendBlockEnd implements WireCommand {
+    @EqualsAndHashCode(callSuper = false)
+    public static final class AppendBlockEnd extends ReleasableCommand {
         final WireCommandType type = WireCommandType.APPEND_BLOCK_END;
         final UUID writerId;
         final int sizeOfWholeEvents;
@@ -582,26 +591,32 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             int sizeOfHeaderlessAppends = in.readInt();
             int dataLength = in.readInt();
-            byte[] data;
+            ByteBuf data;
             if (dataLength > 0) {
-                data = new byte[dataLength];
-                in.readFully(data);
+                data = in.readFully(dataLength);
             } else {
-                data = new byte[0];
+                data = EMPTY_BUFFER;
             }
             int numEvents = in.readInt();
             long lastEventNumber = in.readLong();
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, wrappedBuffer(data), numEvents, lastEventNumber, requestId);
+            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, data.retain(), numEvents, lastEventNumber, requestId)
+                    .requireRelease();
+        }
+
+        @Override
+        void releaseInternal() {
+            this.data.release();
         }
     }
 
     @Data
-    public static final class ConditionalAppend implements WireCommand, Request {
+    @EqualsAndHashCode(callSuper = false)
+    public static final class ConditionalAppend extends ReleasableCommand implements Request {
         final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
         final UUID writerId;
         final long eventNumber;
@@ -619,16 +634,16 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
             Event event = readEvent(in, length);
             long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
-            return new ConditionalAppend(writerId, eventNumber, expectedOffset, event, requestId);
+            return new ConditionalAppend(writerId, eventNumber, expectedOffset, event, requestId).requireRelease();
         }
 
-        private static Event readEvent(ByteBufInputStream in, int length) throws IOException {
+        private static Event readEvent(EnhancedByteBufInputStream in, int length) throws IOException {
             int typeCode = in.readInt();
             if (typeCode != WireCommandType.EVENT.getCode()) {
                 throw new InvalidMessageException("Was expecting EVENT but found: " + typeCode);
@@ -637,9 +652,7 @@ public final class WireCommands {
             if (eventLength > length - TYPE_PLUS_LENGTH_SIZE) {
                 throw new InvalidMessageException("Was expecting length: " + length + " but found: " + eventLength);
             }
-            byte[] msg = new byte[eventLength];
-            in.readFully(msg);
-            return new Event(wrappedBuffer(msg));
+            return new Event(in.readFully(eventLength).retain());
         }
 
         @Override
@@ -651,6 +664,11 @@ public final class WireCommands {
         public void process(RequestProcessor cp) {
             //Unreachable. This should be handled in AppendDecoder.
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        void releaseInternal() {
+            this.event.data.release();
         }
     }
 
@@ -796,12 +814,12 @@ public final class WireCommands {
         }
     }
 
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    @RequiredArgsConstructor
     @Getter
     @ToString
-    @EqualsAndHashCode(exclude = {"mustRelease", "released"})
+    @EqualsAndHashCode(callSuper = false)
     @NotThreadSafe
-    public static final class SegmentRead implements Reply, WireCommand {
+    public static final class SegmentRead extends ReleasableCommand implements Reply {
         final WireCommandType type = WireCommandType.SEGMENT_READ;
         final String segment;
         final long offset;
@@ -809,12 +827,6 @@ public final class WireCommands {
         final boolean endOfSegment;
         final ByteBuf data;
         final long requestId;
-        private final boolean mustRelease;
-        private boolean released = false;
-
-        public SegmentRead(String segment, long offset, boolean atTail, boolean endOfSegment, ByteBuf data, long requestId) {
-            this(segment, offset, atTail, endOfSegment, data, requestId, false);
-        }
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -844,15 +856,12 @@ public final class WireCommands {
             }
             ByteBuf data = in.readFully(dataLength).retain();
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new SegmentRead(segment, offset, atTail, endOfSegment, data, requestId, true);
+            return new SegmentRead(segment, offset, atTail, endOfSegment, data, requestId).requireRelease();
         }
 
-        public void release() {
-            if (this.mustRelease && !this.released) {
-                this.data.release();
-            }
-
-            this.released = true;
+        @Override
+        void releaseInternal() {
+            this.data.release();
         }
 
         @Override
@@ -2173,4 +2182,38 @@ public final class WireCommands {
         }
     }
 
+    /**
+     * Base class for any command that may require releasing resources.
+     */
+    static abstract class ReleasableCommand implements WireCommand {
+        @Getter
+        private boolean released = true;
+
+        /**
+         * Marks the fact that this instance requires {@link #release()} to be invoked in order to free up resources.
+         *
+         * @return This instance.
+         */
+        WireCommand requireRelease() {
+            this.released = false;
+            return this;
+        }
+
+        /**
+         * Releases any resources used by this command, if needed ({@link #isReleased()} is false. This method has no
+         * effect if invoked multiple times or if no resource release is required.
+         */
+        public void release() {
+            if (!this.released) {
+                releaseInternal();
+                this.released = true;
+            }
+        }
+
+        /**
+         * Internal implementation of {@link #release()}. Do not invoke directly as this method offers no protection
+         * against multiple invocations.
+         */
+        abstract void releaseInternal();
+    }
 }
