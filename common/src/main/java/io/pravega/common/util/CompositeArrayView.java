@@ -36,14 +36,14 @@ public interface CompositeArrayView extends BufferView {
     void set(int index, byte value);
 
     /**
-     * Copies a specified number of bytes from the given {@link ArrayView} into this {@link CompositeArrayView}.
+     * Copies a specified number of bytes from the given {@link BufferView.Reader} into this {@link CompositeArrayView}.
      *
-     * @param source       The {@link ArrayView} to copy bytes from.
+     * @param reader       The {@link BufferView.Reader} to copy bytes from.
      * @param targetOffset The offset within this {@link CompositeArrayView} to start copying at.
      * @param length       The number of bytes to copy.
      * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
      */
-    void copyFrom(ArrayView source, int targetOffset, int length);
+    void copyFrom(BufferView.Reader reader, int targetOffset, int length);
 
     /**
      * Creates a new {@link CompositeArrayView} that represents a sub-range of this {@link CompositeArrayView} instance.
