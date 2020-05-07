@@ -143,10 +143,12 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 } catch (EndOfSegmentException e) {
                     boolean isSegmentSealed = e.getErrorType().equals(END_OF_SEGMENT_REACHED);
                     handleEndOfSegment(segmentReader, isSegmentSealed);
+                    lastPosition = getPosition();
                     buffer = null;
                 } catch (SegmentTruncatedException e) {
                     handleSegmentTruncated(segmentReader);
                     buffer = null;
+                    lastPosition = getPosition();
                 }
             }
         } while (buffer == null && timer.getElapsedMillis() < timeoutMillis);
