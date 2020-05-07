@@ -136,7 +136,11 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
+<<<<<<< HEAD
     public ArrayView slice(int offset, int length) {
+=======
+    public BufferView slice(int offset, int length) {
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         throw new UnsupportedOperationException("slice() not supported.");
     }
 
@@ -164,7 +168,11 @@ public class TruncateableArray implements ArrayView {
     public byte[] getCopy() {
         throw new UnsupportedOperationException("getCopy() not supported.");
     }
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
     //endregion
 
     //region Operations

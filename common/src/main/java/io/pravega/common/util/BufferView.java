@@ -168,6 +168,7 @@ public interface BufferView {
     }
 
     /**
+<<<<<<< HEAD
      * Creates a new {@link BufferViewBuilder} that can be used to construct composite {@link BufferView} instances.
      *
      * @return A new {@link BufferViewBuilder} with default initial component count.
@@ -197,6 +198,8 @@ public interface BufferView {
     }
 
     /**
+=======
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
      * Defines a reader for a {@link BufferView}.
      */
     interface Reader {
@@ -219,6 +222,7 @@ public interface BufferView {
         int readBytes(ByteArraySegment segment);
 
         /**
+<<<<<<< HEAD
          * Reads one byte and advances the reader position by 1.
          *
          * @return The read byte.
@@ -256,12 +260,16 @@ public interface BufferView {
         /**
          * Copies all the remaining bytes from this {@link BufferView.Reader} into a new {@link ArrayView}. The reader
          * position will be set to the end of the {@link BufferView}.
+=======
+         * Reads all the remaining bytes from this {@link BufferView.Reader} into a new {@link ByteArraySegment}.
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
          *
          * @param bufferSize The maximum number of bytes to copy at each iteration. Set to {@link Integer#MAX_VALUE}
          *                   to attempt to copy the whole buffer at once.
          * @return A new {@link ByteArraySegment} with the remaining contents of {@link BufferView.Reader}.
          */
         @VisibleForTesting
+<<<<<<< HEAD
         ArrayView readFully(int bufferSize);
 
         /**
@@ -293,4 +301,18 @@ public interface BufferView {
          */
         void accept(ByteBuffer buffer) throws ExceptionT;
     }
+=======
+        default ByteArraySegment readFully(int bufferSize) {
+            ByteArraySegment readBuffer = new ByteArraySegment(new byte[available()]);
+            int readOffset = 0;
+            while (readOffset < readBuffer.getLength()) {
+                int readLength = Math.min(available(), readBuffer.getLength() - readOffset);
+                int readBytes = readBytes(readBuffer.slice(readOffset, Math.min(bufferSize, readLength)));
+                readOffset += readBytes;
+            }
+            assert available() == 0;
+            return readBuffer;
+        }
+    }
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
 }

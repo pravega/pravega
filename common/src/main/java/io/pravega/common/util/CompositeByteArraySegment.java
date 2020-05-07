@@ -303,7 +303,11 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
 
     //region Reader
 
+<<<<<<< HEAD
     private class CompositeReader extends AbstractReader implements BufferView.Reader {
+=======
+    private class CompositeReader implements BufferView.Reader {
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         private int position = 0;
 
         @Override
@@ -320,6 +324,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
             }
             return len;
         }
+<<<<<<< HEAD
 
         @Override
         public byte readByte() {
@@ -392,4 +397,9 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
          */
         void accept(byte[] array, int arrayOffset, int length) throws ExceptionT;
     }
+=======
+    }
+
+    //endregion
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
 }

@@ -167,7 +167,11 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
      * {@link BufferView.Reader} implementation.
      */
     @RequiredArgsConstructor
+<<<<<<< HEAD
     private static class ByteBufReader extends AbstractReader implements Reader {
+=======
+    private static class ByteBufReader implements Reader {
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         private final ByteBuf buf;
 
         @Override
@@ -183,6 +187,7 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
             }
             return len;
         }
+<<<<<<< HEAD
 
         @Override
         public byte readByte() {
@@ -219,6 +224,8 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
                 throw new OutOfBoundsException();
             }
         }
+=======
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
     }
 
     //endregion

@@ -862,6 +862,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 2 * entries.size());
     }
 
+<<<<<<< HEAD
     @Test
     public void testReadTableEntriesDelta() throws IOException {
         WireCommands.ReadTableEntriesDelta cmd = new WireCommands.ReadTableEntriesDelta(l, testString1, "", 1L, 100);
@@ -900,10 +901,26 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         assertEquals(originalRefCnt, buf.refCnt());
 
         // Deserialize the command.
+=======
+    @SuppressWarnings("unchecked")
+    private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(
+            Supplier<T> fromBuf, WireCommands.Constructor fromStream, Function<T, Integer> getRefCnt) throws IOException {
+        // If we pass in the buffer ourselves, there should be no need to release.
+        int originalRefCnt = buf.refCnt();
+        T command = fromBuf.get();
+        assertTrue(command.isReleased());
+        command.release();
+        assertEquals(originalRefCnt, buf.refCnt());
+        assertTrue(command.isReleased());
+        command.release(); // Do this again. The second time should have no effect.
+        assertEquals(originalRefCnt, buf.refCnt());
+
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         command.writeFields(new DataOutputStream(bout));
         ByteBuf buffer = Unpooled.wrappedBuffer(bout.toByteArray());
         T command2 = (T) fromStream.readFrom(new EnhancedByteBufInputStream(buffer), bout.size());
+<<<<<<< HEAD
         expectedRefCnt += refCntIncrement;
         assertEquals(expectedRefCnt, (int) getRefCnt.apply(command2));
         assertEquals(expectedRefCnt, buffer.refCnt());
@@ -917,6 +934,14 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         // Release the command.
         command2.release();
         expectedRefCnt -= refCntIncrement;
+=======
+        assertEquals(2, (int) getRefCnt.apply(command2));
+        assertEquals(2, buffer.refCnt());
+        buffer.release();
+        assertEquals(1, (int) getRefCnt.apply(command2));
+        assertEquals(1, buffer.refCnt());
+        command2.release();
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         assertEquals(0, (int) getRefCnt.apply(command2));
         assertEquals(0, buffer.refCnt());
         command2.release(); // Do this again. The second time should have no effect.

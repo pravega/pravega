@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import javax.annotation.concurrent.NotThreadSafe;
-import lombok.AccessLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -2254,6 +2253,7 @@ public final class WireCommands {
         }
     }
 
+<<<<<<< HEAD
     @Data
     public static final class ReadTableEntriesDelta implements Request, WireCommand {
         final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES_DELTA;
@@ -2338,6 +2338,12 @@ public final class WireCommands {
      */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public static abstract class ReleasableCommand implements WireCommand {
+=======
+    /**
+     * Base class for any command that may require releasing resources.
+     */
+    static abstract class ReleasableCommand implements WireCommand {
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         @Getter
         private boolean released = true;
 

@@ -17,7 +17,10 @@ import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+<<<<<<< HEAD
 import java.util.Collections;
+=======
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
 import java.util.Iterator;
 import java.util.List;
 import lombok.AccessLevel;
@@ -259,6 +262,47 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
             assert !components.isEmpty();
             assert this.available >= 0;
             return new CompositeBufferView(components, length);
+        }
+
+        private BufferView.Reader getCurrent() {
+            if (this.current == null || this.current.available() == 0) {
+                this.current = this.readers.hasNext() ? this.readers.next() : null;
+            }
+
+            return this.current;
+        }
+    }
+
+    //endregion
+
+    //region Reader
+
+    private static class Reader implements BufferView.Reader {
+        private final Iterator<BufferView.Reader> readers;
+        private BufferView.Reader current;
+        private int available;
+
+        Reader(Iterator<BufferView.Reader> readers, int available) {
+            this.readers = readers;
+            this.available = available;
+        }
+
+        @Override
+        public int available() {
+            return this.available;
+        }
+
+        @Override
+        public int readBytes(ByteArraySegment segment) {
+            BufferView.Reader current = getCurrent();
+            if (current != null) {
+                int len = current.readBytes(segment);
+                this.available -= len;
+                assert this.available >= 0;
+                return len;
+            }
+
+            return 0;
         }
 
         private BufferView.Reader getCurrent() {

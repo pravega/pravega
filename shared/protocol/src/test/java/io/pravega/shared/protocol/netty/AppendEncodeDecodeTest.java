@@ -227,7 +227,10 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
     private ByteBuf fakeNetwork;
     private BufferReleaseVerifier releaseVerifier;
 
+<<<<<<< HEAD
     @Override
+=======
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
     protected int getThreadPoolSize() {
         return 1;
     }
@@ -396,7 +399,11 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
 
     @Test(expected = IllegalArgumentException.class)
     public void testIllegalWireCommand() throws Exception {
+<<<<<<< HEAD
         CommandEncoder commandEncoder = new CommandEncoder(null, NO_OP_METRIC_NOTIFIER);
+=======
+        CommandEncoder commandEncoder = new CommandEncoder(null);
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         commandEncoder.encode(ctx, null, fakeNetwork);
     }
 
@@ -407,7 +414,11 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         ByteBuf data = Unpooled.wrappedBuffer(content);
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
+<<<<<<< HEAD
         CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
+=======
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         @Cleanup("release")
         val received = new ReceivedCommands();
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
@@ -558,7 +569,11 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
+<<<<<<< HEAD
         CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
+=======
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         @Cleanup("release")
         val received = new ReceivedCommands();
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
@@ -584,7 +599,11 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
+<<<<<<< HEAD
         CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
+=======
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         @Cleanup("release")
         val received = new ReceivedCommands();
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
@@ -620,7 +639,11 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
+<<<<<<< HEAD
         CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
+=======
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         @Cleanup("release")
         val received = new ReceivedCommands();
         Mockito.when(ch.writeAndFlush(Mockito.any())).thenAnswer(i -> {
@@ -750,7 +773,11 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
 
+<<<<<<< HEAD
         CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
+=======
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         SetupAppend setupAppend = new SetupAppend(1, writer1, streamName, "");
         encoder.encode(ctx, setupAppend, fakeNetwork);
         setupAppend = new SetupAppend(1, writer2, streamName, "");
@@ -766,7 +793,11 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         int size = 0; //Used to force a minimum size
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
+<<<<<<< HEAD
         CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
+=======
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
         encoder.encode(ctx, setupAppend, fakeNetwork);
         Append msg = new Append(streamName, writerId, 1, 1, Unpooled.EMPTY_BUFFER, null, 1);
@@ -791,7 +822,11 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         int size = 100;
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
+<<<<<<< HEAD
         CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
+=======
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
         SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
         encoder.encode(ctx, setupAppend, fakeNetwork);
         Append msg = new Append(streamName, writerId, 1, 1, Unpooled.EMPTY_BUFFER, null, 1);

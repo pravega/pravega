@@ -240,7 +240,10 @@ project('shared:protocol') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+<<<<<<< HEAD
         testCompile project(path: ':common', configuration: 'testRuntime')
+=======
+>>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
     }
 }
 
