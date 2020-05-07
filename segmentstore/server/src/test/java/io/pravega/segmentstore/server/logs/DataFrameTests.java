@@ -67,7 +67,7 @@ public class DataFrameTests {
 
         AssertExtensions.assertThrows(
                 "append(ByteArraySegment) worked even though no entry started.",
-                () -> df.append(new ByteArraySegment(new byte[1])),
+                () -> df.append(new ByteArraySegment(new byte[1]).getBufferViewReader()),
                 ex -> ex instanceof IllegalStateException);
 
         // Start a new entry.
@@ -154,7 +154,7 @@ public class DataFrameTests {
             // Append the first half of the record as one DataFrame Entry.
             dataFrame.startNewEntry(true); // true - this is the first entry for the record.
             int firstHalfLength = record.getLength() / 2;
-            int bytesAppended = dataFrame.append(record.slice(0, firstHalfLength));
+            int bytesAppended = dataFrame.append(record.slice(0, firstHalfLength).getBufferViewReader());
             dataFrame.endEntry(false); // false - we did not finish the record.
             if (bytesAppended < firstHalfLength) {
                 // We filled out the frame.
@@ -165,7 +165,7 @@ public class DataFrameTests {
             // Append the second half of the record as one DataFrame Entry.
             dataFrame.startNewEntry(false); // false - this is not the first entry for the record.
             int secondHalfLength = record.getLength() - firstHalfLength;
-            bytesAppended = dataFrame.append(record.slice(firstHalfLength, secondHalfLength));
+            bytesAppended = dataFrame.append(record.slice(firstHalfLength, secondHalfLength).getBufferViewReader());
             fullRecordsAppended += bytesAppended;
             if (bytesAppended < secondHalfLength) {
                 // We filled out the frame.
