@@ -197,8 +197,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         mockProcessor.setupTokenExpiryTask(setupAppend).join();
 
         // Assert
-        verify(mockConnection).send(new WireCommands.AuthTokenCheckFailed(setupAppend.getRequestId(),
-                any(), WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+        verify(mockConnection).close();
     }
 
     @Test

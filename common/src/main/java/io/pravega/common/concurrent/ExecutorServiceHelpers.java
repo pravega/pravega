@@ -100,7 +100,7 @@ public final class ExecutorServiceHelpers {
      * @return A new executor service.
      */
     public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName) {
-        return newScheduledThreadPool(size, poolName, null);
+        return newScheduledThreadPool(size, poolName, Thread.NORM_PRIORITY);
     }
 
     /**

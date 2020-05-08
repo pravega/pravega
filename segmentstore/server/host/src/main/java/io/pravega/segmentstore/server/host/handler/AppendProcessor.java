@@ -189,10 +189,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         log.trace("Informing writer {} that sent request {}, about token expiry for segment {}",
                                 writerId, requestId, segment);
                         if (!connection.isClosed()) {
-                            connection.send(new WireCommands.AuthTokenCheckFailed(setupAppend.getRequestId(),
-                                    String.format("Token sent by writer %s for segment %s in request %s has expired",
-                                            writerId, segment, requestId),
-                                    WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+                            connection.close();
                         }
                     } catch (RuntimeException e) {
                         // Log and ignore
