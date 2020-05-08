@@ -76,7 +76,7 @@ public final class ExecutorServiceHelpers {
      * @param priority the priority to be assigned to the thread.
      * @return a thread factory
      */
-    public static ThreadFactory getThreadFactory(String groupName, Integer priority) {
+    public static ThreadFactory getThreadFactory(String groupName, int priority) {
         return new ThreadFactory() {
             final AtomicInteger threadCount = new AtomicInteger();
 
@@ -85,9 +85,7 @@ public final class ExecutorServiceHelpers {
                 Thread thread = new Thread(r, groupName + "-" + threadCount.incrementAndGet());
                 thread.setUncaughtExceptionHandler(new LogUncaughtExceptions());
                 thread.setDaemon(true);
-                if (priority != null) {
-                    thread.setPriority(priority);
-                }
+                thread.setPriority(priority);
                 return thread;
             }
         };
@@ -111,10 +109,9 @@ public final class ExecutorServiceHelpers {
      * @param threadPriority The priority to be assigned to the threads
      * @return A new executor service.
      */
-    public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName, Integer threadPriority) {
+    public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName, int threadPriority) {
 
-        ThreadFactory threadFactory =
-                threadPriority == null ? getThreadFactory(poolName) : getThreadFactory(poolName, threadPriority);
+        ThreadFactory threadFactory = getThreadFactory(poolName, threadPriority);
 
         // Caller runs only occurs after shutdown, as queue size is unbounded.
         ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, threadFactory, new CallerRuns(poolName));
@@ -130,8 +127,6 @@ public final class ExecutorServiceHelpers {
         result.setRemoveOnCancelPolicy(true);
         return result;
     }
-
-
     
     /**
      * Gets a snapshot of the given ExecutorService.
