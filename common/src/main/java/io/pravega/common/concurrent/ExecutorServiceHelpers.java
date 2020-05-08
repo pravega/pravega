@@ -66,7 +66,7 @@ public final class ExecutorServiceHelpers {
      * @return a thread factory
      */
     public static ThreadFactory getThreadFactory(String groupName) {
-        return getThreadFactory(groupName, null);
+        return getThreadFactory(groupName, Thread.NORM_PRIORITY);
     }
 
     /**
