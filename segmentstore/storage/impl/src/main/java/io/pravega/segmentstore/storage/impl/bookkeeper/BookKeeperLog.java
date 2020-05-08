@@ -16,8 +16,8 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.CloseableIterator;
-import io.pravega.common.util.CompositeArrayView;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
@@ -297,7 +297,7 @@ class BookKeeperLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
+    public CompletableFuture<LogAddress> append(BufferView data, Duration timeout) {
         ensurePreconditions();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "append", data.getLength());
         if (data.getLength() > BookKeeperConfig.MAX_APPEND_LENGTH) {

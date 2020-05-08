@@ -89,18 +89,21 @@ class DataFrameOutputStream extends OutputStream implements BufferViewSink {
 
     @Override
     public void write(byte[] data, int offset, int length) throws IOException {
-        writeBuffer(new ByteArraySegment(data, offset, length));
+        writeBuffer(new ByteArraySegment(data, offset, length), true);
     }
 
     @Override
     public void writeBuffer(BufferView data) throws IOException {
+        writeBuffer(data, false);
+    }
+
+    private void writeBuffer(BufferView data, boolean copy) throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
-
         int attemptsWithNoProgress = 0;
         BufferView.Reader reader = data.getBufferViewReader();
         while (reader.available() > 0) {
-            int bytesWritten = this.currentFrame.append(reader);
+            int bytesWritten = this.currentFrame.append(reader, copy);
             attemptsWithNoProgress = bytesWritten == 0 ? attemptsWithNoProgress + 1 : 0;
             if (attemptsWithNoProgress > 1) {
                 // We had two consecutive attempts to write to a frame with no progress made.
@@ -212,7 +215,7 @@ class DataFrameOutputStream extends OutputStream implements BufferViewSink {
     private void createNewFrame() {
         Preconditions.checkState(this.currentFrame == null || this.currentFrame.isSealed(), "Cannot create a new frame if we currently have a non-sealed frame.");
 
-        this.currentFrame = DataFrame.ofSize(this.maxDataFrameSize);
+        this.currentFrame = new DataFrame(this.maxDataFrameSize);
         this.hasDataInCurrentFrame = false;
     }
 

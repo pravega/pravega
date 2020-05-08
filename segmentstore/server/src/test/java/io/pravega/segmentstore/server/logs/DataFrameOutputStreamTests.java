@@ -170,6 +170,18 @@ public class DataFrameOutputStreamTests {
      */
     @Test
     public void testWriteByteArrays() throws Exception {
+        testWrite(DataFrameOutputStream::write);
+    }
+
+    /**
+     * Tests the ability to write records using {@link io.pravega.common.util.BufferView} writes only.
+     */
+    @Test
+    public void testWriteBufferViews() throws Exception {
+        testWrite((s, data) -> s.writeBuffer(new ByteArraySegment(data)));
+    }
+
+    private void testWrite(WriteRecord frameWrite) throws Exception {
         int maxFrameSize = 512; // Very small frame, so we can test switching over to new frames.
         ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 0, 10240); // This should generate enough records that cross over boundaries.
 
@@ -179,7 +191,7 @@ public class DataFrameOutputStreamTests {
             // Write each record, one byte at a time.
             for (byte[] record : records) {
                 s.startNewRecord();
-                s.write(record);
+                frameWrite.apply(s, record);
                 s.endRecord();
             }
 
@@ -304,4 +316,8 @@ public class DataFrameOutputStreamTests {
         return DataFrame.read(dataFrame.getData().getReader(), dataFrame.getLength(), dataFrame.getAddress());
     }
 
+    @FunctionalInterface
+    private interface WriteRecord {
+        void apply(DataFrameOutputStream frame, byte[] data) throws IOException;
+    }
 }

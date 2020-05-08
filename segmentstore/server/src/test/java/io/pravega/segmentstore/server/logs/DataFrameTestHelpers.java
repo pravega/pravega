@@ -87,7 +87,7 @@ class DataFrameTestHelpers {
         ReadState state = new ReadState(records.size(), knownBadRecordIndices);
 
         for (val reader : dataFrames) {
-            DataFrame.DataFrameEntry entry;
+            DataFrame.ReadEntry entry;
             boolean isLastEntryInFrame = true;
             while ((entry = reader.getNext()) != null) {
 

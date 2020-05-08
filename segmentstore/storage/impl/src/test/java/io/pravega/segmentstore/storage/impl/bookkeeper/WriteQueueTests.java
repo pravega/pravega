@@ -11,7 +11,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.util.CompositeByteArraySegment;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -59,7 +59,7 @@ public class WriteQueueTests {
 
             int writeSize = i * 10000;
             val writeResult = new CompletableFuture<LogAddress>();
-            q.add(new Write(new CompositeByteArraySegment(writeSize), new TestWriteLedger(i), writeResult));
+            q.add(new Write(new ByteArraySegment(new byte[writeSize]), new TestWriteLedger(i), writeResult));
             writeResults.add(writeResult);
             expectedSize += writeSize;
 
@@ -89,7 +89,7 @@ public class WriteQueueTests {
         val q = new WriteQueue();
         val expectedWrites = new ArrayList<Write>();
         for (int i = 0; i < ITEM_COUNT; i++) {
-            val w = new Write(new CompositeByteArraySegment(i), new TestWriteLedger(i), CompletableFuture.completedFuture(null));
+            val w = new Write(new ByteArraySegment(new byte[i]), new TestWriteLedger(i), CompletableFuture.completedFuture(null));
             q.add(w);
             expectedWrites.add(w);
         }
@@ -104,7 +104,7 @@ public class WriteQueueTests {
 
         AssertExtensions.assertThrows(
                 "add() worked after close().",
-                () -> q.add(new Write(new CompositeByteArraySegment(1), new TestWriteLedger(0), CompletableFuture.completedFuture(null))),
+                () -> q.add(new Write(new ByteArraySegment(new byte[1]), new TestWriteLedger(0), CompletableFuture.completedFuture(null))),
                 ex -> ex instanceof ObjectClosedException);
         AssertExtensions.assertThrows(
                 "getWritesToExecute() worked after close().",
@@ -127,7 +127,7 @@ public class WriteQueueTests {
         val writes = new ArrayDeque<Write>();
         for (int i = 0; i < ITEM_COUNT; i++) {
             time.addAndGet(timeIncrement);
-            val w = new Write(new CompositeByteArraySegment(i), new TestWriteLedger(i), new CompletableFuture<>());
+            val w = new Write(new ByteArraySegment(new byte[i]), new TestWriteLedger(i), new CompletableFuture<>());
             if (i % 2 == 0) {
                 // Complete 1 out of two writes.
                 w.setEntryId(i);
@@ -170,7 +170,7 @@ public class WriteQueueTests {
         }
 
         // Verify that it does report failed writes when encountered.
-        val w3 = new Write(new CompositeByteArraySegment(1), new TestWriteLedger(0), new CompletableFuture<>());
+        val w3 = new Write(new ByteArraySegment(new byte[1]), new TestWriteLedger(0), new CompletableFuture<>());
         q.add(w3);
         w3.fail(new IntentionalException(), true);
         val result3 = q.removeFinishedWrites();
@@ -193,7 +193,7 @@ public class WriteQueueTests {
                 ledgerId++;
             }
 
-            val w = new Write(new CompositeByteArraySegment(i), new TestWriteLedger(ledgerId), new CompletableFuture<>());
+            val w = new Write(new ByteArraySegment(new byte[i]), new TestWriteLedger(ledgerId), new CompletableFuture<>());
             q.add(w);
             writes.add(w);
         }

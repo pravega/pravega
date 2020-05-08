@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -134,17 +135,30 @@ public interface BufferView {
     List<ByteBuffer> getContents();
 
     /**
-     * Wraps the given {@link BufferView} into a single instance.
+     * Wraps the given {@link BufferView} instances into a single instance.
      *
      * @param components The components to wrap.
      * @return An empty {@link BufferView} (if the component list is empty), the first item in the list (if the component
      * list has 1 element) or a {@link CompositeBufferView} wrapping all the given instances otherwise.
      */
     static BufferView wrap(List<BufferView> components) {
-        if (components.size() == 0) {
-            return new ByteArraySegment(new byte[0]);
-        } else if (components.size() == 1) {
+        if (components.size() == 1) {
             return components.get(0).slice();
+        } else {
+            return wrap(components.iterator());
+        }
+    }
+
+    /**
+     * Wraps the given {@link BufferView} instances into a single instance.
+     *
+     * @param components The components to wrap.
+     * @return An empty {@link BufferView} (if the component list is empty) or a {@link CompositeBufferView} wrapping all
+     * the given instances otherwise.
+     */
+    static BufferView wrap(Iterator<BufferView> components) {
+        if (!components.hasNext()) {
+            return new ByteArraySegment(new byte[0]);
         } else {
             return new CompositeBufferView(components);
         }
@@ -171,6 +185,8 @@ public interface BufferView {
          * to 0, or there are no more bytes to be read ({@link #available()} is 0).
          */
         int readBytes(ByteArraySegment segment);
+
+        BufferView readBytes(int maxLength);
 
         /**
          * Reads all the remaining bytes from this {@link BufferView.Reader} into a new {@link ByteArraySegment}.

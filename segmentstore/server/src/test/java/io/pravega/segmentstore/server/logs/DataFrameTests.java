@@ -40,7 +40,7 @@ public class DataFrameTests {
         List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
-        DataFrame writeFrame = DataFrame.ofSize(maxFrameSize);
+        DataFrame writeFrame = new DataFrame(maxFrameSize);
         int recordsAppended = appendRecords(allRecords, writeFrame);
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         writeFrame.seal();
@@ -59,7 +59,7 @@ public class DataFrameTests {
     @Test
     public void testStartEndDiscardEntry() {
         int dataFrameSize = 1000;
-        DataFrame df = DataFrame.ofSize(dataFrameSize);
+        DataFrame df = new DataFrame(dataFrameSize);
         AssertExtensions.assertThrows(
                 "append(byte) worked even though no entry started.",
                 () -> df.append((byte) 1),
@@ -67,7 +67,7 @@ public class DataFrameTests {
 
         AssertExtensions.assertThrows(
                 "append(ByteArraySegment) worked even though no entry started.",
-                () -> df.append(new ByteArraySegment(new byte[1]).getBufferViewReader()),
+                () -> df.append(new ByteArraySegment(new byte[1]).getBufferViewReader(), true),
                 ex -> ex instanceof IllegalStateException);
 
         // Start a new entry.
@@ -85,6 +85,7 @@ public class DataFrameTests {
 
         // Discard everything we have so far, so our frame should revert back to an empty one.
         df.discardEntry();
+        Assert.assertTrue(df.isEmpty());
 
         // Start a new entry, and write about 1/3 of the usable space.
         started = df.startNewEntry(true);
@@ -138,7 +139,7 @@ public class DataFrameTests {
     public void testFrameSequence() {
         long newSequence = 67890;
         int dataFrameSize = 1000;
-        DataFrame df = DataFrame.ofSize(dataFrameSize);
+        DataFrame df = new DataFrame(dataFrameSize);
 
         LogAddress a = new LogAddress(newSequence) {
         };
@@ -151,10 +152,11 @@ public class DataFrameTests {
         int fullRecordsAppended = 0;
         boolean filledUpFrame = false;
         for (ByteArraySegment record : allRecords) {
+            boolean makeCopy = fullRecordsAppended % 2 == 0;
             // Append the first half of the record as one DataFrame Entry.
             dataFrame.startNewEntry(true); // true - this is the first entry for the record.
             int firstHalfLength = record.getLength() / 2;
-            int bytesAppended = dataFrame.append(record.slice(0, firstHalfLength).getBufferViewReader());
+            int bytesAppended = dataFrame.append(record.slice(0, firstHalfLength).getBufferViewReader(), makeCopy);
             dataFrame.endEntry(false); // false - we did not finish the record.
             if (bytesAppended < firstHalfLength) {
                 // We filled out the frame.
@@ -165,7 +167,7 @@ public class DataFrameTests {
             // Append the second half of the record as one DataFrame Entry.
             dataFrame.startNewEntry(false); // false - this is not the first entry for the record.
             int secondHalfLength = record.getLength() - firstHalfLength;
-            bytesAppended = dataFrame.append(record.slice(firstHalfLength, secondHalfLength).getBufferViewReader());
+            bytesAppended = dataFrame.append(record.slice(firstHalfLength, secondHalfLength).getBufferViewReader(), !makeCopy);
             fullRecordsAppended += bytesAppended;
             if (bytesAppended < secondHalfLength) {
                 // We filled out the frame.

@@ -12,8 +12,8 @@ package io.pravega.segmentstore.storage.mocks;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.CloseableIterator;
-import io.pravega.common.util.CompositeArrayView;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
@@ -147,7 +147,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
+    public CompletableFuture<LogAddress> append(BufferView data, Duration timeout) {
         ensurePreconditions();
         if (data.getLength() > getWriteSettings().getMaxWriteLength()) {
             return Futures.failedFuture(new WriteTooLongException(data.getLength(), getWriteSettings().getMaxWriteLength()));
@@ -361,7 +361,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         long sequenceNumber = -1;
         final byte[] data;
 
-        Entry(CompositeArrayView inputData) {
+        Entry(BufferView inputData) {
             this.data = inputData.getCopy();
         }
 

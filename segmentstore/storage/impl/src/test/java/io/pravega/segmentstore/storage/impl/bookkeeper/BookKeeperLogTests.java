@@ -13,7 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.CompositeByteArraySegment;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
@@ -219,7 +219,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 // WriteFailureException (general unable to write) should be thrown.
                 AssertExtensions.assertSuppliedFutureThrows(
                         "First write did not fail with the appropriate exception.",
-                        () -> log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT),
+                        () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
                         ex -> ex instanceof RetriesExhaustedException
                                 && (ex.getCause() instanceof DataLogNotAvailableException
                                 || isLedgerClosedException(ex.getCause()))
@@ -229,7 +229,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 // Subsequent writes should be rejected since the BookKeeperLog is now closed.
                 AssertExtensions.assertSuppliedFutureThrows(
                         "Second write did not fail with the appropriate exception.",
-                        () -> log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT),
+                        () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
                         ex -> ex instanceof ObjectClosedException
                                 || ex instanceof CancellationException);
             } finally {
@@ -259,7 +259,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 int writeCount = getWriteCount();
                 for (int i = 0; i < writeCount; i++) {
                     byte[] data = getWriteData();
-                    futures.add(log.append(new CompositeByteArraySegment(data), TIMEOUT));
+                    futures.add(log.append(new ByteArraySegment(data), TIMEOUT));
                     dataList.add(data);
                 }
             } finally {
@@ -297,7 +297,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 // Issue appends in parallel.
                 int writeCount = getWriteCount();
                 for (int i = 0; i < writeCount; i++) {
-                    appendFutures.add(log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT));
+                    appendFutures.add(log.append(new ByteArraySegment(getWriteData()), TIMEOUT));
                 }
 
                 // Verify that all writes failed or got cancelled.
@@ -357,7 +357,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
                 // Append some data to this Ledger, if needed.
                 if (shouldAppend) {
-                    log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    log.append(new ByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 }
             }
         }
@@ -476,7 +476,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         for (int i = 0; i < initialLedgerCount; i++) {
             try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
                 log.initialize(TIMEOUT);
-                log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                log.append(new ByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
 
             if (i == midPoint) {
@@ -649,7 +649,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         final BookKeeper bk = this.factory.get().getBookKeeperClient();
         try (val log = (BookKeeperLog) createDurableDataLog()) {
             log.initialize(TIMEOUT);
-            log.append(new CompositeByteArraySegment(new byte[100]), TIMEOUT).join();
+            log.append(new ByteArraySegment(new byte[100]), TIMEOUT).join();
         }
 
         // Add some bad ledgers to the log's metadata.

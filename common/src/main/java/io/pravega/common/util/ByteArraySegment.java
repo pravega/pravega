@@ -291,6 +291,14 @@ public class ByteArraySegment implements ArrayView {
             this.position += len;
             return len;
         }
+
+        @Override
+        public BufferView readBytes(int maxLength) {
+            int len = Math.min(available(), maxLength);
+            ByteArraySegment result = slice(this.position, len);
+            this.position += len;
+            return result;
+        }
     }
 
     //endregion

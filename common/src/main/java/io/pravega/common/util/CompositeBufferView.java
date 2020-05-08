@@ -42,10 +42,11 @@ class CompositeBufferView implements BufferView {
      *
      * @param components The components to wrap.
      */
-    CompositeBufferView(@NonNull List<BufferView> components) {
+    CompositeBufferView(@NonNull Iterator<BufferView> components) {
         this.components = new ArrayList<>();
         int length = 0;
-        for (BufferView c : components) {
+        while (components.hasNext()) {
+            BufferView c = components.next();
             if (c instanceof CompositeBufferView) {
                 for (BufferView b : ((CompositeBufferView) c).components) {
                     this.components.add(b.slice());
@@ -183,6 +184,11 @@ class CompositeBufferView implements BufferView {
             }
 
             return 0;
+        }
+
+        @Override
+        public BufferView readBytes(int maxLength) {
+            throw new UnsupportedOperationException();
         }
 
         private BufferView.Reader getCurrent() {

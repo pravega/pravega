@@ -170,6 +170,14 @@ public class ByteBufWrapper implements BufferView {
             }
             return len;
         }
+
+        @Override
+        public BufferView readBytes(int maxLength) {
+            int len = Math.min(available(), maxLength);
+            ByteBuf result = this.buf.slice(0, len);
+            this.buf.readerIndex(this.buf.readerIndex() + len);
+            return new ByteBufWrapper(result);
+        }
     }
 
     //endregion

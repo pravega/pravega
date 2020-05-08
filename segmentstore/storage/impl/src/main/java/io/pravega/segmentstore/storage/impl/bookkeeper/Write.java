@@ -13,8 +13,9 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.Timer;
-import io.pravega.common.util.CompositeArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.storage.LogAddress;
+import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -57,7 +58,7 @@ class Write {
      * @param result             A CompletableFuture that will be completed with the result (or failure cause) once this
      *                           Write is completed.
      */
-    Write(@NonNull CompositeArrayView data, WriteLedger initialWriteLedger, CompletableFuture<LogAddress> result) {
+    Write(@NonNull BufferView data, WriteLedger initialWriteLedger, CompletableFuture<LogAddress> result) {
         this.data = convertData(data);
         this.length = data.getLength();
         this.writeLedger = new AtomicReference<>(Preconditions.checkNotNull(initialWriteLedger, "initialWriteLedger"));
@@ -68,9 +69,11 @@ class Write {
         this.beginAttemptTimer = new AtomicReference<>();
     }
 
-    private ByteBuf convertData(CompositeArrayView data) {
+    private ByteBuf convertData(BufferView data) {
         val c = Unpooled.compositeBuffer();
-        data.collect((array, offset, length) -> c.addComponent(Unpooled.wrappedBuffer(array, offset, length)));
+        for (ByteBuffer bb : data.getContents()) {
+            c.addComponent(Unpooled.wrappedBuffer(bb));
+        }
         return c.writerIndex(c.capacity()).retain();
     }
 

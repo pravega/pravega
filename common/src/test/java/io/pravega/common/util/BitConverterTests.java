@@ -34,7 +34,6 @@ public class BitConverterTests {
     @Test
     public void testInt() {
         test(BitConverter::writeInt, BitConverter::readInt, Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1);
-        testCompositeArray(BitConverter::writeInt, BitConverter::readInt, Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1);
     }
 
     /**
@@ -74,25 +73,9 @@ public class BitConverterTests {
         }
     }
 
-    @SafeVarargs
-    private final <T> void testCompositeArray(WriteCompositeArray<T> write, Read<T> read, T... testValues) {
-        byte[] buffer = new byte[MAX_LENGTH];
-        CompositeByteArraySegment c = new CompositeByteArraySegment(buffer);
-        for (T value : testValues) {
-            int length = write.apply(c, 0, value);
-            T readValue = read.apply(new ByteArraySegment(buffer, 0, length), 0);
-            Assert.assertEquals("Unexpected deserialized value.", value, readValue);
-        }
-    }
-
     @FunctionalInterface
     interface WriteArray<T> {
         int apply(byte[] target, int offset, T value);
-    }
-
-    @FunctionalInterface
-    interface WriteCompositeArray<T> {
-        int apply(CompositeArrayView target, int offset, T value);
     }
 
     @FunctionalInterface

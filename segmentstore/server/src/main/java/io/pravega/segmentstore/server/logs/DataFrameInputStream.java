@@ -35,7 +35,7 @@ public class DataFrameInputStream extends InputStream {
     private final String traceObjectId;
     private final CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader;
     private DataFrame.DataFrameEntryIterator currentFrameContents;
-    private DataFrame.DataFrameEntry currentEntry;
+    private DataFrame.ReadEntry currentEntry;
     private long lastReadFrameSequence;
 
     private DataFrameRecord.RecordInfo.RecordInfoBuilder currentRecordBuilder;
@@ -44,11 +44,11 @@ public class DataFrameInputStream extends InputStream {
     private boolean hasReadAnyData;
     /**
      * The {@link DataFrameInputStream} provides an {@link InputStream}-like interface on top of
-     * {@link DataFrame.DataFrameEntry} instances that make up the {@link DurableDataLog}. Every call to {@link #read} may
-     * either read from the currently loaded {@link DataFrame.DataFrameEntry} or fetch another one ({@link #fetchNextEntry()}.
+     * {@link DataFrame.ReadEntry} instances that make up the {@link DurableDataLog}. Every call to {@link #read} may
+     * either read from the currently loaded {@link DataFrame.ReadEntry} or fetch another one ({@link #fetchNextEntry()}.
      *
      * However, in certain exceptional cases (such as when an Operation has been split but only one part was successfully
-     * written to the {@link DurableDataLog}), we may have had to request more {@link DataFrame.DataFrameEntry} instances
+     * written to the {@link DurableDataLog}), we may have had to request more {@link DataFrame.ReadEntry} instances
      * in order to figure out the situation (which means we may have also read part of the next (valid) operation). When
      * this happens, we need to notify the upstream code (via a {@link RecordResetException}) and set ourselves in a state
      * where we can only proceed once that upstream code has recovered from this situation and is ready to begin reading
@@ -213,7 +213,7 @@ public class DataFrameInputStream extends InputStream {
         }
 
         while (!this.closed) {
-            DataFrame.DataFrameEntry nextEntry = getNextFrameEntry();
+            DataFrame.ReadEntry nextEntry = getNextFrameEntry();
 
             if (nextEntry == null) {
                 // 'null' means no more entries (or frames). Since we are still in the while loop, it means we were in the
@@ -253,7 +253,7 @@ public class DataFrameInputStream extends InputStream {
         }
     }
 
-    private void setCurrentFrameEntry(DataFrame.DataFrameEntry nextEntry) throws IOException {
+    private void setCurrentFrameEntry(DataFrame.ReadEntry nextEntry) throws IOException {
         long dataFrameSequence = nextEntry.getFrameAddress().getSequence();
         LogAddress lastUsedAddress = this.currentRecordBuilder.getLastUsedDataFrameAddress();
         if (lastUsedAddress != null && dataFrameSequence < lastUsedAddress.getSequence()) {
@@ -276,9 +276,9 @@ public class DataFrameInputStream extends InputStream {
         this.currentRecordBuilder.withEntry(nextEntry.getFrameAddress(), nextEntry.getFrameOffset(), nextEntry.getLength(), nextEntry.isLastEntryInDataFrame());
     }
 
-    private DataFrame.DataFrameEntry getNextFrameEntry() throws DurableDataLogException, IOException {
+    private DataFrame.ReadEntry getNextFrameEntry() throws DurableDataLogException, IOException {
         // Check to see if we are in the middle of a frame, in which case, just return the next element.
-        DataFrame.DataFrameEntry result;
+        DataFrame.ReadEntry result;
         if (this.currentFrameContents != null) {
             result = this.currentFrameContents.getNext();
             if (result != null) {
