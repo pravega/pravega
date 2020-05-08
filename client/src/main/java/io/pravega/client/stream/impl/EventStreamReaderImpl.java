@@ -74,6 +74,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private boolean closed;
     @GuardedBy("readers")
     private final List<EventSegmentReader> readers = new ArrayList<>();
+    // Ranges map is heavily used to build Position objects that are returned to the client. While there is no change
+    // in segment distribution, we reuse the same map instance for performance reasons. But this map should have a
+    // copy-on-write behavior to do not impact all the Position objects referencing the previous version of it.
     @GuardedBy("readers")
     private final AtomicReference<Map<Segment, Range>> ranges = new AtomicReference<>(new HashMap<>());
     @GuardedBy("readers")
@@ -176,7 +179,6 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     private PositionInternal getPosition() {
-        // Initialize the map to be large enough to prevent rehashing while initializing it.
         Map<Segment, Long> ownedSegments = new HashMap<>(sealedSegments.size() + readers.size());
         ownedSegments.putAll(sealedSegments);
         for (EventSegmentReader entry : readers) {
@@ -385,7 +387,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         }
     }
 
-    // Rages management region
+    // Ranges management region
 
     @VisibleForTesting
     Map<Segment, Range> getRanges() {
