@@ -97,12 +97,12 @@ public class CheckpointState {
     }
     
     String getCheckpointForReader(String readerName) {
-        OptionalInt min = getCheckpointsForReader(readerName).stream().mapToInt(checkpoints::indexOf).min();
-        if (min.isPresent()) {
-            return checkpoints.get(min.getAsInt());
-        } else {
+        List<String> checkpointsForReader = getCheckpointsForReader(readerName);
+        if (checkpointsForReader.isEmpty()) {
             return null;
         }
+        OptionalInt min = checkpointsForReader.stream().mapToInt(checkpoints::indexOf).min();
+        return checkpoints.get(min.getAsInt());
     }
     
     private List<String> getCheckpointsForReader(String readerName) {
@@ -114,11 +114,7 @@ public class CheckpointState {
         for (Entry<String, List<String>> entry : uncheckpointedHosts.entrySet()) {
             String checkpointId = entry.getKey();
             for (String host : entry.getValue()) {
-                List<String> checkpointsForHost = checkpointIndex.get(host);
-                if (checkpointsForHost == null) {
-                    checkpointsForHost = new ArrayList<>();
-                    checkpointIndex.put(host, checkpointsForHost);
-                }
+                List<String> checkpointsForHost = checkpointIndex.computeIfAbsent(host, k -> new ArrayList<>());
                 checkpointsForHost.add(checkpointId);
             }
         }
