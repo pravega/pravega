@@ -88,16 +88,31 @@ class DataFrame {
      */
     BufferView getData() {
         Preconditions.checkState(this.sealed, "DataFrame must be sealed to get its contents.");
-        FrameHeader header = new FrameHeader(getLength() - FrameHeader.SERIALIZATION_LENGTH);
-        ArrayList<Iterator<BufferView>> buffers = new ArrayList<>(1 + this.entries.size() * 2);
-        buffers.add(Iterators.singletonIterator(header.serialize()));
-        this.entries.forEach(e -> {
-            buffers.add(Iterators.singletonIterator(new EntryHeader(e.getLength(), e.isFirstRecordEntry(), e.isLastRecordEntry()).serialize()));
-            buffers.add(e.getComponents());
-        });
+        byte[] aggregateBuffer = new byte[FrameHeader.SERIALIZATION_LENGTH + this.entries.size() * EntryHeader.HEADER_SIZE];
+        int aggregateBufferPosition = 0;
 
-        BufferView result = BufferView.wrap(Iterators.concat(buffers.iterator()));
-        return result;
+        // Serialize Frame Header.
+        FrameHeader header = new FrameHeader(getLength() - FrameHeader.SERIALIZATION_LENGTH);
+        ByteArraySegment headerSerialization = new ByteArraySegment(aggregateBuffer, 0, FrameHeader.SERIALIZATION_LENGTH);
+        header.serialize(headerSerialization);
+        aggregateBufferPosition += headerSerialization.getLength();
+
+        // Stitch the result together.
+        ArrayList<Iterator<BufferView>> result = new ArrayList<>(1 + this.entries.size() * 2);
+        result.add(Iterators.singletonIterator(headerSerialization));
+        for (WriteEntry e : this.entries) {
+            // Serialize Entry Header.
+            EntryHeader entryHeader = new EntryHeader(e.getLength(), e.isFirstRecordEntry(), e.isLastRecordEntry());
+            ByteArraySegment entryHeaderSerialization = new ByteArraySegment(aggregateBuffer, aggregateBufferPosition, EntryHeader.HEADER_SIZE);
+            entryHeader.serialize(entryHeaderSerialization);
+            aggregateBufferPosition += entryHeaderSerialization.getLength();
+            result.add(Iterators.singletonIterator(entryHeaderSerialization));
+
+            // Add the entry's components.
+            result.add(e.getComponents());
+        }
+
+        return BufferView.wrap(Iterators.concat(result.iterator()));
     }
 
     /**
@@ -288,17 +303,14 @@ class DataFrame {
             this.lastRecordEntry = (flags & LAST_ENTRY_MASK) == LAST_ENTRY_MASK;
         }
 
-        BufferView serialize() {
-            byte[] data = new byte[HEADER_SIZE];
-
+        void serialize(ByteArraySegment data) {
             // Write length.
             BitConverter.writeInt(data, 0, this.entryLength);
 
             // Write flags.
             byte flags = this.firstRecordEntry ? FIRST_ENTRY_MASK : 0;
             flags |= this.lastRecordEntry ? LAST_ENTRY_MASK : 0;
-            data[FLAGS_OFFSET] = flags;
-            return new ByteArraySegment(data);
+            data.set(FLAGS_OFFSET, flags);
         }
 
         @Override
@@ -358,14 +370,12 @@ class DataFrame {
             // Placeholder method. Nothing to do yet.
         }
 
-        BufferView serialize() {
-            byte[] buffer = new byte[SERIALIZATION_LENGTH];
+        void serialize(ByteArraySegment buffer) {
             int bufferOffset = 0;
-            buffer[bufferOffset] = getVersion();
+            buffer.set(bufferOffset, getVersion());
             bufferOffset += Byte.BYTES;
             bufferOffset += BitConverter.writeInt(buffer, bufferOffset, getContentLength());
-            buffer[bufferOffset] = encodeFlags();
-            return new ByteArraySegment(buffer);
+            buffer.set(bufferOffset, encodeFlags());
         }
 
         @Override
