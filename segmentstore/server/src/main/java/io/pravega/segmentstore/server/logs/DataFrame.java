@@ -12,8 +12,8 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
+import io.pravega.common.CompositeByteArrayOutputStream;
 import io.pravega.common.io.BoundedInputStream;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
@@ -43,6 +43,7 @@ class DataFrame {
     static final int MIN_ENTRY_LENGTH_NEEDED = EntryHeader.HEADER_SIZE + 1;
     private static final byte CURRENT_VERSION = 0;
     private final int maxSize;
+    private final CompositeByteArrayOutputStream sharedDataBuffer;
     private final LinkedList<WriteEntry> entries;
 
     /**
@@ -75,6 +76,7 @@ class DataFrame {
         this.maxSize = maxSize;
         this.sealed = false;
         this.entries = new LinkedList<>();
+        this.sharedDataBuffer = new CompositeByteArrayOutputStream(maxSize, 1024);
         this.openEntry = null;
         this.length = FrameHeader.SERIALIZATION_LENGTH;
     }
@@ -88,12 +90,12 @@ class DataFrame {
      */
     BufferView getData() {
         Preconditions.checkState(this.sealed, "DataFrame must be sealed to get its contents.");
-        byte[] aggregateBuffer = new byte[FrameHeader.SERIALIZATION_LENGTH + this.entries.size() * EntryHeader.HEADER_SIZE];
+        byte[] sharedHeaderBuffer = new byte[FrameHeader.SERIALIZATION_LENGTH + this.entries.size() * EntryHeader.HEADER_SIZE];
         int aggregateBufferPosition = 0;
 
         // Serialize Frame Header.
         FrameHeader header = new FrameHeader(getLength() - FrameHeader.SERIALIZATION_LENGTH);
-        ByteArraySegment headerSerialization = new ByteArraySegment(aggregateBuffer, 0, FrameHeader.SERIALIZATION_LENGTH);
+        ByteArraySegment headerSerialization = new ByteArraySegment(sharedHeaderBuffer, 0, FrameHeader.SERIALIZATION_LENGTH);
         header.serialize(headerSerialization);
         aggregateBufferPosition += headerSerialization.getLength();
 
@@ -103,7 +105,7 @@ class DataFrame {
         for (WriteEntry e : this.entries) {
             // Serialize Entry Header.
             EntryHeader entryHeader = new EntryHeader(e.getLength(), e.isFirstRecordEntry(), e.isLastRecordEntry());
-            ByteArraySegment entryHeaderSerialization = new ByteArraySegment(aggregateBuffer, aggregateBufferPosition, EntryHeader.HEADER_SIZE);
+            ByteArraySegment entryHeaderSerialization = new ByteArraySegment(sharedHeaderBuffer, aggregateBufferPosition, EntryHeader.HEADER_SIZE);
             entryHeader.serialize(entryHeaderSerialization);
             aggregateBufferPosition += entryHeaderSerialization.getLength();
             result.add(Iterators.singletonIterator(entryHeaderSerialization));
@@ -153,7 +155,7 @@ class DataFrame {
         }
 
         int maxLength = getAvailableLength() - EntryHeader.HEADER_SIZE;
-        this.openEntry = new WriteEntry(maxLength);
+        this.openEntry = new WriteEntry(maxLength, this.sharedDataBuffer);
         this.openEntry.setFirstRecordEntry(firstRecordEntry);
         return true;
     }
@@ -162,6 +164,9 @@ class DataFrame {
      * Discards the currently started entry and deletes any data associated with it.
      */
     void discardEntry() {
+        if (this.openEntry != null) {
+            this.openEntry.discard();
+        }
         this.openEntry = null;
     }
 
@@ -391,6 +396,7 @@ class DataFrame {
     @RequiredArgsConstructor
     private static class WriteEntry {
         private final int maxLength;
+        private final CompositeByteArrayOutputStream sharedBuffer;
         private final LinkedList<Component> components = new LinkedList<>();
         @Getter
         private int length;
@@ -418,7 +424,7 @@ class DataFrame {
 
         int append(byte b) {
             if (getAvailableLength() >= 1) {
-                ensureByteSequence().write(b);
+                getByteSequence().data.write(b);
                 this.length++;
                 return 1;
             } else {
@@ -433,7 +439,7 @@ class DataFrame {
             if (actualLength > 0) {
                 BufferView b = data.readBytes(actualLength);
                 if (copy) {
-                    b.copyTo(ensureByteSequence());
+                    b.copyTo(getByteSequence().data);
                 } else {
                     this.components.addLast(new BufferViewReference(b));
                 }
@@ -443,12 +449,17 @@ class DataFrame {
             return actualLength;
         }
 
-        private ByteSequence ensureByteSequence() {
+        void discard() {
+            this.components.stream().filter(c -> c instanceof ByteSequence).forEach(c -> ((ByteSequence) c).data.reset());
+            this.components.clear();
+        }
+
+        private ByteSequence getByteSequence() {
             Component c = this.components.peekLast();
             if (c instanceof ByteSequence) {
                 return (ByteSequence) c;
             } else {
-                ByteSequence s = new ByteSequence();
+                ByteSequence s = new ByteSequence(this.sharedBuffer.slice());
                 this.components.addLast(s);
                 return s;
             }
@@ -458,7 +469,14 @@ class DataFrame {
             BufferView getData();
         }
 
-        private static class ByteSequence extends EnhancedByteArrayOutputStream implements Component {
+        @RequiredArgsConstructor
+        private static class ByteSequence implements Component {
+            private final CompositeByteArrayOutputStream.Slice data;
+
+            @Override
+            public BufferView getData() {
+                return this.data.asBufferView();
+            }
         }
 
         @RequiredArgsConstructor
