@@ -28,8 +28,8 @@ public class SingleNodeConfig {
 
     public final static Property<Boolean> ENABLE_AUTH = Property.named("security.auth.enable", false, "enableAuth");
     public final static Property<String> USER_NAME = Property.named("security.auth.credentials.username", "", "userName");
-    public final static Property<String> PASSWD = Property.named("security.auth.credentials.password", "", "passwd");
-    public final static Property<String> PASSWD_FILE = Property.named("security.auth.pwdAuthHandler.accountsDb.location", "");
+    public final static Property<String> PASSWD = Property.named("security.auth.credentials.pwd", "", "passwd");
+    public final static Property<String> PASSWD_FILE = Property.named("security.auth.pwdAuthHandler.accountsDb.location", "", "passwdFile");
 
     // TLS-related configurations
     public final static Property<Boolean> ENABLE_TLS = Property.named("security.tls.enable", false, "enableTls");
