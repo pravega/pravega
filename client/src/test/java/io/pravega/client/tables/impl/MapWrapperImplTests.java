@@ -352,7 +352,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
             } else {
                 // AddAll.
                 val toAdd = getExpectedValues(keyIds, 0);
-                map.entrySet().addAll(toAdd.entrySet());
+                map.entrySet().addAll(new ArrayList<>(toAdd.entrySet()));
                 expectedEntries.putAll(keyFamily, toAdd);
             }
             entriesByKeyFamily.put(keyFamily, new ArrayList<>(expectedEntries.get(keyFamily).entrySet()));
