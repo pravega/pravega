@@ -17,7 +17,6 @@ import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.EOFException;
@@ -58,7 +57,7 @@ class DataFrame {
     private WriteEntry openEntry;
     @Getter
     private int length;
-    private boolean sealed;
+    private BufferView data;
 
     //endregion
 
@@ -74,7 +73,7 @@ class DataFrame {
         Preconditions.checkArgument(maxSize > FrameHeader.SERIALIZATION_LENGTH,
                 "maxSize must be at least %s.", FrameHeader.SERIALIZATION_LENGTH + 1);
         this.maxSize = maxSize;
-        this.sealed = false;
+        this.data = null;
         this.entries = new LinkedList<>();
         this.sharedDataBuffer = new CompositeByteArrayOutputStream(maxSize, 1024);
         this.openEntry = null;
@@ -87,34 +86,12 @@ class DataFrame {
 
     /**
      * Returns a {@link BufferView} representing the serialized form of this frame.
+     *
+     * @throws IllegalStateException if {@link #seal()} hasn't been called prior to calling this method.
      */
     BufferView getData() {
-        Preconditions.checkState(this.sealed, "DataFrame must be sealed to get its contents.");
-        byte[] sharedHeaderBuffer = new byte[FrameHeader.SERIALIZATION_LENGTH + this.entries.size() * EntryHeader.HEADER_SIZE];
-        int aggregateBufferPosition = 0;
-
-        // Serialize Frame Header.
-        FrameHeader header = new FrameHeader(getLength() - FrameHeader.SERIALIZATION_LENGTH);
-        ByteArraySegment headerSerialization = new ByteArraySegment(sharedHeaderBuffer, 0, FrameHeader.SERIALIZATION_LENGTH);
-        header.serialize(headerSerialization);
-        aggregateBufferPosition += headerSerialization.getLength();
-
-        // Stitch the result together.
-        ArrayList<Iterator<BufferView>> result = new ArrayList<>(1 + this.entries.size() * 2);
-        result.add(Iterators.singletonIterator(headerSerialization));
-        for (WriteEntry e : this.entries) {
-            // Serialize Entry Header.
-            EntryHeader entryHeader = new EntryHeader(e.getLength(), e.isFirstRecordEntry(), e.isLastRecordEntry());
-            ByteArraySegment entryHeaderSerialization = new ByteArraySegment(sharedHeaderBuffer, aggregateBufferPosition, EntryHeader.HEADER_SIZE);
-            entryHeader.serialize(entryHeaderSerialization);
-            aggregateBufferPosition += entryHeaderSerialization.getLength();
-            result.add(Iterators.singletonIterator(entryHeaderSerialization));
-
-            // Add the entry's components.
-            result.add(e.getComponents());
-        }
-
-        return BufferView.wrap(Iterators.concat(result.iterator()));
+        Preconditions.checkState(this.data != null, "DataFrame must be sealed to get its contents.");
+        return this.data;
     }
 
     /**
@@ -128,7 +105,7 @@ class DataFrame {
      * Gets a value indicating whether the DataFrame is sealed.
      */
     boolean isSealed() {
-        return this.sealed;
+        return this.data != null;
     }
 
     //endregion
@@ -146,7 +123,7 @@ class DataFrame {
      * @throws IllegalStateException If the entry is sealed.
      */
     boolean startNewEntry(boolean firstRecordEntry) {
-        Preconditions.checkState(!this.sealed, "DataFrame is sealed and cannot accept any more entries.");
+        Preconditions.checkState(this.data == null, "DataFrame is sealed and cannot accept any more entries.");
         endEntry(true);
 
         if (getAvailableLength() < MIN_ENTRY_LENGTH_NEEDED) {
@@ -227,10 +204,29 @@ class DataFrame {
      * @throws IllegalStateException If an open entry exists (entries must be closed prior to sealing).
      */
     void seal() {
-        if (!this.sealed) {
-            Preconditions.checkState(this.openEntry == null, "An open entry exists. Any open entries must be closed prior to sealing.");
-            this.sealed = true;
+        if (this.data != null) {
+            return;
         }
+
+        // Compile the DataFrame contents.
+        Preconditions.checkState(this.openEntry == null, "An open entry exists. Any open entries must be closed prior to sealing.");
+        ArrayList<Iterator<BufferView>> result = new ArrayList<>(1 + this.entries.size() * 2);
+
+        // Serialize Frame Header.
+        FrameHeader header = new FrameHeader(getLength() - FrameHeader.SERIALIZATION_LENGTH);
+        result.add(Iterators.singletonIterator(header.serialize(this.sharedDataBuffer)));
+
+        // Stitch the result together.
+        for (WriteEntry e : this.entries) {
+            // Serialize Entry Header.
+            EntryHeader entryHeader = new EntryHeader(e.getLength(), e.isFirstRecordEntry(), e.isLastRecordEntry());
+            result.add(Iterators.singletonIterator(entryHeader.serialize(this.sharedDataBuffer)));
+
+            // Add the entry's components.
+            result.add(e.getComponents());
+        }
+
+        this.data = BufferView.wrap(Iterators.concat(result.iterator()));
     }
 
     /**
@@ -241,7 +237,7 @@ class DataFrame {
     }
 
     private void ensureAppendConditions() {
-        Preconditions.checkState(!this.sealed, "DataFrame is sealed.");
+        Preconditions.checkState(this.data == null, "DataFrame is sealed.");
         Preconditions.checkState(this.openEntry != null, "No entry started.");
     }
 
@@ -308,14 +304,17 @@ class DataFrame {
             this.lastRecordEntry = (flags & LAST_ENTRY_MASK) == LAST_ENTRY_MASK;
         }
 
-        void serialize(ByteArraySegment data) {
+        @SneakyThrows(IOException.class)
+        BufferView serialize(CompositeByteArrayOutputStream s) {
+            CompositeByteArrayOutputStream.Slice data = s.slice();
             // Write length.
-            BitConverter.writeInt(data, 0, this.entryLength);
+            BitConverter.writeInt(data, this.entryLength);
 
             // Write flags.
             byte flags = this.firstRecordEntry ? FIRST_ENTRY_MASK : 0;
             flags |= this.lastRecordEntry ? LAST_ENTRY_MASK : 0;
-            data.set(FLAGS_OFFSET, flags);
+            data.write(flags);
+            return data.asBufferView();
         }
 
         @Override
@@ -375,12 +374,13 @@ class DataFrame {
             // Placeholder method. Nothing to do yet.
         }
 
-        void serialize(ByteArraySegment buffer) {
-            int bufferOffset = 0;
-            buffer.set(bufferOffset, getVersion());
-            bufferOffset += Byte.BYTES;
-            bufferOffset += BitConverter.writeInt(buffer, bufferOffset, getContentLength());
-            buffer.set(bufferOffset, encodeFlags());
+        @SneakyThrows(IOException.class)
+        BufferView serialize(CompositeByteArrayOutputStream s) {
+            CompositeByteArrayOutputStream.Slice buffer = s.slice();
+            buffer.write(getVersion());
+            BitConverter.writeInt(buffer, getContentLength());
+            buffer.write(encodeFlags());
+            return buffer.asBufferView();
         }
 
         @Override
