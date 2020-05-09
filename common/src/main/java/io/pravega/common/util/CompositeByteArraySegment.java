@@ -222,15 +222,7 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     @Override
     public List<ByteBuffer> getContents() {
         ArrayList<ByteBuffer> result = new ArrayList<>();
-        for (int i = 0; i < this.arrays.length; i++) {
-            byte[] a = getArray(i, false);
-            if (a == null) {
-                int size = i == this.arrays.length - 1 ? this.length % this.arraySize : this.arraySize;
-                result.add(ByteBuffer.allocate(size));
-            } else {
-                result.add(ByteBuffer.wrap(a));
-            }
-        }
+        collect((array, offset, length) -> result.add(ByteBuffer.wrap(array, offset, length)));
         return result;
     }
 
