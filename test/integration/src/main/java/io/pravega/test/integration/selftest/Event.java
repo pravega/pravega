@@ -186,20 +186,20 @@ public class Event implements ProducerUpdate {
     private byte[] serialize(int length) {
         Preconditions.checkArgument(length >= HEADER_LENGTH, "length is insufficient to accommodate header.");
         byte[] payload = new byte[length];
-
-        // Header: PREFIX + ownerId + routingKey + sequence + start time + Key + Length
-        int offset = 0;
-        offset += BitConverter.writeInt(payload, offset, PREFIX);
-        offset += BitConverter.writeInt(payload, offset, this.ownerId);
-        offset += BitConverter.writeInt(payload, offset, this.routingKey);
-        offset += BitConverter.writeInt(payload, offset, this.sequence);
-        offset += BitConverter.writeLong(payload, offset, this.startTime);
-        int contentLength = length - HEADER_LENGTH;
-        offset += BitConverter.writeInt(payload, offset, contentLength);
-        assert offset == HEADER_LENGTH : "Event header has a different length than expected";
-
-        // Content
-        writeContent(payload, offset);
+//
+//        // Header: PREFIX + ownerId + routingKey + sequence + start time + Key + Length
+//        int offset = 0;
+//        offset += BitConverter.writeInt(payload, offset, PREFIX);
+//        offset += BitConverter.writeInt(payload, offset, this.ownerId);
+//        offset += BitConverter.writeInt(payload, offset, this.routingKey);
+//        offset += BitConverter.writeInt(payload, offset, this.sequence);
+//        offset += BitConverter.writeLong(payload, offset, this.startTime);
+//        int contentLength = length - HEADER_LENGTH;
+//        offset += BitConverter.writeInt(payload, offset, contentLength);
+//        assert offset == HEADER_LENGTH : "Event header has a different length than expected";
+//
+//        // Content
+//        writeContent(payload, offset);
         return payload;
     }
 

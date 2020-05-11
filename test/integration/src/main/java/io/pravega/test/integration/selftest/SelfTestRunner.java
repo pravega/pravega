@@ -131,7 +131,7 @@ public class SelfTestRunner {
                 .include(ServiceConfig.builder()
                                       .with(ServiceConfig.THREAD_POOL_SIZE, 80)
                                       .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 30)
-                                      .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 6 * 1024 * 1024 * 1024L)
+                                      .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 10 * 1024 * 1024 * 1024L)
                                       .with(ServiceConfig.CERT_FILE, "../config/cert.pem")
                                       .with(ServiceConfig.KEY_FILE, "../config/key.pem"))
                 .include(DurableLogConfig.builder()

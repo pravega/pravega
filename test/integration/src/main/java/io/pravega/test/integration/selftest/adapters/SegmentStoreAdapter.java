@@ -35,6 +35,8 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
+import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -383,8 +385,13 @@ class SegmentStoreAdapter extends StoreAdapter {
 
         SingletonStorageFactory(String storageDir, ScheduledExecutorService executor) {
             this.storageDir = storageDir;
-            this.storage = new FileSystemStorageFactory(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, storageDir).build(),
-                    executor).createStorageAdapter();
+            val baseStorage = new FileSystemStorageFactory(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, storageDir).build(),
+                    executor);
+            val noOpFactory = new NoOpStorageFactory(StorageExtraConfig.builder()
+                    .with(StorageExtraConfig.STORAGE_NO_OP_MODE, true)
+                    .with(StorageExtraConfig.STORAGE_WRITE_NO_OP_LATENCY, 0).build(),
+                    executor, baseStorage, null);
+            this.storage = noOpFactory.createStorageAdapter();
             this.storage.initialize(1);
             this.closed = new AtomicBoolean();
         }

@@ -15,7 +15,6 @@ import io.netty.buffer.Unpooled;
 import io.pravega.common.Timer;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.storage.LogAddress;
-import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -70,11 +69,12 @@ class Write {
     }
 
     private ByteBuf convertData(BufferView data) {
-        val c = Unpooled.compositeBuffer();
-        for (ByteBuffer bb : data.getContents()) {
-            c.addComponent(Unpooled.wrappedBuffer(bb));
+        val contents = data.getContents();
+        ByteBuf[] components = new ByteBuf[contents.size()];
+        for (int i = 0; i < contents.size(); i++) {
+            components[i] = Unpooled.wrappedBuffer(contents.get(i));
         }
-        return c.writerIndex(c.capacity()).retain();
+        return Unpooled.wrappedBuffer(components);
     }
 
     //endregion
