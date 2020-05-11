@@ -384,16 +384,12 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         }
     }
 
-    // Ranges management region
-
     @VisibleForTesting
     Map<Segment, Range> getRanges() {
         synchronized (readers) {
             return ImmutableMap.copyOf(ranges);
         }
     }
-
-    // End region
 
     @Override
     public String toString() {
@@ -412,4 +408,5 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             return tracker.getTimeWindow();
         }
     }
+
 }

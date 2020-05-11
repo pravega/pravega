@@ -477,7 +477,7 @@ public class EventStreamReaderTest {
         reader.close();
     }
     
-    @Test(timeout = 1000000)
+    @Test(timeout = 10000)
     public void testCheckpointFollowingSilentCheckpoint() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();

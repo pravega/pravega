@@ -15,19 +15,36 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Map implementation that generates a copy of itself on each update, so all references to the previous version of the
- * map are safe from modifications on the new version. All the collection references to the map elements on this class
- * are read-only.
+ * Utils class that contains copy-on-write methods for maps.
  */
 @NotThreadSafe
 public class CopyOnWriteMapUtils {
 
+    /**
+     * Generates a new map object consisting of applying put(key, value) on the oldMap object.
+     *
+     * @param oldMap Base map to copy.
+     * @param key    Key to insert.
+     * @param value  Value to insert associated with key.
+     * @param <T>    Type of keys in the map.
+     * @param <R>    Type of values in the map.
+     * @return       A new map object consisting of applying put(key, value) on the oldMap object.
+     */
     public static <T, R> Map<T, R> put(Map<T, R> oldMap, T key, R value) {
         Map<T, R> newMap = new HashMap<>(oldMap);
         newMap.put(key, value);
         return newMap;
     }
 
+    /**
+     * Generates a new map object consisting of applying remove(key) on the oldMap object.
+     *
+     * @param oldMap Base map to copy.
+     * @param key    Key to insert.
+     * @param <T>    Type of keys in the map.
+     * @param <R>    Type of values in the map.
+     * @return       A new map object consisting of applying remove(key) on the oldMap object.
+     */
     public static <T, R> Map<T, R> remove(Map<T, R> oldMap, Object key) {
         Map<T, R> newMap = new HashMap<>(oldMap);
         newMap.remove(key);
