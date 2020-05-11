@@ -9,8 +9,7 @@
  */
 package io.pravega.common.util;
 
-import net.jcip.annotations.NotThreadSafe;
-
+import javax.annotation.concurrent.NotThreadSafe;
 import java.util.HashMap;
 import java.util.Map;
 
