@@ -121,6 +121,11 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     }
 
     @Override
+    public CompositeReader getBufferViewReader() {
+        return new CompositeReader();
+    }
+
+    @Override
     public InputStream getReader() {
         // Use the collector to create a list of ByteArrayInputStreams and then return them as combined.
         ArrayList<ByteArrayInputStream> streams = new ArrayList<>();
@@ -186,24 +191,20 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     }
 
     @Override
-    public void copyFrom(ArrayView source, int targetOffset, int length) {
-        Preconditions.checkArgument(length <= source.getLength(), "length exceeds source input's length.");
+    public void copyFrom(BufferView.Reader source, int targetOffset, int length) {
+        Preconditions.checkArgument(length <= source.available(), "length exceeds source input's length.");
         Exceptions.checkArrayRange(targetOffset, length, this.length, "offset", "length");
 
-        int sourceOffset = 0;
         int arrayOffset = getArrayOffset(targetOffset);
         int arrayId = getArrayId(targetOffset);
         while (length > 0) {
             byte[] array = getArray(arrayId, true); // Need to allocate if not already allocated.
             int copyLength = Math.min(array.length - arrayOffset, length);
-            System.arraycopy(source.array(), source.arrayOffset() + sourceOffset, array, arrayOffset, copyLength);
-            sourceOffset += copyLength;
+            copyLength = source.readBytes(new ByteArraySegment(array, arrayOffset, copyLength));
             length -= copyLength;
             arrayId++;
             arrayOffset = 0;
         }
-
-        assert length == 0 : "Copy finished but " + length + " bytes remaining";
     }
 
     @Override
@@ -287,6 +288,29 @@ public class CompositeByteArraySegment implements CompositeArrayView {
         }
 
         return (byte[]) a;
+    }
+
+    //endregion
+
+    //region Reader
+
+    private class CompositeReader implements BufferView.Reader {
+        private int position = 0;
+
+        @Override
+        public int available() {
+            return CompositeByteArraySegment.this.length - this.position;
+        }
+
+        @Override
+        public int readBytes(ByteArraySegment segment) {
+            int len = Math.min(available(), segment.getLength());
+            if (len > 0) {
+                slice(this.position, len).copyTo(ByteBuffer.wrap(segment.array(), segment.arrayOffset(), len));
+                this.position += len;
+            }
+            return len;
+        }
     }
 
     //endregion
