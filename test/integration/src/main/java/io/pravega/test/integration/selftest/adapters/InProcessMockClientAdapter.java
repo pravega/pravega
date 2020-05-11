@@ -13,7 +13,6 @@ package io.pravega.test.integration.selftest.adapters;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.mock.MockStreamManager;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
@@ -33,16 +32,15 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.val;
 
 /**
@@ -52,6 +50,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
     //region Members
 
     private static final String LISTENING_ADDRESS = "localhost";
+    private final ScheduledExecutorService executor;
     private PravegaConnectionListener listener;
     private MockStreamManager streamManager;
 
@@ -67,6 +66,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
      */
     InProcessMockClientAdapter(TestConfig testConfig, ScheduledExecutorService testExecutor) {
         super(testConfig, testExecutor);
+        this.executor = testExecutor;
     }
 
     //endregion
@@ -134,31 +134,43 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
     //region MockStreamSegmentStore
 
-    private static class MockStreamSegmentStore implements StreamSegmentStore {
-        private final Set<String> segments = Collections.synchronizedSet(new HashSet<>());
-        private final Map<String, Map<UUID, Long>> attrributes = new ConcurrentHashMap<>();
+    private class MockStreamSegmentStore implements StreamSegmentStore {
+        @GuardedBy("lock")
+        private final Map<String, Long> segments = new HashMap<>();
+        @GuardedBy("lock")
+        private final Map<String, Map<UUID, Long>> attributes = new HashMap<>();
+        private final Object lock = new Object();
 
         @Override
         public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
-            if (this.segments.add(streamSegmentName)) {
-                this.attrributes.put(streamSegmentName, new ConcurrentHashMap<>());
-                return CompletableFuture.completedFuture(null);
-            } else {
-                return Futures.failedFuture(new StreamSegmentExistsException(streamSegmentName));
-            }
+            return CompletableFuture.runAsync(() -> {
+                synchronized (this.lock) {
+                    if (this.segments.put(streamSegmentName, 0L) == null) {
+                        this.attributes.put(streamSegmentName, new ConcurrentHashMap<>());
+                    } else {
+                        throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
+                    }
+                }
+            }, executor);
         }
 
         @Override
         public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-            if (this.segments.contains(streamSegmentName)) {
-                if (attributeUpdates != null) {
-                    val segmentAttributes = this.attrributes.get(streamSegmentName);
-                    attributeUpdates.forEach(au -> segmentAttributes.put(au.getAttributeId(), au.getValue()));
+            return CompletableFuture.supplyAsync(() -> {
+                synchronized (this.lock) {
+                    long offset = this.segments.getOrDefault(streamSegmentName, -1L);
+                    if (offset >= 0) {
+                        if (attributeUpdates != null) {
+                            val segmentAttributes = this.attributes.get(streamSegmentName);
+                            attributeUpdates.forEach(au -> segmentAttributes.put(au.getAttributeId(), au.getValue()));
+                        }
+                        this.segments.put(streamSegmentName, offset + data.getLength());
+                        return offset;
+                    } else {
+                        throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+                    }
                 }
-                return CompletableFuture.completedFuture(null);
-            } else {
-                return Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
-            }
+            }, executor);
         }
 
         @Override
@@ -168,33 +180,46 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
         @Override
         public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-            if (this.segments.contains(streamSegmentName)) {
-                return CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(streamSegmentName)
-                        .attributes(this.attrributes.get(streamSegmentName)).build());
-            } else {
-                return Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
-            }
+            return CompletableFuture.supplyAsync(() -> {
+                synchronized (this.lock) {
+                    long length = this.segments.getOrDefault(streamSegmentName, -1L);
+                    if (length >= 0) {
+                        return StreamSegmentInformation.builder().name(streamSegmentName)
+                                .length(length)
+                                .attributes(new HashMap<>(this.attributes.get(streamSegmentName))).build();
+                    } else {
+                        throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+                    }
+                }
+            }, executor);
         }
 
         @Override
         public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-            val segmentAttributes = this.attrributes.get(streamSegmentName);
-            if (attributeUpdates != null) {
-                attributeUpdates.forEach(au -> segmentAttributes.put(au.getAttributeId(), au.getValue()));
-                return CompletableFuture.completedFuture(null);
-            } else {
-                return Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
-            }
+            return CompletableFuture.runAsync(() -> {
+                synchronized (this.lock) {
+                    val segmentAttributes = this.attributes.get(streamSegmentName);
+                    if (attributeUpdates != null) {
+                        attributeUpdates.forEach(au -> segmentAttributes.put(au.getAttributeId(), au.getValue()));
+                    } else {
+                        throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+                    }
+                }
+            }, executor);
         }
 
         @Override
         public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
-            val segmentAttributes = this.attrributes.get(streamSegmentName);
-            if (segmentAttributes != null) {
-                return CompletableFuture.completedFuture(new HashMap<>(segmentAttributes));
-            } else {
-                return Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
-            }
+            return CompletableFuture.supplyAsync(() -> {
+                synchronized (this.lock) {
+                    val segmentAttributes = this.attributes.get(streamSegmentName);
+                    if (segmentAttributes != null) {
+                        return new HashMap<>(segmentAttributes);
+                    } else {
+                        throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+                    }
+                }
+            }, executor);
         }
 
         @Override
