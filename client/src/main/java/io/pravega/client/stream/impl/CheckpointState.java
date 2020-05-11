@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -98,11 +97,7 @@ public class CheckpointState {
     
     String getCheckpointForReader(String readerName) {
         List<String> checkpointsForReader = getCheckpointsForReader(readerName);
-        if (checkpointsForReader.isEmpty()) {
-            return null;
-        }
-        OptionalInt min = checkpointsForReader.stream().mapToInt(checkpoints::indexOf).min();
-        return checkpoints.get(min.getAsInt());
+        return (checkpointsForReader.isEmpty()) ? null : checkpointsForReader.get(0);
     }
     
     private List<String> getCheckpointsForReader(String readerName) {
@@ -117,6 +112,10 @@ public class CheckpointState {
                 List<String> checkpointsForHost = checkpointIndex.computeIfAbsent(host, k -> new ArrayList<>());
                 checkpointsForHost.add(checkpointId);
             }
+        }
+        // Sort checkpoints per reader so we have fast access based on time ordering.
+        for (List<String> checkpointsForHost: checkpointIndex.values()) {
+            checkpointsForHost.sort(String::compareTo);
         }
     }
 

@@ -38,8 +38,10 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.SegmentWithRange.Range;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
+import io.pravega.common.util.CopyOnWriteMapUtils;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -48,9 +50,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
@@ -74,11 +76,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private boolean closed;
     @GuardedBy("readers")
     private final List<EventSegmentReader> readers = new ArrayList<>();
-    // Ranges map is heavily used to build Position objects that are returned to the client. While there is no change
-    // in segment distribution, we reuse the same map instance for performance reasons. But this map should have a
-    // copy-on-write behavior to do not impact all the Position objects referencing the previous version of it.
     @GuardedBy("readers")
-    private final AtomicReference<Map<Segment, Range>> ranges = new AtomicReference<>(new HashMap<>());
+    private Map<Segment, Range> ranges = new HashMap<>();
     @GuardedBy("readers")
     private final Map<Segment, Long> sealedSegments = new HashMap<>();
     @GuardedBy("readers")
@@ -152,7 +151,6 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     buffer = null;
                 }
             }
-            // There could have been some change in segment distribution, so forcing to renew position object if needed.
             lastPosition = null;
         } while (buffer == null && timer.getElapsedMillis() < timeoutMillis);
 
@@ -179,12 +177,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     private PositionInternal getPosition() {
-        Map<Segment, Long> ownedSegments = new HashMap<>(sealedSegments.size() + readers.size());
-        ownedSegments.putAll(sealedSegments);
+        List<Entry<Segment, Long>> ownedSegments = new ArrayList<>(sealedSegments.entrySet());
         for (EventSegmentReader entry : readers) {
-            ownedSegments.put(entry.getSegmentId(), entry.getOffset());
+            ownedSegments.add(new SimpleEntry<>(entry.getSegmentId(), entry.getOffset()));
         }
-        return PositionImpl.builder().ownedSegments(ownedSegments).segmentRanges(ranges.get()).build();
+        return PositionImpl.builder().ownedSegments(ownedSegments).segmentRanges(ranges).build();
     }
 
     /**
@@ -249,7 +246,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             if (reader != null) {
                 if (groupState.releaseSegment(segment, reader.getOffset(), getLag(), position)) {
                     readers.remove(reader);
-                    copyOnRemoveSegmentRange(reader.getSegmentId());
+                    ranges = CopyOnWriteMapUtils.remove(ranges, reader.getSegmentId());
                     reader.close();
                 }
             }
@@ -262,9 +259,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private void releaseSealedSegments() throws ReaderNotInReaderGroupException {
         for (Iterator<Entry<Segment, Long>> iterator = sealedSegments.entrySet().iterator(); iterator.hasNext();) {
             Segment oldSegment = iterator.next().getKey();
-            Range range = ranges.get().get(oldSegment);
+            Range range = ranges.get(oldSegment);
             if (groupState.handleEndOfSegment(new SegmentWithRange(oldSegment, range))) {
-                copyOnRemoveSegmentRange(oldSegment);
+                ranges = CopyOnWriteMapUtils.remove(ranges, oldSegment);
                 iterator.remove();
             } else {
                 break;
@@ -281,14 +278,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 long endOffset = groupState.getEndOffsetForSegment(newSegment.getKey().getSegment());
                 if (newSegment.getValue() < 0 || (newSegment.getValue() == endOffset && endOffset != Long.MAX_VALUE)) {
                     sealedSegments.put(newSegment.getKey().getSegment(), newSegment.getValue());
-                    copyOnPutSegmentRange(newSegment.getKey().getSegment(), newSegment.getKey().getRange());
+                    ranges = CopyOnWriteMapUtils.put(ranges, newSegment.getKey().getSegment(), newSegment.getKey().getRange());
                 } else {
                     Segment segment = newSegment.getKey().getSegment();
                     EventSegmentReader in = inputStreamFactory.createEventReaderForSegment(segment, config.getBufferSize(),
                                                                                            segmentsWithData, endOffset);
                     in.setOffset(newSegment.getValue());
                     readers.add(in);
-                    copyOnPutSegmentRange(segment, newSegment.getKey().getRange());
+                    ranges = CopyOnWriteMapUtils.put(ranges,segment, newSegment.getKey().getRange());
                 }
             }
             segmentsWithData.release();
@@ -354,7 +351,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     reader.close();
                 }
                 readers.clear();
-                ranges.set(null);
+                ranges = new HashMap<>();
                 groupState.close();
             }
         }
@@ -392,26 +389,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @VisibleForTesting
     Map<Segment, Range> getRanges() {
         synchronized (readers) {
-            return ImmutableMap.copyOf(ranges.get());
+            return ImmutableMap.copyOf(ranges);
         }
-    }
-
-    private void copyOnPutSegmentRange(Segment segment, Range range) {
-        Map<Segment, Range> newRanges = copyRanges();
-        newRanges.put(segment, range);
-        ranges.set(newRanges);
-    }
-
-    private void copyOnRemoveSegmentRange(Segment segment) {
-        Map<Segment, Range> newRanges = copyRanges();
-        newRanges.remove(segment);
-        ranges.set(newRanges);
-    }
-
-    private Map<Segment, Range> copyRanges() {
-        Map<Segment, Range> newRanges = new HashMap<>(2 * ranges.get().size());
-        newRanges.putAll(ranges.get());
-        return newRanges;
     }
 
     // End region
@@ -433,5 +412,4 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             return tracker.getTimeWindow();
         }
     }
-    
 }

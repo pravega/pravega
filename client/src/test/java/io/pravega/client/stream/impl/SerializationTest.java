@@ -19,10 +19,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
@@ -124,7 +121,7 @@ public class SerializationTest {
         }
 
         public PositionImpl getPostionImpl() {
-            return new PositionImpl(ownedSegments, segmentRanges);
+            return new PositionImpl(new ArrayList<>(ownedSegments.entrySet()), segmentRanges);
         }
     }
 

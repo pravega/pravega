@@ -20,8 +20,11 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ToStringUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -36,7 +39,7 @@ import static io.pravega.common.io.serialization.RevisionDataOutput.COMPACT_LONG
 public class PositionImpl extends PositionInternal {
 
     private static final PositionSerializer SERIALIZER = new PositionSerializer();
-    private final Map<Segment, Long> ownedSegments;
+    private final List<Entry<Segment, Long>> ownedSegments;
     private final Map<Segment, Range> segmentRanges;
 
     /**
@@ -45,17 +48,17 @@ public class PositionImpl extends PositionInternal {
      * @param segments Current segments that the position refers to.
      */
     public PositionImpl(Map<SegmentWithRange, Long> segments) {
-        this.ownedSegments = new HashMap<>(segments.size());
+        this.ownedSegments = new ArrayList<>(segments.size());
         this.segmentRanges = new HashMap<>(segments.size());
         for (Entry<SegmentWithRange, Long> entry : segments.entrySet()) {
             SegmentWithRange s = entry.getKey();
-            this.ownedSegments.put(s.getSegment(), entry.getValue());
+            this.ownedSegments.add(new SimpleEntry<>(s.getSegment(), entry.getValue()));
             this.segmentRanges.put(s.getSegment(), s.getRange());
         }
     }
     
     @Builder(builderClassName = "PositionBuilder")
-    PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges) {
+    PositionImpl(List<Entry<Segment, Long>> ownedSegments, Map<Segment, Range> segmentRanges) {
         this.ownedSegments = ownedSegments;
         if (segmentRanges == null) {
             this.segmentRanges = Collections.emptyMap();
@@ -66,27 +69,26 @@ public class PositionImpl extends PositionInternal {
 
     @Override
     public Set<Segment> getOwnedSegments() {
-        return Collections.unmodifiableSet(ownedSegments.keySet());
+        return ownedSegments.stream().map(Entry::getKey).collect(Collectors.toSet());
     }
 
     @Override
     public Map<Segment, Long> getOwnedSegmentsWithOffsets() {
-        return Collections.unmodifiableMap(ownedSegments);
+        return ownedSegments.stream().collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
     
     @Override
     Map<SegmentWithRange, Long> getOwnedSegmentRangesWithOffsets() {
         HashMap<SegmentWithRange, Long> result = new HashMap<>();
-        for (Entry<Segment, Long> entry : ownedSegments.entrySet()) {
+        for (Entry<Segment, Long> entry : ownedSegments) {
             result.put(new SegmentWithRange(entry.getKey(), segmentRanges.get(entry.getKey())), entry.getValue());
         }
         return result;
     }
 
-
     @Override
     public Set<Segment> getCompletedSegments() {
-        return ownedSegments.entrySet()
+        return ownedSegments
             .stream()
             .filter(x -> x.getValue() < 0)
             .map(Map.Entry::getKey)
@@ -95,7 +97,7 @@ public class PositionImpl extends PositionInternal {
 
     @Override
     public Long getOffsetForOwnedSegment(Segment segmentId) {
-        return ownedSegments.get(segmentId);
+        return ownedSegments.stream().filter(e -> e.getKey().equals(segmentId)).map(Entry::getValue).findFirst().get();
     }
 
     @Override
@@ -105,7 +107,7 @@ public class PositionImpl extends PositionInternal {
     
     @Override
     public String toString() {
-        return ToStringUtils.mapToString(ownedSegments);
+        return ToStringUtils.mapToString(getOwnedSegmentsWithOffsets());
     }
 
     static class PositionBuilder implements ObjectBuilder<PositionImpl> {
@@ -138,7 +140,7 @@ public class PositionImpl extends PositionInternal {
                     return offset;
                 }
             });
-            builder.ownedSegments(map);
+            builder.ownedSegments(new ArrayList<>(map.entrySet()));
         }
 
         private void write00(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
@@ -160,8 +162,7 @@ public class PositionImpl extends PositionInternal {
         }
 
         private void write01(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
-            Map<Segment, Range> map = position.segmentRanges;
-            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializer::writeRange);
+            revisionDataOutput.writeMap(position.segmentRanges, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializer::writeRange);
         }
 
         private static void writeRange(RevisionDataOutput out, Range range) throws IOException {

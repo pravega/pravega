@@ -326,18 +326,18 @@ public class ReaderGroupStateManager {
         //Make sure it has been a while, and compaction are staggered.
         if (sync.bytesWrittenSinceCompaction() > MIN_BYTES_BETWEEN_COMPACTIONS && Math.random() < COMPACTION_PROBABILITY) {
             log.debug("Compacting reader group state {}", sync.getState());
-            sync.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
+            sync.compact(ReaderGroupState.CompactReaderGroupState::new);
         }
     }
     
-    private boolean shouldAcquireSegment() throws ReaderNotInReaderGroupException {
+    boolean shouldAcquireSegment() throws ReaderNotInReaderGroupException {
         synchronized (decisionLock) {
+            if (acquireTimer.hasRemaining()) {
+                return false;
+            }
             ReaderGroupState state = sync.getState();
             if (!state.isReaderOnline(readerId)) {
                 throw new ReaderNotInReaderGroupException(readerId);
-            }
-            if (acquireTimer.hasRemaining()) {
-                return false;
             }
             if (state.getCheckpointForReader(readerId) != null) {
                 return false;
