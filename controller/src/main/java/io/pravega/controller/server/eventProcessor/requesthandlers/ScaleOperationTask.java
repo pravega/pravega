@@ -133,10 +133,10 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                             // for auto scale, it means another scale is on going and just throw scale conflict exception 
                             // which will result in this event being postponed. 
                             if (isManualScale) {
-                                log.info("Scale already completed.");
+                                log.info("Scale for stream {}/{} for segments {} already completed.", scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal());
                                 return CompletableFuture.completedFuture(null);
                             } else {
-                                log.info("Scale conflict.");
+                                log.info("Scale for stream {}/{} for segments {} cannot be started as another scale is ongoing.", scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal());
                                 throw new EpochTransitionOperationExceptions.ConflictException();
                             }
                         }
