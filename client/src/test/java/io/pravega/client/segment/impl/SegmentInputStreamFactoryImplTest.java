@@ -9,11 +9,18 @@
  */
 package io.pravega.client.segment.impl;
 
+<<<<<<< HEAD
 import io.pravega.client.control.impl.Controller;
+=======
+>>>>>>> Issue 4680: Enable truncation of Byte Stream. (#4745)
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.security.auth.EmptyTokenProviderImpl;
+<<<<<<< HEAD
+=======
+import io.pravega.client.stream.impl.Controller;
+>>>>>>> Issue 4680: Enable truncation of Byte Stream. (#4745)
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import org.junit.Before;
