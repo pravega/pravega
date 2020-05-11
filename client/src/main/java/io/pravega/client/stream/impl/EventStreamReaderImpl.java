@@ -285,7 +285,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                                                                                            segmentsWithData, endOffset);
                     in.setOffset(newSegment.getValue());
                     readers.add(in);
-                    ranges = CopyOnWriteMapUtils.put(ranges,segment, newSegment.getKey().getRange());
+                    ranges = CopyOnWriteMapUtils.put(ranges, segment, newSegment.getKey().getRange());
                 }
             }
             segmentsWithData.release();
