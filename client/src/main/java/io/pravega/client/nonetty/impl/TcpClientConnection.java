@@ -9,6 +9,7 @@
 package io.pravega.client.nonetty.impl;
 
 import io.netty.buffer.Unpooled;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.AppendBatchSizeTrackerImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.Append;
@@ -21,16 +22,24 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
+
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SocketChannel;
+import java.security.KeyStore;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.TrustManagerFactory;
 
 @Slf4j
 public class TcpClientConnection implements ClientConnection {
@@ -107,15 +116,50 @@ public class TcpClientConnection implements ClientConnection {
     }
 
     @SneakyThrows(IOException.class)
-    public TcpClientConnection(String host, int port, ReplyProcessor callback) {
-        socket = new Socket(host, port);
-        socket.setTcpNoDelay(true);
-        SocketChannel channel = socket.getChannel();
+    public TcpClientConnection(String host, int port, ClientConfig clientConfig, ReplyProcessor callback) {
+        socket = instantiateClientSocket(host, port, clientConfig);
+        this.socket.setTcpNoDelay(true);
+        SocketChannel channel = this.socket.getChannel();
         AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
         this.reader = new ConnectionReader(host, channel, callback, batchSizeTracker);
         this.encoder = new CommandEncoder(l -> batchSizeTracker, null, channel, ExecutorServiceHelpers.newScheduledThreadPool(1, "Timeouts for " + host));
         this.reader.start();
     }
+
+    @SneakyThrows
+    private Socket instantiateClientSocket(String host, int port, ClientConfig clientConfig) {
+        if (clientConfig.isEnableTlsToSegmentStore()) {
+            // TODO:
+            //  - Need to be able to use pem encoded files, as Pravega client applications specify such files.
+            //  - Handle the scenario where no truststore is specified.
+            //
+
+            KeyStore trustStore = KeyStore.getInstance("JKS");
+            trustStore.load(new FileInputStream(clientConfig.getTrustStore()), "".toCharArray());
+
+            // Prepare the trust manager factory
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(trustStore);
+
+            // Prepare a TLS context that uses the trust manager
+            SSLContext tlsContext = SSLContext.getInstance("TLS");
+            tlsContext.init(null, tmf.getTrustManagers(), null);
+            SSLSocket result = (SSLSocket) tlsContext.getSocketFactory().createSocket(host, port);
+
+            // SSLSocket does not perform hostname verification by default. So, we must explicitly enable it.
+            if (clientConfig.isValidateHostName()) {
+                SSLParameters tlsParams = new SSLParameters();
+                tlsParams.setEndpointIdentificationAlgorithm("HTTPS");
+                result.setSSLParameters(tlsParams);
+            }
+            return result;
+
+        } else {
+            return new Socket(host, port);
+        }
+    }
+
+
 
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {

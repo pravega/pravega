@@ -291,7 +291,7 @@ public class CommandEncoder {
         final int msgSize = append.getData().readableBytes();
         int blockSize = blockSizeSupplier.getAppendBlockSize();
         // Only publish client side metrics when there is some metrics notifier configured for efficiency.
-        if (metricNotifier!= null && !metricNotifier.equals(MetricNotifier.NO_OP_METRIC_NOTIFIER)) {
+        if (metricNotifier != null && !metricNotifier.equals(MetricNotifier.NO_OP_METRIC_NOTIFIER)) {
             metricNotifier.updateSuccessMetric(CLIENT_APPEND_BLOCK_SIZE, segmentTags(append.getSegment(), append.getWriterId().toString()),
                                                blockSize);
         }
