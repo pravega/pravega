@@ -97,6 +97,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     /**
      * Tests the exists API.
+     * @throws IOException if an unexpected error occurred.
      */
     @Test
     public void testListSegmentsWithOneSegment() throws IOException {

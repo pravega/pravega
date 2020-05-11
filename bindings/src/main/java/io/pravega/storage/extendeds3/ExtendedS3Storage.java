@@ -249,9 +249,10 @@ public class ExtendedS3Storage implements SyncStorage {
         /**
          * Method to return the next element in the iterator.
          * @return A newly created StreamSegmentInformation class.
+         * @throws NoSuchElementException in case of an unexpected failure.
          */
         @Override
-        public SegmentProperties next() {
+        public SegmentProperties next() throws NoSuchElementException {
             if (hasNext()) { // Check if there is a next or not. It also sets the current object to the next one in the list.
                 AccessControlList acls = client.getObjectAcl(config.getBucket(), current.getKey());
                 boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);

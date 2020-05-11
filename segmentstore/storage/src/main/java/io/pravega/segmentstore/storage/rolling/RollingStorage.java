@@ -568,6 +568,7 @@ public class RollingStorage implements SyncStorage {
         /**
          * Method to return the next element in the iterator.
          * @return A newly created StreamSegmentInformation class.
+         * @throws NoSuchElementException in case of an unexpected failure.
          */
         @Override
         public SegmentProperties next() throws NoSuchElementException {
