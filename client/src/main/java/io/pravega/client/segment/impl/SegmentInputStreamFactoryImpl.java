@@ -66,8 +66,13 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
 
     @Override
     public SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider) {
+        return createInputStreamForSegment(segment, tokenProvider, 0);
+    }
+
+    @Override
+    public SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider, long startOffset) {
         AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, tokenProvider, null);
         async.getConnection();
-        return new SegmentInputStreamImpl(async, 0);
+        return new SegmentInputStreamImpl(async, startOffset);
     }
 }
