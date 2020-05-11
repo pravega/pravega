@@ -9,11 +9,10 @@
  */
 package io.pravega.storage.filesystem;
 
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.test.common.AssertExtensions;
 import lombok.Getter;
 import lombok.Setter;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -29,7 +28,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
-import java.util.Iterator;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -58,16 +56,10 @@ public class FileSystemMockTests {
      */
     @Test
     public void testListSegmentsNumberIoException() {
-        boolean caughtException = false;
         FileChannel channel1 = mock(FileChannel.class);
         FileSystemStorageConfig storageConfig = FileSystemStorageConfig.builder().build();
         TestFileSystemStorage testFileSystemStorage = new TestFileSystemStorage(storageConfig, channel1);
-        try {
-            Iterator<SegmentProperties> iterator = testFileSystemStorage.listSegments();
-        } catch (IOException e) {
-            caughtException = true;
-        }
-        Assert.assertTrue(caughtException);
+        AssertExtensions.assertThrows(IOException.class, () -> testFileSystemStorage.listSegments());
     }
 
     @Test

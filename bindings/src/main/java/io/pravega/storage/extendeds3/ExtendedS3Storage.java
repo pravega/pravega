@@ -198,27 +198,36 @@ public class ExtendedS3Storage implements SyncStorage {
         private ListObjectsResult results;
         private Iterator<S3Object> innerIterator;
         private S3Object current;
+        private boolean isAvailable;
 
         ExtendedS3SegmentIterator(java.util.function.Predicate<S3Object> patternMatchPredicate) {
             this.results = client.listObjects(config.getBucket(), config.getPrefix());
             this.innerIterator = results.getObjects().iterator();
             this.patternMatchPredicate = patternMatchPredicate;
+            this.isAvailable = false;
         }
 
+        /**
+         * Method to check the presence of next element in the iterator.
+         * It also sets the position of the current element for Next method, but repetitive call to this method before Next
+         * will not advance the current element.
+         * @return true if the next element is there, else false.
+         */
         @Override
         public boolean hasNext() {
+            if (isAvailable) { // If the method was already called before next method call, return true if last call returned true.
+                return true;
+            }
             boolean nextBatch = false;
-            Iterator<S3Object> tempIterator = innerIterator;
-            S3Object tempS3Object;
-            while (tempIterator != null) { // Loops through the batches
-                while (tempIterator.hasNext()) { // Loops through the objects in the batch
-                    tempS3Object = tempIterator.next();
-                    if (patternMatchPredicate.test(tempS3Object)) {
+            while (innerIterator != null) { // Loops through the batches
+                while (innerIterator.hasNext()) { // Loops through the objects in the batch
+                    current = innerIterator.next();
+                    if (patternMatchPredicate.test(current)) {
                         isAvailable = true;
                         return true;
                     }
                 }
-                if (!tempIterator.hasNext()) { // End of the batch
+                if (!innerIterator.hasNext()) { // End of the batch
                     if (nextBatch) {    // Already fetched the next batch
                         break;
                     }
@@ -228,7 +237,6 @@ public class ExtendedS3Storage implements SyncStorage {
                     // Fetching from the next batch
                     results = client.listMoreObjects(results);
                     innerIterator = results.getObjects().iterator();
-                    tempIterator = innerIterator;
                     nextBatch = true;
                 }
             }
@@ -238,17 +246,16 @@ public class ExtendedS3Storage implements SyncStorage {
             return false;
         }
 
+        /**
+         * Method to return the next element in the iterator.
+         * @return A newly created StreamSegmentInformation class.
+         */
         @Override
         public SegmentProperties next() {
-            if (hasNext()) { // Check if there is a next or not. It also updates the results with next batch of elements.
-                while (innerIterator.hasNext()) { // hasNext method call makes sure that the next object occurs in the current batch.
-                    current = innerIterator.next();
-                    if (patternMatchPredicate.test(current)) {
-                        break;
-                    }
-                }
+            if (hasNext()) { // Check if there is a next or not. It also sets the current object to the next one in the list.
                 AccessControlList acls = client.getObjectAcl(config.getBucket(), current.getKey());
                 boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
+                isAvailable = false;
                 return StreamSegmentInformation.builder()
                         .name(current.getKey().replaceFirst(config.getPrefix(), ""))
                         .length(current.getSize())

@@ -532,20 +532,31 @@ public class RollingStorage implements SyncStorage {
         protected SegmentProperties current;
         private final Iterator<SegmentProperties> results;
         private final java.util.function.Predicate<SegmentProperties> patternMatchPredicate;
+        private boolean isAvailable;
 
         RollingStorageSegmentIterator(RollingStorage instance, Iterator<SegmentProperties> results, java.util.function.Predicate<SegmentProperties> patternMatchPredicate) {
             this.instance = instance;
             this.results = results;
             this.patternMatchPredicate = patternMatchPredicate;
+            this.isAvailable = false;
         }
 
+        /**
+         * Method to check the presence of next element in the iterator.
+         * It also sets the position of the current element for Next method, but repetitive call to this method before Next
+         * will not advance the current element.
+         * @return true if the next element is there, else false.
+         */
         @Override
         public boolean hasNext() {
-            Iterator<SegmentProperties> tempIterator = results;
-            if (tempIterator != null) {
-                while (tempIterator.hasNext()) {
-                    current = tempIterator.next();
+            if (isAvailable) {
+                return true;
+            }
+            if (results != null) {
+                while (results.hasNext()) {
+                    current = results.next();
                     if (patternMatchPredicate.test(current)) {
+                        isAvailable = true;
                         return true;
                     }
                 }
@@ -554,23 +565,23 @@ public class RollingStorage implements SyncStorage {
             return false;
         }
 
+        /**
+         * Method to return the next element in the iterator.
+         * @return A newly created StreamSegmentInformation class.
+         */
         @Override
         public SegmentProperties next() throws NoSuchElementException {
-            if (hasNext()) { // Check if next exists. Also checks if RemoteIterator results is null or not.
+            if (hasNext()) { // Check if next exists. Also sets the current object to the next object in the list.
                 try {
-                    while (results.hasNext()) {
-                        current = results.next();
-                        if (patternMatchPredicate.test(current)) {
-                            break;
-                        }
-                    }
                     String segmentName = NameUtils.getSegmentNameFromHeader(current.getName());
                     val handle = instance.openHandle(segmentName, true);
+                    isAvailable = false;
                     return StreamSegmentInformation.builder()
                             .name(segmentName)
                             .length(handle.length())
                             .sealed(handle.isSealed()).build();
                 } catch (StreamSegmentException e) {
+                    isAvailable = true;
                     log.error("Exception occurred while fetching the next segment.", e);
                 }
             }

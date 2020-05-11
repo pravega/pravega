@@ -521,20 +521,31 @@ class HDFSStorage implements SyncStorage {
         protected FileStatus current;
         private final RemoteIterator<FileStatus> results;
         private final java.util.function.Predicate<FileStatus> patternMatchPredicate;
+        private boolean isAvailable;
 
         HDFSSegmentIterator(RemoteIterator<FileStatus> results, java.util.function.Predicate<FileStatus> patternMatchPredicate) {
             this.results = results;
             this.patternMatchPredicate = patternMatchPredicate;
+            this.isAvailable = false;
         }
 
+        /**
+         * Method to check the presence of next element in the iterator.
+         * It also sets the position of the current element for Next method, but repetitive call to this method before Next
+         * will not advance the current element.
+         * @return true if the next element is there, else false.
+         */
         @Override
         public boolean hasNext() {
-            RemoteIterator<FileStatus> tempIterator = results;
+            if (isAvailable) {
+                return true;
+            }
             try {
-                if (tempIterator != null) {
-                    while (tempIterator.hasNext()) {
-                        current = tempIterator.next();
+                if (results != null) {
+                    while (results.hasNext()) {
+                        current = results.next();
                         if (patternMatchPredicate.test(current)) {
+                            isAvailable = true;
                             return true;
                         }
                     }
@@ -546,22 +557,22 @@ class HDFSStorage implements SyncStorage {
             return false;
         }
 
+        /**
+         * Method to return the next element in the iterator.
+         * @return A newly created StreamSegmentInformation class.
+         */
         @Override
         public SegmentProperties next() throws NoSuchElementException {
-            if (hasNext()) { // Check if next exists. Also checks if RemoteIterator results is null or not.
+            if (hasNext()) { // Check if next exists. Also sets the current object to the next one in the list.
                 try {
-                    while (results.hasNext()) {
-                        current = results.next();
-                        if (patternMatchPredicate.test(current)) {
-                            break;
-                        }
-                    }
+                    isAvailable = false;
                     boolean isSealed = isSealed(current.getPath());
                     return StreamSegmentInformation.builder()
                             .name(getSegmentNameFromPath(current.getPath()))
                             .length(current.getLen())
                             .sealed(isSealed).build();
-                } catch (IOException e) {
+                } catch (FileNameFormatException e) {
+                    isAvailable = true;
                     log.error("Exception occurred while trying to get the next object.", e);
                 }
             }

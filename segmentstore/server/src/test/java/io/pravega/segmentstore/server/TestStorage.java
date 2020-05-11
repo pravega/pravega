@@ -200,7 +200,7 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Iterator<SegmentProperties>> listSegments() {
+    public Iterator<SegmentProperties> listSegments() {
         return null;
     }
 

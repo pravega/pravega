@@ -15,6 +15,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamingException;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.test.common.AssertExtensions;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -51,13 +52,7 @@ public class RollingStorageSegmentIteratorMockTests {
                 .name("x$header")
                 .build();
         Mockito.doThrow(mock(StreamSegmentException.class)).when(testRollingStorageSegmentIterator.instance).openHandle(anyString(), anyBoolean());
-        boolean caughtException = false;
-        try {
-            testRollingStorageSegmentIterator.next();
-        } catch (NoSuchElementException e) {
-            caughtException = true;
-        }
-        Assert.assertTrue(caughtException);
+        AssertExtensions.assertThrows(NoSuchElementException.class, () -> testRollingStorageSegmentIterator.next());
     }
 
     /**
@@ -68,13 +63,7 @@ public class RollingStorageSegmentIteratorMockTests {
         RollingStorageSegmentIteratorMockTests.TestRollingStorageSegmentIterator testRollingStorageSegmentIterator = new
                 RollingStorageSegmentIteratorMockTests.TestRollingStorageSegmentIterator(null, null,
                 null);
-        boolean caughtException = false;
-        try {
-            testRollingStorageSegmentIterator.next();
-        } catch (NoSuchElementException e) {
-            caughtException = true;
-        }
-        Assert.assertTrue(caughtException);
+        AssertExtensions.assertThrows(NoSuchElementException.class, () -> testRollingStorageSegmentIterator.next());
     }
 
     /**

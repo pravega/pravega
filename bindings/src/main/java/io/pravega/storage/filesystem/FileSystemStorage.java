@@ -189,7 +189,7 @@ public class FileSystemStorage implements SyncStorage {
     }
 
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "OS_OPEN_STREAM", justification = "Rare operation. " +
-            "The leaked object is collected by GC. In case of a iterator in a loop this would be faster.")
+            "The leaked object is collected by GC. In case of a iteraror in a for loop this would be fast.")
     @Override
     public Iterator<SegmentProperties> listSegments() throws IOException {
         try {

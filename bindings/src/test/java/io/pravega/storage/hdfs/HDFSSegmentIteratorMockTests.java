@@ -9,6 +9,7 @@
  */
 package io.pravega.storage.hdfs;
 
+import io.pravega.test.common.AssertExtensions;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.junit.Assert;
@@ -27,11 +28,16 @@ import org.mockito.Mockito;
 
 public class HDFSSegmentIteratorMockTests {
     static final Duration TIMEOUT = Duration.ofSeconds(30);
+    static final java.util.function.Predicate<FileStatus> PREDICATE = new Predicate<FileStatus>() {
+        @Override
+        public boolean test(FileStatus fileStatus) {
+            return true;
+        }
+    };
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private RemoteIterator<FileStatus> results;
-    private java.util.function.Predicate<FileStatus> patternMatchPredicate;
 
     @Before
     public void setUp() throws Exception {
@@ -48,13 +54,6 @@ public class HDFSSegmentIteratorMockTests {
                 org.apache.hadoop.fs.Path path = new org.apache.hadoop.fs.Path("/testmock"); // Wrong format of path
                 fileStatus.setPath(path);
                 return fileStatus;
-            }
-        });
-
-        this.patternMatchPredicate = Mockito.spy(new Predicate<FileStatus>() {
-            @Override
-            public boolean test(FileStatus fileStatus) {
-                return true;
             }
         });
     }
@@ -78,7 +77,7 @@ public class HDFSSegmentIteratorMockTests {
     @Test
     public void testHasNextPatternMatchPredicateReturnsTrue() {
         HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
-                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(this.results, this.patternMatchPredicate);
+                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(this.results, this.PREDICATE);
         boolean hasNextValue = testHDFSStorageSegmentIterator.hasNext();
         Assert.assertTrue(hasNextValue);
     }
@@ -100,15 +99,8 @@ public class HDFSSegmentIteratorMockTests {
     @Test
     public void testNextFileNameFormatException() {
         HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = Mockito.spy(new
-                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(this.results, this.patternMatchPredicate));
-        Mockito.doReturn(true).when(testHDFSStorageSegmentIterator).hasNext();
-        boolean caughtException = false;
-        try {
-            testHDFSStorageSegmentIterator.next();
-        } catch (NoSuchElementException e) {
-            caughtException = true;
-        }
-        Assert.assertTrue(caughtException);
+                HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(this.results, this.PREDICATE));
+        AssertExtensions.assertThrows(NoSuchElementException.class, () -> testHDFSStorageSegmentIterator.next());
     }
 
     /**
@@ -118,13 +110,7 @@ public class HDFSSegmentIteratorMockTests {
     public void testNextWhenHasNextReturnsFalse() {
         HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator testHDFSStorageSegmentIterator = new
                 HDFSSegmentIteratorMockTests.TestHDFSStorageSegmentIterator(null, null);
-        boolean caughtException = false;
-        try {
-            testHDFSStorageSegmentIterator.next();
-        } catch (NoSuchElementException e) {
-            caughtException = true;
-        }
-        Assert.assertTrue(caughtException);
+        AssertExtensions.assertThrows(NoSuchElementException.class, () -> testHDFSStorageSegmentIterator.next());
     }
 
     /**
