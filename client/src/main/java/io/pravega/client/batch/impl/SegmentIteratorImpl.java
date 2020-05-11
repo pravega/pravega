@@ -11,7 +11,6 @@ package io.pravega.client.batch.impl;
 
 import com.google.common.annotations.Beta;
 import io.pravega.client.batch.SegmentIterator;
-import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
@@ -19,11 +18,17 @@ import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
+
+import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
+import java.util.concurrent.TimeoutException;
+
+import io.pravega.common.util.Retry;
 import lombok.Getter;
-import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 @Beta
+@Slf4j
 public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
 
     private final Segment segment;
@@ -32,6 +37,7 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
     private final long startingOffset;
     private final long endingOffset;
     private final EventSegmentReader input;
+    private final Retry.RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 9, 30000);
 
     public SegmentIteratorImpl(SegmentInputStreamFactory factory, Segment segment,
             Serializer<T> deserializer, long startingOffset, long endingOffset) {
@@ -49,16 +55,29 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
     }
 
     @Override
-    @SneakyThrows(EndOfSegmentException.class) //endingOffset should make this impossible.
     public T next() {
         if (!hasNext()) {
             throw new NoSuchElementException();
-        } 
-        try {
-            return deserializer.deserialize(input.read());
-        } catch (NoSuchSegmentException | SegmentTruncatedException e) {
-            throw new TruncatedDataException("Segment " + segment + " has been truncated.");
         }
+
+        // retry in-case of an empty ByteBuffer
+        ByteBuffer read =
+                backoffSchedule.retryWhen(t -> t instanceof TimeoutException)
+                               .run(() -> {
+                                   try {
+                                       ByteBuffer buffer = input.read();
+                                       if (buffer == null) {
+                                           log.warn("Empty buffer while reading from Segment {} at offset {}",
+                                                   input.getSegmentId(), input.getOffset());
+                                           throw new TimeoutException(input.toString());
+                                       }
+                                       return buffer;
+                                   } catch (NoSuchSegmentException | SegmentTruncatedException e) {
+                                       throw new TruncatedDataException("Segment " + segment + " has been truncated.");
+                                   }
+                               });
+
+        return deserializer.deserialize(read);
     }
 
     @Override

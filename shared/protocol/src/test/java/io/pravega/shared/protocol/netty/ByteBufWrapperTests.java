@@ -108,11 +108,17 @@ public class ByteBufWrapperTests {
         val copy = wrap.getCopy();
         Assert.assertArrayEquals("Unexpected result from getCopy.", expectedData, copy);
 
+        // Get BufferView Reader.
+        val bufferViewReader = wrap.getBufferViewReader();
+        val bufferViewReaderData = bufferViewReader.readFully(2);
+        AssertExtensions.assertArrayEquals("Unexpected result from getReader.", expectedData, 0,
+                bufferViewReaderData.array(), bufferViewReaderData.arrayOffset(), expectedData.length);
+
         // Get Reader.
         @Cleanup
         val reader = wrap.getReader();
         val readerData = IOUtils.readFully(reader, wrap.getLength());
-        Assert.assertArrayEquals("Unexpected result from getReader.", expectedData, copy);
+        Assert.assertArrayEquals("Unexpected result from getReader.", expectedData, readerData);
 
         // Copy To OutputStream.
         @Cleanup
@@ -131,6 +137,23 @@ public class ByteBufWrapperTests {
         for (int i = expectedData.length; i < array2.length; i++) {
             Assert.assertEquals(0, array2[i]);
         }
+    }
+
+    @Test
+    public void testCopyToByteBuffer() {
+        val data1 = newData();
+        val data2 = newData();
+        val b1 = new ByteBufWrapper(Unpooled.wrappedBuffer(data1));
+        val b2 = new ByteBufWrapper(Unpooled.wrappedBuffer(data2));
+        val target = new byte[b1.getLength() + b2.getLength()];
+        val targetBuffer = ByteBuffer.wrap(target);
+        b1.copyTo(targetBuffer);
+        b2.copyTo(targetBuffer);
+
+        val expectedData = new byte[data1.length + data2.length];
+        System.arraycopy(data1, 0, expectedData, 0, data1.length);
+        System.arraycopy(data2, 0, expectedData, data1.length, data2.length);
+        Assert.assertArrayEquals(expectedData, target);
     }
 
     /**

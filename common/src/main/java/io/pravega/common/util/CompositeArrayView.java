@@ -9,6 +9,9 @@
  */
 package io.pravega.common.util;
 
+import java.nio.ByteBuffer;
+import java.util.List;
+
 /**
  * Defines a generic view of a composite, index-based, array-like structure that is made up of one or more individual
  * arrays.
@@ -33,14 +36,14 @@ public interface CompositeArrayView extends BufferView {
     void set(int index, byte value);
 
     /**
-     * Copies a specified number of bytes from the given {@link ArrayView} into this {@link CompositeArrayView}.
+     * Copies a specified number of bytes from the given {@link BufferView.Reader} into this {@link CompositeArrayView}.
      *
-     * @param source       The {@link ArrayView} to copy bytes from.
+     * @param reader       The {@link BufferView.Reader} to copy bytes from.
      * @param targetOffset The offset within this {@link CompositeArrayView} to start copying at.
      * @param length       The number of bytes to copy.
      * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
      */
-    void copyFrom(ArrayView source, int targetOffset, int length);
+    void copyFrom(BufferView.Reader reader, int targetOffset, int length);
 
     /**
      * Creates a new {@link CompositeArrayView} that represents a sub-range of this {@link CompositeArrayView} instance.
@@ -65,6 +68,17 @@ public interface CompositeArrayView extends BufferView {
      *                    and the exception will be bubbled up.
      */
     <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectArray) throws ExceptionT;
+
+    /**
+     * {@inheritDoc}
+     * Gets a list of {@link ByteBuffer} that represent the contents of this {@link CompositeArrayView}. Since the
+     * {@link CompositeArrayView} is a sparse array implementation, any "gaps" that are not allocated within this object
+     * will be returned as {@link ByteBuffer}s containing zeroes.
+     *
+     * @return A List of {@link ByteBuffer}.
+     */
+    @Override
+    List<ByteBuffer> getContents();
 
     /**
      * Defines a collector function that can be applied to a range of an array.
