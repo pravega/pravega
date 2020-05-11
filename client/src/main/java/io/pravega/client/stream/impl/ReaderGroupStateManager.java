@@ -404,7 +404,7 @@ public class ReaderGroupStateManager {
     @VisibleForTesting
     static Duration calculateAcquireTime(String readerId, ReaderGroupState state) {
         int multiplier = state.getNumberOfReaders() - state.getRanking(readerId);
-        Preconditions.checkArgument(multiplier >= TIME_UNIT.getSeconds(), "Invalid acquire timer multiplier");
+        Preconditions.checkArgument(multiplier >= 1, "Invalid acquire timer multiplier");
         return TIME_UNIT.multipliedBy(multiplier);
     }
     
