@@ -39,6 +39,7 @@ public class TcpClientConnection implements ClientConnection {
     private final CommandEncoder encoder;
     private final ConnectionReader reader;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final String host;
 
     private static class ConnectionReader {
 
@@ -83,8 +84,11 @@ public class TcpClientConnection implements ClientConnection {
                             WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
                             batchSizeTracker.recordAck(dataAppended.getEventNumber());
                         }
-
-                        callback.process((Reply) command);
+                        try {
+                            callback.process((Reply) command);
+                        } catch (Exception e) {
+                            callback.processingFailure(e);
+                        }
                     } catch (Exception e) {
                         log.error("Error processing data from from server " + name, e);
                         stop();
@@ -103,12 +107,14 @@ public class TcpClientConnection implements ClientConnection {
         public void stop() {
             stop.set(true);
             thread.shutdown();
+            callback.connectionDropped();
         }
     }
 
     @SneakyThrows(IOException.class)
     public TcpClientConnection(String host, int port, ReplyProcessor callback) {
-        socket = new Socket(host, port);
+        this.host = host;
+        socket = new Socket(host, port); //TODO: Switch to AsynchronousSocketChannel.connect
         socket.setTcpNoDelay(true);
         SocketChannel channel = socket.getChannel();
         AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
@@ -169,6 +175,11 @@ public class TcpClientConnection implements ClientConnection {
             close();
             callback.complete(new ConnectionFailedException(e));
         }
+    }
+    
+    @Override
+    public String toString() {
+        return "TcpClientConnection [host=" + host + ", isClosed=" + closed.get() + "]";
     }
 
 }
