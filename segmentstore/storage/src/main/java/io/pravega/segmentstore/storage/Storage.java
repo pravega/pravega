@@ -174,8 +174,8 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
 
     /**
      * Lists all the segments stored on the storage device.
-     *
      * @return Iterator that can be used to enumerate and retrieve properties of all the segments.
+     * @throws IOException if exception occurred while listing segments.
      */
     Iterator<SegmentProperties> listSegments() throws IOException;
 
