@@ -89,7 +89,13 @@ public class ClientConnectionImpl implements ClientConnection {
         });
         // Work around for https://github.com/netty/netty/issues/3246
         eventLoop.execute(() -> {
-            channel.write(cmd, promise);
+            try {                
+                channel.write(cmd, promise);
+            } catch (Exception e) {
+                throttle.release(cmd.getDataLength());
+                channel.pipeline().fireExceptionCaught(e);
+                channel.close();
+            }
         });
         Exceptions.handleInterrupted(() -> throttle.acquire(cmd.getDataLength()));
     }
