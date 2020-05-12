@@ -20,8 +20,6 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ToStringUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -39,16 +37,12 @@ import static io.pravega.common.io.serialization.RevisionDataOutput.COMPACT_LONG
 public class PositionImpl extends PositionInternal {
 
     private static final PositionSerializer SERIALIZER = new PositionSerializer();
-    private final List<Entry<Segment, Long>> ownedSegments;
+    private final Map<Segment, Long> ownedSegments;
     private final Map<Segment, Range> segmentRanges;
 
-    private final List<Entry<Segment, Long>> updatesToSegmentOffsets;
-    private final long version;
-
-    // TODO: We need to implement to lazily apply all the updates prior any other call on this class.
-    /*checkForUpdatesToBeApplied() {
-        //loop over updatesToSegmentOffsets and create a new hash map based on ownedSegments + apply updatesToSegmentOffsets
-    }*/
+    // If this field is set, it means that we will need to apply the updates on the ownedSegments.
+    private transient List<Entry<Segment, Long>> updatesToSegmentOffsets;
+    private transient long version;
 
     /**
      * Instantiates Position with current and future owned segments.
@@ -56,19 +50,19 @@ public class PositionImpl extends PositionInternal {
      * @param segments Current segments that the position refers to.
      */
     public PositionImpl(Map<SegmentWithRange, Long> segments) {
-        this.ownedSegments = new ArrayList<>(segments.size());
+        this.ownedSegments = new HashMap<>(segments.size());
         this.segmentRanges = new HashMap<>(segments.size());
         this.updatesToSegmentOffsets = null;
         this.version = 0;
         for (Entry<SegmentWithRange, Long> entry : segments.entrySet()) {
             SegmentWithRange s = entry.getKey();
-            this.ownedSegments.add(new SimpleEntry<>(s.getSegment(), entry.getValue()));
+            this.ownedSegments.put(s.getSegment(), entry.getValue());
             this.segmentRanges.put(s.getSegment(), s.getRange());
         }
     }
     
     @Builder(builderClassName = "PositionBuilder")
-    PositionImpl(List<Entry<Segment, Long>> ownedSegments, Map<Segment, Range> segmentRanges, List<Entry<Segment, Long>> updatesToSegmentOffsets) {
+    PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges, List<Entry<Segment, Long>> updatesToSegmentOffsets) {
         this.ownedSegments = ownedSegments;
         this.updatesToSegmentOffsets = updatesToSegmentOffsets;
         this.version = (updatesToSegmentOffsets != null) ? updatesToSegmentOffsets.size() : 0;
@@ -81,26 +75,31 @@ public class PositionImpl extends PositionInternal {
 
     @Override
     public Set<Segment> getOwnedSegments() {
-        return ownedSegments.stream().map(Entry::getKey).collect(Collectors.toSet());
+        applySegmentOffsetUpdatesIfNeeded();
+        return Collections.unmodifiableSet(ownedSegments.keySet());
     }
 
     @Override
     public Map<Segment, Long> getOwnedSegmentsWithOffsets() {
-        return ownedSegments.stream().collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+        applySegmentOffsetUpdatesIfNeeded();
+        return Collections.unmodifiableMap(ownedSegments);
     }
     
     @Override
     Map<SegmentWithRange, Long> getOwnedSegmentRangesWithOffsets() {
+        applySegmentOffsetUpdatesIfNeeded();
         HashMap<SegmentWithRange, Long> result = new HashMap<>();
-        for (Entry<Segment, Long> entry : ownedSegments) {
+        for (Entry<Segment, Long> entry : ownedSegments.entrySet()) {
             result.put(new SegmentWithRange(entry.getKey(), segmentRanges.get(entry.getKey())), entry.getValue());
         }
         return result;
     }
 
+
     @Override
     public Set<Segment> getCompletedSegments() {
-        return ownedSegments
+        applySegmentOffsetUpdatesIfNeeded();
+        return ownedSegments.entrySet()
             .stream()
             .filter(x -> x.getValue() < 0)
             .map(Map.Entry::getKey)
@@ -109,17 +108,20 @@ public class PositionImpl extends PositionInternal {
 
     @Override
     public Long getOffsetForOwnedSegment(Segment segmentId) {
-        return ownedSegments.stream().filter(e -> e.getKey().equals(segmentId)).map(Entry::getValue).findFirst().get();
+        applySegmentOffsetUpdatesIfNeeded();
+        return ownedSegments.get(segmentId);
     }
 
     @Override
     public PositionImpl asImpl() {
+        applySegmentOffsetUpdatesIfNeeded();
         return this;
     }
     
     @Override
     public String toString() {
-        return ToStringUtils.mapToString(getOwnedSegmentsWithOffsets());
+        applySegmentOffsetUpdatesIfNeeded();
+        return ToStringUtils.mapToString(ownedSegments);
     }
 
     static class PositionBuilder implements ObjectBuilder<PositionImpl> {
@@ -152,7 +154,7 @@ public class PositionImpl extends PositionInternal {
                     return offset;
                 }
             });
-            builder.ownedSegments(new ArrayList<>(map.entrySet()));
+            builder.ownedSegments(map);
         }
 
         private void write00(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
@@ -207,6 +209,19 @@ public class PositionImpl extends PositionInternal {
     @SneakyThrows(IOException.class)
     public static Position fromBytes(ByteBuffer buff) {
         return SERIALIZER.deserialize(new ByteArraySegment(buff));
+    }
+
+    private synchronized void applySegmentOffsetUpdatesIfNeeded() {
+        // No updates, so nothing to do.
+        if (this.updatesToSegmentOffsets == null) {
+            return;
+        }
+        // Apply all the Segment offset updates up to the point in which this event was read.
+        for (int i = 0; i < this.version; i++) {
+            this.ownedSegments.put(this.updatesToSegmentOffsets.get(i).getKey(), this.updatesToSegmentOffsets.get(i).getValue());
+        }
+        this.updatesToSegmentOffsets = null;
+        this.version = 0;
     }
 
 }

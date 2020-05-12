@@ -333,7 +333,11 @@ public class ReaderGroupStateManager {
             sync.compact(ReaderGroupState.CompactReaderGroupState::new);
         }
     }
-    
+
+    boolean canAcquireSegmentIfNeeded() {
+        return !acquireTimer.hasRemaining();
+    }
+
     boolean shouldAcquireSegment() throws ReaderNotInReaderGroupException {
         synchronized (decisionLock) {
             if (acquireTimer.hasRemaining()) {

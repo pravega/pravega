@@ -52,7 +52,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
@@ -87,7 +86,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private Sequence lastRead;
     @GuardedBy("readers")
-    private List<Entry<Segment, Long>> ownedSegments = new ArrayList<>();
+    private Map<Segment, Long> ownedSegments = new HashMap<>();
     @GuardedBy("readers")
     private List<Entry<Segment, Long>> segmentOffsetUpdates = new ArrayList<>();
     @GuardedBy("readers")
@@ -132,7 +131,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         Timer timer = new Timer();
         Segment segment = null;
         long offset = -1;
-        ByteBuffer buffer;
+        ByteBuffer buffer = null;
         do {
             String checkpoint = updateGroupStateIfNeeded();
             if (checkpoint != null) {
@@ -155,6 +154,10 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 } catch (SegmentTruncatedException e) {
                     handleSegmentTruncated(segmentReader);
                     buffer = null;
+                } finally {
+                    if (buffer == null) {
+                        refreshAndGetPosition();
+                    }
                 }
             }
         } while (buffer == null && timer.getElapsedMillis() < timeoutMillis);
@@ -173,7 +176,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private void addSegmentOffsetUpdateIfNeeded(Segment segment, long offset) {
         if (segmentOffsetUpdates.size() >= MAX_BUFFERED_SEGMENT_UPDATES) {
-            getPosition();
+            refreshAndGetPosition();
         } else {
             segmentOffsetUpdates.add(new SimpleEntry<>(segment, offset));
         }
@@ -187,14 +190,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
     
     private EventRead<Type> createEmptyEvent(String checkpoint) {
-        return new EventReadImpl<>(null, getPosition(), null, checkpoint);
+        return new EventReadImpl<>(null, refreshAndGetPosition(), null, checkpoint);
     }
 
-    private PositionInternal getPosition() {
+    private PositionInternal refreshAndGetPosition() {
         segmentOffsetUpdates = new ArrayList<>();
-        ownedSegments = new ArrayList<>(sealedSegments.entrySet());
+        ownedSegments = new HashMap<>(sealedSegments);
         for (EventSegmentReader entry : readers) {
-            ownedSegments.add(new SimpleEntry<>(entry.getSegmentId(), entry.getOffset()));
+            ownedSegments.put(entry.getSegmentId(), entry.getOffset());
         }
         return PositionImpl.builder().ownedSegments(ownedSegments).segmentRanges(ranges).updatesToSegmentOffsets(segmentOffsetUpdates).build();
     }
@@ -219,7 +222,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
         PositionInternal position = null;
         if (atCheckpoint != null) {
-            position = getPosition();
+            position = refreshAndGetPosition();
             groupState.checkpoint(atCheckpoint, position);
             log.info("Reader {} completed checkpoint {}", groupState.getReaderId(), atCheckpoint);
             releaseSegmentsIfNeeded(position);
@@ -227,8 +230,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         String checkpoint = groupState.getCheckpoint();
         while (checkpoint != null) {
             log.info("{} at checkpoint {}", this, checkpoint);
-            position = getPosition();
             if (groupState.isCheckpointSilent(checkpoint)) {
+                position = refreshAndGetPosition();
                 // Checkpoint the reader immediately with the current position. Checkpoint Event is not generated.
                 groupState.checkpoint(checkpoint, position);
                 if (atCheckpoint != null) {
@@ -243,12 +246,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             }
         }
         atCheckpoint = null;
-        if (position != null || groupState.shouldAcquireSegment() || groupState.canUpdateLagIfNeeded()) {
-            position = getPosition();
+        if (position != null || lastRead == null || groupState.canAcquireSegmentIfNeeded() || groupState.canUpdateLagIfNeeded()) {
+            position = (position == null) ? refreshAndGetPosition() : position;
             if (acquireSegmentsIfNeeded(position) || groupState.updateLagIfNeeded(getLag(), position)) {
-                waterMarkReaders.forEach((stream, reader) -> {
-                    reader.advanceTo(groupState.getLastReadpositions(stream));
-                });
+                waterMarkReaders.forEach((stream, reader) -> reader.advanceTo(groupState.getLastReadpositions(stream)));
+                refreshAndGetPosition();
             }
         }
         return null;
@@ -355,7 +357,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     @Override
     public void close() {
-        closeAt(getPosition());
+        closeAt(refreshAndGetPosition());
         for (WatermarkReaderImpl reader : waterMarkReaders.values()) {
             reader.close();
         }           
