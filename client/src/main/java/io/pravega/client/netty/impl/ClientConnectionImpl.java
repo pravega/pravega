@@ -89,8 +89,10 @@ public class ClientConnectionImpl implements ClientConnection {
         });
         // Work around for https://github.com/netty/netty/issues/3246
         eventLoop.execute(() -> {
-            try {                
-                channel.write(cmd, promise);
+            try {
+                if (!closed.get()) {
+                    channel.write(cmd, promise);
+                }
             } catch (Exception e) {
                 throttle.release(cmd.getDataLength());
                 channel.pipeline().fireExceptionCaught(e);
@@ -115,7 +117,14 @@ public class ClientConnectionImpl implements ClientConnection {
         });
         // Work around for https://github.com/netty/netty/issues/3246
         eventLoop.execute(() -> {
-            channel.write(cmd, promise);
+            try {
+                if (!closed.get()) {
+                    channel.write(cmd, promise);
+                }
+            } catch (Exception e) {
+                channel.pipeline().fireExceptionCaught(e);
+                channel.close();
+            }
         });
     }
     
