@@ -807,6 +807,24 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         testCommand(cmd);
     }
 
+    @Test
+    public void testReadTableEntriesDelta() throws IOException {
+        WireCommands.ReadTableEntriesDelta cmd = new WireCommands.ReadTableEntriesDelta(l, testString1, "", 1L, 100);
+        testCommand(cmd);
+    }
+
+    @Test
+    public void testtableEntriesDeltaRead() throws IOException {
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)));
+        WireCommands.TableEntries tableEntries = new WireCommands.TableEntries(entries);
+
+        WireCommands.TableEntriesDeltaRead cmd = new WireCommands.TableEntriesDeltaRead(
+                l, testString1, tableEntries, false, false,  WireCommands.TableKey.NO_VERSION);
+        testCommand(cmd);
+    }
+
     @SuppressWarnings("unchecked")
     private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(
             Supplier<T> fromBuf, WireCommands.Constructor fromStream, Function<T, Integer> getRefCnt) throws IOException {
