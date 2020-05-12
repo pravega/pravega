@@ -77,10 +77,11 @@ public class ClientConnectionImpl implements ClientConnection {
         Channel channel = nettyHandler.getChannel();
         EventLoop eventLoop = channel.eventLoop();
         ChannelPromise promise = channel.newPromise();
+        int dataLength = cmd.getDataLength();
         promise.addListener(new ChannelFutureListener() {
             @Override
             public void operationComplete(ChannelFuture future) {
-                throttle.release(cmd.getDataLength());
+                throttle.release(dataLength);
                 if (!future.isSuccess()) {
                     future.channel().pipeline().fireExceptionCaught(future.cause());
                     future.channel().close();
@@ -94,12 +95,12 @@ public class ClientConnectionImpl implements ClientConnection {
                     channel.write(cmd, promise);
                 }
             } catch (Exception e) {
-                throttle.release(cmd.getDataLength());
+                throttle.release(dataLength);
                 channel.pipeline().fireExceptionCaught(e);
                 channel.close();
             }
         });
-        Exceptions.handleInterrupted(() -> throttle.acquire(cmd.getDataLength()));
+        Exceptions.handleInterrupted(() -> throttle.acquire(dataLength));
     }
     
     private void write(WireCommand cmd) throws ConnectionFailedException {
@@ -182,7 +183,7 @@ public class ClientConnectionImpl implements ClientConnection {
     public void close() {
         if (!closed.getAndSet(true)) {
             nettyHandler.closeFlow(this);
-            throttle.release(Integer.MAX_VALUE >> 1); //Makes sure that any blocked threads are unblocked.
+            throttle.release(Integer.MAX_VALUE >> 1); //Makes sure that any blocked threads are unbloced.
         }
     }
 
