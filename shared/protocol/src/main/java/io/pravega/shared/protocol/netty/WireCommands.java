@@ -1650,10 +1650,10 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeLong(tableSegmentOffset);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             tableEntries.writeFields(out);
+            out.writeLong(tableSegmentOffset);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -1723,6 +1723,7 @@ public final class WireCommands {
             for (TableKey key : keys) {
                 key.writeFields(out);
             }
+            out.writeLong(tableSegmentOffset);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
