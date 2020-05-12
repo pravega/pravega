@@ -93,7 +93,8 @@ public class CertificateUtils {
         return createTrustStore(extractCerts(certFilePath));
     }
 
-    private static KeyStore createTrustStore(X509Certificate[] certificateChain)
+    @VisibleForTesting
+    static KeyStore createTrustStore(X509Certificate[] certificateChain)
             throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
 
         final KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
