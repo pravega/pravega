@@ -184,6 +184,11 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     }
 
     @Override
+    public int getComponentCount() {
+        return (this.startOffset + this.length - 1) / this.arraySize - this.startOffset / this.arraySize + 1;
+    }
+
+    @Override
     public byte[] getCopy() {
         byte[] result = new byte[this.length];
         copyTo(ByteBuffer.wrap(result));
