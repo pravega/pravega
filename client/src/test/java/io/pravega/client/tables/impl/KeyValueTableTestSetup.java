@@ -150,6 +150,11 @@ abstract class KeyValueTableTestSetup extends LeakDetectorTestSuite {
         return String.format("%s_%s", keyId, iteration);
     }
 
+    protected int getKeyFromValue(String value) {
+        int pos = value.indexOf("_");
+        return Integer.parseInt(value.substring(0, pos));
+    }
+
     protected static class Versions {
         @Getter(AccessLevel.PACKAGE)
         private final HashMap<String, HashMap<Integer, VersionImpl>> versions = new HashMap<>();

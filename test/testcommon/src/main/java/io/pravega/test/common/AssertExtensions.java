@@ -549,7 +549,7 @@ public class AssertExtensions {
     * @param precision the maximum absolute difference between the two values.
     * @return true if the two operands are both null or the represent the same
     * value within the given precision
-    */
+     */
     public static boolean nearlyEquals(Double a, Double b, double precision) {
         if (a == null && b == null) {
             return true;
@@ -558,5 +558,18 @@ public class AssertExtensions {
             return Math.abs(a - b) <= precision;
         }
         return false;
+    }
+
+    /**
+     * Same as {@link Assert#fail(String)}, but this is a method that returns a value. Useful for more compact syntax
+     * in lambdas that should return a value but only verify that nothing is invoked.
+     *
+     * @param message Message to display.
+     * @param <T>     A type.
+     * @return Nothing. This method always throws {@link AssertionError}.
+     */
+    public static <T> T fail(String message) {
+        Assert.fail(message);
+        return null;
     }
 }

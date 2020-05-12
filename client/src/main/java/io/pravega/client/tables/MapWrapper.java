@@ -13,198 +13,104 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Stream;
+import java.util.concurrent.CompletableFuture;
 import lombok.NonNull;
 
 /**
- * TODO javadoc extensively in this file.
- * @param <KeyT>
- * @param <ValueT>
+ * {@link Map} implementation for a {@link KeyValueTable}'s Key Family.
+ * <p>
+ * All methods inherited from {@link Map} respect the contracts defined in that interface, except as noted below.
+ * <p><p>
+ * Performance considerations:
+ * <ul>
+ * <li> The {@link Map} interface defines synchronous operations, however {@link KeyValueTable} defines async operations.
+ * All methods implementations defined in this interface or inherited from {@link Map} invoke
+ * {@link CompletableFuture#join()} on any {@link KeyValueTable} methods invoked. This means that two threads are used
+ * to fulfill these calls: one from the Executor passed in to the {@link KeyValueTable} factory, and one on which this
+ * request is executing.
+ *
+ * <li> The following operations result in a single call to the wrapped {@link KeyValueTable}:
+ * <ul>
+ * <li> {@link #containsKey}.
+ * <li> {@link #get}, {@link #getOrDefault}.
+ * <li> {@link #putDirect}, {@link #putAll}, {@link #putIfAbsent}.
+ * <li> {@link #removeDirect}.
+ * <li> {@link #isEmpty()} (Invokes {@link KeyValueTable#keyIterator} and requests a single item).
+ * <li> {@link #keySet()}: {@link Set#removeAll}, {@link Set#contains}, {@link Set#containsAll}, {@link Set#isEmpty()}.
+ * <li> {@link #entrySet()}: {@link Set#contains}, {@link Set#containsAll}, {@link Set#isEmpty()}, {@link Set#add}, {@link Set#addAll}.
+ * </ul>
+ *
+ * <li> The following operations result up to two calls to the wrapped {@link KeyValueTable}:
+ * <ul>
+ * <li> {@link #put} (refer to {{@link #putDirect} if the old value is not needed).
+ * <li> {@link #replace}.
+ * <li> {@link #remove} (refer to {@link #removeDirect} if the old value is not needed).
+ * <li> {@link #computeIfPresent}, {@link #compute}}, {@link #computeIfAbsent}.
+ * <li> {@link #keySet()}{@link Set#remove}.
+ * <li> {@link #entrySet()}: {@link Set#removeAll}, {@link Set#isEmpty()}.
+ * </ul>
+ *
+ * <li> The following operations may result in iterating through all the Keys using {@link KeyValueTable#keyIterator}:
+ * <ul>
+ * <li> {@link #keySet()}{@link Set#iterator()} (Iterates as {@link Iterator#hasNext()} or {@link Iterator#next()} are
+ * invoked. Calls to {@link Iterator#remove()} will result in a single call to {@link KeyValueTable}).
+ * <li> {@link #size()} (Iterates through the entire iterator).
+ * <li> {@link #clear()} (Iterates through the entire iterator and makes repeated calls to {@link KeyValueTable#removeAll}).
+ * <li> {@link #keySet()}: {@link Set#clear()}, {@link Set#removeIf}, {@link Set#retainAll}.
+ * </ul>
+ *
+ * <li>The following operations may result in iterating through all the Entries using {@link KeyValueTable#entryIterator}:
+ * <ul>
+ * <li> {@link #containsValue}.
+ * <li> {@link #replaceAll} (which makes multiple calls to {@link KeyValueTable#putAll} as well).
+ * <li> {@link #entrySet()}{@link Set#iterator()} (Iterates as {@link Iterator#hasNext()} or {@link Iterator#next()} are
+ * invoked. Calls to {@link Iterator#remove()} will result in a single call to {@link KeyValueTable}).
+ * <li> {@link #entrySet()}: {@link Set#removeIf}, {@link Set#retainAll}
+ * <li> All operations on {@link #values()}.
+ * </ul>
+ * <li>Invocations of {@link Collection#stream()}}, {@link Collection#spliterator()} or {@link Collection#toArray()} on
+ * {@link #keySet()}, {@link #entrySet()} or {@link #values()} will invoke those collections' iterators (see above).
+ * </ul>
+ * <p><p>
+ * The following operations are not supported (will throw {@link UnsupportedOperationException}) if
+ * {@link #getKeyFamily()} is null):
+ * <ul>
+ * <li>{@link #containsValue}.
+ * <li>{@link #putAll}.
+ * <li>{@link #replaceAll}.
+ * <li>{@link #keySet()}.
+ * <li>{@link #values()}.
+ * <li>{@link #entrySet()}.
+ * <li>{@link #size()}.
+ * <li>{@link #isEmpty()}.
+ * <li>{@link #clear()}.
+ * </ul>
+ *
+ * @param <KeyT>   Table Key Type.
+ * @param <ValueT> Table Value Type.
  */
-@SuppressWarnings("NullableProblems")
 public interface MapWrapper<KeyT, ValueT> extends Map<KeyT, ValueT> {
+    /**
+     * Gets the Key Family over which this {@link MapWrapper} applies.
+     *
+     * @return The Key Family, or null if operating over Keys with no Key Family.
+     */
+    String getKeyFamily();
 
-    @Override
-    boolean containsKey(@NonNull Object key);
-
-    @Override
-    boolean containsValue(@NonNull Object o);
-
-    @Override
-    ValueT get(@NonNull Object key);
-
-    @Override
-    ValueT getOrDefault(@NonNull Object key, ValueT defaultValue);
-
-    @Override
-    ValueT put(@NonNull KeyT key, @NonNull ValueT value);
-
+    /**
+     * Same as {@link #put}, but does not attempt to retrieve the existing value. Results in a single call to the wrapped
+     * {@link KeyValueTable}.
+     *
+     * @param key   The Key to insert or update.
+     * @param value The value to associate with the key.
+     */
     void putDirect(@NonNull KeyT key, @NonNull ValueT value);
 
-    @Override
-    ValueT putIfAbsent(@NonNull KeyT key, @NonNull ValueT value);
-
-    @Override
-    void putAll(@NonNull Map<? extends KeyT, ? extends ValueT> map);
-
-    @Override
-    boolean replace(@NonNull KeyT key, @NonNull ValueT expectedValue, @NonNull ValueT newValue);
-
-    @Override
-    ValueT replace(@NonNull KeyT key, @NonNull ValueT value);
-
-    @Override
-    void replaceAll(@NonNull BiFunction<? super KeyT, ? super ValueT, ? extends ValueT> convert);
-
-    @Override
-    ValueT remove(@NonNull Object key);
-
-    @Override
-    boolean remove(@NonNull Object key, Object expectedValue);
-
+    /**
+     * Same as {@link #remove}, but does not attempt to retrieve the existing value. Results in a single call to the
+     * wrapped {@link KeyValueTable}.
+     *
+     * @param key The key to remove.
+     */
     void removeDirect(@NonNull KeyT key);
-
-    @Override
-    ValueT compute(@NonNull KeyT key, @NonNull BiFunction<? super KeyT, ? super ValueT, ? extends ValueT> toCompute);
-
-    @Override
-    ValueT computeIfPresent(@NonNull KeyT key, BiFunction<? super KeyT, ? super ValueT, ? extends ValueT> toCompute);
-
-    @Override
-    ValueT computeIfAbsent(@NonNull KeyT key, Function<? super KeyT, ? extends ValueT> toCompute);
-
-    @Override
-    KeySet<KeyT> keySet();
-
-    @Override
-    ValuesCollection<ValueT> values();
-
-    @Override
-    EntrySet<KeyT, ValueT> entrySet();
-
-    @Override
-    int size();
-
-    @Override
-    boolean isEmpty();
-
-    @Override
-    void clear();
-
-    interface KeySet<KeyT> extends Set<KeyT> {
-        @Override
-        boolean contains(Object key);
-
-        @Override
-        boolean containsAll(Collection<?> keyCollection);
-
-        @Override
-        boolean remove(Object key);
-
-        @Override
-        boolean removeIf(Predicate<? super KeyT> filter);
-
-        @Override
-        boolean removeAll(Collection<?> keyCollection);
-
-        @Override
-        boolean retainAll(Collection<?> collection);
-
-        @Override
-        void clear();
-
-        @Override
-        int size();
-
-        @Override
-        boolean isEmpty();
-
-        @Override
-        Iterator<KeyT> iterator();
-
-        @Override
-        Stream<KeyT> stream();
-
-        @Override
-        Object[] toArray();
-    }
-
-    interface EntrySet<KeyT, ValueT> extends Set<Entry<KeyT, ValueT>> {
-        @Override
-        boolean contains(@NonNull Object o);
-
-        @Override
-        boolean containsAll(@NonNull Collection<?> collection);
-
-        @Override
-        boolean add(@NonNull Entry<KeyT, ValueT> e);
-
-        @Override
-        boolean addAll(@NonNull Collection<? extends Entry<KeyT, ValueT>> collection);
-
-        @Override
-        boolean remove(Object o);
-
-        @Override
-        boolean removeIf(Predicate<? super Entry<KeyT, ValueT>> filter);
-
-        @Override
-        boolean removeAll(Collection<?> collection);
-
-        @Override
-        void clear();
-
-        @Override
-        int size();
-
-        @Override
-        boolean isEmpty();
-
-        @Override
-        Iterator<Entry<KeyT, ValueT>> iterator();
-
-        @Override
-        Stream<Entry<KeyT, ValueT>> stream();
-
-        @Override
-        Object[] toArray();
-    }
-
-    interface ValuesCollection<ValueT> extends Collection<ValueT> {
-        @Override
-        boolean contains(@NonNull Object o);
-
-        @Override
-        boolean remove(Object o);
-
-        @Override
-        boolean removeAll(Collection<?> collection);
-
-        @Override
-        boolean removeIf(Predicate<? super ValueT> test);
-
-        @Override
-        boolean containsAll(Collection<?> collection);
-
-        @Override
-        void clear();
-
-        @Override
-        int size();
-
-        @Override
-        boolean isEmpty();
-
-        @Override
-        Iterator<ValueT> iterator();
-
-        @Override
-        Stream<ValueT> stream();
-
-        @Override
-        Object[] toArray();
-    }
 }

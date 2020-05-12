@@ -178,13 +178,6 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
             expectedValues.remove(keyFamily, key);
 
             Assert.assertNull(map.replace(key, "foo"));
-            AssertExtensions.assertThrows(
-                    "computeIfPresent worked for inexistent key.",
-                    () -> map.computeIfPresent(key, (actualKey, existingValue) -> {
-                        Assert.fail("not expecting key to exist.");
-                        return null;
-                    }),
-                    ex -> ex instanceof AssertionError);
         });
         check(kvt, expectedValues);
     }
@@ -194,7 +187,85 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
      */
     @Test
     public void testCompute() {
-        // TODO
+        @Cleanup
+        val kvt = createKeyValueTable();
+        val expectedValues = new ExpectedValues();
+
+        val iteration = new AtomicInteger(0);
+
+        // Insert
+        forEveryKey((keyFamily, keyId) -> {
+            val key = getKey(keyId);
+            val value = getValue(keyId, iteration.get());
+            val map = kvt.asMap(keyFamily);
+
+            // computeIfPresent() should not invoke or return anything.
+            val cp = map.computeIfPresent(key, (k, existingValue) -> AssertExtensions.fail("computeIfPresent executed when no key present."));
+            Assert.assertNull(cp);
+
+            if (key % 2 == 0) {
+                // Insert via computeIfAbsent().
+                val ca = map.computeIfAbsent(key, k -> {
+                    Assert.assertEquals(key, (int) k);
+                    return value;
+                });
+                Assert.assertEquals(value, ca);
+                val ca2 = map.computeIfAbsent(key, k -> AssertExtensions.fail("computeIfAbsent executed when key already present."));
+                Assert.assertEquals(value, ca2); // computeIfAbsent returns existing value, if any.
+            } else {
+                // Insert via compute().
+                val c = map.compute(key, (k, existingValue) -> {
+                    Assert.assertEquals(key, (int) k);
+                    Assert.assertNull(existingValue);
+                    return value;
+                });
+                Assert.assertEquals(value, c);
+            }
+            expectedValues.put(keyFamily, key, value);
+        });
+        check(kvt, expectedValues);
+
+        // Remove
+        forEveryKey((keyFamily, keyId) -> {
+            val key = getKey(keyId);
+            val value = getValue(keyId, iteration.get());
+            val map = kvt.asMap(keyFamily);
+
+            if (key % 2 == 0) {
+                // Remove via computeIfPresent.
+                val cp = map.computeIfPresent(key, (k, existingValue) -> {
+                    Assert.assertEquals(key, (int) k);
+                    Assert.assertEquals(value, existingValue);
+                    return null;
+                });
+                Assert.assertNull(cp);
+            } else {
+                // Remove via compute().
+                val c = map.compute(key, (k, existingValue) -> {
+                    Assert.assertEquals(key, (int) k);
+                    Assert.assertEquals(value, existingValue);
+                    return null;
+                });
+                Assert.assertNull(c);
+            }
+
+            val cp2 = map.computeIfPresent(key, (k, existingValue) -> AssertExtensions.fail("computeIfPresent executed when no key present."));
+            Assert.assertNull(cp2);
+            val ca = map.computeIfAbsent(key, k -> {
+                Assert.assertEquals(key, (int) k);
+                return null;
+            });
+            Assert.assertNull(ca);
+
+            val c2 = map.compute(key, (k, existingValue) -> {
+                Assert.assertEquals(key, (int) k);
+                Assert.assertNull(existingValue);
+                return null;
+            });
+            Assert.assertNull(c2);
+            expectedValues.remove(keyFamily, key);
+        });
+        check(kvt, expectedValues);
     }
 
     /**
@@ -538,8 +609,8 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Remove all even indices
             val map = kvt.asMap(keyFamily);
-            Assert.assertTrue(map.values().removeIf(v -> Integer.parseInt(v.substring(0, 1)) % 2 == 0));
-            Assert.assertFalse(map.values().removeIf(v -> Integer.parseInt(v.substring(0, 1)) % 2 == 0)); // Already removed.
+            Assert.assertTrue(map.values().removeIf(v -> getKeyFromValue(v) % 2 == 0));
+            Assert.assertFalse(map.values().removeIf(v -> getKeyFromValue(v) % 2 == 0)); // Already removed.
             val toRemove = expectedEntries.get(keyFamily).keySet().stream().filter(key -> key % 2 == 0).collect(Collectors.toList());
             expectedEntries.remove(keyFamily, toRemove);
         });
@@ -549,6 +620,75 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             kvt.asMap(keyFamily).values().clear();
             expectedEntries.removeAll(keyFamily);
+        });
+        check(kvt, expectedEntries);
+    }
+
+    /**
+     * Tests the ability to remove entries via the {@link MapWrapperImpl#keySet()}, {@link MapWrapperImpl#entrySet()} or
+     * {@link MapWrapperImpl#values()} iterators.
+     */
+    @Test
+    public void testIteratorRemove() {
+        @Cleanup
+        val kvt = createKeyValueTable();
+        val expectedEntries = new ExpectedValues();
+        populate(kvt, expectedEntries, 0);
+        forEveryKey((keyFamily, keyId) -> {
+            val key = getKey(keyId + DEFAULT_KEYS_PER_KEY_FAMILY);
+            val value = getValue(keyId, 0);
+            kvt.asMap(keyFamily).putDirect(key, value);
+            expectedEntries.put(keyFamily, key, value);
+        });
+
+        // KeySet.
+        forEveryKeyFamily(false, (keyFamily, ignored) -> {
+            // Remove all even indices
+            val map = kvt.asMap(keyFamily);
+            val iterator = map.keySet().iterator();
+            AssertExtensions.assertThrows("", iterator::remove, ex -> ex instanceof IllegalStateException);
+            while (iterator.hasNext()) {
+                val k = iterator.next();
+                if (k % 4 == 0) {
+                    iterator.remove();
+                    AssertExtensions.assertThrows("", iterator::remove, ex -> ex instanceof IllegalStateException);
+                    expectedEntries.remove(keyFamily, k);
+                }
+            }
+        });
+        check(kvt, expectedEntries);
+
+        // EntrySet.
+        forEveryKeyFamily(false, (keyFamily, ignored) -> {
+            // Remove all even indices
+            val map = kvt.asMap(keyFamily);
+            val iterator = map.entrySet().iterator();
+            AssertExtensions.assertThrows("", iterator::remove, ex -> ex instanceof IllegalStateException);
+            while (iterator.hasNext()) {
+                val e = iterator.next();
+                if (e.getKey() % 4 == 1) {
+                    iterator.remove();
+                    AssertExtensions.assertThrows("", iterator::remove, ex -> ex instanceof IllegalStateException);
+                    expectedEntries.remove(keyFamily, e.getKey());
+                }
+            }
+        });
+        check(kvt, expectedEntries);
+
+        // Values.
+        forEveryKeyFamily(false, (keyFamily, ignored) -> {
+            // Remove all even indices
+            val map = kvt.asMap(keyFamily);
+            val iterator = map.values().iterator();
+            AssertExtensions.assertThrows("", iterator::remove, ex -> ex instanceof IllegalStateException);
+            while (iterator.hasNext()) {
+                val key = getKeyFromValue(iterator.next());
+                if (key % 4 == 3) {
+                    iterator.remove();
+                    AssertExtensions.assertThrows("", iterator::remove, ex -> ex instanceof IllegalStateException);
+                    expectedEntries.remove(keyFamily, key);
+                }
+            }
         });
         check(kvt, expectedEntries);
     }
@@ -571,8 +711,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
     }
 
     private Map<Integer, String> getExpectedValues(List<Integer> keyIds, int iteration) {
-        return keyIds.stream()
-                .collect(Collectors.toMap(this::getKey, keyId -> getValue(keyId, 0)));
+        return keyIds.stream().collect(Collectors.toMap(this::getKey, keyId -> getValue(keyId, iteration)));
     }
 
     private void populate(KeyValueTable<Integer, String> kvt, ExpectedValues expectedValues, int iteration) {

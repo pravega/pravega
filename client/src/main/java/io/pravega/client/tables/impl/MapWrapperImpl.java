@@ -10,6 +10,7 @@
 package io.pravega.client.tables.impl;
 
 import com.google.common.base.Functions;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.ConditionalTableUpdateException;
@@ -36,11 +37,13 @@ import java.util.Spliterators;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -61,6 +64,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
             .throwingOn(RuntimeException.class);
     @NonNull
     private final KeyValueTableImpl<KeyT, ValueT> kvt;
+    @Getter
     private final String keyFamily;
 
     //region Map Implementation
@@ -156,7 +160,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
     @Override
     public void replaceAll(@NonNull BiFunction<? super KeyT, ? super ValueT, ? extends ValueT> convert) {
         requiresKeyFamily("replaceAll");
-        val baseIterator = kvt.entryIterator(keyFamily, ITERATOR_BATCH_SIZE, null).asIterator();
+        val baseIterator = this.kvt.entryIterator(this.keyFamily, ITERATOR_BATCH_SIZE, null).asIterator();
         val updateFutures = new ArrayList<CompletableFuture<List<Version>>>();
         while (baseIterator.hasNext()) {
             val toUpdate = baseIterator.next().getItems().stream()
@@ -262,19 +266,19 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
     }
 
     @Override
-    public KeySet<KeyT> keySet() {
+    public Set<KeyT> keySet() {
         requiresKeyFamily("keySet");
         return new KeySetImpl();
     }
 
     @Override
-    public ValuesCollection<ValueT> values() {
+    public Collection<ValueT> values() {
         requiresKeyFamily("values");
         return new ValuesCollectionImpl();
     }
 
     @Override
-    public EntrySet<KeyT, ValueT> entrySet() {
+    public Set<Entry<KeyT, ValueT>> entrySet() {
         requiresKeyFamily("entrySet");
         return new EntrySetImpl();
     }
@@ -383,7 +387,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
 
         @Override
         public Iterator<T> iterator() {
-            return stream().iterator(); // TODO: implement iterator removal.
+            return new MapIterator<>(stream().iterator(), this::remove);
         }
 
         @Override
@@ -421,7 +425,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
 
     //region KeySet Implementation
 
-    private class KeySetImpl extends BaseCollection<KeyT> implements KeySet<KeyT> {
+    private class KeySetImpl extends BaseCollection<KeyT> implements Set<KeyT> {
         @Override
         public boolean contains(Object key) {
             return MapWrapperImpl.this.containsKey(key);
@@ -470,7 +474,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
 
     //region ValuesCollection Implementation
 
-    private class ValuesCollectionImpl extends BaseCollection<ValueT> implements ValuesCollection<ValueT> {
+    private class ValuesCollectionImpl extends BaseCollection<ValueT> implements Collection<ValueT> {
         @Override
         public boolean contains(@NonNull Object o) {
             ValueT value = (ValueT) o;
@@ -535,7 +539,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
 
     //region EntrySet Implementation
 
-    private class EntrySetImpl extends BaseCollection<Entry<KeyT, ValueT>> implements EntrySet<KeyT, ValueT> {
+    private class EntrySetImpl extends BaseCollection<Entry<KeyT, ValueT>> implements Set<Entry<KeyT, ValueT>> {
         @Override
         public boolean contains(@NonNull Object o) {
             if (o instanceof Map.Entry) {
@@ -628,6 +632,36 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
         public Stream<Entry<KeyT, ValueT>> stream() {
             return MapWrapperImpl.this.entryStream().map(MapWrapperImpl.this::toMapEntry);
         }
+    }
+
+    //endregion
+
+    //region Iterator
+
+    @RequiredArgsConstructor
+    private class MapIterator<T> implements Iterator<T> {
+        private final Iterator<T> baseIterator;
+        private final Consumer<T> remove;
+        private T lastItem;
+
+        @Override
+        public boolean hasNext() {
+            return this.baseIterator.hasNext();
+        }
+
+        @Override
+        public T next() {
+            this.lastItem = this.baseIterator.next();
+            return this.lastItem;
+        }
+
+        @Override
+        public void remove() {
+            Preconditions.checkState(this.lastItem != null, "Nothing to remove.");
+            this.remove.accept(this.lastItem);
+            this.lastItem = null;
+        }
+
     }
 
     //endregion
