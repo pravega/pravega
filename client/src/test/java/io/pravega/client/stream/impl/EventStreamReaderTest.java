@@ -231,6 +231,7 @@ public class EventStreamReaderTest {
                                                                            createWatermarkReaders(),
                                                                            Mockito.mock(Controller.class));
         SegmentWithRange segment = new SegmentWithRange(Segment.fromScopedName("Foo/Bar/0"), 0, 1);
+        Mockito.when(groupState.shouldAcquireSegment()).thenReturn(true);
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(eq(0L), any())).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment.getSegment(), segmentSealedCallback, writerConfig,

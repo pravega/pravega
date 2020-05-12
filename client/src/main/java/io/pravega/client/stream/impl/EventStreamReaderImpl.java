@@ -63,6 +63,10 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     // Base waiting time for a reader on an idle segment waiting for new data to be read.
     private static final long BASE_READER_WAITING_TIME_MS = ReaderGroupStateManager.TIME_UNIT.toMillis();
+    // As an optimization to do not generate Position objects on every event read, we define a base map of segments and
+    // then a batch of updates to the offsets of these segments, one per event read. Internally, the Position object can
+    // derive the right offsets at which the event was read by lazily replying such updates up to the point it was read.
+    private static final long MAX_BUFFERED_SEGMENT_UPDATES = 1000;
 
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
@@ -83,7 +87,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private Sequence lastRead;
     @GuardedBy("readers")
-    private PositionInternal lastPosition;
+    private List<Entry<Segment, Long>> ownedSegments = new ArrayList<>();
+    @GuardedBy("readers")
+    private List<Entry<Segment, Long>> segmentOffsetUpdates = new ArrayList<>();
     @GuardedBy("readers")
     private String atCheckpoint;
     private final ReaderGroupStateManager groupState;
@@ -128,7 +134,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         long offset = -1;
         ByteBuffer buffer;
         do {
-            String checkpoint = updateGroupStateIfNeeded((lastPosition == null) ? getPosition() : lastPosition);
+            String checkpoint = updateGroupStateIfNeeded();
             if (checkpoint != null) {
                 return createEmptyEvent(checkpoint);
             }
@@ -151,7 +157,6 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     buffer = null;
                 }
             }
-            lastPosition = null;
         } while (buffer == null && timer.getElapsedMillis() < timeoutMillis);
 
         if (buffer == null) {
@@ -160,9 +165,18 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         } 
         lastRead = Sequence.create(segment.getSegmentId(), offset);
         int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
-        lastPosition = getPosition();
-        return new EventReadImpl<>(deserializer.deserialize(buffer), lastPosition,
-                                   new EventPointerImpl(segment, offset, length), null);
+        addSegmentOffsetUpdateIfNeeded(segment, offset);
+        return new EventReadImpl<>(deserializer.deserialize(buffer),
+                PositionImpl.builder().ownedSegments(ownedSegments).segmentRanges(ranges).updatesToSegmentOffsets(segmentOffsetUpdates).build(),
+                new EventPointerImpl(segment, offset, length), null);
+    }
+
+    private void addSegmentOffsetUpdateIfNeeded(Segment segment, long offset) {
+        if (segmentOffsetUpdates.size() >= MAX_BUFFERED_SEGMENT_UPDATES) {
+            getPosition();
+        } else {
+            segmentOffsetUpdates.add(new SimpleEntry<>(segment, offset));
+        }
     }
 
     private void blockFor(long timeoutMs) {
@@ -177,11 +191,12 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     private PositionInternal getPosition() {
-        List<Entry<Segment, Long>> ownedSegments = new ArrayList<>(sealedSegments.entrySet());
+        segmentOffsetUpdates = new ArrayList<>();
+        ownedSegments = new ArrayList<>(sealedSegments.entrySet());
         for (EventSegmentReader entry : readers) {
             ownedSegments.add(new SimpleEntry<>(entry.getSegmentId(), entry.getOffset()));
         }
-        return PositionImpl.builder().ownedSegments(ownedSegments).segmentRanges(ranges).build();
+        return PositionImpl.builder().ownedSegments(ownedSegments).segmentRanges(ranges).updatesToSegmentOffsets(segmentOffsetUpdates).build();
     }
 
     /**
@@ -201,8 +216,10 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
      * have been persisted.
      */
     @GuardedBy("readers")
-    private String updateGroupStateIfNeeded(PositionInternal position) throws ReaderNotInReaderGroupException {
+    private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
+        PositionInternal position = null;
         if (atCheckpoint != null) {
+            position = getPosition();
             groupState.checkpoint(atCheckpoint, position);
             log.info("Reader {} completed checkpoint {}", groupState.getReaderId(), atCheckpoint);
             releaseSegmentsIfNeeded(position);
@@ -210,6 +227,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         String checkpoint = groupState.getCheckpoint();
         while (checkpoint != null) {
             log.info("{} at checkpoint {}", this, checkpoint);
+            position = getPosition();
             if (groupState.isCheckpointSilent(checkpoint)) {
                 // Checkpoint the reader immediately with the current position. Checkpoint Event is not generated.
                 groupState.checkpoint(checkpoint, position);
@@ -225,10 +243,13 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             }
         }
         atCheckpoint = null;
-        if (acquireSegmentsIfNeeded(position) || groupState.updateLagIfNeeded(getLag(), position)) {
-            waterMarkReaders.forEach((stream, reader) -> {
-                reader.advanceTo(groupState.getLastReadpositions(stream));
-            });
+        if (position != null || groupState.shouldAcquireSegment() || groupState.canUpdateLagIfNeeded()) {
+            position = getPosition();
+            if (acquireSegmentsIfNeeded(position) || groupState.updateLagIfNeeded(getLag(), position)) {
+                waterMarkReaders.forEach((stream, reader) -> {
+                    reader.advanceTo(groupState.getLastReadpositions(stream));
+                });
+            }
         }
         return null;
     }

@@ -291,6 +291,10 @@ public class ReaderGroupStateManager {
             return Collections.emptyMap();
         }
     }
+
+    boolean canUpdateLagIfNeeded() {
+        return !fetchStateTimer.hasRemaining();
+    }
     
     boolean updateLagIfNeeded(long timeLag, Position position) {
         if (!lagUpdateTimer.hasRemaining()) {

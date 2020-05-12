@@ -125,7 +125,7 @@ public class SerializationTest {
         }
 
         public PositionImpl getPostionImpl() {
-            return new PositionImpl(new ArrayList<>(ownedSegments.entrySet()), segmentRanges);
+            return new PositionImpl(new ArrayList<>(ownedSegments.entrySet()), segmentRanges, null);
         }
     }
 

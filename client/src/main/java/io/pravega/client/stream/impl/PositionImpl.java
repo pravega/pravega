@@ -42,6 +42,14 @@ public class PositionImpl extends PositionInternal {
     private final List<Entry<Segment, Long>> ownedSegments;
     private final Map<Segment, Range> segmentRanges;
 
+    private final List<Entry<Segment, Long>> updatesToSegmentOffsets;
+    private final long version;
+
+    // TODO: We need to implement to lazily apply all the updates prior any other call on this class.
+    /*checkForUpdatesToBeApplied() {
+        //loop over updatesToSegmentOffsets and create a new hash map based on ownedSegments + apply updatesToSegmentOffsets
+    }*/
+
     /**
      * Instantiates Position with current and future owned segments.
      *
@@ -50,6 +58,8 @@ public class PositionImpl extends PositionInternal {
     public PositionImpl(Map<SegmentWithRange, Long> segments) {
         this.ownedSegments = new ArrayList<>(segments.size());
         this.segmentRanges = new HashMap<>(segments.size());
+        this.updatesToSegmentOffsets = null;
+        this.version = 0;
         for (Entry<SegmentWithRange, Long> entry : segments.entrySet()) {
             SegmentWithRange s = entry.getKey();
             this.ownedSegments.add(new SimpleEntry<>(s.getSegment(), entry.getValue()));
@@ -58,8 +68,10 @@ public class PositionImpl extends PositionInternal {
     }
     
     @Builder(builderClassName = "PositionBuilder")
-    PositionImpl(List<Entry<Segment, Long>> ownedSegments, Map<Segment, Range> segmentRanges) {
+    PositionImpl(List<Entry<Segment, Long>> ownedSegments, Map<Segment, Range> segmentRanges, List<Entry<Segment, Long>> updatesToSegmentOffsets) {
         this.ownedSegments = ownedSegments;
+        this.updatesToSegmentOffsets = updatesToSegmentOffsets;
+        this.version = (updatesToSegmentOffsets != null) ? updatesToSegmentOffsets.size() : 0;
         if (segmentRanges == null) {
             this.segmentRanges = Collections.emptyMap();
         } else {
