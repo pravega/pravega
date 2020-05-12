@@ -8,17 +8,20 @@
  */
 package io.pravega.common.util;
 
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.security.KeyStore;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class CertificateUtilsTests {
@@ -45,14 +48,28 @@ public class CertificateUtilsTests {
 
     @Test
     public void testExtractCerts() throws CertificateException, IOException {
+        X509Certificate[] certs = extractCerts();
+        assertNotNull(certs);
+        assertEquals("CN=Test-Cert", certs[0].getSubjectX500Principal().getName());
+    }
+
+    @SneakyThrows
+    @Test
+    public void testCreateTrustStore() {
+        X509Certificate[] certs = extractCerts();
+        KeyStore trustStore = CertificateUtils.createTrustStore(certs);
+        assertNotNull(trustStore);
+        assertTrue(trustStore.containsAlias("0"));
+    }
+
+    @SneakyThrows
+    private X509Certificate[] extractCerts() {
         String certBody = TEST_CERT_PEM.replaceAll("-----BEGIN CERTIFICATE-----", "")
                 .replaceAll("-----END CERTIFICATE-----", "");
         byte[] certBytes = Base64.getDecoder().decode(certBody);
-        ByteArrayInputStream is = new ByteArrayInputStream(certBytes);
-
-        X509Certificate[] certs = CertificateUtils.extractCerts(is);
-        assertNotNull(certs);
-        assertEquals("CN=Test-Cert", certs[0].getSubjectX500Principal().getName());
-        is.close();
+        try (ByteArrayInputStream is = new ByteArrayInputStream(certBytes)) {
+            X509Certificate[] certs = CertificateUtils.extractCerts(is);
+            return certs;
+        }
     }
 }
