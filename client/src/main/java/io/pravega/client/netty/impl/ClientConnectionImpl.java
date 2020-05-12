@@ -173,6 +173,7 @@ public class ClientConnectionImpl implements ClientConnection {
     public void close() {
         if (!closed.getAndSet(true)) {
             nettyHandler.closeFlow(this);
+            throttle.release(AppendBatchSizeTracker.MAX_BATCH_SIZE); //Makes sure that any blocked threads are unbloced.
         }
     }
 
