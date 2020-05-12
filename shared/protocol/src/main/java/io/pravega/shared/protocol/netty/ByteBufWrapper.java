@@ -11,6 +11,7 @@ package io.pravega.shared.protocol.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
+import io.netty.buffer.CompositeByteBuf;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
@@ -19,7 +20,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.function.Consumer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -78,6 +81,22 @@ public class ByteBufWrapper implements BufferView {
     @Override
     public List<ByteBuffer> getContents() {
         return Arrays.asList(this.buf.nioBuffers());
+    }
+
+    @Override
+    public void collect(Consumer<ByteBuffer> collectBuffer) {
+        collectInternal(this.buf.duplicate(), collectBuffer);
+    }
+
+    private void collectInternal(ByteBuf buf, Consumer<ByteBuffer> collectBuffer) {
+        if (buf instanceof CompositeByteBuf) {
+            Iterator<ByteBuf> i = ((CompositeByteBuf) buf).iterator();
+            while (i.hasNext()) {
+                collectInternal(i.next(), collectBuffer);
+            }
+        } else {
+            collectBuffer.accept(buf.nioBuffer());
+        }
     }
 
     @Override

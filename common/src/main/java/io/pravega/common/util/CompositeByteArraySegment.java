@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 import lombok.Getter;
 import lombok.NonNull;
 
@@ -129,7 +130,7 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     public InputStream getReader() {
         // Use the collector to create a list of ByteArrayInputStreams and then return them as combined.
         ArrayList<ByteArrayInputStream> streams = new ArrayList<>();
-        collect((array, offset, length) -> streams.add(new ByteArrayInputStream(array, offset, length)));
+        collect((array, offset, length) -> streams.add(new ByteArrayInputStream(array, offset, length)), this.length);
         return new SequenceInputStream(Iterators.asEnumeration(streams.iterator()));
     }
 
@@ -150,8 +151,8 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     }
 
     @Override
-    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectArray) throws ExceptionT {
-        collect(collectArray, this.length);
+    public void collect(Consumer<ByteBuffer> collectBuffer) {
+        collect((array, arrayOffset, arrayLength) -> collectBuffer.accept(ByteBuffer.wrap(array, arrayOffset, arrayLength)), this.length);
     }
 
     private <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectArray, int length) throws ExceptionT {
@@ -209,7 +210,7 @@ public class CompositeByteArraySegment implements CompositeArrayView {
 
     @Override
     public void copyTo(OutputStream target) throws IOException {
-        collect(target::write);
+        collect(target::write, this.length);
     }
 
     @Override
@@ -222,7 +223,7 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     @Override
     public List<ByteBuffer> getContents() {
         ArrayList<ByteBuffer> result = new ArrayList<>();
-        collect((array, offset, length) -> result.add(ByteBuffer.wrap(array, offset, length)));
+        collect(result::add);
         return result;
     }
 
@@ -283,6 +284,24 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     }
 
     //endregion
+
+    /**
+     * Defines a collector function that can be applied to a range of an array.
+     *
+     * @param <ExceptionT> Type of exception that this function can throw.
+     */
+    @FunctionalInterface
+    interface Collector<ExceptionT extends Exception> {
+        /**
+         * Processes an array range.
+         *
+         * @param array       The array.
+         * @param arrayOffset The start offset within the array.
+         * @param length      The number of bytes, beginning at startOffset, that need to be processed.
+         * @throws ExceptionT (Optional) Any exception to throw.
+         */
+        void accept(byte[] array, int arrayOffset, int length) throws ExceptionT;
+    }
 
     //region Reader
 

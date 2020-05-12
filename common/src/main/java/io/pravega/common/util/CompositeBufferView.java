@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Consumer;
 import lombok.Getter;
 import lombok.NonNull;
 
@@ -142,6 +143,13 @@ class CompositeBufferView implements BufferView {
         }
 
         return result;
+    }
+
+    @Override
+    public void collect(Consumer<ByteBuffer> collectBuffer) {
+        for (BufferView c : this.components) {
+            c.collect(collectBuffer);
+        }
     }
 
     @Override

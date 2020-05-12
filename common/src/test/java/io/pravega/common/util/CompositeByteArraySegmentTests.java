@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
@@ -121,16 +122,17 @@ public class CompositeByteArraySegmentTests {
     }
 
     /**
-     * Tests the functionality of {@link CompositeByteArraySegment#collect(CompositeArrayView.Collector)}.
+     * Tests the functionality of {@link CompositeByteArraySegment#collect(Consumer)}.
      */
     @Test
     public void testCollect() {
         testProgressiveCopies((expectedData, s, offset, length) -> {
             val targetData = new byte[s.getLength()];
             val targetOffset = new AtomicInteger();
-            s.collect((array, arrayOffset, arrayLength) -> {
-                System.arraycopy(array, arrayOffset, targetData, targetOffset.get(), arrayLength);
-                targetOffset.addAndGet(arrayLength);
+            s.collect(bb -> {
+                int len = bb.remaining();
+                bb.get(targetData, targetOffset.get(), bb.remaining());
+                targetOffset.addAndGet(len);
             });
 
             Assert.assertArrayEquals("Unexpected data collected for step " + offset, expectedData, targetData);

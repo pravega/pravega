@@ -16,6 +16,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Defines a generic read-only view of a readable memory buffer with a known length.
@@ -89,6 +90,14 @@ public interface BufferView {
      * @return A byte array with the same length as this ArrayView, containing a copy of the data within it.
      */
     byte[] getCopy();
+
+    /**
+     * Iterates through each of the underlying {@link ByteBuffer}s that make up this {@link BufferView} and invokes
+     * collectBuffer on each.
+     *
+     * @param collectBuffer A {@link Consumer} that will be invoked for each array component.
+     */
+    void collect(Consumer<ByteBuffer> collectBuffer);
 
     /**
      * Copies the contents of this {@link BufferView} to the given {@link OutputStream}.
