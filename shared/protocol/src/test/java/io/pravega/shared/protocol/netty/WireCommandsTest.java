@@ -719,7 +719,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
                 new SimpleImmutableEntry<>(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY),
                 new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), WireCommands.TableValue.EMPTY));
-        testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries)));
+        testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries), 0L));
     }
 
     @Test
@@ -730,7 +730,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testRemoveTableKeys() throws IOException {
         testCommand(new WireCommands.RemoveTableKeys(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buf, 1L),
-                                                                                       new WireCommands.TableKey(buf, 2L))));
+                                                                                       new WireCommands.TableKey(buf, 2L)), 0L));
     }
 
     @Test

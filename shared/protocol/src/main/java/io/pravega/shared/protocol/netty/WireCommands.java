@@ -55,7 +55,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 9;
+    public static final int WIRE_VERSION = 10;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -1640,6 +1640,7 @@ public final class WireCommands {
         @ToString.Exclude
         final String delegationToken;
         final TableEntries tableEntries;
+        final long tableSegmentOffset;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1649,6 +1650,7 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
+            out.writeLong(tableSegmentOffset);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             tableEntries.writeFields(out);
@@ -1659,8 +1661,9 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
+            long tableSegmentOffset = in.readLong();
 
-            return new UpdateTableEntries(requestId, segment, delegationToken, entries);
+            return new UpdateTableEntries(requestId, segment, delegationToken, entries, tableSegmentOffset);
         }
     }
 
@@ -1704,6 +1707,7 @@ public final class WireCommands {
         @ToString.Exclude
         final String delegationToken;
         final List<TableKey> keys;
+        final long tableSegmentOffset;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1730,7 +1734,9 @@ public final class WireCommands {
             for (int i = 0; i < numberOfKeys; i++) {
                 keys.add((TableKey) TableKey.readFrom(in, in.available()));
             }
-            return new RemoveTableKeys(requestId, segment, delegationToken, keys);
+            long tableSegmentOffset = in.readLong();
+
+            return new RemoveTableKeys(requestId, segment, delegationToken, keys, tableSegmentOffset);
         }
     }
 
@@ -2179,6 +2185,78 @@ public final class WireCommands {
         @Override
         public boolean isFailure() {
             return true;
+        }
+    }
+
+    @Data
+    public static final class ReadTableEntriesDelta implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES_DELTA;
+        final long requestId;
+        final String segment;
+        @ToString.Exclude
+        final String delegationToken;
+        final long fromVersion;
+        final int suggestedEntryCount;
+
+        @Override
+        public void process(RequestProcessor cp) {
+
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeLong(fromVersion);
+            out.writeInt(suggestedEntryCount);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            long fromVersion = in.readLong();
+            int suggestedEntryCount = in.readInt();
+
+            return new ReadTableEntriesDelta(requestId, segment, delegationToken, fromVersion, suggestedEntryCount);
+        }
+    }
+
+    @Data
+    public static final class TableEntriesDeltaRead implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_ENTRIES_DELTA_READ;
+        final long requestId;
+        final String segment;
+        final TableEntries tableEntries;
+        final boolean shouldClear;
+        final boolean reachedEnd;
+        final long lastVersion;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            tableEntries.writeFields(out);
+            out.writeBoolean(shouldClear);
+            out.writeBoolean(reachedEnd);
+            out.writeLong(lastVersion);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
+            boolean shouldClear = in.readBoolean();
+            boolean reachedEnd = in.readBoolean();
+            long lastVersion = in.readLong();
+
+            return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastVersion);
         }
     }
 
