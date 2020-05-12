@@ -8,13 +8,14 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.Exceptions;
 import lombok.NonNull;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -33,16 +34,23 @@ public class CertificateUtils {
      * @param certFilePath the path of the file containing a certificate(s).
      * @return a sequence of X509Certificate certificates found in the file.
      * @throws CertificateException if parsing of the certificate fails
-     * @throws FileNotFoundException if a file in not found at the specified {@code certFilePath}
+     * @throws IOException if a file in not found at the specified {@code certFilePath} or some other IO error occurs.
      * @throws NullPointerException if {@code certFilePath} is null
      * @throws IllegalArgumentException if {@code certFilePath} is empty
      */
     public static X509Certificate[] extractCerts(@NonNull String certFilePath)
-            throws CertificateException, FileNotFoundException {
+            throws CertificateException, IOException {
         Exceptions.checkNotNullOrEmpty(certFilePath, "certFilePath");
 
+        try (FileInputStream is = new FileInputStream(new File(certFilePath))) {
+            return extractCerts(is);
+        }
+    }
+
+    @VisibleForTesting
+    static X509Certificate[] extractCerts(@NonNull InputStream certificateInputStream) throws CertificateException {
         Collection<? extends Certificate> certificates = CertificateFactory.getInstance("X.509")
-                .generateCertificates(new FileInputStream(new File(certFilePath)));
+                .generateCertificates(certificateInputStream);
         final X509Certificate[] result = new X509Certificate[certificates.size()];
 
         int i = 0;
@@ -50,6 +58,21 @@ public class CertificateUtils {
             result[i++] = (X509Certificate) cert;
         }
         return result;
+    }
+
+    @VisibleForTesting
+    static String toString(X509Certificate[] certificateChain) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < certificateChain.length; i++) {
+            X509Certificate certificate = certificateChain[i];
+            builder.append(" -> {");
+            builder.append("type=[" + certificate.getType() + "], ");
+            builder.append("subject=[" + certificate.getSubjectX500Principal() + "], ");
+            builder.append("issuer=[" +
+                    ((certificate.getIssuerDN() != null ? certificate.getIssuerDN().getName() : "None")) + "]");
+            builder.append("}");
+        }
+        return builder.toString();
     }
 
     /**
