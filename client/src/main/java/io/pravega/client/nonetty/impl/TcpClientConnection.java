@@ -8,10 +8,12 @@
  */
 package io.pravega.client.nonetty.impl;
 
+import com.google.common.base.Strings;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.AppendBatchSizeTrackerImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.util.CertificateUtils;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -23,13 +25,15 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SocketChannel;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -117,7 +121,7 @@ public class TcpClientConnection implements ClientConnection {
 
     @SneakyThrows(IOException.class)
     public TcpClientConnection(String host, int port, ClientConfig clientConfig, ReplyProcessor callback) {
-        socket = instantiateClientSocket(host, port, clientConfig);
+        socket = createClientSocket(host, port, clientConfig);
         this.socket.setTcpNoDelay(true);
         SocketChannel channel = this.socket.getChannel();
         AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
@@ -126,24 +130,29 @@ public class TcpClientConnection implements ClientConnection {
         this.reader.start();
     }
 
+    private TrustManagerFactory createFromCert(String trustStoreFilePath)
+            throws CertificateException, IOException, NoSuchAlgorithmException, KeyStoreException {
+        TrustManagerFactory factory = null;
+        if (!Strings.isNullOrEmpty(trustStoreFilePath)) {
+            KeyStore trustStore = CertificateUtils.createTrustStore(trustStoreFilePath);
+
+            factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            factory.init(trustStore);
+        }
+        return factory;
+    }
+
     @SneakyThrows
-    private Socket instantiateClientSocket(String host, int port, ClientConfig clientConfig) {
+    private Socket createClientSocket(String host, int port, ClientConfig clientConfig) {
         if (clientConfig.isEnableTlsToSegmentStore()) {
-            // TODO:
-            //  - Need to be able to use pem encoded files, as Pravega client applications specify such files.
-            //  - Handle the scenario where no truststore is specified.
-            //
-
-            KeyStore trustStore = KeyStore.getInstance("JKS");
-            trustStore.load(new FileInputStream(clientConfig.getTrustStore()), "".toCharArray());
-
-            // Prepare the trust manager factory
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            tmf.init(trustStore);
+            TrustManagerFactory trustMgrFactory = createFromCert(clientConfig.getTrustStore());
 
             // Prepare a TLS context that uses the trust manager
             SSLContext tlsContext = SSLContext.getInstance("TLS");
-            tlsContext.init(null, tmf.getTrustManagers(), null);
+            tlsContext.init(null,
+                    trustMgrFactory != null ? trustMgrFactory.getTrustManagers() : null,
+                    null);
+
             SSLSocket result = (SSLSocket) tlsContext.getSocketFactory().createSocket(host, port);
 
             // SSLSocket does not perform hostname verification by default. So, we must explicitly enable it.
@@ -158,8 +167,6 @@ public class TcpClientConnection implements ClientConnection {
             return new Socket(host, port);
         }
     }
-
-
 
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {

@@ -48,6 +48,7 @@ public interface ConnectionFactory extends AutoCloseable {
 
     default io.pravega.client.nonetty.impl.ConnectionFactory convert() {
         throw new UnsupportedOperationException();
+
     }
 
     @Override
