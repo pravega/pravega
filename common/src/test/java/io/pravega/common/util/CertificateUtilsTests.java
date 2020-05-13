@@ -8,16 +8,13 @@
  */
 package io.pravega.common.util;
 
+import java.io.ByteArrayInputStream;
+import java.security.KeyStore;
+import java.security.cert.X509Certificate;
+import java.util.Base64;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.security.KeyStore;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
-import java.util.Base64;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -47,7 +44,7 @@ public class CertificateUtilsTests {
             "-----END CERTIFICATE-----";
 
     @Test
-    public void testExtractCerts() throws CertificateException, IOException {
+    public void testExtractCerts() {
         X509Certificate[] certs = extractCerts();
         assertNotNull(certs);
         assertEquals("CN=Test-Cert", certs[0].getSubjectX500Principal().getName());
