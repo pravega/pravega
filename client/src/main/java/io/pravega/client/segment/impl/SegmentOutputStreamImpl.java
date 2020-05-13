@@ -635,7 +635,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         // } else {
         // return connectionFactory.establishConnection(uri, responseProcessor);
         // }
-        return CompletableFuture.completedFuture(new TcpClientConnection(uri.getEndpoint(), uri.getPort(), responseProcessor));
+        return this.connectionFactory.establishConnection(uri, responseProcessor);
     }
 
     /**
