@@ -82,6 +82,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -104,6 +105,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
+    private static final long TIMEOUT_NANOS = Duration.ofMinutes(2).getNano();
 
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
@@ -246,7 +248,16 @@ public class StreamMetadataTasks extends TaskBase {
     
     private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition, long delay) {
         AtomicBoolean isDone = new AtomicBoolean(false);
-        return Futures.loop(() -> !isDone.get(),
+        Timer timer = new Timer();
+        return Futures.loop(() -> {
+                    if (isDone.get()) {
+                        return false;
+                    } else if (timer.getElapsedNanos() < TIMEOUT_NANOS) {
+                        throw new CompletionException(new TimeoutException("Workflow didnt complete in desired time. " +
+                                "Throwing timeout exception to caller"));
+                    }
+                    return true;
+                },
                 () -> Futures.delayedFuture(condition, delay, executor)
                              .thenAccept(isDone::set), executor);
     }
