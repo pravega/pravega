@@ -26,6 +26,7 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -97,10 +98,15 @@ public class ClientConnectionImpl implements ClientConnection {
             } catch (Exception e) {
                 throttle.release(dataLength);
                 channel.pipeline().fireExceptionCaught(e);
-                channel.close();
+                close();
             }
         });
-        Exceptions.handleInterrupted(() -> throttle.acquire(dataLength));
+        Exceptions.handleInterrupted(() -> {
+            if(!throttle.tryAcquire(dataLength, 30, TimeUnit.SECONDS)) {
+                channel.pipeline().fireExceptionCaught(new ConnectionFailedException("Connection throttled for over 30 seconds"));
+                close();
+            }
+        });
     }
     
     private void write(WireCommand cmd) throws ConnectionFailedException {
@@ -124,7 +130,7 @@ public class ClientConnectionImpl implements ClientConnection {
                 }
             } catch (Exception e) {
                 channel.pipeline().fireExceptionCaught(e);
-                channel.close();
+                close();
             }
         });
     }
@@ -183,7 +189,7 @@ public class ClientConnectionImpl implements ClientConnection {
     public void close() {
         if (!closed.getAndSet(true)) {
             nettyHandler.closeFlow(this);
-            throttle.release(Integer.MAX_VALUE >> 1); //Makes sure that any blocked threads are unbloced.
+            throttle.release(Integer.MAX_VALUE >> 1); //Makes sure that any blocked threads are unblocked.
         }
     }
 
