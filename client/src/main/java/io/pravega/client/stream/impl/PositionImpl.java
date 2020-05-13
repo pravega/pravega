@@ -25,15 +25,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Builder;
-import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 
 import static io.pravega.common.io.serialization.RevisionDataOutput.COMPACT_LONG_MAX;
 
-@EqualsAndHashCode(callSuper = false)
 public class PositionImpl extends PositionInternal {
 
     private static final PositionSerializer SERIALIZER = new PositionSerializer();
@@ -95,7 +94,6 @@ public class PositionImpl extends PositionInternal {
         return result;
     }
 
-
     @Override
     public Set<Segment> getCompletedSegments() {
         applySegmentOffsetUpdatesIfNeeded();
@@ -122,6 +120,21 @@ public class PositionImpl extends PositionInternal {
     public String toString() {
         applySegmentOffsetUpdatesIfNeeded();
         return ToStringUtils.mapToString(ownedSegments);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        applySegmentOffsetUpdatesIfNeeded();
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PositionImpl position = (PositionImpl) o;
+        return ownedSegments.equals(position.getOwnedSegmentsWithOffsets()) && segmentRanges.equals(position.segmentRanges);
+    }
+
+    @Override
+    public int hashCode() {
+        applySegmentOffsetUpdatesIfNeeded();
+        return Objects.hash(ownedSegments, segmentRanges);
     }
 
     static class PositionBuilder implements ObjectBuilder<PositionImpl> {
