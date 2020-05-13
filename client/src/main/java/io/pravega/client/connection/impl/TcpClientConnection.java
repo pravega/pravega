@@ -19,12 +19,12 @@ import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.EnhancedByteBufInputStream;
 import io.pravega.shared.protocol.netty.InvalidMessageException;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
-
 import java.io.IOException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -35,24 +35,26 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManagerFactory;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class TcpClientConnection implements ClientConnection {
 
     private final Socket socket;
     private final CommandEncoder encoder;
     private final ConnectionReader reader;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final String host;
+    private final PravegaNodeUri location;
 
     private static class ConnectionReader {
 
@@ -124,15 +126,16 @@ public class TcpClientConnection implements ClientConnection {
         }
     }
 
-    public TcpClientConnection(String host, int port, ClientConfig clientConfig,  ReplyProcessor callback) {
-        this.host = host;
-        socket = createClientSocket(host, port, clientConfig); //TODO: Switch to AsynchronousSocketChannel.connect
-        socket.setTcpNoDelay(true);
+    public static TcpClientConnection connect(PravegaNodeUri location, ClientConfig clientConfig,  ReplyProcessor callback) {
+        Socket socket = createClientSocket(location, clientConfig); //TODO: Switch to AsynchronousSocketChannel.connect
         SocketChannel channel = socket.getChannel();
         AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
-        this.reader = new ConnectionReader(host, channel, callback, batchSizeTracker);
-        this.encoder = new CommandEncoder(l -> batchSizeTracker, null, channel, ExecutorServiceHelpers.newScheduledThreadPool(1, "Timeouts for " + host));
-        this.reader.start();
+        ConnectionReader reader = new ConnectionReader(host, channel, callback, batchSizeTracker);
+        reader.start();
+        CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, channel, 
+                                                        ExecutorServiceHelpers.newScheduledThreadPool(1, "Timeouts for " + location));
+        //TODO: Use common thread pool for timeouts.
+        return new TcpClientConnection(socket, encoder, reader, location);
     }
 
     private TrustManagerFactory createFromCert(String trustStoreFilePath)
@@ -147,8 +150,11 @@ public class TcpClientConnection implements ClientConnection {
         return factory;
     }
 
-    @SneakyThrows
-    private Socket createClientSocket(String host, int port, ClientConfig clientConfig) {
+    private CompletableFuture<Socket> createClientSocket(PravegaNodeUri location, ClientConfig clientConfig) {
+        //TODO: Create the socket async
+        //TODO: Parse pravega URI to deturmine if using TLS.
+        
+        Socket result;
         if (clientConfig.isEnableTlsToSegmentStore()) {
             TrustManagerFactory trustMgrFactory = createFromCert(clientConfig.getTrustStore());
 
@@ -158,19 +164,21 @@ public class TcpClientConnection implements ClientConnection {
                     trustMgrFactory != null ? trustMgrFactory.getTrustManagers() : null,
                     null);
 
-            SSLSocket result = (SSLSocket) tlsContext.getSocketFactory().createSocket(host, port);
+            SSLSocket s = (SSLSocket) tlsContext.getSocketFactory().createSocket(host, port);
 
             // SSLSocket does not perform hostname verification by default. So, we must explicitly enable it.
             if (clientConfig.isValidateHostName()) {
                 SSLParameters tlsParams = new SSLParameters();
                 tlsParams.setEndpointIdentificationAlgorithm("HTTPS");
-                result.setSSLParameters(tlsParams);
+                s.setSSLParameters(tlsParams);
             }
-            return result;
+            result = s;
 
         } else {
-            return new Socket(host, port);
+            result = new Socket(host, port);
         }
+        result.setTcpNoDelay(true);
+        return result;
     }
 
     @Override
@@ -229,7 +237,7 @@ public class TcpClientConnection implements ClientConnection {
     
     @Override
     public String toString() {
-        return "TcpClientConnection [host=" + host + ", isClosed=" + closed.get() + "]";
+        return "TcpClientConnection [location=" + location + ", isClosed=" + closed.get() + "]";
     }
 
 }

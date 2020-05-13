@@ -15,7 +15,7 @@ import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.TcpClientConnection;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.impl.Controller;
