@@ -177,18 +177,17 @@ public class CompositeByteArraySegmentTests {
                 val sliceLength = s.getLength() - 2 * sliceOffset;
                 val slice = s.slice(sliceOffset, sliceLength);
                 val reader = slice.getBufferViewReader();
-                val actualComponentCount = new AtomicInteger();
                 if (sliceLength == 0) {
                     Assert.assertEquals("Unexpected data read for empty slice.", 0, reader.available());
-                    actualComponentCount.set(1); // We have 1 component, even if we have a 0-length slice.
                 } else {
                     val actualData = reader.readFully(10);
                     AssertExtensions.assertArrayEquals("Unexpected data sliced for step " + offset,
                             targetData, sliceOffset, actualData.array(), actualData.arrayOffset(), actualData.getLength());
                     Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
-                    slice.collect((a, o, l) -> actualComponentCount.incrementAndGet());
                 }
 
+                val actualComponentCount = new AtomicInteger();
+                slice.collect((a, o, l) -> actualComponentCount.incrementAndGet());
                 Assert.assertEquals("Unexpected number of components.", actualComponentCount.get(), slice.getComponentCount());
             }
         });

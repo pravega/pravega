@@ -185,7 +185,7 @@ public class CompositeByteArraySegment implements CompositeArrayView {
 
     @Override
     public int getComponentCount() {
-        return (this.startOffset + this.length - 1) / this.arraySize - this.startOffset / this.arraySize + 1;
+        return this.length == 0 ? 0 : (this.startOffset + this.length - 1) / this.arraySize - this.startOffset / this.arraySize + 1;
     }
 
     @Override
