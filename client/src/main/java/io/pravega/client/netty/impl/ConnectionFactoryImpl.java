@@ -73,8 +73,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     }
 
     @Override
-    public io.pravega.client.nonetty.impl.ConnectionFactory convert() {
-        return new io.pravega.client.nonetty.impl.SocketConnectionFactoryImpl(this.clientConfig, this.executor);
+    public io.pravega.client.connection.impl.ConnectionFactory convert() {
+        return new io.pravega.client.connection.impl.SocketConnectionFactoryImpl(this.clientConfig, this.executor);
     }
 
     @Override

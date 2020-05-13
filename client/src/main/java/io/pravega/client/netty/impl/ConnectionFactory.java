@@ -46,7 +46,7 @@ public interface ConnectionFactory extends AutoCloseable {
      */
     ScheduledExecutorService getInternalExecutor();
 
-    default io.pravega.client.nonetty.impl.ConnectionFactory convert() {
+    default io.pravega.client.connection.impl.ConnectionFactory convert() {
         throw new UnsupportedOperationException();
 
     }
