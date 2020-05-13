@@ -197,9 +197,8 @@ public class ByteClientTest extends AbstractSystemTest {
 
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
-        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
-                                                                           .clientConfig(Utils.buildClientConfig(controllerURI)).build(),
-                connectionFactory.getInternalExecutor());
+        ControllerImplConfig controllerConfig = ControllerImplConfig.builder().clientConfig(Utils.buildClientConfig(controllerURI)).build();
+        ControllerImpl controller = new ControllerImpl(controllerConfig, connectionFactory.getInternalExecutor());
         log.info("Invoking byteClientTruncationTest test with Controller URI: {}", controllerURI);
         @Cleanup
         ByteStreamClientFactory factory = new ByteStreamClientImpl(SCOPE, controller, connectionFactory);
