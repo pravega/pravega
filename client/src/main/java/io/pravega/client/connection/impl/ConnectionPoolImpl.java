@@ -164,11 +164,9 @@ public class ConnectionPoolImpl implements ConnectionPool {
         Exceptions.checkNotClosed(closed.get(), this);
 
         // create a new connection.
-        final FlowHandler handler = new FlowHandler(location.getEndpoint(), metricNotifier);
-        CompletableFuture<Void> connectedFuture = establishConnection(location, handler);
-        Connection connection = new Connection(location, handler, connectedFuture);
-        ClientConnection result = connection.getFlowHandler().createConnectionWithFlowDisabled(rp);
-        return connectedFuture.thenApply(v -> result);
+        CompletableFuture<FlowHandler> handler = establishConnection(location);
+        Connection connection = new Connection(location, handler);
+        return connection.getFlowHandler().thenApply(h -> h.createConnectionWithFlowDisabled(rp));
     }
 
     private boolean isUnused(Connection connection) {
@@ -213,7 +211,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
      * flows on the connection.
      */
     private CompletableFuture<FlowHandler> establishConnection(PravegaNodeUri location) {
-        TcpClientConnection connection = new TcpClientConnection(host, port, callback);
+        TcpClientConnection connection = new TcpClientConnection(location, callback);
         //TODO: set handler as callback 
         //TODO: Switch to AsynchronousSocketChannel.connect
         //TODO: Add ssl
