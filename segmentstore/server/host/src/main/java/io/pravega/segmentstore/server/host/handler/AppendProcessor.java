@@ -185,16 +185,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             return Futures.delayedTask(() -> {
                 if (isSetupAppendCompleted(segment, writerId)) {
-                    try {
-                        log.trace("Informing writer {} that sent request {}, about token expiry for segment {}",
-                                writerId, requestId, segment);
-                        if (!connection.isClosed()) {
-                            connection.close();
-                        }
-                    } catch (RuntimeException e) {
-                        // Log and ignore
-                        log.warn("Unable to inform writer {} that sent request {}, about token expiry for segment {}",
-                                writerId, requestId, segment);
+                    // Checking whether the connection is closed, because the connection might have closed out-of-band
+                    // since this is a background task.
+                    if (!connection.isClosed()) {
+                        // Closing the connection will result in client authenticating with Controller again
+                        // and retrying the request with a new token.
+                        log.debug("Closing client connection for writer {} due to token expiry, when processing " +
+                                "request {} for segment {}", writerId, requestId, segment);
+                        connection.close();
                     }
                 }
                 return null;

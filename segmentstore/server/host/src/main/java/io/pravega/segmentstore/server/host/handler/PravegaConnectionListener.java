@@ -30,7 +30,6 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.io.filesystem.FileModificationEventWatcher;
 import io.pravega.common.io.filesystem.FileModificationMonitor;
 import io.pravega.common.io.filesystem.FileModificationPollingMonitor;
@@ -102,25 +101,16 @@ public final class PravegaConnectionListener implements AutoCloseable {
     /**
      * Creates a new instance of the PravegaConnectionListener class listening on localhost with no StatsRecorder.
      *
-     * @param enableTls          Whether to enable SSL/TLS.
-     * @param port               The port to listen on.
-     * @param streamSegmentStore The SegmentStore to delegate all requests to.
-     * @param tableStore         The SegmentStore to delegate all requests to.
+     * @param enableTls           Whether to enable SSL/TLS.
+     * @param port                The port to listen on.
+     * @param streamSegmentStore  The SegmentStore to delegate all requests to.
+     * @param tableStore          The SegmentStore to delegate all requests to.
+     * @param tokenExpiryExecutor The executor to be used for running token expiration handling tasks.
      */
     @VisibleForTesting
-    public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore) {
+    public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor) {
         this(enableTls, false, "localhost", port, streamSegmentStore, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
-                new PassingTokenVerifier(), null, null, true,
-                ExecutorServiceHelpers.newScheduledThreadPool(1, "test-token-expiry-handler"));
-    }
-
-    public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
-                                     SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
-                                     DelegationTokenVerifier tokenVerifier, String certFile, String keyFile,
-                                     boolean replyWithStackTraceOnError) {
-        this(enableTls, enableTlsReload, host, port, streamSegmentStore, tableStore, statsRecorder, tableStatsRecorder,
-                tokenVerifier, certFile, keyFile, replyWithStackTraceOnError,
-                ExecutorServiceHelpers.newScheduledThreadPool(1, "test-token-expiry-handler"));
+                new PassingTokenVerifier(), null, null, true, tokenExpiryExecutor);
     }
 
     /**
@@ -138,7 +128,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
      * @param certFile           Path to the certificate file to be used for TLS.
      * @param keyFile            Path to be key file to be used for TLS.
      * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
-     * @param executor           The execution to be used for running token expiration handling tasks.
+     * @param executor           The executor to be used for running token expiration handling tasks.
      */
     public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
