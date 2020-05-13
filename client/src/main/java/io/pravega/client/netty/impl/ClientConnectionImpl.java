@@ -85,7 +85,6 @@ public class ClientConnectionImpl implements ClientConnection {
                 throttle.release(dataLength);
                 if (!future.isSuccess()) {
                     future.channel().pipeline().fireExceptionCaught(future.cause());
-                    close();
                 }
             }
         });
@@ -98,13 +97,11 @@ public class ClientConnectionImpl implements ClientConnection {
             } catch (Exception e) {
                 throttle.release(dataLength);
                 channel.pipeline().fireExceptionCaught(e);
-                close();
             }
         });
         Exceptions.handleInterrupted(() -> {
             if(!throttle.tryAcquire(dataLength, 30, TimeUnit.SECONDS)) {
                 channel.pipeline().fireExceptionCaught(new ConnectionFailedException("Connection throttled for over 30 seconds"));
-                close();
             }
         });
     }
@@ -118,7 +115,6 @@ public class ClientConnectionImpl implements ClientConnection {
             public void operationComplete(ChannelFuture future) {
                 if (!future.isSuccess()) {
                     future.channel().pipeline().fireExceptionCaught(future.cause());
-                    close();
                 }
             }
         });
@@ -130,7 +126,6 @@ public class ClientConnectionImpl implements ClientConnection {
                 }
             } catch (Exception e) {
                 channel.pipeline().fireExceptionCaught(e);
-                close();
             }
         });
     }
