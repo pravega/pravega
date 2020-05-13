@@ -85,7 +85,7 @@ public class ClientConnectionImpl implements ClientConnection {
                 throttle.release(dataLength);
                 if (!future.isSuccess()) {
                     future.channel().pipeline().fireExceptionCaught(future.cause());
-                    future.channel().close();
+                    close();
                 }
             }
         });
@@ -118,7 +118,7 @@ public class ClientConnectionImpl implements ClientConnection {
             public void operationComplete(ChannelFuture future) {
                 if (!future.isSuccess()) {
                     future.channel().pipeline().fireExceptionCaught(future.cause());
-                    future.channel().close();
+                    close();
                 }
             }
         });
