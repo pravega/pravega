@@ -125,8 +125,12 @@ public class PositionImpl extends PositionInternal {
     @Override
     public boolean equals(Object o) {
         applySegmentOffsetUpdatesIfNeeded();
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PositionImpl position = (PositionImpl) o;
         return ownedSegments.equals(position.getOwnedSegmentsWithOffsets()) && segmentRanges.equals(position.segmentRanges);
     }
