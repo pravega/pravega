@@ -65,4 +65,9 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
         return meta.fetchCurrentSegmentLength();
     }
 
+    @Override
+    public void truncateDataBefore(long offset) {
+        meta.truncateSegment(offset);
+    }
+
 }
