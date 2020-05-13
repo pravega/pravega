@@ -100,7 +100,7 @@ public class ClientConnectionImpl implements ClientConnection {
             }
         });
         Exceptions.handleInterrupted(() -> {
-            if(!throttle.tryAcquire(dataLength, 30, TimeUnit.SECONDS)) {
+            if (!throttle.tryAcquire(dataLength, 30, TimeUnit.SECONDS)) {
                 channel.pipeline().fireExceptionCaught(new ConnectionFailedException("Connection throttled for over 30 seconds"));
             }
         });
