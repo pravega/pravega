@@ -105,7 +105,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
-    private static final long TIMEOUT_NANOS = Duration.ofMinutes(2).getNano();
+    private static final long COMPLETION_TIMEOUT_NANOS = Duration.ofMinutes(2).toNanos();
 
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
@@ -117,6 +117,7 @@ public class StreamMetadataTasks extends TaskBase {
     private final GrpcAuthHelper authHelper;
     private final RequestTracker requestTracker;
     private final ScheduledExecutorService eventExecutor;
+    private final long completionTimeoutNanos;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
@@ -139,7 +140,28 @@ public class StreamMetadataTasks extends TaskBase {
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                 BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
                                 final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
-                                final ScheduledExecutorService eventExecutor, final Context context,
+                                final ScheduledExecutorService eventExecutor,
+                                final Context context, GrpcAuthHelper authHelper, RequestTracker requestTracker) {
+        this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, eventExecutor, COMPLETION_TIMEOUT_NANOS, 
+                context, authHelper, requestTracker);
+    }
+
+    @VisibleForTesting
+    StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                        BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
+                        final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
+                        final ScheduledExecutorService eventExecutor,
+                        final long completionTimeoutNanos, final String hostId,
+                        GrpcAuthHelper authHelper, RequestTracker requestTracker) {
+        this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, eventExecutor, completionTimeoutNanos,
+                new Context(hostId), authHelper, requestTracker);
+    }
+
+    private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
+                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
+                                final ScheduledExecutorService eventExecutor, 
+                                final long completionTimeoutNanos, final Context context,
                                 GrpcAuthHelper authHelper, RequestTracker requestTracker) {
         super(taskMetadataStore, executor, context);
         this.eventExecutor = eventExecutor;
@@ -148,6 +170,7 @@ public class StreamMetadataTasks extends TaskBase {
         this.segmentHelper = segmentHelper;
         this.authHelper = authHelper;
         this.requestTracker = requestTracker;
+        this.completionTimeoutNanos = completionTimeoutNanos;
         this.setReady();
     }
 
@@ -252,8 +275,9 @@ public class StreamMetadataTasks extends TaskBase {
         return Futures.loop(() -> {
                     if (isDone.get()) {
                         return false;
-                    } else if (timer.getElapsedNanos() < TIMEOUT_NANOS) {
-                        throw new CompletionException(new TimeoutException("Workflow didnt complete in desired time. " +
+                    } else if (timer.getElapsedNanos() > completionTimeoutNanos) {
+                        throw new CompletionException(new TimeoutException("Workflow didnt complete in desired time - " + 
+                                Duration.ofNanos(completionTimeoutNanos).toMillis() +
                                 "Throwing timeout exception to caller"));
                     }
                     return true;
@@ -991,6 +1015,8 @@ public class StreamMetadataTasks extends TaskBase {
         Throwable cause = Exceptions.unwrap(ex);
         if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
+        } else if (cause instanceof TimeoutException) {
+            throw new CompletionException(cause);
         } else {
             log.warn(requestId, "Update stream failed due to ", cause);
             return UpdateStreamStatus.Status.FAILURE;
@@ -1001,6 +1027,8 @@ public class StreamMetadataTasks extends TaskBase {
         Throwable cause = Exceptions.unwrap(ex);
         if (cause instanceof StoreException.DataNotFoundException) {
             return DeleteStreamStatus.Status.STREAM_NOT_FOUND;
+        } else if (cause instanceof TimeoutException) {
+            throw new CompletionException(cause);
         } else {
             log.warn(requestId, "Delete stream failed.", ex);
             return DeleteStreamStatus.Status.FAILURE;
