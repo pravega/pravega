@@ -168,7 +168,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         } 
         lastRead = Sequence.create(segment.getSegmentId(), offset);
         int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
-        addSegmentOffsetUpdateIfNeeded(segment, offset);
+        addSegmentOffsetUpdateIfNeeded(segment, offset + length);
         return new EventReadImpl<>(deserializer.deserialize(buffer),
                 PositionImpl.builder().ownedSegments(ownedSegments).segmentRanges(ranges).updatesToSegmentOffsets(segmentOffsetUpdates).build(),
                 new EventPointerImpl(segment, offset, length), null);

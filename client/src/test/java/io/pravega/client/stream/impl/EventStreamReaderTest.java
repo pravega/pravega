@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
+import io.pravega.shared.protocol.netty.WireCommands;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.InOrder;
@@ -238,10 +239,21 @@ public class EventStreamReaderTest {
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
         ByteBuffer buffer3 = writeInt(stream, 3);
-        assertEquals(buffer1, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-        assertEquals(buffer2, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-        assertEquals(buffer3, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-        assertNull(reader.readNextEvent(0).getEvent());
+        EventRead<byte[]> e = reader.readNextEvent(0);
+        assertEquals(buffer1, ByteBuffer.wrap(e.getEvent()));
+        assertEquals(new Long(WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES),
+                e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
+        e = reader.readNextEvent(0);
+        assertEquals(buffer2, ByteBuffer.wrap(e.getEvent()));
+        assertEquals(new Long(2 * (WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES)),
+                e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
+        e = reader.readNextEvent(0);
+        assertEquals(buffer3, ByteBuffer.wrap(e.getEvent()));
+        assertEquals(new Long(3 * (WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES)),
+                e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
+        e = reader.readNextEvent(0);
+        assertNull(e.getEvent());
+        assertEquals(new Long(-1), e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
         reader.close();
     }
 
