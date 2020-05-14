@@ -107,7 +107,7 @@ public class ClientConnectionTest {
 
     
     static EmbeddedChannel createChannelWithContext(ChannelInboundHandlerAdapter handler) {
-        return new EmbeddedChannel(new ExceptionLoggingHandler(""), new CommandEncoder(null, NO_OP_METRIC_NOTIFIER, () -> { } ),
+        return new EmbeddedChannel(new ExceptionLoggingHandler(""), new CommandEncoder(null, NO_OP_METRIC_NOTIFIER),
                                    new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4), new CommandDecoder(),
                                    new AppendDecoder(), handler);
     }
@@ -134,7 +134,7 @@ public class ClientConnectionTest {
                 super.flush(ctx);
             }
         };
-        EmbeddedChannel embeddedChannel = new EmbeddedChannel(spy, new CommandEncoder(null, NO_OP_METRIC_NOTIFIER, () -> { } ),
+        EmbeddedChannel embeddedChannel = new EmbeddedChannel(spy, new CommandEncoder(null, NO_OP_METRIC_NOTIFIER),
                                                               new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4), new CommandDecoder(),
                                                               new AppendDecoder(), flowHandler);
         clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));

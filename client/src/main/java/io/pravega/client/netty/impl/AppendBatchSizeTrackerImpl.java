@@ -11,7 +11,9 @@ package io.pravega.client.netty.impl;
 
 import io.pravega.common.ExponentialMovingAverage;
 import io.pravega.common.MathHelpers;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -37,6 +39,11 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private final ExponentialMovingAverage eventSize = new ExponentialMovingAverage(1024, 0.1, true);
     private final ExponentialMovingAverage millisBetweenAppends = new ExponentialMovingAverage(10, 0.1, false);
     private final ExponentialMovingAverage appendsOutstanding = new ExponentialMovingAverage(2, 0.05, false);
+    
+    private static final long BACK_PREASURE_THREASHOLD = MAX_BATCH_SIZE;
+    
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final ReusableLatch appendLatch = new ReusableLatch(true);
 
     AppendBatchSizeTrackerImpl() {
         clock = System::currentTimeMillis;
@@ -51,8 +58,13 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         long last = lastAppendTime.getAndSet(now);
         lastAppendNumber.set(eventNumber);
         millisBetweenAppends.addNewSample(now - last);
-        appendsOutstanding.addNewSample(eventNumber - lastAckNumber.get());
+        long numOutstanding = eventNumber - lastAckNumber.get();
+        appendsOutstanding.addNewSample(numOutstanding);
         eventSize.addNewSample(size);
+        double dataOutstanding = eventSize.getCurrentValue() * numOutstanding;
+        if (!closed.get() && dataOutstanding >= BACK_PREASURE_THREASHOLD) {
+            appendLatch.reset();
+        }
     }
 
     @Override
@@ -60,6 +72,9 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         lastAckNumber.getAndSet(eventNumber);
         long outstandingAppendCount = lastAppendNumber.get() - eventNumber;
         appendsOutstanding.addNewSample(outstandingAppendCount);
+        if (eventSize.getCurrentValue() * outstandingAppendCount < BACK_PREASURE_THREASHOLD) {
+            appendLatch.release();
+        }
         return outstandingAppendCount;
     }
 
@@ -83,5 +98,16 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     @Override
     public int getBatchTimeout() {
         return MAX_BATCH_TIME_MILLIS;
+    }
+
+    @Override
+    public void waitForCapacity() {
+        appendLatch.awaitUninterruptibly();
+    }
+
+    @Override
+    public void close() {
+        closed.set(true);
+        appendLatch.release();
     }
 }

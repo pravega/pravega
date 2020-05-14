@@ -253,7 +253,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
                 }
                 p.addLast(
                         new ExceptionLoggingHandler(location.getEndpoint()),
-                        new CommandEncoder(handler::getAppendBatchSizeTracker, metricNotifier, handler),
+                        new CommandEncoder(handler::getAppendBatchSizeTracker, metricNotifier),
                         new LengthFieldBasedFrameDecoder(WireCommands.MAX_WIRECOMMAND_SIZE, 4, 4),
                         new CommandDecoder(),
                         handler);

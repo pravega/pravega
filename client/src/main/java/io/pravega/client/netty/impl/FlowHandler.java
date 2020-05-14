@@ -22,14 +22,12 @@ import io.pravega.common.util.ReusableFutureLatch;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.FlushingMessageToByteEncoder;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,7 +39,7 @@ import static io.pravega.shared.NameUtils.writerTags;
 import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_OUTSTANDING_APPEND_COUNT;
 
 @Slf4j
-public class FlowHandler extends ChannelInboundHandlerAdapter implements FlushingMessageToByteEncoder.FlushListener,  AutoCloseable {
+public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoCloseable {
 
     private static final int FLOW_DISABLED = 0;
     private final String connectionName;
@@ -59,8 +57,6 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements Flushin
     private final ConcurrentHashMap<Integer, AppendBatchSizeTracker> flowIDBatchSizeTrackerMap = new ConcurrentHashMap<>();
 
     private final AtomicBoolean disableFlow = new AtomicBoolean(false);
-    
-    private final Semaphore throttle = new Semaphore(AppendBatchSizeTracker.MAX_BATCH_SIZE);
 
     public FlowHandler(String connectionName) {
         this(connectionName, MetricNotifier.NO_OP_METRIC_NOTIFIER);
@@ -85,8 +81,8 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements Flushin
         if (flowIdReplyProcessorMap.put(flowID, rp) != null) {
             throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flowID);
         }
-        createAppendBatchSizeTrackerIfNeeded(flowID);
-        return new ClientConnectionImpl(connectionName, flowID, this);
+        AppendBatchSizeTracker tracker = createAppendBatchSizeTrackerIfNeeded(flowID);
+        return new ClientConnectionImpl(connectionName, flowID, this, tracker);
     }
 
     /**
@@ -100,8 +96,8 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements Flushin
         Preconditions.checkState(!disableFlow.getAndSet(true), "Flows are disabled, incorrect usage pattern.");
         log.info("Creating a new connection with flow disabled for endpoint {}. The current Channel is {}.", connectionName, channel.get());
         flowIdReplyProcessorMap.put(FLOW_DISABLED, rp);
-        createAppendBatchSizeTrackerIfNeeded(FLOW_DISABLED);
-        return new ClientConnectionImpl(connectionName, FLOW_DISABLED, this);
+        AppendBatchSizeTracker tracker = createAppendBatchSizeTrackerIfNeeded(FLOW_DISABLED);
+        return new ClientConnectionImpl(connectionName, FLOW_DISABLED, this, tracker);
     }
 
     /**
@@ -117,9 +113,6 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements Flushin
         if (flow == FLOW_DISABLED) {
             // close the channel immediately since this netty channel will not be reused by other flows.
             close();
-        } else {
-            throttle.drainPermits();
-            throttle.release(AppendBatchSizeTracker.MAX_BATCH_SIZE);
         }
     }
 
@@ -128,13 +121,16 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements Flushin
      *
      * @param flowID flow ID.
      */
-    private void createAppendBatchSizeTrackerIfNeeded(final int  flowID) {
-        if (flowIDBatchSizeTrackerMap.containsKey(flowID)) {
+    private AppendBatchSizeTracker createAppendBatchSizeTrackerIfNeeded(final int  flowID) {
+        AppendBatchSizeTracker result = flowIDBatchSizeTrackerMap.get(flowID);
+        if (result != null) {
             log.debug("Reusing Batch size tracker for Flow ID {}.", flowID);
         } else {
             log.debug("Creating Batch size tracker for flow ID {}.", flowID);
-            flowIDBatchSizeTrackerMap.put(flowID, new AppendBatchSizeTrackerImpl());
+            result = new AppendBatchSizeTrackerImpl();
+            flowIDBatchSizeTrackerMap.put(flowID, result);
         }
+        return result;
     }
 
     /**
@@ -296,16 +292,6 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements Flushin
                 log.warn("Encountered exception invoking ReplyProcessor.processingFailure for flow id {}", flowId, e);
             }
         });
-    }
-
-    @Override
-    public void flushed() {
-        throttle.drainPermits();
-        throttle.release(AppendBatchSizeTracker.MAX_BATCH_SIZE);
-    }
-    
-    public void waitForThrottleCapacity(int size) {
-        Exceptions.handleInterrupted(() -> throttle.acquire(size));
     }
     
     @Override

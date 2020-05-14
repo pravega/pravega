@@ -54,12 +54,20 @@ public class CommandEncoderTest {
         public int getBatchTimeout() {
             return Integer.MAX_VALUE;
         }
+
+        @Override
+        public void waitForCapacity() {
+        }
+
+        @Override
+        public void close() {
+        }
     }
 
     @Test
     public void testFlushing() throws Exception {
         UnpooledByteBufAllocator allocator = new UnpooledByteBufAllocator(false, false);
-        CommandEncoder commandEncoder = new CommandEncoder(s -> new TestBatchSizeTracker(0), new TestMetricNotifier(), () -> { } );
+        CommandEncoder commandEncoder = new CommandEncoder(s -> new TestBatchSizeTracker(0), new TestMetricNotifier());
         verifyNoFlush(commandEncoder, allocator, new Hello(1, 2));
         verifyFlush(commandEncoder, allocator, new KeepAlive());
         UUID uuid = new UUID(1, 2);
@@ -67,7 +75,7 @@ public class CommandEncoderTest {
         verifyFlush(commandEncoder, allocator, new Append("segment", uuid, 1L, new Event(allocator.buffer()), 1L));
 
         allocator = new UnpooledByteBufAllocator(false, false);
-        commandEncoder = new CommandEncoder(s -> new TestBatchSizeTracker(1000), new TestMetricNotifier(), () -> { } );
+        commandEncoder = new CommandEncoder(s -> new TestBatchSizeTracker(1000), new TestMetricNotifier());
         verifyNoFlush(commandEncoder, allocator, new Hello(1, 2));
         verifyFlush(commandEncoder, allocator, new KeepAlive());
         verifyFlush(commandEncoder, allocator, new SetupAppend(1, uuid, "segment", ""));

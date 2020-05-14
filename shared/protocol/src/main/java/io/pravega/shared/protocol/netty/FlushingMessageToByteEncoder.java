@@ -19,25 +19,13 @@ import lombok.RequiredArgsConstructor;
 public abstract class FlushingMessageToByteEncoder<I> extends MessageToByteEncoder<I> {
 
     private final AtomicBoolean shouldFlush = new AtomicBoolean(false);
-    private final FlushListener listener;
-    
-    @FunctionalInterface
-    public static interface FlushListener {
-        void flushed();
-    }
     
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
         super.write(ctx, msg, promise);
         if (shouldFlush.compareAndSet(true, false)) {
-            flush(ctx);
+            ctx.flush();
         }
-    }
-    
-    @Override
-    public void flush(ChannelHandlerContext ctx) throws Exception {
-        super.flush(ctx);
-        listener.flushed();
     }
     
     protected void flushRequired() {

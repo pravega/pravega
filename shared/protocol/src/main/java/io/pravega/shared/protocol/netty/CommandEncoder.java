@@ -88,8 +88,7 @@ public class CommandEncoder extends FlushingMessageToByteEncoder<Object> {
     private int bytesLeftInBlock;
     private final Map<UUID, Session> pendingWrites = new HashMap<>();
 
-    public CommandEncoder(Function<Long, AppendBatchSizeTracker> appendTracker, MetricNotifier metricNotifier, FlushListener flushListener) {
-        super(flushListener);
+    public CommandEncoder(Function<Long, AppendBatchSizeTracker> appendTracker, MetricNotifier metricNotifier) {
         this.appendTracker = appendTracker;
         this.metricNotifier = metricNotifier;
     }

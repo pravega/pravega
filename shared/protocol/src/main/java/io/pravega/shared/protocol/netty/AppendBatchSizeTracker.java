@@ -43,4 +43,13 @@ public interface AppendBatchSizeTracker {
      */
     int getBatchTimeout();
 
+    /**
+     * Blocks until there are sufficiently few events outstanding. (Used for backpreasure)
+     */
+    void waitForCapacity();
+    
+    /**
+     * The connection is closing. (Any waiting threads should be unblocked)
+     */
+    void close();
 }
