@@ -817,7 +817,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     public void testtableEntriesDeltaRead() throws IOException {
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
                 new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
-                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)));
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l + 1), new WireCommands.TableValue(buf)));
         WireCommands.TableEntries tableEntries = new WireCommands.TableEntries(entries);
 
         WireCommands.TableEntriesDeltaRead cmd = new WireCommands.TableEntriesDeltaRead(
