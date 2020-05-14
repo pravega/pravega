@@ -103,11 +103,15 @@ public final class ServiceStarter {
         log.info("Creating Segment Stats recorder ...");
         autoScaleMonitor = new AutoScaleMonitor(service, builderConfig.getConfig(AutoScalerConfig::builder));
 
-        TokenVerifierImpl tokenVerifier = new TokenVerifierImpl(builderConfig.getConfig(AutoScalerConfig::builder));
+        AutoScalerConfig autoScalerConfig = builderConfig.getConfig(AutoScalerConfig::builder);
+        TokenVerifierImpl tokenVerifier = null;
+        if (autoScalerConfig.isAuthEnabled()) {
+            tokenVerifier = new TokenVerifierImpl(autoScalerConfig.getTokenSigningKey());
+        }
 
         // Log the configuration
         log.info(serviceConfig.toString());
-        log.info(builderConfig.getConfig(AutoScalerConfig::builder).toString());
+        log.info(autoScalerConfig.toString());
 
         this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.isEnableTlsReload(),
                                                       this.serviceConfig.getListeningIPAddress(),

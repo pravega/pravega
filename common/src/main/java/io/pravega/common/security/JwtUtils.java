@@ -9,8 +9,6 @@
  */
 package io.pravega.common.security;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -59,25 +57,6 @@ public class JwtUtils {
         String decodedJsonBody = new String(Base64.getDecoder().decode(encodedBody));
 
         return parseExpirationTime(decodedJsonBody);
-    }
-
-    /**
-     * Returns the duration relative to the current instant in which the specified JWT is to expire.
-     *
-     * @param jsonWebToken the JWT token
-     * @return the duration relative to the current instant. Returns null if
-     *         a) the specified token is blank, or
-     *         b) the specified token is of invalid format, or
-     *         c) expiration time is missing from the token, or
-     *         d) expiration time is not a number.
-     */
-    public static Duration durationToExpiry(String jsonWebToken) {
-        Long expirationTime = extractExpirationTime(jsonWebToken);
-        if (expirationTime == null) {
-            return null;
-        } else {
-            return Duration.between(Instant.now(), Instant.ofEpochSecond(expirationTime));
-        }
     }
 
     @VisibleForTesting

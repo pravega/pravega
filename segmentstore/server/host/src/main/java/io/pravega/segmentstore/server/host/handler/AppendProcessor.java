@@ -15,7 +15,6 @@ import com.google.common.base.Throwables;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
-import io.pravega.common.security.JwtUtils;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -61,6 +60,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+
+import io.pravega.shared.security.token.JsonWebToken;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
@@ -143,10 +144,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         if (this.tokenVerifier != null) {
             try {
-                tokenVerifier.verifyToken(newSegment,
+                JsonWebToken token = tokenVerifier.verifyToken(newSegment,
                         setupAppend.getDelegationToken(),
                         AuthHandler.Permissions.READ_UPDATE);
-                setupTokenExpiryTask(setupAppend);
+                setupTokenExpiryTask(setupAppend, token);
             } catch (TokenException e) {
                 handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
                         "Update Segment Attribute", e);
@@ -173,46 +174,28 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     @VisibleForTesting
-    CompletableFuture<Void> setupTokenExpiryTask(SetupAppend setupAppend) {
+    CompletableFuture<Void> setupTokenExpiryTask(SetupAppend setupAppend, JsonWebToken token) {
         String segment = setupAppend.getSegment();
         UUID writerId = setupAppend.getWriterId();
         long requestId = setupAppend.getRequestId();
 
-        Duration expiryDuration = this.durationToExpiry(setupAppend);
-
-        if (expiryDuration == null) {
-            return CompletableFuture.completedFuture(null);
-        } else {
-            return Futures.delayedTask(() -> {
-                if (isSetupAppendCompleted(segment, writerId)) {
-                    // Checking whether the connection is closed, because the connection might have closed out-of-band
-                    // since this is a background task.
-                    if (!connection.isClosed()) {
-                        // Closing the connection will result in client authenticating with Controller again
-                        // and retrying the request with a new token.
-                        log.debug("Closing client connection for writer {} due to token expiry, when processing " +
-                                "request {} for segment {}", writerId, requestId, segment);
-                        connection.close();
-                    }
-                }
-                return null;
-            }, expiryDuration, this.tokenExpiryHandlerExecutor);
-        }
-    }
-
-    @VisibleForTesting
-    Duration durationToExpiry(SetupAppend setupAppend) {
-        final Duration duration = JwtUtils.durationToExpiry(setupAppend.getDelegationToken());
-
-        // Note that duration can be null, say if token had no expiry set (for internal communications).
-
-        if (duration != null && duration.isNegative()) {
+        if (token.durationToExpiry() == null || token.durationToExpiry().isNegative()) {
             String message = String.format("Token sent by writer %s for segment %s in request %s has expired",
                     setupAppend.getWriterId(), setupAppend.getSegment(), setupAppend.getRequestId());
             log.debug(message);
             throw new TokenExpiredException(message);
+        } else {
+            return Futures.delayedTask(() -> {
+                if (isSetupAppendCompleted(segment, writerId)) {
+                    // Closing the connection will result in client authenticating with Controller again
+                    // and retrying the request with a new token.
+                    log.debug("Closing client connection for writer {} due to token expiry, when processing " +
+                                "request {} for segment {}", writerId, requestId, segment);
+                    connection.close();
+                }
+                return null;
+            }, token.durationToExpiry(), this.tokenExpiryHandlerExecutor);
         }
-        return duration;
     }
 
     @VisibleForTesting

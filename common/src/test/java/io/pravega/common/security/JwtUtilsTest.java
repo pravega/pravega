@@ -10,17 +10,11 @@
 package io.pravega.common.security;
 
 import io.pravega.test.common.JwtBody;
-import io.pravega.test.common.JwtTestUtils;
 import org.junit.Test;
 
-import java.time.Duration;
-import java.time.Instant;
-
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 public class JwtUtilsTest {
 
@@ -119,34 +113,5 @@ public class JwtUtilsTest {
         // Notice that the exp field value contains non-digits/alphabets
         String jwtBody = "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384,\"exp\":\"abc\"}";
         assertNull(JwtUtils.parseExpirationTime(jwtBody));
-    }
-
-    @Test
-    public void durationToExpiryIsNullIfTokenIsBlank() {
-        assertNull(JwtUtils.durationToExpiry(null));
-        assertNull(JwtUtils.durationToExpiry(""));
-    }
-
-    @Test
-    public void durationToExpiryIsNullIfTokenHasNoExpiration() {
-        String token = JwtTestUtils.createTokenWithDummyMetadata(
-                JwtBody.builder().subject("sub").audience("aud").build());
-        assertNull(JwtUtils.durationToExpiry(token));
-    }
-
-    @Test
-    public void durationToExpiryIsPositiveIfTokenExpiryIsInFuture() {
-        String token = JwtTestUtils.createTokenWithDummyMetadata(
-                JwtBody.builder().expirationTime(Instant.now().plusSeconds(100).getEpochSecond()).build());
-        assertFalse(JwtUtils.durationToExpiry(token).isNegative());
-    }
-
-    @Test
-    public void durationToExpiryIsNegativeIfTokenExpiryIsInThePast() {
-        String token = JwtTestUtils.createTokenWithDummyMetadata(
-                JwtBody.builder().expirationTime(Instant.now().minusSeconds(2).getEpochSecond()).build());
-        Duration duration = JwtUtils.durationToExpiry(token);
-        System.out.println(duration.getSeconds());
-        assertTrue("Duration is not negative", duration.isNegative());
     }
 }

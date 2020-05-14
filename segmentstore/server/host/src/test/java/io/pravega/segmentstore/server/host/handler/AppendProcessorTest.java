@@ -28,7 +28,6 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
@@ -46,11 +45,10 @@ import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.security.token.JsonWebToken;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.IntentionalException;
-import io.pravega.test.common.JwtBody;
-import io.pravega.test.common.JwtTestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.time.Instant;
@@ -58,6 +56,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -118,13 +117,12 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                                                    .connection(connection)
                                                    .connectionTracker(tracker)
                                                    .statsRecorder(mockedRecorder)
-                                                   .tokenVerifier(new PassingTokenVerifier())
                                                    .build();
 
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
 
-        SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, JwtTestUtils.createDummyTokenWithNoExpiry());
+        SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, "");
         processor.setupAppend(setupAppendCommand);
         processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
 
@@ -161,15 +159,15 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
 
-        String delegationToken = JwtTestUtils.createTokenWithDummyMetadata(
-                JwtBody.builder().expirationTime(Instant.now().minusSeconds(2000).getEpochSecond()).build());
-        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, delegationToken);
+        Date expiryDate = Date.from(Instant.now().minusSeconds(100));
+        JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(), expiryDate, null);
 
-        processor.setupTokenExpiryTask(setupAppend);
+        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
+        processor.setupTokenExpiryTask(setupAppend, token);
     }
 
     @Test
-    public void testSetupTokenExpiryTaskInformsClientIfTokenHasExpired() {
+    public void testSetupTokenExpiryTaskClosesConnectionIfTokenHasExpired() throws InterruptedException {
         // Arrange
         String streamSegmentName = "scope/stream/0.#epoch.0";
         UUID clientId = UUID.randomUUID();
@@ -188,13 +186,16 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
         AppendProcessor mockProcessor = spy(processor);
         doReturn(true).when(mockProcessor).isSetupAppendCompleted(streamSegmentName, clientId);
-        doReturn(Duration.ofMillis(20)).when(mockProcessor).durationToExpiry(any());
+        // doReturn(Duration.ofMillis(20)).when(mockProcessor);
 
-        String delegationToken = JwtTestUtils.createEmptyDummyToken();
-        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, delegationToken);
+        JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(),
+                Date.from(Instant.now().plusMillis(100)), null);
+        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
+
+        Thread.sleep(100);
 
         // Act
-        mockProcessor.setupTokenExpiryTask(setupAppend).join();
+        mockProcessor.setupTokenExpiryTask(setupAppend, token).join();
 
         // Assert
         verify(mockConnection).close();
@@ -219,35 +220,15 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
         AppendProcessor mockProcessor = spy(processor);
         doReturn(true).when(mockProcessor).isSetupAppendCompleted(streamSegmentName, clientId);
-        doReturn(Duration.ofMillis(1)).when(mockProcessor).durationToExpiry(any());
         doThrow(new RuntimeException()).when(mockConnection).send(any());
 
-        String delegationToken = JwtTestUtils.createEmptyDummyToken();
-        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, delegationToken);
+        Date expiryDate = Date.from(Instant.now().plusMillis(300));
+        JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(), expiryDate, null);
+
+        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
 
         // Act
-        mockProcessor.setupTokenExpiryTask(setupAppend).join();
-    }
-
-    @Test
-    public void testDurationToExpiry() {
-        // Arrange
-        String streamSegmentName = "scope/stream/0.#epoch.0";
-        UUID clientId = UUID.randomUUID();
-
-        StreamSegmentStore store = mock(StreamSegmentStore.class);
-        ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = AppendProcessor.defaultBuilder()
-                .store(store)
-                .connection(connection)
-                .build();
-
-        String delegationToken = JwtTestUtils.createTokenWithDummyMetadata(
-                JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build());
-        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, delegationToken);
-
-        Duration objectUnderTest = processor.durationToExpiry(setupAppend);
-        assertTrue(objectUnderTest.getSeconds() > 0);
+        mockProcessor.setupTokenExpiryTask(setupAppend, token).join();
     }
 
     @Test
