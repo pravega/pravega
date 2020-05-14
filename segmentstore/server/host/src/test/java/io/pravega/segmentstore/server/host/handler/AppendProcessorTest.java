@@ -18,7 +18,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoop;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -28,6 +27,7 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
@@ -139,8 +139,8 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         assertTrue(processor.isSetupAppendCompleted(setupAppendCommand.getSegment(), setupAppendCommand.getWriterId()));
     }
 
-    @Test(expected = TokenExpiredException.class)
-    public void testSetupTokenExpiryTaskThrowsExceptionIfTokenHasExpired() {
+    @Test
+    public void testSetupAppendClosesConnectionIfTokenHasExpired() {
         String streamSegmentName = "scope/stream/0.#epoch.0";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
@@ -154,6 +154,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                 .connection(connection)
                 .connectionTracker(tracker)
                 .statsRecorder(mockedRecorder)
+                .tokenVerifier(new TokenVerifierImpl("secret"))
                 .build();
 
         setupGetAttributes(streamSegmentName, clientId, store);
@@ -163,7 +164,8 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(), expiryDate, null);
 
         SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
-        processor.setupTokenExpiryTask(setupAppend, token);
+        processor.setupAppend(setupAppend);
+        verify(connection).close();
     }
 
     @Test

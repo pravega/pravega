@@ -174,16 +174,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     @VisibleForTesting
-    CompletableFuture<Void> setupTokenExpiryTask(SetupAppend setupAppend, JsonWebToken token) {
+    CompletableFuture<Void> setupTokenExpiryTask(@NonNull SetupAppend setupAppend, @NonNull JsonWebToken token) {
         String segment = setupAppend.getSegment();
         UUID writerId = setupAppend.getWriterId();
         long requestId = setupAppend.getRequestId();
 
-        if (token.durationToExpiry() == null || token.durationToExpiry().isNegative()) {
-            String message = String.format("Token sent by writer %s for segment %s in request %s has expired",
-                    setupAppend.getWriterId(), setupAppend.getSegment(), setupAppend.getRequestId());
-            log.debug(message);
-            throw new TokenExpiredException(message);
+        if (token.getExpirationTime() == null) {
+            return CompletableFuture.completedFuture(null);
         } else {
             return Futures.delayedTask(() -> {
                 if (isSetupAppendCompleted(segment, writerId)) {
@@ -364,8 +361,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.close();
         } else if (u instanceof TokenExpiredException) {
             log.warn(requestId, "Token expired for writer {} on segment {}.", writerId, segment, u);
-            connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
-                    WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+            connection.close();
         } else if (u instanceof TokenException) {
             log.warn(requestId, "Token check failed or writer {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,

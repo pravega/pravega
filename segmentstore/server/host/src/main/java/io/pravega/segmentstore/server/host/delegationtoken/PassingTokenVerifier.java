@@ -18,8 +18,9 @@ import io.pravega.shared.security.token.JsonWebToken;
  * This is used when no verifier is configured.
  */
 public class PassingTokenVerifier implements DelegationTokenVerifier {
+
     @Override
     public JsonWebToken verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel) {
-        return null;
+        return JsonWebToken.emptyToken();
     }
 }

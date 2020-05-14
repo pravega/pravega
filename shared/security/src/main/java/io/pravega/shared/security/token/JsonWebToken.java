@@ -109,7 +109,11 @@ public class JsonWebToken {
         this.subject = subject;
         this.audience = audience;
         this.signingKey = signingKey.clone();
-        this.expirationTime = Date.from(expiry.toInstant());
+        if (expiry != null) {
+            this.expirationTime = Date.from(expiry.toInstant());
+        } else {
+            this.expirationTime = null;
+        }
         this.permissionsByResource = resourcePermissionClaims;
     }
 
@@ -159,5 +163,9 @@ public class JsonWebToken {
         } else {
             return Duration.between(this.currentInstant, expirationTime.toInstant());
         }
+    }
+
+    public static JsonWebToken emptyToken() {
+        return new JsonWebToken("empty", "empty", "empty".getBytes());
     }
 }
