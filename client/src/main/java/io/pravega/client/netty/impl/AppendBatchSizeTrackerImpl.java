@@ -31,6 +31,7 @@ import java.util.function.Supplier;
  */
 class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private static final int MAX_BATCH_TIME_MILLIS = 100;
+    private static final long BACK_PREASURE_THREASHOLD = MAX_BATCH_SIZE;
 
     private final Supplier<Long> clock;
     private final AtomicLong lastAppendNumber;
@@ -40,7 +41,6 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private final ExponentialMovingAverage millisBetweenAppends = new ExponentialMovingAverage(10, 0.1, false);
     private final ExponentialMovingAverage appendsOutstanding = new ExponentialMovingAverage(2, 0.05, false);
     
-    private static final long BACK_PREASURE_THREASHOLD = MAX_BATCH_SIZE;
     
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ReusableLatch appendLatch = new ReusableLatch(true);
