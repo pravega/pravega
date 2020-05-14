@@ -145,7 +145,7 @@ public class ConnectionPoolingTest {
                      sslEngine.setSSLParameters(sslParameters);
                      p.addLast(handler);
                  }
-                 p.addLast(new CommandEncoder(null, NO_OP_METRIC_NOTIFIER, () -> {}),
+                 p.addLast(new CommandEncoder(null, NO_OP_METRIC_NOTIFIER, () -> { } ),
                            new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                            new CommandDecoder(),
                            new EchoServerHandler());

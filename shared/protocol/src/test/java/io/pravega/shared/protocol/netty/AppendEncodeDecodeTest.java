@@ -65,7 +65,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
     private final UUID writerId = new UUID(1, 2);
     private final String streamName = "Test Stream Name";
     private final ConcurrentHashMap<Long, AppendBatchSizeTracker> idBatchSizeTrackerMap = new ConcurrentHashMap<>();
-    private final CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> {});
+    private final CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> { } );
     private final FakeLengthDecoder lengthDecoder = new FakeLengthDecoder();
     private final AppendDecoder appendDecoder = new AppendDecoder();
     private EventExecutor executor = new EventExecutor() {
@@ -397,7 +397,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
 
     @Test(expected = IllegalArgumentException.class)
     public void testIllegalWireCommand() throws Exception {
-        CommandEncoder commandEncoder = new CommandEncoder(null, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder commandEncoder = new CommandEncoder(null, NO_OP_METRIC_NOTIFIER, () -> { } );
         commandEncoder.encode(ctx, null, fakeNetwork);
     }
 
@@ -408,7 +408,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         ByteBuf data = Unpooled.wrappedBuffer(content);
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> { } );
         @Cleanup("release")
         val received = new ReceivedCommands();
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
@@ -426,7 +426,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> { } );
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
@@ -510,7 +510,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(null, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder commandEncoder = new CommandEncoder(null, NO_OP_METRIC_NOTIFIER, () -> { } );
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
@@ -532,7 +532,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> { } );
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
@@ -559,7 +559,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> { } );
         @Cleanup("release")
         val received = new ReceivedCommands();
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
@@ -585,7 +585,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> { } );
         @Cleanup("release")
         val received = new ReceivedCommands();
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
@@ -621,7 +621,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> { } );
         @Cleanup("release")
         val received = new ReceivedCommands();
         Mockito.when(ch.writeAndFlush(Mockito.any())).thenAnswer(i -> {
@@ -673,7 +673,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> { } );
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         commandEncoder.encode(ctx, msg, fakeNetwork);
@@ -689,7 +689,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> { } );
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         commandEncoder.encode(ctx, msg, fakeNetwork);
@@ -751,7 +751,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
 
-        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> { } );
         SetupAppend setupAppend = new SetupAppend(1, writer1, streamName, "");
         encoder.encode(ctx, setupAppend, fakeNetwork);
         setupAppend = new SetupAppend(1, writer2, streamName, "");
@@ -767,7 +767,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         int size = 0; //Used to force a minimum size
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
-        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> { } );
         SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
         encoder.encode(ctx, setupAppend, fakeNetwork);
         Append msg = new Append(streamName, writerId, 1, 1, Unpooled.EMPTY_BUFFER, null, 1);
@@ -792,7 +792,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         int size = 100;
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
-        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> {});
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER, () -> { } );
         SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
         encoder.encode(ctx, setupAppend, fakeNetwork);
         Append msg = new Append(streamName, writerId, 1, 1, Unpooled.EMPTY_BUFFER, null, 1);
