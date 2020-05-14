@@ -13,17 +13,31 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.MessageToByteEncoder;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.RequiredArgsConstructor;
 
-abstract class FlushingMessageToByteEncoder<I> extends MessageToByteEncoder<I> {
+@RequiredArgsConstructor
+public abstract class FlushingMessageToByteEncoder<I> extends MessageToByteEncoder<I> {
 
     private final AtomicBoolean shouldFlush = new AtomicBoolean(false);
+    private final FlushListener listener;
+    
+    @FunctionalInterface
+    public static interface FlushListener {
+        void flushed();
+    }
     
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
         super.write(ctx, msg, promise);
         if (shouldFlush.compareAndSet(true, false)) {
-            ctx.flush();
+            flush(ctx);
         }
+    }
+    
+    @Override
+    public void flush(ChannelHandlerContext ctx) throws Exception {
+        super.flush(ctx);
+        listener.flushed();
     }
     
     protected void flushRequired() {

@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import org.junit.Test;
 
+import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -106,7 +107,7 @@ public class ClientConnectionTest {
 
     
     static EmbeddedChannel createChannelWithContext(ChannelInboundHandlerAdapter handler) {
-        return new EmbeddedChannel(new ExceptionLoggingHandler(""), new CommandEncoder(null),
+        return new EmbeddedChannel(new ExceptionLoggingHandler(""), new CommandEncoder(null, NO_OP_METRIC_NOTIFIER, () -> {}),
                                    new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4), new CommandDecoder(),
                                    new AppendDecoder(), handler);
     }
@@ -133,7 +134,7 @@ public class ClientConnectionTest {
                 super.flush(ctx);
             }
         };
-        EmbeddedChannel embeddedChannel = new EmbeddedChannel(spy, new CommandEncoder(null),
+        EmbeddedChannel embeddedChannel = new EmbeddedChannel(spy, new CommandEncoder(null, NO_OP_METRIC_NOTIFIER, () -> {}),
                                                               new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4), new CommandDecoder(),
                                                               new AppendDecoder(), flowHandler);
         clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));

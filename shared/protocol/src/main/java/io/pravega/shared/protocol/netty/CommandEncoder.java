@@ -75,7 +75,6 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
  *              then all pending session events are flushed.
  */
 @NotThreadSafe
-@RequiredArgsConstructor
 @Slf4j
 public class CommandEncoder extends FlushingMessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
@@ -89,8 +88,10 @@ public class CommandEncoder extends FlushingMessageToByteEncoder<Object> {
     private int bytesLeftInBlock;
     private final Map<UUID, Session> pendingWrites = new HashMap<>();
 
-    public CommandEncoder(Function<Long, AppendBatchSizeTracker> appendTracker) {
-        this(appendTracker, MetricNotifier.NO_OP_METRIC_NOTIFIER);
+    public CommandEncoder(Function<Long, AppendBatchSizeTracker> appendTracker, MetricNotifier metricNotifier, FlushListener flushListener) {
+        super(flushListener);
+        this.appendTracker = appendTracker;
+        this.metricNotifier = metricNotifier;
     }
 
     @RequiredArgsConstructor

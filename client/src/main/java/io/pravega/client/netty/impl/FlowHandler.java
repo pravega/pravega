@@ -22,12 +22,14 @@ import io.pravega.common.util.ReusableFutureLatch;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.FlushingMessageToByteEncoder;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,7 +41,7 @@ import static io.pravega.shared.NameUtils.writerTags;
 import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_OUTSTANDING_APPEND_COUNT;
 
 @Slf4j
-public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoCloseable {
+public class FlowHandler extends ChannelInboundHandlerAdapter implements FlushingMessageToByteEncoder.FlushListener,  AutoCloseable {
 
     private static final int FLOW_DISABLED = 0;
     private final String connectionName;
@@ -57,6 +59,8 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     private final ConcurrentHashMap<Integer, AppendBatchSizeTracker> flowIDBatchSizeTrackerMap = new ConcurrentHashMap<>();
 
     private final AtomicBoolean disableFlow = new AtomicBoolean(false);
+    
+    private final Semaphore throttle = new Semaphore(AppendBatchSizeTracker.MAX_BATCH_SIZE);
 
     public FlowHandler(String connectionName) {
         this(connectionName, MetricNotifier.NO_OP_METRIC_NOTIFIER);
@@ -113,6 +117,9 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         if (flow == FLOW_DISABLED) {
             // close the channel immediately since this netty channel will not be reused by other flows.
             close();
+        } else {
+            throttle.drainPermits();
+            throttle.release(AppendBatchSizeTracker.MAX_BATCH_SIZE);
         }
     }
 
@@ -291,6 +298,16 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         });
     }
 
+    @Override
+    public void flushed() {
+        throttle.drainPermits();
+        throttle.release(AppendBatchSizeTracker.MAX_BATCH_SIZE);
+    }
+    
+    public void waitForThrottleCapacity(int size) {
+        Exceptions.handleInterrupted(() -> throttle.acquire(size));
+    }
+    
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
