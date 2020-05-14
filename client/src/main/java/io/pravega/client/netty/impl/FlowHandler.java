@@ -118,7 +118,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
 
     /**
      * Create a Batch size tracker, ignore if already existing
-     *
+     * @param connectionName Name of the connection
      * @param flowID flow ID.
      */
     private AppendBatchSizeTracker createAppendBatchSizeTrackerIfNeeded(final int  flowID) {
@@ -127,7 +127,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
             log.debug("Reusing Batch size tracker for Flow ID {}.", flowID);
         } else {
             log.debug("Creating Batch size tracker for flow ID {}.", flowID);
-            result = new AppendBatchSizeTrackerImpl();
+            result = new AppendBatchSizeTrackerImpl(connectionName + "_" + flowID);
             flowIDBatchSizeTrackerMap.put(flowID, result);
         }
         return result;
