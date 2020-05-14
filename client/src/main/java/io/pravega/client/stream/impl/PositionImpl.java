@@ -41,6 +41,7 @@ public class PositionImpl extends PositionInternal {
 
     // If this field is set, it means that we will need to apply the updates on the ownedSegments.
     private transient List<Entry<Segment, Long>> updatesToSegmentOffsets;
+    // This field represents the index up to which updatesToSegmentOffsets should be applied to ownedSegments.
     private transient long version;
 
     /**

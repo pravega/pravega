@@ -383,6 +383,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 }
                 readers.clear();
                 ranges = new HashMap<>();
+                ownedSegments = new HashMap<>();
+                segmentOffsetUpdates = new ArrayList<>();
                 groupState.close();
             }
         }
