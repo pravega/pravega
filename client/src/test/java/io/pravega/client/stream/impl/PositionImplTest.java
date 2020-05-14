@@ -37,6 +37,36 @@ public class PositionImplTest {
     private List<Map.Entry<Segment, Long>> offsetUpdates = getSegmentOffsetUpdates(getSegments());
 
     @Test
+    public void testPositionApplyUpdates() {
+        List<Map.Entry<Segment, Long>> offsetUpdates = new ArrayList<>();
+        // First position, with base segment offsets and no segment offset updates.
+        PositionImpl p1 = PositionImpl.builder().segmentRanges(segmentRanges)
+                                                .ownedSegments(ownedBaseSegmentsOffsets)
+                                                .updatesToSegmentOffsets(offsetUpdates).build();
+        // Update segment offsets to simulate a read.
+        offsetUpdates.add(new AbstractMap.SimpleEntry<>(getSegments().get(0), 1L));
+        // New Position object after the change in offsets. Note that we have not invoked any method to Position object,
+        // so the segment updates are not applied (if any).
+        PositionImpl p2 = PositionImpl.builder().segmentRanges(segmentRanges)
+                                                .ownedSegments(ownedBaseSegmentsOffsets)
+                                                .updatesToSegmentOffsets(offsetUpdates).build();
+        // More reads.
+        offsetUpdates.add(new AbstractMap.SimpleEntry<>(getSegments().get(1), 1L));
+        offsetUpdates.add(new AbstractMap.SimpleEntry<>(getSegments().get(1), 2L));
+        PositionImpl p3 = PositionImpl.builder().segmentRanges(segmentRanges)
+                                                .ownedSegments(ownedBaseSegmentsOffsets)
+                                                .updatesToSegmentOffsets(offsetUpdates).build();
+        // Verify that each Position object lazily applies the updates on segment offsets and has the right state at the
+        // time the event was read.
+        Assert.assertEquals(p1.getOwnedSegmentsWithOffsets(), ownedBaseSegmentsOffsets);
+        Map<Segment, Long> updatedSegmentsOffsets = getBaseSegmentOffsets(getSegments());
+        updatedSegmentsOffsets.put(getSegments().get(0), 1L);
+        Assert.assertEquals(p2.getOwnedSegmentsWithOffsets(), updatedSegmentsOffsets);
+        updatedSegmentsOffsets.put(getSegments().get(1), 2L);
+        Assert.assertEquals(p3.getOwnedSegmentsWithOffsets(), updatedSegmentsOffsets);
+    }
+
+    @Test
     public void testPositionEquals() {
         // Generate the same Position object in two ways: one with the eventual segment offsets after reads have been done.
         PositionImpl positionNormal = new PositionImpl(ownedSegmentsEventual, segmentRanges, null);

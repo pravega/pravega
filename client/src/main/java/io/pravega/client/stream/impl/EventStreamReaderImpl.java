@@ -193,7 +193,15 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         return new EventReadImpl<>(null, refreshAndGetPosition(), null, checkpoint);
     }
 
+    /**
+     * Updates the cached ownedSegments and segmentOffsetUpdates for this reader. This should be executed every time
+     * there is a change in the Segments being managed by a reader in order to build correct Position objects.
+     *
+     * @return New position object with the most recent ownedSegments and segmentOffsetUpdates state.
+     */
     private PositionInternal refreshAndGetPosition() {
+        // We need to create new objects for segmentOffsetUpdates and ownedSegments, as there could be Position objects
+        // pointing to the current state of existing segmentOffsetUpdates and ownedSegments to build their internal state.
         segmentOffsetUpdates = new ArrayList<>();
         ownedSegments = new HashMap<>(sealedSegments);
         for (EventSegmentReader entry : readers) {
