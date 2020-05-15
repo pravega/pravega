@@ -12,6 +12,7 @@ package io.pravega.client.netty.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -40,14 +41,14 @@ import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_OUTSTANDING_APPE
 
 @Slf4j
 public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoCloseable {
-
+    private static final int KEEP_ALIVE_TIMEOUT_SECONDS = 20;
     private static final int FLOW_DISABLED = 0;
     private final String connectionName;
     @Getter
     private final MetricNotifier metricNotifier;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
-    private final AtomicBoolean recentMessage = new AtomicBoolean(false);
+    private final AtomicBoolean recentMessage = new AtomicBoolean(true);
     private final AtomicBoolean closed = new AtomicBoolean(false);
     @Getter
     private final ReusableFutureLatch<Void> registeredFutureLatch = new ReusableFutureLatch<>();
@@ -176,7 +177,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     }
 
     /**
-     * Set the Recent Message flag. This is used to avoid sending redundant KeepAlives over the connection.
+     * Set the Recent Message flag. This is used to detect connection timeouts.
      */
     void setRecentMessage() {
         recentMessage.set(true);
@@ -201,7 +202,11 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         ch.writeAndFlush(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), ch.voidPromise());
         registeredFutureLatch.release(null); //release all futures waiting for channel registration to complete.
         // WireCommands.KeepAlive messages are sent for every network connection to a SegmentStore.
-        ScheduledFuture<?> old = keepAliveFuture.getAndSet(ch.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));
+        ScheduledFuture<?> old = keepAliveFuture.getAndSet(ch.eventLoop()
+                                                             .scheduleWithFixedDelay(new KeepAliveTask(),
+                                                                                     KEEP_ALIVE_TIMEOUT_SECONDS,
+                                                                                     KEEP_ALIVE_TIMEOUT_SECONDS,
+                                                                                     TimeUnit.SECONDS));
         if (old != null) {
             old.cancel(false);
         }
@@ -238,7 +243,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         Reply cmd = (Reply) msg;
         log.debug(connectionName + " processing reply {} with flow {}", cmd, Flow.from(cmd.getRequestId()));
-
+        recentMessage.set(true);
         if (cmd instanceof WireCommands.Hello) {
             flowIdReplyProcessorMap.forEach((flowId, rp) -> {
                 try {
@@ -313,14 +318,28 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     }
 
     private final class KeepAliveTask implements Runnable {
+        
+        private final ChannelFutureListener listener = new ChannelFutureListener(){
+            @Override
+            public void operationComplete(ChannelFuture future) throws Exception {
+                recentMessage.set(true);
+                if (!future.isSuccess()) {
+                    future.channel().pipeline().fireExceptionCaught(future.cause());
+                }
+            }
+        };
+        
         @Override
         public void run() {
-            try {
-                if (!recentMessage.getAndSet(false)) {
-                    getChannel().writeAndFlush(new WireCommands.KeepAlive()).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+            if (recentMessage.getAndSet(false)) {
+                try {
+                    getChannel().writeAndFlush(new WireCommands.KeepAlive()).addListener(listener);
+                } catch (Exception e) {
+                    log.warn("Failed to send KeepAlive to {}. Closing this connection.", connectionName, e);
+                    close();
                 }
-            } catch (Exception e) {
-                log.warn("Failed to send KeepAlive to {}. Closing this connection.", connectionName, e);
+            } else {
+                log.error("Connection {} stalled for more than {} seconds. Closing.", connectionName, KEEP_ALIVE_TIMEOUT_SECONDS);
                 close();
             }
         }
