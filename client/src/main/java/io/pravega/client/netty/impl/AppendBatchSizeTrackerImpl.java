@@ -65,11 +65,6 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         long numOutstanding = eventNumber - lastAckNumber.get();
         appendsOutstanding.addNewSample(numOutstanding);
         eventSize.addNewSample(size);
-        double dataOutstanding = eventSize.getCurrentValue() * numOutstanding;
-        log.info("Recording append for {}. Closed: {}, data outstanding: {}", name, closed.get(), (int) dataOutstanding);
-        if (!closed.get() && dataOutstanding >= BACK_PREASURE_THREASHOLD) {
-            appendLatch.reset();
-        }
     }
 
     @Override
@@ -108,7 +103,13 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     }
 
     @Override
-    public void waitForCapacity() {
+    public void waitForCapacity(long eventNumber) {
+        long numOutstanding = eventNumber - lastAckNumber.get();
+        double dataOutstanding = eventSize.getCurrentValue() * numOutstanding;
+        log.info("Recording append for {}. Closed: {}, data outstanding: {}", name, closed.get(), (int) dataOutstanding);
+        if (!closed.get() && dataOutstanding >= BACK_PREASURE_THREASHOLD) {
+            appendLatch.reset();
+        }
         appendLatch.awaitUninterruptibly();
     }
 

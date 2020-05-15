@@ -14,6 +14,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
@@ -24,8 +25,11 @@ import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ByteBufferSerializer;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
@@ -303,6 +307,35 @@ public class AppendTest extends LeakDetectorTestSuite {
         Future<Void> ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
     }
+    
+    
+    @Test(timeout = 100000)
+    public void appendALotOfData() {
+        String endpoint = "localhost";
+        String streamName = "abc";
+        int port = TestUtils.getAvailableListenPort();
+        ByteBuffer payload = ByteBuffer.allocate(1024*1024);
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
+        server.startListening();
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        MockController controller = new MockController(endpoint, port, connectionFactory, true);
+        @Cleanup
+        StreamManagerImpl streamManager = new StreamManagerImpl(controller, connectionFactory);
+        streamManager.createScope("Scope");
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("Scope", controller);
+        streamManager.createStream("Scope", streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
+        @Cleanup
+        EventStreamWriter<ByteBuffer> producer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(), EventWriterConfig.builder().build());
+        for (int i=0;i<1000;i++) {
+            producer.writeEvent(payload.slice());
+        }
+        producer.close();
+    }
+    
     
     @Test(timeout = 20000)
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {

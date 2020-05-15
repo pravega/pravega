@@ -84,7 +84,7 @@ public class ClientConnectionImpl implements ClientConnection {
                 }
             }
         });
-        tracker.waitForCapacity();
+        tracker.waitForCapacity(cmd.getEventNumber());
         // Work around for https://github.com/netty/netty/issues/3246
         eventLoop.execute(() -> {
             try {
