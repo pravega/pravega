@@ -81,8 +81,8 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         if (flowIdReplyProcessorMap.put(flowID, rp) != null) {
             throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flowID);
         }
-        AppendBatchSizeTracker tracker = createAppendBatchSizeTrackerIfNeeded(flowID);
-        return new ClientConnectionImpl(connectionName, flowID, this, tracker);
+        createAppendBatchSizeTrackerIfNeeded(flowID);
+        return new ClientConnectionImpl(connectionName, flowID, this);
     }
 
     /**
@@ -96,8 +96,8 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         Preconditions.checkState(!disableFlow.getAndSet(true), "Flows are disabled, incorrect usage pattern.");
         log.info("Creating a new connection with flow disabled for endpoint {}. The current Channel is {}.", connectionName, channel.get());
         flowIdReplyProcessorMap.put(FLOW_DISABLED, rp);
-        AppendBatchSizeTracker tracker = createAppendBatchSizeTrackerIfNeeded(FLOW_DISABLED);
-        return new ClientConnectionImpl(connectionName, FLOW_DISABLED, this, tracker);
+        createAppendBatchSizeTrackerIfNeeded(FLOW_DISABLED);
+        return new ClientConnectionImpl(connectionName, FLOW_DISABLED, this);
     }
 
     /**
@@ -118,19 +118,16 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
 
     /**
      * Create a Batch size tracker, ignore if already existing
-     * @param connectionName Name of the connection
+     *
      * @param flowID flow ID.
      */
-    private AppendBatchSizeTracker createAppendBatchSizeTrackerIfNeeded(final int  flowID) {
-        AppendBatchSizeTracker result = flowIDBatchSizeTrackerMap.get(flowID);
-        if (result != null) {
+    private void createAppendBatchSizeTrackerIfNeeded(final int  flowID) {
+        if (flowIDBatchSizeTrackerMap.containsKey(flowID)) {
             log.debug("Reusing Batch size tracker for Flow ID {}.", flowID);
         } else {
             log.debug("Creating Batch size tracker for flow ID {}.", flowID);
-            result = new AppendBatchSizeTrackerImpl(connectionName + "_" + flowID);
-            flowIDBatchSizeTrackerMap.put(flowID, result);
+            flowIDBatchSizeTrackerMap.put(flowID, new AppendBatchSizeTrackerImpl());
         }
-        return result;
     }
 
     /**
@@ -293,7 +290,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
             }
         });
     }
-    
+
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {

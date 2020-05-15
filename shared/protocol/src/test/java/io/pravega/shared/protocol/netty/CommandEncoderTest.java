@@ -54,14 +54,6 @@ public class CommandEncoderTest {
         public int getBatchTimeout() {
             return Integer.MAX_VALUE;
         }
-
-        @Override
-        public void waitForCapacity() {
-        }
-
-        @Override
-        public void close() {
-        }
     }
 
     @Test

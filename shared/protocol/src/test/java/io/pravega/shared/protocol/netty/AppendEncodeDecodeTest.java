@@ -271,16 +271,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         @Override
         public int getBatchTimeout() {
             return 100;
-        }
-
-        @Override
-        public void waitForCapacity() {
-        }
-
-        @Override
-        public void close() {
-        }
-        
+        }        
     }
     
     private static final class FakeLengthDecoder extends LengthFieldBasedFrameDecoder {

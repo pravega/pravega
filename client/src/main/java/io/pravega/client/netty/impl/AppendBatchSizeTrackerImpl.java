@@ -11,12 +11,9 @@ package io.pravega.client.netty.impl;
 
 import io.pravega.common.ExponentialMovingAverage;
 import io.pravega.common.MathHelpers;
-import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * See {@link AppendBatchSizeTracker}.
@@ -30,10 +27,8 @@ import lombok.extern.slf4j.Slf4j;
  * synchronous writers. Otherwise the batch size is set to the amount of data that will be written in the next
  * {@link #MAX_BATCH_TIME_MILLIS} or half the server round trip time (whichever is less)
  */
-@Slf4j
 class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private static final int MAX_BATCH_TIME_MILLIS = 100;
-    private static final long BACK_PREASURE_THREASHOLD = MAX_BATCH_SIZE;
 
     private final Supplier<Long> clock;
     private final AtomicLong lastAppendNumber;
@@ -42,14 +37,8 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private final ExponentialMovingAverage eventSize = new ExponentialMovingAverage(1024, 0.1, true);
     private final ExponentialMovingAverage millisBetweenAppends = new ExponentialMovingAverage(10, 0.1, false);
     private final ExponentialMovingAverage appendsOutstanding = new ExponentialMovingAverage(2, 0.05, false);
-    
-    
-    private final String name;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final ReusableLatch appendLatch = new ReusableLatch(true);
 
-    AppendBatchSizeTrackerImpl(String name) {
-        this.name = name;
+    AppendBatchSizeTrackerImpl() {
         clock = System::currentTimeMillis;
         lastAppendTime = new AtomicLong(clock.get());
         lastAckNumber = new AtomicLong(0);
@@ -62,8 +51,7 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         long last = lastAppendTime.getAndSet(now);
         lastAppendNumber.set(eventNumber);
         millisBetweenAppends.addNewSample(now - last);
-        long numOutstanding = eventNumber - lastAckNumber.get();
-        appendsOutstanding.addNewSample(numOutstanding);
+        appendsOutstanding.addNewSample(eventNumber - lastAckNumber.get());
         eventSize.addNewSample(size);
     }
 
@@ -72,11 +60,6 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         lastAckNumber.getAndSet(eventNumber);
         long outstandingAppendCount = lastAppendNumber.get() - eventNumber;
         appendsOutstanding.addNewSample(outstandingAppendCount);
-        double dataOutstanding = eventSize.getCurrentValue() * outstandingAppendCount;
-        log.info("Recording ack for {}. Closed: {}, data outstanding: {}", name, closed.get(), (int) dataOutstanding);
-        if (dataOutstanding < BACK_PREASURE_THREASHOLD) {
-            appendLatch.release();
-        }
         return outstandingAppendCount;
     }
 
@@ -100,23 +83,5 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     @Override
     public int getBatchTimeout() {
         return MAX_BATCH_TIME_MILLIS;
-    }
-
-    @Override
-    public void waitForCapacity(long eventNumber) {
-        long numOutstanding = eventNumber - lastAckNumber.get();
-        double dataOutstanding = eventSize.getCurrentValue() * numOutstanding;
-        log.info("Recording append for {}. Closed: {}, data outstanding: {}", name, closed.get(), (int) dataOutstanding);
-        if (!closed.get() && dataOutstanding >= BACK_PREASURE_THREASHOLD) {
-            appendLatch.reset();
-        }
-        appendLatch.awaitUninterruptibly();
-    }
-
-    @Override
-    public void close() {
-        closed.set(true);
-        log.info("Closing {}", name);
-        appendLatch.release();
     }
 }

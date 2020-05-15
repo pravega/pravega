@@ -43,14 +43,4 @@ public interface AppendBatchSizeTracker {
      */
     int getBatchTimeout();
 
-    /**
-     * Blocks until there are sufficiently few events outstanding. (Used for backpreasure)
-     * @param eventNumber the event number for the event to be written.
-     */
-    void waitForCapacity(long eventNumber);
-    
-    /**
-     * The connection is closing. (Any waiting threads should be unblocked)
-     */
-    void close();
 }

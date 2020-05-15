@@ -17,6 +17,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
+import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
@@ -24,6 +25,7 @@ import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -42,13 +44,12 @@ public class ClientConnectionImpl implements ClientConnection {
     @Getter
     private final FlowHandler nettyHandler;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final AppendBatchSizeTracker tracker;
+    private final Semaphore throttle = new Semaphore(AppendBatchSizeTracker.MAX_BATCH_SIZE);
 
-    public ClientConnectionImpl(String connectionName, int flowId, FlowHandler nettyHandler, AppendBatchSizeTracker tracker) {
+    public ClientConnectionImpl(String connectionName, int flowId, FlowHandler nettyHandler) {
         this.connectionName = connectionName;
         this.flowId = flowId;
         this.nettyHandler = nettyHandler;
-        this.tracker = tracker;
     }
 
     @Override
@@ -79,12 +80,12 @@ public class ClientConnectionImpl implements ClientConnection {
         promise.addListener(new ChannelFutureListener() {
             @Override
             public void operationComplete(ChannelFuture future) {
+                throttle.release(cmd.getDataLength());
                 if (!future.isSuccess()) {
                     future.channel().pipeline().fireExceptionCaught(future.cause());
                 }
             }
         });
-        tracker.waitForCapacity(cmd.getEventNumber());
         // Work around for https://github.com/netty/netty/issues/3246
         eventLoop.execute(() -> {
             try {
@@ -95,6 +96,7 @@ public class ClientConnectionImpl implements ClientConnection {
                 channel.pipeline().fireExceptionCaught(e);
             }
         });
+        Exceptions.handleInterrupted(() -> throttle.acquire(cmd.getDataLength()));
     }
     
     private void write(WireCommand cmd) throws ConnectionFailedException {
@@ -170,11 +172,10 @@ public class ClientConnectionImpl implements ClientConnection {
         });
         combiner.finish(promise);
     }
-    
+
     @Override
     public void close() {
         if (!closed.getAndSet(true)) {
-            tracker.close();
             nettyHandler.closeFlow(this);
         }
     }
