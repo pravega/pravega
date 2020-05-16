@@ -247,7 +247,6 @@ project('client') {
         compile group: 'io.netty', name: 'netty-transport-native-epoll', version: nettyVersion, classifier: 'linux-x86_64'
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
-        testCompile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
@@ -323,6 +322,17 @@ project('segmentstore:storage:impl') {
 }
 
 project ('bindings') {
+    configurations.all {
+        resolutionStrategy {
+            // We need to force this version as dependency, since ':test:testcommon' brings in a newer version of 
+            // this library which conflicts with the older version of this transitive dependency brought in by some 
+            // of the other dependences (HDFS and S3). 
+            // 
+            // Once HDFS and S3 are upgraded to a version that works with Gson version used by the ':test:testcommon' 
+            // sub-project, this configuration should be removed. 
+            force 'com.google.code.gson:gson:2.5'
+        }
+    }
     dependencies {
         // For HDFS
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
