@@ -67,7 +67,7 @@ public class ReaderGroupTest {
         }
     }
 
-    @Test//(timeout = 20000)
+    @Test(timeout = 20000)
     public void testEventHandoff() throws Exception {
         String endpoint = "localhost";
         int servicePort = TestUtils.getAvailableListenPort();

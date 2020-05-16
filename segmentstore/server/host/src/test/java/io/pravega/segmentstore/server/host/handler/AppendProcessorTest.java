@@ -169,7 +169,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testSetupTokenExpiryTaskClosesConnectionIfTokenHasExpired() throws InterruptedException {
+    public void testSetupTokenExpiryTaskClosesConnectionIfTokenHasExpired() {
         // Arrange
         String streamSegmentName = "scope/stream/0.#epoch.0";
         UUID clientId = UUID.randomUUID();
@@ -188,13 +188,10 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
         AppendProcessor mockProcessor = spy(processor);
         doReturn(true).when(mockProcessor).isSetupAppendCompleted(streamSegmentName, clientId);
-        // doReturn(Duration.ofMillis(20)).when(mockProcessor);
 
         JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(),
-                Date.from(Instant.now().plusMillis(100)), null);
+                Date.from(Instant.now().minusSeconds(5)), null);
         SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
-
-        Thread.sleep(100);
 
         // Act
         mockProcessor.setupTokenExpiryTask(setupAppend, token).join();
