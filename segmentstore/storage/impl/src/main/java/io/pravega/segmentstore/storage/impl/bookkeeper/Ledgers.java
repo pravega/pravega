@@ -9,9 +9,13 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Charsets;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +26,6 @@ import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKNotEnoughBookiesException;
 import org.apache.bookkeeper.client.BKException.BKUnexpectedConditionException;
 import org.apache.bookkeeper.client.api.BookKeeper;
-import org.apache.bookkeeper.client.api.DigestType;
 import org.apache.bookkeeper.client.api.Handle;
 import org.apache.bookkeeper.client.api.ReadHandle;
 import org.apache.bookkeeper.client.api.WriteHandle;
@@ -33,13 +36,17 @@ import org.apache.bookkeeper.common.concurrent.FutureUtils;
  */
 @Slf4j
 final class Ledgers {
-    static final long NO_ENTRY_ID = -1;
+    static final Charset CUSTOM_PROPERTY_CHARSET = Charsets.US_ASCII;
+    static final String PROPERTY_APPLICATION = "application";
+    static final String PROPERTY_VALUE_APPLICATION = "Pravega";
+    static final String PROPERTY_LOG_ID = "BookKeeperLogId";
+    static final int NO_LOG_ID = -1;
+    static final long NO_LEDGER_ID = -1; // LedgerHandle.INVALID_LEDGER_ID
+    static final long NO_ENTRY_ID = -1; // LedgerHandle.INVALID_ENTRY_ID
     /**
      * How many ledgers to fence out (from the end of the list) when acquiring lock.
      */
     static final int MIN_FENCE_LEDGER_COUNT = 2;
-
-    private static final DigestType LEDGER_DIGEST_TYPE = DigestType.MAC;
 
     /**
      * Converts exceptions to BKException. Fallback to BKUnexpectedConditionException
@@ -57,6 +64,11 @@ final class Ledgers {
 
     /**
      * Creates a new Ledger in BookKeeper.
+     * @param bookKeeper A {@link BookKeeper} client to use.
+     * @param config     The {@link BookKeeperConfig} to use.
+     * @param logId      The Id of the {@link BookKeeperLog} that owns this ledgers. This will be codified in the new
+     *                   ledger's metadata so that it may be recovered in case we need to reconstruct the {@link BookKeeperLog}
+     *                   in the future.
      *
      * @return A WriteHandle for the new ledger.
      * @throws DataLogNotAvailableException If BookKeeper is unavailable or the ledger could not be created because an
@@ -64,7 +76,7 @@ final class Ledgers {
      *                                      inside it.
      * @throws DurableDataLogException      If another exception occurred. The causing exception is wrapped inside it.
      */
-    static WriteHandle create(BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
+    static WriteHandle create(BookKeeper bookKeeper, BookKeeperConfig config, int logId) throws DurableDataLogException {
         try {
 
             return Exceptions.handleInterruptedCall(() ->
@@ -74,6 +86,7 @@ final class Ledgers {
                             .withAckQuorumSize(config.getBkAckQuorumSize())
                             .withDigestType(config.getDigestType())
                             .withPassword(config.getBKPassword())
+                            .withCustomMetadata(createLedgerCustomMetadata(logId))
                             .execute(), BK_EXCEPTION_HANDLER) );
         } catch (BKNotEnoughBookiesException bkEx) {
             throw new DataLogNotAvailableException("Unable to create new BookKeeper Ledger.", bkEx);
@@ -228,5 +241,54 @@ final class Ledgers {
         }
 
         return result;
+    }
+
+    /**
+     * Gets the {@link #PROPERTY_LOG_ID} value from the given {@link LedgerHandle}, as stored in its custom metadata.
+     *
+     * @param handle The {@link LedgerHandle} to query.
+     * @return The Log Id stored in {@link #PROPERTY_LOG_ID}, or {@link #NO_LOG_ID} if not defined (i.e., due to an upgrade
+     * from a version that did not store this information).
+     */
+    static int getBookKeeperLogId(Handle handle) {
+        String appName = getPropertyValue(PROPERTY_APPLICATION, handle);
+        if (appName == null || !appName.equalsIgnoreCase(PROPERTY_VALUE_APPLICATION)) {
+            log.warn("Property '{}' on Ledger {} does not match expected value '{}' (actual '{}'). This is OK if this ledger was created prior to Pravega 0.7.1.",
+                    PROPERTY_APPLICATION, handle.getId(), PROPERTY_VALUE_APPLICATION, appName);
+            return NO_LOG_ID;
+        }
+
+        String deserialized = getPropertyValue(PROPERTY_LOG_ID, handle);
+        if (deserialized == null) {
+            log.warn("No property '{}' found on Ledger {}. This is OK if this ledger was created prior to Pravega 0.7.1.",
+                    PROPERTY_LOG_ID, handle.getId());
+            return NO_LOG_ID;
+        }
+
+        try {
+            return Integer.parseInt(deserialized);
+        } catch (NumberFormatException ex) {
+            log.error("Property '{}' Ledger {} has invalid value '{}'. Returning default value.", PROPERTY_LOG_ID, handle.getId(), deserialized);
+            return NO_LOG_ID;
+        }
+    }
+
+    private static String getPropertyValue(String property, Handle handle) {
+        byte[] s = handle.getLedgerMetadata().getCustomMetadata().getOrDefault(property, null);
+        return s == null ? null : new String(s, CUSTOM_PROPERTY_CHARSET);
+    }
+
+    /**
+     * Creates a new {@link Map} that can be set as a Ledger's Custom Metadata.
+     *
+     * @param logId The {@link BookKeeperLog} Id to encode.
+     * @return An immutable {@link Map} containing the encoded Ledger's Custom Metadata.
+     */
+    @VisibleForTesting
+    static Map<String, byte[]> createLedgerCustomMetadata(int logId) {
+        return ImmutableMap.<String, byte[]>builder()
+                .put(PROPERTY_APPLICATION, PROPERTY_VALUE_APPLICATION.getBytes(CUSTOM_PROPERTY_CHARSET))
+                .put(PROPERTY_LOG_ID, Integer.toString(logId).getBytes(CUSTOM_PROPERTY_CHARSET))
+                .build();
     }
 }

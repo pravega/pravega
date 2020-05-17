@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -51,9 +52,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.Data;
+import lombok.Cleanup;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -644,6 +646,10 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * Determines whether flushFully can continue given the current state of this SegmentAggregator.
      */
     private boolean canContinueFlushingFully() {
+        if (this.metadata.isDeleted()) {
+            return false; // No point in flushing if the segment has been deleted in the meantime.
+        }
+
         StorageOperation next = this.operations.getFirst();
         return isAppendOperation(next) || isTruncateOperation(next);
     }
@@ -717,9 +723,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      */
     private CompletableFuture<WriterFlushResult> flushPendingAppends(Duration timeout) {
         // Gather an InputStream made up of all the operations we can flush.
-        FlushArgs flushArgs;
+        BufferView flushData;
         try {
-            flushArgs = getFlushArgs();
+            flushData = getFlushData();
         } catch (DataCorruptionException ex) {
             return Futures.failedFuture(ex);
         }
@@ -729,17 +735,17 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         // Flush them.
         TimeoutTimer timer = new TimeoutTimer(timeout);
         CompletableFuture<Void> flush;
-        if (flushArgs.getLength() == 0) {
+        if (flushData == null || flushData.getLength() == 0) {
             flush = CompletableFuture.completedFuture(null);
         } else {
             flush = createSegmentIfNecessary(
-                    () -> this.storage.write(this.handle.get(), this.metadata.getStorageLength(), flushArgs.getStream(), flushArgs.getLength(), timer.getRemaining()),
+                    () -> this.storage.write(this.handle.get(), this.metadata.getStorageLength(), flushData.getReader(), flushData.getLength(), timer.getRemaining()),
                     timer.getRemaining());
         }
 
         return flush
                 .thenApplyAsync(v -> {
-                    WriterFlushResult result = updateStatePostFlush(flushArgs);
+                    WriterFlushResult result = updateStatePostFlush(flushData);
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "flushPendingAppends", traceId, result);
                     return result;
                 }, this.executor)
@@ -757,34 +763,35 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     }
 
     /**
-     * Returns a FlushArgs which contains the data needing to be flushed to Storage.
+     * Returns a {@link BufferView} which contains the data needing to be flushed to Storage.
      *
-     * @return The aggregated object that can be used for flushing.
+     * @return A {@link BufferView} to flush or null if the segment was deleted.
      * @throws DataCorruptionException If a unable to retrieve required data from the Data Source.
      */
-    private FlushArgs getFlushArgs() throws DataCorruptionException {
+    @Nullable
+    private BufferView getFlushData() throws DataCorruptionException {
         StorageOperation first = this.operations.getFirst();
         if (!(first instanceof AggregatedAppendOperation)) {
             // Nothing to flush - first operation is not an AggregatedAppend.
-            return new FlushArgs(null, 0);
+            return null;
         }
 
         AggregatedAppendOperation appendOp = (AggregatedAppendOperation) first;
         int length = (int) appendOp.getLength();
-        InputStream data = null;
+        BufferView data = null;
         if (length > 0) {
             data = this.dataSource.getAppendData(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), length);
             if (data == null) {
                 if (this.metadata.isDeleted()) {
                     // Segment was deleted - nothing more to do.
-                    return new FlushArgs(null, 0);
+                    return null;
                 }
                 throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for '%s'.", appendOp));
             }
         }
 
         appendOp.seal();
-        return new FlushArgs(data, length);
+        return data;
     }
 
     /**
@@ -1303,28 +1310,17 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in Storage.
      */
     private CompletableFuture<WriterFlushResult> reconcileAppendOperation(AggregatedAppendOperation op, SegmentProperties storageInfo, TimeoutTimer timer) {
-        CompletableFuture<Boolean> reconcileResult;
-        WriterFlushResult flushResult = new WriterFlushResult();
-        if (op.getLength() > 0) {
-            // This operation has data. Reconcile that first.
-            reconcileResult = reconcileData(op, storageInfo, timer)
-                    .thenApply(reconciledBytes -> {
-                        flushResult.withFlushedBytes(reconciledBytes);
-                        return reconciledBytes >= op.getLength() && op.getLastStreamSegmentOffset() <= storageInfo.getLength();
-                    });
-        } else {
-            // No data to reconcile, so we consider this part done.
-            reconcileResult = CompletableFuture.completedFuture(true);
-        }
-
-        return reconcileResult.thenApplyAsync(fullyReconciled -> {
-            if (fullyReconciled) {
+        CompletableFuture<Integer> reconcileResult = op.getLength() > 0 ? reconcileData(op, storageInfo, timer) : CompletableFuture.completedFuture(0);
+        return reconcileResult.thenApplyAsync(reconciledBytes -> {
+            op.reconcileComplete(reconciledBytes); // Reflect the reconciliation result in the operation.
+            if (op.getLength() == 0) {
                 // Operation has been completely validated; pop it off the list.
                 StorageOperation removedOp = this.operations.removeFirst();
                 assert op == removedOp : "Reconciled operation is not the same as removed operation";
             }
-            return flushResult;
-        });
+
+            return new WriterFlushResult().withFlushedBytes(reconciledBytes);
+        }, this.executor);
     }
 
     /**
@@ -1338,8 +1334,8 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in Storage.
      */
     private CompletableFuture<Integer> reconcileData(AggregatedAppendOperation op, SegmentProperties storageInfo, TimeoutTimer timer) {
-        InputStream appendStream = this.dataSource.getAppendData(op.getStreamSegmentId(), op.getStreamSegmentOffset(), (int) op.getLength());
-        if (appendStream == null) {
+        BufferView appendData = this.dataSource.getAppendData(op.getStreamSegmentId(), op.getStreamSegmentOffset(), (int) op.getLength());
+        if (appendData == null) {
             return Futures.failedFuture(new ReconciliationFailureException(
                     String.format("Unable to reconcile operation '%s' because no append data is associated with it.", op), this.metadata, storageInfo));
         }
@@ -1362,13 +1358,15 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                         this.executor)
                 .thenApplyAsync(v -> {
                     // Compare, byte-by-byte, the contents of the append.
-                    verifySame(appendStream, storageData, op, storageInfo);
+                    verifySame(appendData, storageData, op, storageInfo);
                     return reconciledBytes.get();
                 }, this.executor);
     }
 
     @SneakyThrows
-    private void verifySame(InputStream appendStream, byte[] storageData, StorageOperation op, SegmentProperties storageInfo) {
+    private void verifySame(BufferView appendData, byte[] storageData, StorageOperation op, SegmentProperties storageInfo) {
+        @Cleanup
+        InputStream appendStream = appendData.getReader();
         for (int i = 0; i < storageData.length; i++) {
             if ((byte) appendStream.read() != storageData[i]) {
                 throw new ReconciliationFailureException(
@@ -1551,14 +1549,15 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     /**
      * Updates the metadata and the internal state after a flush was completed.
      *
-     * @param flushArgs The arguments used for flushing.
+     * @param flushData The arguments used for flushing.
      * @return A FlushResult containing statistics about the flush operation.
      */
-    private WriterFlushResult updateStatePostFlush(FlushArgs flushArgs) {
+    private WriterFlushResult updateStatePostFlush(BufferView flushData) {
         // Update the metadata Storage Length, if necessary.
         long newLength = this.metadata.getStorageLength();
-        if (flushArgs.getLength() > 0) {
-            newLength += flushArgs.getLength();
+        int flushLength = flushData == null ? 0 : flushData.getLength();
+        if (flushLength > 0) {
+            newLength += flushData.getLength();
             this.metadata.setStorageLength(newLength);
         }
 
@@ -1579,7 +1578,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         // Update the last flush checkpoint.
         this.lastFlush.set(this.timer.getElapsed());
-        return new WriterFlushResult().withFlushedBytes(flushArgs.getLength());
+        return new WriterFlushResult().withFlushedBytes(flushLength);
     }
 
     /**
@@ -1706,15 +1705,6 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         }
     }
 
-    /**
-     * Represents a set of arguments for a Storage Flush Operation.
-     */
-    @Data
-    private static class FlushArgs {
-        private final InputStream stream;
-        private final int length;
-    }
-
     private static class AggregatedAppendOperation extends StorageOperation {
         private final AtomicLong streamSegmentOffset;
         private final AtomicInteger length;
@@ -1739,6 +1729,11 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         boolean isSealed() {
             return this.sealed.get();
+        }
+
+        void reconcileComplete(int reconciledBytes) {
+            this.streamSegmentOffset.addAndGet(reconciledBytes);
+            this.length.addAndGet(-reconciledBytes);
         }
 
         // region StorageOperation Implementation

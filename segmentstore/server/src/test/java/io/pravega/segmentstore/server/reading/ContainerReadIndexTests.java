@@ -11,13 +11,11 @@ package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -43,8 +41,6 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -218,8 +214,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             }
 
             // Check the entry contents.
-            byte[] entryData = new byte[entry.getContent().join().getLength()];
-            StreamHelpers.readAll(entry.getContent().join().getData(), entryData, 0, entryData.length);
+            byte[] entryData = entry.getContent().join().getCopy();
             AssertExtensions.assertArrayEquals("Unexpected data read at offset " + expectedCurrentOffset, segmentData, (int) expectedCurrentOffset, entryData, 0, entryData.length);
             expectedCurrentOffset += entryData.length;
 
@@ -283,8 +278,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Verify that any reads overlapping a merged transaction return null (that is, we cannot retrieve the requested data).
         for (long offset = mergedTxOffset - 1; offset < endOfMergedDataOffset; offset++) {
-            InputStream resultStream = context.readIndex.readDirect(segmentId, offset, 2);
-            Assert.assertNull("readDirect() returned data overlapping a partially merged transaction", resultStream);
+            val resultData = context.readIndex.readDirect(segmentId, offset, 2);
+            Assert.assertNull("readDirect() returned data overlapping a partially merged transaction", resultData);
         }
 
         // Verify that we can read from any other offset.
@@ -292,26 +287,17 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         BiConsumer<Long, Long> verifyReadResult = (startOffset, endOffset) -> {
             int readLength = (int) (endOffset - startOffset);
             while (readLength > 0) {
-                InputStream actualDataStream;
+                BufferView actualDataBuffer;
                 try {
-                    actualDataStream = context.readIndex.readDirect(segmentId, startOffset, readLength);
+                    actualDataBuffer = context.readIndex.readDirect(segmentId, startOffset, readLength);
                 } catch (StreamSegmentNotExistsException ex) {
                     throw new CompletionException(ex);
                 }
                 Assert.assertNotNull(
                         String.format("Unexpected result when data is readily available for Offset = %s, Length = %s.", startOffset, readLength),
-                        actualDataStream);
+                        actualDataBuffer);
 
-                byte[] actualData = new byte[readLength];
-                try {
-                    int bytesCopied = StreamHelpers.readAll(actualDataStream, actualData, 0, readLength);
-                    Assert.assertEquals(
-                            String.format("Unexpected number of bytes read for Offset = %s, Length = %s (pre-partial-merge).", startOffset, readLength),
-                            readLength, bytesCopied);
-                } catch (IOException ex) {
-                    throw new UncheckedIOException(ex); // Technically not possible.
-                }
-
+                byte[] actualData = actualDataBuffer.getCopy();
                 AssertExtensions.assertArrayEquals("Unexpected data read from the segment at offset " + startOffset,
                         expectedData, startOffset.intValue(), actualData, 0, actualData.length);
 
@@ -825,7 +811,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                     // Check all the appended data. It must not have been overridden.
                     val appendedDataStream = context.readIndex.readDirect(metadata.getId(), metadata.getStorageLength(), appendedData.get().getLength());
                     Assert.assertNotNull("Unable to read appended data.", appendedDataStream);
-                    val actualAppendedData = StreamHelpers.readAll(appendedDataStream, appendedData.get().getLength());
+                    val actualAppendedData = appendedDataStream.getCopy();
                     AssertExtensions.assertArrayEquals("Unexpected appended data read back.",
                             appendedData.get().array(), 0, actualAppendedData, 0, appendedData.get().getLength());
 
@@ -1164,7 +1150,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                     insertedInCache.complete(null);
                 };
                 resultEntry.requestContent(TIMEOUT);
-                ReadResultEntryContents contents = resultEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                BufferView contents = resultEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 Assert.assertFalse("Not expecting more data to be available for reading.", result.hasNext());
                 Assert.assertEquals("Unexpected ReadResultEntry length when trying to load up data into the ReadIndex Cache.", appendSize, contents.getLength());
 
@@ -1374,10 +1360,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
             // Request contents and store for later use.
             entry.requestContent(TIMEOUT);
-            ReadResultEntryContents contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            byte[] readBuffer = new byte[contents.getLength()];
-            StreamHelpers.readAll(contents.getData(), readBuffer, 0, readBuffer.length);
-            readStream.write(readBuffer);
+            BufferView contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            contents.copyTo(readStream);
             expectedOffset += contents.getLength();
         }
 
@@ -1411,10 +1395,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         ReadResultEntry entry = setupMergeRead(parentId, transactionId, writeData.getCopy(), context);
         context.readIndex.completeMerge(parentId, transactionId);
 
-        ReadResultEntryContents contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        byte[] readData = new byte[contents.getLength()];
-        StreamHelpers.readAll(contents.getData(), readData, 0, readData.length);
-
+        BufferView contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        byte[] readData = contents.getCopy();
         Assert.assertArrayEquals("Unexpected data read from parent segment.", writeData.getCopy(), readData);
     }
 
@@ -1662,13 +1644,109 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // readDirect() should return an InputStream for the second append range.
         val readData = context.readIndex.readDirect(segmentId, append1.getLength(), append2.getLength());
         Assert.assertNotNull("Expected append2 to be read back.", readData);
-        AssertExtensions.assertStreamEquals("Unexpected data read back from append2.", append2.getReader(), readData, append2.getLength());
+        AssertExtensions.assertStreamEquals("Unexpected data read back from append2.", append2.getReader(), readData.getReader(), append2.getLength());
 
         // Reading the whole segment should work well too.
         byte[] allData = new byte[append1.getLength() + append2.getLength()];
         context.readIndex.read(segmentId, 0, allData.length, TIMEOUT).readRemaining(allData, TIMEOUT);
         AssertExtensions.assertArrayEquals("Unexpected data read back from segment.", append1.array(), 0, allData, 0, append1.getLength());
         AssertExtensions.assertArrayEquals("Unexpected data read back from segment.", append2.array(), 0, allData, append1.getLength(), append2.getLength());
+    }
+
+    /**
+     * Tests a deadlock-prone scenario involving multiple Storage read requests from multiple segments, all hitting a
+     * CacheFullException while trying to process.
+     *
+     * Steps:
+     * 1. Segment 1: Storage Read Complete -> Ack -> Insert in Index -> Acquire (ReadIndex1.Lock[Thread1]) -> Insert in Cache [Request1]
+     * 2. Segment 2: Storage Read Complete -> Ack -> Insert in Index -> Acquire (ReadIndex2.Lock[Thread2]) -> Insert in Cache [Request2]
+     * 3. Cache is full. Deadlock occurs if:
+     * 3.1. [Request1] invokes Cache Eviction, which wants to acquire ReadIndex2.Lock, but it is owned by Thread2.
+     * 3.2. [Request2] invokes Cache Eviction, which wants to acquire ReadIndex1.Lock, but it is owned by Thread1.
+     *
+     * This test verifies that no deadlock occurs by simulating this exact scenario. It verifies that all requests eventually
+     * complete successfully (as the deadlock victim will back off and retry).
+     */
+    @Test
+    public void testCacheFullDeadlock() throws Exception {
+        val maxCacheSize = 2 * 1024 * 1024; // This is the actual cache size, even if we set a lower value than this.
+        val append1Size = (int) (0.75 * maxCacheSize); // Fill up most of the cache - this is also a candidate for eviction.
+        val append2Size = 1; // Dummy append - need to register the read index as a cache client.
+        val segmentSize = maxCacheSize + 1;
+
+        val config = ReadIndexConfig
+                .builder()
+                .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
+                .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, maxCacheSize)
+                .build();
+        CachePolicy cachePolicy = new CachePolicy(maxCacheSize, Duration.ZERO, Duration.ofMillis(1));
+        @Cleanup
+        TestContext context = new TestContext(config, cachePolicy, maxCacheSize);
+
+        // Block the first insert (this will be from segment 1
+        val append1Address = new AtomicInteger(0);
+        context.cacheStorage.insertCallback = a -> append1Address.compareAndSet(0, a);
+        val segment1Delete = new ReusableLatch();
+        context.cacheStorage.beforeDelete = deleteAddress -> {
+            if (deleteAddress == append1Address.get()) {
+                // Block eviction of the first segment 1 data (just the first; we want the rest to go through).
+                Exceptions.handleInterrupted(segment1Delete::await);
+            }
+        };
+
+        // Create segments and make each of them slightly bigger than the cache capacity.
+        long segment1Id = createSegment(0, context);
+        long segment2Id = createSegment(1, context);
+        val segment1Metadata = context.metadata.getStreamSegmentMetadata(segment1Id);
+        val segment2Metadata = context.metadata.getStreamSegmentMetadata(segment2Id);
+        segment1Metadata.setLength(segmentSize);
+        segment1Metadata.setStorageLength(segmentSize);
+        segment2Metadata.setLength(segmentSize);
+        segment2Metadata.setStorageLength(segmentSize);
+        createSegmentsInStorage(context);
+
+        context.storage.openWrite(segment1Metadata.getName())
+                .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[segmentSize]), segmentSize, TIMEOUT))
+                .join();
+        context.storage.openWrite(segment2Metadata.getName())
+                .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[segmentSize]), segmentSize, TIMEOUT))
+                .join();
+
+        // Write some data into the cache. This will become a candidate for eviction at the next step.
+        context.readIndex.append(segment1Id, 0, new ByteArraySegment(new byte[append1Size]));
+
+        // Write some data into Segment 2's index. This will have no effect on the cache, but we will register it with the Cache Manager.
+        context.readIndex.append(segment2Id, 0, new ByteArraySegment(new byte[append2Size]));
+
+        // Initiate the first Storage read. This should exceed the max cache size, so it should trigger the cleanup.
+        val segment1Read = context.readIndex.read(segment1Id, append1Size, segmentSize - append1Size, TIMEOUT).next();
+        Assert.assertEquals(ReadResultEntryType.Storage, segment1Read.getType());
+        segment1Read.requestContent(TIMEOUT);
+        segment1Read.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS); // This one should complete right away.
+
+        // Wait for the delete callback to be latched.
+        TestUtils.await(() -> segment1Delete.getQueueLength() > 0, 10, TIMEOUT.toMillis());
+
+        // Initiate the second Storage read. This should also exceed the max cache size and trigger another cleanup, but
+        // (most importantly) on a different thread.
+        val segment2Read = context.readIndex.read(segment2Id, append2Size, segmentSize - append2Size, TIMEOUT).next();
+        Assert.assertEquals(ReadResultEntryType.Storage, segment2Read.getType());
+        segment2Read.requestContent(TIMEOUT);
+        segment2Read.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS); // As with the first one, this should complete right away.
+
+        // We use yet another thread to validate that no deadlock occurs. This should briefly block on Segment 2's Read index's
+        // lock, but it should be unblocked when we release that (next step).
+        val append2Future = CompletableFuture.runAsync(() -> {
+            try {
+                context.readIndex.append(segment2Id, append2Size, new ByteArraySegment(new byte[append1Size]));
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+        }, executorService());
+
+        // Release the delete blocker. If all goes well, all the other operations should be unblocked at this point.
+        segment1Delete.release();
+        append2Future.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     //endregion
@@ -1838,11 +1916,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
                 // Request content, in case it wasn't returned yet.
                 readEntry.requestContent(TIMEOUT);
-                ReadResultEntryContents readEntryContents = readEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                BufferView readEntryContents = readEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 AssertExtensions.assertGreaterThan(testId + ": getContent() returned an empty result entry for segment " + segmentId, 0, readEntryContents.getLength());
 
-                byte[] actualData = new byte[readEntryContents.getLength()];
-                StreamHelpers.readAll(readEntryContents.getData(), actualData, 0, actualData.length);
+                byte[] actualData = readEntryContents.getCopy();
                 AssertExtensions.assertArrayEquals(testId + ": Unexpected data read from segment " + segmentId + " at offset " + expectedCurrentOffset, expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
 
                 expectedCurrentOffset += readEntryContents.getLength();
@@ -1871,8 +1948,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             }
 
             int readLength = (int) (segmentLength - startOffset);
-            InputStream readData = context.readIndex.readDirect(segmentId, startOffset, readLength);
-            byte[] actualData = StreamHelpers.readAll(readData, readLength);
+            byte[] actualData = context.readIndex.readDirect(segmentId, startOffset, readLength).getCopy();
             AssertExtensions.assertArrayEquals("Unexpected data read.", expectedData, (int) startOffset, actualData, 0, actualData.length);
         }
     }
@@ -1970,7 +2046,11 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
 
         TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy) {
-            this.cacheStorage = new TestCacheStorage(Integer.MAX_VALUE);
+            this(readIndexConfig, cachePolicy, Integer.MAX_VALUE);
+        }
+
+        TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy, int actualCacheSize) {
+            this.cacheStorage = new TestCacheStorage(Math.min(Integer.MAX_VALUE, actualCacheSize));
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.storage = new TestStorage(new InMemoryStorage(), executorService());
             this.storage.initialize(1);
@@ -2002,6 +2082,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     //region TestCacheStorage
 
     private static class TestCacheStorage extends DirectMemoryCache {
+        Consumer<Integer> beforeDelete;
         Consumer<Integer> insertCallback;
         Consumer<Integer> deleteCallback;
         boolean disableAppends;
@@ -2024,9 +2105,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         @Override
         public int insert(BufferView data) {
             int r = super.insert(data);
-            Consumer<Integer> callback = this.insertCallback;
-            if (callback != null) {
-                callback.accept(r);
+            Consumer<Integer> afterInsert = this.insertCallback;
+            if (afterInsert != null) {
+                afterInsert.accept(r);
             }
 
             return r;
@@ -2056,6 +2137,11 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         @Override
         public void delete(int address) {
+            Consumer<Integer> beforeDelete = this.beforeDelete;
+            if (beforeDelete != null) {
+                beforeDelete.accept(address);
+            }
+
             super.delete(address);
             Consumer<Integer> callback = this.deleteCallback;
             if (callback != null) {

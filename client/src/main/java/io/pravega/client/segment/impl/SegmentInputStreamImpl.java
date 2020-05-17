@@ -84,9 +84,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         if (offset != this.offset || resendRequest) {
             if (outstandingRequest != null) {
                 log.debug("Cancelling the read request for segment {} at offset {}. The new read offset is {}", asyncInput.getSegmentId(), this.offset, offset);
-                outstandingRequest.cancel(true);
-                log.debug("Completed cancelling the read request for segment {}", asyncInput.getSegmentId());
-                outstandingRequest = null;
+                cancelOutstandingRequest();
             }
             this.offset = offset;
             buffer.clear();
@@ -150,20 +148,22 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             throw e;
         }
         verifyIsAtCorrectOffset(segmentRead);
-        if (segmentRead.getData().hasRemaining()) {
-            buffer.fill(segmentRead.getData());
+        if (segmentRead.getData().readableBytes() > 0) {
+            int copied = buffer.fill(segmentRead.getData().nioBuffers());
+            segmentRead.getData().skipBytes(copied);
         }
         if (segmentRead.isEndOfSegment()) {
             receivedEndOfSegment = true;
         }
-        if (!segmentRead.getData().hasRemaining()) {
+        if (segmentRead.getData().readableBytes() == 0) {
+            segmentRead.release();
             outstandingRequest = null;
             issueRequestIfNeeded();
         }
     }
 
     private void verifyIsAtCorrectOffset(WireCommands.SegmentRead segmentRead) {
-        long offsetRead = segmentRead.getOffset() + segmentRead.getData().position();
+        long offsetRead = segmentRead.getOffset() + segmentRead.getData().readerIndex();
         long expectedOffset = offset + buffer.dataAvailable();
         checkState(offsetRead == expectedOffset, "ReadSegment returned data for the wrong offset %s vs %s", offsetRead,
                    expectedOffset);
@@ -179,7 +179,8 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         int updatedReadLength = computeReadLength(offset + buffer.dataAvailable());
         if (!receivedEndOfSegment && !receivedTruncated && updatedReadLength > 0 && outstandingRequest == null) {
             log.trace("Issuing read request for segment {} of {} bytes", getSegmentId(), updatedReadLength);
-            outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), updatedReadLength);
+            CompletableFuture<SegmentRead> r = asyncInput.read(offset + buffer.dataAvailable(), updatedReadLength);
+            outstandingRequest = Futures.cancellableFuture(r, SegmentRead::release);
         }
     }
 
@@ -197,14 +198,32 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         return Math.toIntExact(Math.min(currentReadLength, numberOfBytesRemaining));
     }
 
+    @GuardedBy("$lock")
+    private void cancelOutstandingRequest() {
+        // We need to make sure that we release the ByteBuf held on to by WireCommands.SegmentRead.
+        // We first attempt to cancel the request. If it has not already completed (and will complete successfully at one point),
+        // it will automatically release the buffer.
+        outstandingRequest.cancel(true);
+
+        // If the request has already completed successfully, attempt to release it anyway. Doing so multiple times will
+        // have no adverse effect. We do this after attempting to cancel (as opposed to before) since the request may very
+        // well complete while we're executing this method and we want to ensure no SegmentRead instances are left hanging.
+        if (outstandingRequest.isDone() && !outstandingRequest.isCompletedExceptionally()) {
+            SegmentRead request = outstandingRequest.join();
+            request.release();
+        }
+
+        log.debug("Completed cancelling outstanding read request for segment {}", asyncInput.getSegmentId());
+        outstandingRequest = null;
+    }
+
     @Override
     @Synchronized
     public void close() {
         log.trace("Closing {}", this);
         if (outstandingRequest != null) {
             log.debug("Cancel outstanding read request for segment {}", asyncInput.getSegmentId());
-            outstandingRequest.cancel(true);
-            log.debug("Completed cancelling outstanding read request for segment {}", asyncInput.getSegmentId());
+            cancelOutstandingRequest();
         }
         asyncInput.close();
     }
@@ -214,7 +233,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     public CompletableFuture<?> fillBuffer() {
         log.trace("Filling buffer {}", this);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
-        try {      
+        try {
             issueRequestIfNeeded();
             while (dataWaitingToGoInBuffer()) {
                 handleRequest();
@@ -233,7 +252,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         boolean atEnd = receivedEndOfSegment || receivedTruncated || (outstandingRequest != null && outstandingRequest.isCompletedExceptionally());
         if (outstandingRequest != null && Futures.isSuccessful(outstandingRequest)) {
             SegmentRead request = outstandingRequest.join();
-            result += request.getData().remaining();
+            result += request.getData().readableBytes();
             atEnd |= request.isEndOfSegment();
         }
         if (result <= 0 && atEnd) {

@@ -17,7 +17,6 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CollectionHelpers;
-import io.pravega.common.util.OrderedItemProcessor;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import java.io.IOException;
@@ -78,9 +77,6 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     private final ScheduledExecutorService executor;
     private AtomicReference<ScheduledFuture<?>> assigmentTask;
     private final AtomicLong lastReportTime;
-    // We start Segment Containers sequentially, given that starting them in parallel may lead to the cache being full
-    // if there is too much data to recover.
-    private final OrderedItemProcessor<Integer, ContainerHandle> startContainerOrderedProcessor;
 
     /**
      * Creates an instance of ZKSegmentContainerMonitor.
@@ -90,7 +86,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
      * @param pravegaServiceEndpoint The pravega endpoint for which we need to fetch the container assignment.
      */
     ZKSegmentContainerMonitor(SegmentContainerRegistry containerRegistry, CuratorFramework zkClient,
-                              Host pravegaServiceEndpoint, int parallelContainerStarts, ScheduledExecutorService executor) {
+                              Host pravegaServiceEndpoint, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(zkClient, "zkClient");
 
         this.registry = Preconditions.checkNotNull(containerRegistry, "containerRegistry");
@@ -102,9 +98,6 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         this.hostContainerMapNode = new NodeCache(zkClient, clusterPath);
         this.assigmentTask = new AtomicReference<>();
         this.lastReportTime = new AtomicLong(CURRENT_TIME_MILLIS.get());
-        // Allow OrderedItemProcessor to throw exceptions, as they may happen while starting containers. But we want to
-        // continue processing subsequent container starts irrespective of such failures.
-        this.startContainerOrderedProcessor = new OrderedItemProcessor<>(parallelContainerStarts, this::startContainer, false, this.executor);
     }
 
     /**
@@ -155,7 +148,6 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
 
         // Wait for all the containers to be closed.
         Futures.await(Futures.allOf(results), CLOSE_TIMEOUT_PER_CONTAINER.toMillis());
-        this.startContainerOrderedProcessor.close();
     }
 
     @VisibleForTesting
@@ -197,10 +189,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
                     this.lastReportTime.set(CURRENT_TIME_MILLIS.get());
                 }
 
-                // We start segment containers sequentially to ensure that we do not overload the cache with parallel
-                // container recoveries.
-                containersToBeStarted.forEach(startContainerOrderedProcessor::process);
                 // Initiate the start and stop tasks asynchronously.
+                containersToBeStarted.forEach(this::startContainer);
                 containersToBeStopped.forEach(this::stopContainer);
             } else {
                 log.warn("No segment container assignments found");

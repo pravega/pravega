@@ -64,6 +64,15 @@ public class CompositeByteArraySegmentTests {
             Assert.assertEquals("Unexpected value via getCopy() at index " + i, expectedValue, getCopyContents[i]);
             Assert.assertEquals("Unexpected value via getReader() at index " + i, expectedValue, getReaderContents[i]);
         }
+
+        val buffers = s.getContents();
+        Assert.assertEquals("Unexpected number of buffers.", ARRAY_COUNT, buffers.size());
+        for (int i = 0; i < buffers.size(); i++) {
+            val b = buffers.get(i);
+            int expectedSize = i == ARRAY_COUNT - 1 ? LENGTH % ARRAY_SIZE : ARRAY_SIZE;
+            Assert.assertEquals("Unexpected buffer size at array index " + i, expectedSize, b.remaining());
+            AssertExtensions.assertArrayEquals("", getCopyContents, i * ARRAY_SIZE, b.array(), b.arrayOffset(), expectedSize);
+        }
     }
 
     /**
@@ -153,6 +162,30 @@ public class CompositeByteArraySegmentTests {
     }
 
     /**
+     * Tests the {@link CompositeByteArraySegment#getBufferViewReader()} method.
+     */
+    @Test
+    public void testGetBufferViewReader() {
+        testProgressiveCopies((expectedData, s, offset, length) -> {
+            val targetData = new byte[s.getLength()];
+            s.copyTo(new FixedByteArrayOutputStream(targetData, 0, targetData.length));
+
+            for (int sliceOffset = 0; sliceOffset <= s.getLength() / 2; sliceOffset++) {
+                val sliceLength = s.getLength() - 2 * sliceOffset;
+                val reader = s.slice(sliceOffset, sliceLength).getBufferViewReader();
+                if (sliceLength == 0) {
+                    Assert.assertEquals("Unexpected data read for empty slice.", 0, reader.available());
+                } else {
+                    val actualData = reader.readFully(10);
+                    AssertExtensions.assertArrayEquals("Unexpected data sliced for step " + offset,
+                            targetData, sliceOffset, actualData.array(), actualData.arrayOffset(), actualData.getLength());
+                    Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
+                }
+            }
+        });
+    }
+
+    /**
      * Tests the {@link CompositeByteArraySegment#slice} method while writing (verifies that changes in a slice reflect
      * in the parent segment).
      */
@@ -192,7 +225,7 @@ public class CompositeByteArraySegmentTests {
 
             // Populate the buffer and check it.
             val s = emptyBuffer();
-            s.copyFrom(sourceData, offset, sourceData.getLength());
+            s.copyFrom(sourceData.getBufferViewReader(), offset, sourceData.getLength());
             check.accept(expectedData, s, offset, sourceData.getLength());
         }
     }

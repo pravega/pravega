@@ -15,6 +15,7 @@ import io.netty.buffer.ByteBufInputStream;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BufferedIterator;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import java.io.InputStream;
@@ -31,6 +32,7 @@ import org.apache.bookkeeper.client.api.LedgerEntries;
 import org.apache.bookkeeper.client.api.ReadHandle;
 import lombok.NonNull;
 import lombok.SneakyThrows;
+import org.apache.bookkeeper.client.api.Handle;
 
 /**
  * Performs read from BookKeeper Logs.
@@ -40,6 +42,7 @@ import lombok.SneakyThrows;
 class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> {
     //region Members
 
+    private final int logId;
     private final BookKeeper bookKeeper;
     private final LogMetadata metadata;
     private final AtomicBoolean closed;
@@ -53,11 +56,13 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
     /**
      * Creates a new instance of the LogReader class.
      *
+     * @param logId      The Id of the {@link BookKeeperLog} to read from. This is used for validation purposes.
      * @param metadata   The LogMetadata of the Log to read.
      * @param bookKeeper A reference to the BookKeeper client to use.
      * @param config     Configuration to use.
      */
-    LogReader(LogMetadata metadata, BookKeeper bookKeeper, BookKeeperConfig config) {
+    LogReader(int logId, LogMetadata metadata, BookKeeper bookKeeper, BookKeeperConfig config) {
+        this.logId = logId;
         this.metadata = Preconditions.checkNotNull(metadata, "metadata");
         this.bookKeeper = Preconditions.checkNotNull(bookKeeper, "bookKeeper");
         this.config = Preconditions.checkNotNull(config, "config");
@@ -130,6 +135,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             ledger = Ledgers.openFence(metadata.getLedgerId(), this.bookKeeper, this.config);
         }
 
+        checkLogIdProperty(ledger);
         long lastEntryId = ledger.getLastAddConfirmed();
         if (lastEntryId < address.getEntryId()) {
             // This ledger is empty.
@@ -153,6 +159,13 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         }
     }
 
+    private void checkLogIdProperty(Handle handle) throws DataLogCorruptedException {
+        int actualLogId = Ledgers.getBookKeeperLogId(handle);
+        if (actualLogId != Ledgers.NO_LOG_ID && actualLogId != this.logId) {
+            throw new DataLogCorruptedException(String.format("BookKeeperLog %s contains ledger %s which belongs to BookKeeperLog %s.",
+                    this.logId, handle.getId(), actualLogId));
+        }
+    }
 
     //endregion
 
