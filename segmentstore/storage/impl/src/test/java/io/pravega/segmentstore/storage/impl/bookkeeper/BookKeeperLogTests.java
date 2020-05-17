@@ -767,7 +767,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 .withAckQuorumSize(this.config.get().getBkAckQuorumSize())
                 .withDigestType(this.config.get().getDigestType())
                 .withPassword(this.config.get().getBKPassword())
-                .withCustomMetadata(customMetadata)
+                .withCustomMetadata(customMetadata != null ? customMetadata : Collections.emptyMap())
                 .execute()
                 .get();
     }
