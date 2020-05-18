@@ -50,6 +50,15 @@ public class Property<T> {
         return new Property<>(name, defaultValue, null);
     }
 
+    /**
+     * Creates a new instance of the Property class with the given default value.
+     *
+     * @param name          The name of the property.
+     * @param defaultValue  The default value of the property.
+     * @param legacyName    The old name of the property, for backward compatibility.
+     * @param <T>           The type of the property values.
+     * @return A new instance of the Property class with the given default value.
+     */
     public static <T> Property<T> named(String name, T defaultValue, String legacyName) {
         return new Property<>(name, defaultValue, legacyName);
     }
@@ -61,6 +70,11 @@ public class Property<T> {
         return this.defaultValue != null;
     }
 
+    /**
+     * Determines whether this instance has a legacy name.
+     *
+     * @return {@code true} if this has a legacy name, otherwise {@code false}.
+     */
     boolean hasLegacyName() {
         return this.legacyName != null;
     }
