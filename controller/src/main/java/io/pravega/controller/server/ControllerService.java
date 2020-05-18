@@ -21,15 +21,11 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
-import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.ScaleMetadata;
-import io.pravega.controller.store.stream.State;
-import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.*;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -43,8 +39,10 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.task.KeyValueTable.KVTableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -69,7 +67,8 @@ import org.apache.commons.lang3.tuple.Pair;
 @AllArgsConstructor
 @Slf4j
 public class ControllerService {
-
+    private final KVTableMetadataStore kvtMetadataStore;
+    private final KVTableMetadataTasks kvtMetadataTasks;
     private final StreamMetadataStore streamStore;
     private final BucketStore bucketStore;
     private final StreamMetadataTasks streamMetadataTasks;
@@ -93,6 +92,19 @@ public class ControllerService {
                 throw Exceptions.sneakyThrow(e);
             }
         }, executor);
+    }
+
+    public CompletableFuture<CreateKeyValueTableStatus> createKeyValueTable(String scope, String kvtName, final KeyValueTableConfiguration kvtConfig,
+                                                              final long createTimestamp) {
+
+        Preconditions.checkNotNull(kvtConfig, "streamConfig");
+        Preconditions.checkArgument(createTimestamp >= 0);
+        Timer timer = new Timer();
+        return kvtMetadataTasks.createKeyValueTable(scope, kvtName, kvtConfig, null)
+                .thenApplyAsync(status -> {
+                    reportCreateKVTableMetrics(scope, kvtName, 5, status, timer.getElapsed());
+                    return CreateKeyValueTableStatus.newBuilder().setStatus(status).build();
+                }, executor);
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
@@ -483,6 +495,16 @@ public class ControllerService {
     }
 
     // Metrics reporting region
+
+
+    private void reportCreateKVTableMetrics(String scope, String kvtName, int initialSegments, CreateKeyValueTableStatus.Status status,
+                                           Duration latency) {
+        if (status.equals(CreateStreamStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().createStream(scope, kvtName, initialSegments, latency);
+        } else if (status.equals(CreateStreamStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().createStreamFailed(scope, kvtName);
+        }
+    }
 
     private void reportCreateStreamMetrics(String scope, String streamName, int initialSegments, CreateStreamStatus.Status status,
                                            Duration latency) {

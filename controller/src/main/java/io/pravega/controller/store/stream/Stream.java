@@ -23,6 +23,8 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.Version;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;

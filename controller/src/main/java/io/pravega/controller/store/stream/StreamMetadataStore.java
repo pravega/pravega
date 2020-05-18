@@ -10,6 +10,8 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
@@ -417,6 +419,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor      callers executor
      * @return segments that immediately follow the specified segment and the segments they follow.
      */
+
     CompletableFuture<Map<StreamSegmentRecord, List<Long>>> getSuccessors(final String scope,
                                                                                      final String streamName,
                                                                                      final long segmentId,

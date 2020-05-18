@@ -53,6 +53,17 @@ message ServerResponse {
     repeated NodeUri nodeURI = 1;
 }
 
+message CreateKeyValueTableStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        TABLE_EXISTS = 2;
+        SCOPE_NOT_FOUND = 3;
+        INVALID_TABLE_NAME = 4;
+    }
+    Status status = 1;
+}
+
 message CreateStreamStatus {
     enum Status {
         SUCCESS = 0;

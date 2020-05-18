@@ -15,6 +15,9 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.PravegaTablesStoreHelper;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
@@ -96,7 +99,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_KEY_PREFIX + "/%s";
     
     // non existent records
-    private static final VersionedMetadata<ActiveTxnRecord> NON_EXISTENT_TXN = 
+    private static final VersionedMetadata<ActiveTxnRecord> NON_EXISTENT_TXN =
             new VersionedMetadata<>(ActiveTxnRecord.EMPTY, new Version.LongVersion(Long.MIN_VALUE));
 
     private final PravegaTablesStoreHelper storeHelper;

@@ -7,15 +7,17 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store.kvtable;
 
-import lombok.Data;
+class KVTOperationContextImpl<T> implements KVTOperationContext {
 
-/**
- * Wrapper data class that wraps a generic object with a version.
- */
-@Data
-public class VersionedMetadata<OBJECT> {
-    private final OBJECT object;
-    private final Version version;
+    private final KeyValueTable kvTable;
+
+    KVTOperationContextImpl(KeyValueTable kvt) {
+        this.kvTable = kvt;
+    }
+
+    public KeyValueTable getKeyValueTable(){
+        return kvTable;
+    }
 }

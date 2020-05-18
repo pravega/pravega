@@ -17,6 +17,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
