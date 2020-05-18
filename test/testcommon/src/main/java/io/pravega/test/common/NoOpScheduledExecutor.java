@@ -124,58 +124,58 @@ public class NoOpScheduledExecutor implements ScheduledExecutorService {
     @Override
     public void execute(Runnable runnable) {
     }
-}
 
-@EqualsAndHashCode // Required to keep Spotbugs satisfied (owing to code in `compareTo()`).
-@RequiredArgsConstructor
-class DummyScheduledFuture implements ScheduledFuture<Integer> {
+    @EqualsAndHashCode // Required to keep Spotbugs satisfied (owing to code in `compareTo()`).
+    @RequiredArgsConstructor
+    private static class DummyScheduledFuture implements ScheduledFuture<Integer> {
 
-    @NonNull
-    @Getter
-    private final Integer value;
+        @NonNull
+        @Getter
+        private final Integer value;
 
-    private boolean isCancelled = false;
+        private boolean isCancelled = false;
 
-    @Override
-    public long getDelay(TimeUnit timeUnit) {
-        return 0L;
-    }
-
-    @Override
-    public int compareTo(Delayed other) {
-        DummyScheduledFuture otherTask = (DummyScheduledFuture) other;
-        if (this.value > otherTask.getValue()) {
-            return 1;
-        } else if (this.value < otherTask.getValue()) {
-            return -1;
-        } else {
-            return 0;
+        @Override
+        public long getDelay(TimeUnit timeUnit) {
+            return 0L;
         }
-    }
 
-    @Override
-    public boolean cancel(boolean b) {
-        this.isCancelled = b;
-        return true;
-    }
+        @Override
+        public int compareTo(Delayed other) {
+            DummyScheduledFuture otherTask = (DummyScheduledFuture) other;
+            if (this.value > otherTask.getValue()) {
+                return 1;
+            } else if (this.value < otherTask.getValue()) {
+                return -1;
+            } else {
+                return 0;
+            }
+        }
 
-    @Override
-    public boolean isCancelled() {
-        return isCancelled;
-    }
+        @Override
+        public boolean cancel(boolean b) {
+            this.isCancelled = b;
+            return true;
+        }
 
-    @Override
-    public boolean isDone() {
-        return true;
-    }
+        @Override
+        public boolean isCancelled() {
+            return isCancelled;
+        }
 
-    @Override
-    public Integer get() {
-        return this.value;
-    }
+        @Override
+        public boolean isDone() {
+            return true;
+        }
 
-    @Override
-    public Integer get(long l, TimeUnit timeUnit) {
-        return this.value;
+        @Override
+        public Integer get() {
+            return this.value;
+        }
+
+        @Override
+        public Integer get(long l, TimeUnit timeUnit) {
+            return this.value;
+        }
     }
 }
