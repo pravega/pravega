@@ -314,7 +314,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String streamName = "abc";
         int port = TestUtils.getAvailableListenPort();
-        ByteBuffer payload = ByteBuffer.allocate(1024*1024);
+        ByteBuffer payload = ByteBuffer.allocate(1024 * 1024);
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
@@ -330,7 +330,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         streamManager.createStream("Scope", streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
         @Cleanup
         EventStreamWriter<ByteBuffer> producer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(), EventWriterConfig.builder().build());
-        for (int i=0;i<1000;i++) {
+        for (int i = 0; i < 1000; i++) {
             producer.writeEvent(payload.slice());
         }
         producer.close();

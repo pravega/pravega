@@ -319,7 +319,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
 
     private final class KeepAliveTask implements Runnable {
         
-        private final ChannelFutureListener listener = new ChannelFutureListener(){
+        private final ChannelFutureListener listener = new ChannelFutureListener() {
             @Override
             public void operationComplete(ChannelFuture future) throws Exception {
                 recentMessage.set(true);
