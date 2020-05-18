@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.CompositeArrayView;
@@ -32,9 +31,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import org.apache.bookkeeper.client.api.BookKeeper;
+import org.apache.bookkeeper.client.api.ReadHandle;
 import lombok.val;
-import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.client.api.Handle;
+import org.apache.bookkeeper.client.api.WriteHandle;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
@@ -66,21 +68,6 @@ public class DebugLogWrapper implements AutoCloseable {
      */
     DebugLogWrapper(int logId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executor) {
         this.log = new BookKeeperLog(logId, zkClient, bookKeeper, config, executor);
-        this.bkClient = bookKeeper;
-        this.config = config;
-        this.initialized = new AtomicBoolean();
-    }
-
-    /**
-     * Creates a new instance of the DebugLogWrapper class.
-     *
-     * @param log        The {@link BookKeeperLog} to wrap. This log will be closed when {@link #close} is invoked.
-     * @param bookKeeper A pointer to the BookKeeper client to use.
-     * @param config     BookKeeperConfig to use.
-     */
-    @VisibleForTesting
-    DebugLogWrapper(BookKeeperLog log, BookKeeper bookKeeper, BookKeeperConfig config) {
-        this.log = log;
         this.bkClient = bookKeeper;
         this.config = config;
         this.initialized = new AtomicBoolean();
@@ -130,7 +117,7 @@ public class DebugLogWrapper implements AutoCloseable {
      * @return A BookKeeper LedgerHandle representing the ledger.
      * @throws DurableDataLogException If an exception occurred.
      */
-    public LedgerHandle openLedgerNoFencing(LedgerMetadata ledgerMetadata) throws DurableDataLogException {
+    public ReadHandle openLedgerNoFencing(LedgerMetadata ledgerMetadata) throws DurableDataLogException {
         return Ledgers.openRead(ledgerMetadata.getLedgerId(), this.bkClient, this.config);
     }
 
@@ -167,7 +154,7 @@ public class DebugLogWrapper implements AutoCloseable {
      * @throws IllegalStateException   If this BookKeeperLog is not disabled.
      * @throws DurableDataLogException If an exception occurred while updating the metadata.
      */
-    public boolean reconcileLedgers(List<LedgerHandle> candidateLedgers) throws DurableDataLogException {
+    public boolean reconcileLedgers(List<? extends Handle> candidateLedgers) throws DurableDataLogException {
         // Load metadata and verify if disabled (metadata may be null if it doesn't exist).
         LogMetadata metadata = this.log.loadMetadata();
         final long highestLedgerId;
@@ -193,13 +180,13 @@ public class DebugLogWrapper implements AutoCloseable {
         candidateLedgers = candidateLedgers
                 .stream()
                 .filter(lh -> Ledgers.getBookKeeperLogId(lh) == this.log.getLogId()
-                        && lh.getLength() > 0)
+                        && getHandleLength(lh) > 0)
                 .collect(Collectors.toList());
 
         // Begin reconstructing the Ledger List by eliminating references to inexistent ledgers.
         val newLedgerList = new ArrayList<LedgerMetadata>();
         if (metadata != null) {
-            val candidateLedgerIds = candidateLedgers.stream().map(LedgerHandle::getId).collect(Collectors.toSet());
+            val candidateLedgerIds = candidateLedgers.stream().map(Handle::getId).collect(Collectors.toSet());
             metadata.getLedgers().stream()
                     .filter(lm -> candidateLedgerIds.contains(lm.getLedgerId()))
                     .forEach(newLedgerList::add);
@@ -242,6 +229,18 @@ public class DebugLogWrapper implements AutoCloseable {
         }
 
         return changed;
+    }
+    
+    private static long getHandleLength(Handle handle) {
+        // unfortunately Handle API does not expose a getLength() method,
+        // only subclasses have their own method.
+        if (handle instanceof WriteHandle) {
+            return ((WriteHandle) handle).getLength();
+        } else if (handle instanceof ReadHandle) {
+            return ((ReadHandle) handle).getLength();
+        } else {
+            throw new IllegalArgumentException("Unexpected Handle type " + handle);
+        }
     }
 
     private void initialize() throws DurableDataLogException {
