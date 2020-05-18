@@ -1666,6 +1666,7 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
+<<<<<<< HEAD
             TableEntries entries = TableEntries.readFrom(in, in.available());
             long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
@@ -1675,6 +1676,12 @@ public final class WireCommands {
         @Override
         void releaseInternal() {
             this.tableEntries.release();
+=======
+            TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
+            long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
+
+            return new UpdateTableEntries(requestId, segment, delegationToken, entries, tableSegmentOffset);
+>>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
         }
     }
 
@@ -1749,12 +1756,16 @@ public final class WireCommands {
             }
             long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
+<<<<<<< HEAD
             return new RemoveTableKeys(requestId, segment, delegationToken, keys, tableSegmentOffset).requireRelease();
         }
 
         @Override
         void releaseInternal() {
             this.keys.forEach(TableKey::release);
+=======
+            return new RemoveTableKeys(requestId, segment, delegationToken, keys, tableSegmentOffset);
+>>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
         }
     }
 
@@ -2254,6 +2265,9 @@ public final class WireCommands {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
     @Data
     public static final class ReadTableEntriesDelta implements Request, WireCommand {
         final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES_DELTA;
@@ -2290,8 +2304,12 @@ public final class WireCommands {
     }
 
     @Data
+<<<<<<< HEAD
     @EqualsAndHashCode(callSuper = false)
     public static final class TableEntriesDeltaRead extends ReleasableCommand implements Reply, WireCommand {
+=======
+    public static final class TableEntriesDeltaRead implements Reply, WireCommand {
+>>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
         final WireCommandType type = WireCommandType.TABLE_ENTRIES_DELTA_READ;
         final long requestId;
         final String segment;
@@ -2316,16 +2334,24 @@ public final class WireCommands {
             out.writeLong(lastVersion);
         }
 
+<<<<<<< HEAD
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());
+=======
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
+>>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
             boolean shouldClear = in.readBoolean();
             boolean reachedEnd = in.readBoolean();
             long lastVersion = in.readLong();
 
             return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastVersion);
         }
+<<<<<<< HEAD
 
         @Override
         void releaseInternal() {
@@ -2339,6 +2365,10 @@ public final class WireCommands {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public static abstract class ReleasableCommand implements WireCommand {
 =======
+=======
+    }
+
+>>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
     /**
      * Base class for any command that may require releasing resources.
      */
