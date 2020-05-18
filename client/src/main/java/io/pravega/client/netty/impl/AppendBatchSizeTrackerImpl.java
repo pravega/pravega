@@ -11,6 +11,8 @@ package io.pravega.client.netty.impl;
 
 import io.pravega.common.ExponentialMovingAverage;
 import io.pravega.common.MathHelpers;
+import io.pravega.common.util.Property;
+import io.pravega.common.util.TypedProperties;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -31,9 +33,11 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private static final int MAX_BATCH_TIME_MILLIS = 20;
     private static final double NANOS_PER_MILLI = 1000000;
     
-    private static final int BASE_TIME_NANOS = 0;
-    private static final int BASE_SIZE = 0;
-    private static final double OUTSTANDING_FRACTION = 0.5;
+    private static final TypedProperties PROPTERIES = new TypedProperties(System.getProperties(), "io.pravega.client.connection"); 
+    
+    private static final int BASE_TIME_NANOS = PROPTERIES.getInt(Property.named("batchBaseTimeNanos", 0));
+    private static final int BASE_SIZE = PROPTERIES.getInt(Property.named("batchBaseSizeBytes", 0));
+    private static final double OUTSTANDING_FRACTION = PROPTERIES.getDouble(Property.named("batchOutstandingFraction", 0.5));
     
     private final Supplier<Long> clock;
     private final AtomicLong lastAppendNumber;
