@@ -1508,9 +1508,9 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void testWorkflowCompletionTimeout() {
         StreamMetadataTasks streamMetadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore, TaskStoreFactory.createZKStore(zkClient, executor),
-                SegmentHelperMock.getSegmentHelperMock(), executor, executor, Duration.ofMillis(500).toNanos(), "host",
+                SegmentHelperMock.getSegmentHelperMock(), executor, executor, "host",
                 new GrpcAuthHelper(authEnabled, "key", 300), requestTracker);
-
+        streamMetadataTask.setCompletionTimeoutMillis(500L);
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
 
         String completion = "completion";
