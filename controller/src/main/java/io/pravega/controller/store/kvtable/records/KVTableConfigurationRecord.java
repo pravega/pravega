@@ -36,20 +36,8 @@ public class KVTableConfigurationRecord {
     @NonNull
     private final String kvtName;
     private final KeyValueTableConfiguration kvtConfiguration;
-    private final boolean updating;
-
-    public static KVTableConfigurationRecord update(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
-        return KVTableConfigurationRecord.builder().scope(scope).kvtName(kvtName).kvtConfiguration(kvtConfig)
-                                        .updating(true).build();
-    }
-
-    public static KVTableConfigurationRecord complete(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
-        return KVTableConfigurationRecord.builder().scope(scope).kvtName(kvtName).kvtConfiguration(kvtConfig)
-                                        .updating(false).build();
-    }
 
     public static class KVTableConfigurationRecordBuilder implements ObjectBuilder<KVTableConfigurationRecord> {
-
     }
 
     @SneakyThrows(IOException.class)
@@ -62,69 +50,6 @@ public class KVTableConfigurationRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
-/*
-    @Data
-    @Builder
-    @Slf4j
-    @AllArgsConstructor
-    public static class ScalingPolicyRecord {
-
-        public static final ScalingPolicyRecordSerializer SERIALIZER = new ScalingPolicyRecordSerializer();
-
-        private final ScalingPolicy scalingPolicy;
-
-        public static class ScalingPolicyRecordBuilder implements ObjectBuilder<ScalingPolicyRecord> {
-
-        }
-
-        private static class ScalingPolicyRecordSerializer extends
-                VersionedSerializer.WithBuilder<KVTableConfigurationRecord.ScalingPolicyRecord,
-                        KVTableConfigurationRecord.ScalingPolicyRecord.ScalingPolicyRecordBuilder> {
-            @Override
-            protected byte getWriteVersion() {
-                return 0;
-            }
-
-            @Override
-            protected void declareVersions() {
-                version(0).revision(0, this::write00, this::read00);
-            }
-
-            private void read00(RevisionDataInput revisionDataInput, KVTableConfigurationRecord.ScalingPolicyRecord.ScalingPolicyRecordBuilder scalingPolicyRecordBuilder)
-                    throws IOException {
-                boolean exists = revisionDataInput.readBoolean();
-                if (exists) {
-                    int ordinal = revisionDataInput.readCompactInt();
-                    scalingPolicyRecordBuilder.scalingPolicy(ScalingPolicy.builder()
-                                                                          .scaleType(ScalingPolicy.ScaleType.values()[ordinal])
-                                                                          .targetRate(revisionDataInput.readInt())
-                                                                          .scaleFactor(revisionDataInput.readInt())
-                                                                          .minNumSegments(revisionDataInput.readInt()).build());
-                } else {
-                    scalingPolicyRecordBuilder.scalingPolicy(null);
-                }
-            }
-
-            private void write00(KVTableConfigurationRecord.ScalingPolicyRecord scalingPolicyRecord, RevisionDataOutput revisionDataOutput) throws IOException {
-                if (scalingPolicyRecord == null || scalingPolicyRecord.getScalingPolicy() == null) {
-                    revisionDataOutput.writeBoolean(false);
-                } else {
-                    revisionDataOutput.writeBoolean(true);
-                    ScalingPolicy scalingPolicy = scalingPolicyRecord.getScalingPolicy();
-                    revisionDataOutput.writeCompactInt(scalingPolicy.getScaleType().ordinal());
-                    revisionDataOutput.writeInt(scalingPolicy.getTargetRate());
-                    revisionDataOutput.writeInt(scalingPolicy.getScaleFactor());
-                    revisionDataOutput.writeInt(scalingPolicy.getMinNumSegments());
-                }
-            }
-
-            @Override
-            protected KVTableConfigurationRecord.ScalingPolicyRecord.ScalingPolicyRecordBuilder newBuilder() {
-                return KVTableConfigurationRecord.ScalingPolicyRecord.builder();
-            }
-        }
-    }
-*/
     private static class ConfigurationRecordSerializer
             extends VersionedSerializer.WithBuilder<KVTableConfigurationRecord,
         KVTableConfigurationRecordBuilder> {
@@ -150,8 +75,8 @@ public class KVTableConfigurationRecord {
             configurationRecordBuilder.scope(revisionDataInput.readUTF())
                                       .kvtName(revisionDataInput.readUTF());
             KeyValueTableConfiguration config = new KeyValueTableConfiguration(revisionDataInput.readInt());
-            configurationRecordBuilder.kvtConfiguration(config)
-                                      .updating(revisionDataInput.readBoolean());
+            configurationRecordBuilder.kvtConfiguration(config);
+
         }
 
         private void write00(KVTableConfigurationRecord kvtConfigurationRecord, RevisionDataOutput revisionDataOutput)
@@ -159,7 +84,6 @@ public class KVTableConfigurationRecord {
             revisionDataOutput.writeUTF(kvtConfigurationRecord.getScope());
             revisionDataOutput.writeUTF(kvtConfigurationRecord.getKvtName());
             revisionDataOutput.writeInt(kvtConfigurationRecord.getKvtConfiguration().getPartitionCount());
-            revisionDataOutput.writeBoolean(kvtConfigurationRecord.isUpdating());
         }
 
 

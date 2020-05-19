@@ -44,6 +44,7 @@ service ControllerService {
     rpc getDelegationToken(StreamInfo) returns (DelegationToken);
     rpc removeWriter(RemoveWriterRequest) returns (RemoveWriterResponse);
     rpc noteTimestampFromWriter(TimestampFromWriter) returns (TimestampResponse);
+    rpc createKeyValueTable(KeyValueTableConfig) returns (CreateKeyValueTableStatus);
 }
 
 message ServerRequest {
@@ -62,6 +63,10 @@ message CreateKeyValueTableStatus {
         INVALID_TABLE_NAME = 4;
     }
     Status status = 1;
+}
+
+message KeyValueTableConfig {
+    int32 partitionCount = 1;
 }
 
 message CreateStreamStatus {
