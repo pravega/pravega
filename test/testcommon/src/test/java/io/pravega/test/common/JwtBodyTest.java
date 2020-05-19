@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.security.auth;
+package io.pravega.test.common;
 
 import com.google.gson.Gson;
 import org.junit.Test;
