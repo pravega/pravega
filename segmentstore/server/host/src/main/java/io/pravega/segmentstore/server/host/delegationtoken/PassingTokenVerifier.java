@@ -11,12 +11,16 @@
 package io.pravega.segmentstore.server.host.delegationtoken;
 
 import io.pravega.auth.AuthHandler;
+import io.pravega.shared.security.token.JsonWebToken;
 
 /**
- * Default implementation of DelegegationTokenVerifier which asserts all the tokens as valid.
+ * Default implementation of DelegationTokenVerifier which asserts all the tokens as valid.
  * This is used when no verifier is configured.
  */
 public class PassingTokenVerifier implements DelegationTokenVerifier {
+
     @Override
-    public void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel) {}
+    public JsonWebToken verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel) {
+        return JsonWebToken.emptyToken();
+    }
 }

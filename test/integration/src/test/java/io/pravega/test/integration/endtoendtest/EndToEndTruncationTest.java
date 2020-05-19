@@ -119,7 +119,7 @@ public class EndToEndTruncationTest {
         controllerPort = TestUtils.getAvailableListenPort();
         controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
         int servicePort = TestUtils.getAvailableListenPort();
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, this.serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -151,7 +151,8 @@ public class EndToEndTruncationTest {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
+                this.serviceBuilder.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
