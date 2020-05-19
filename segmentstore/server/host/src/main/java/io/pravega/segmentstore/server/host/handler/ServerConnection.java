@@ -41,4 +41,11 @@ public interface ServerConnection extends AutoCloseable {
      */
     @Override
     void close();
+
+    /**
+     * Checks if this instance is already closed.
+     *
+     * @return {@code true} if this object is already closed, otherwise returns {@code false}.
+     */
+    boolean isClosed();
 }

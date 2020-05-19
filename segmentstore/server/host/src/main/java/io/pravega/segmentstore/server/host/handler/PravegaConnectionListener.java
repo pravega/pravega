@@ -52,6 +52,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
@@ -90,6 +91,9 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
     private FileModificationMonitor tlsCertFileModificationMonitor; // used only if tls reload is enabled
 
+    // Used for running token expiry handling tasks.
+    private final ScheduledExecutorService tokenExpiryHandlerExecutor;
+
     //endregion
 
     //region Constructor
@@ -97,15 +101,16 @@ public final class PravegaConnectionListener implements AutoCloseable {
     /**
      * Creates a new instance of the PravegaConnectionListener class listening on localhost with no StatsRecorder.
      *
-     * @param enableTls          Whether to enable SSL/TLS.
-     * @param port               The port to listen on.
-     * @param streamSegmentStore The SegmentStore to delegate all requests to.
-     * @param tableStore         The SegmentStore to delegate all requests to.
+     * @param enableTls           Whether to enable SSL/TLS.
+     * @param port                The port to listen on.
+     * @param streamSegmentStore  The SegmentStore to delegate all requests to.
+     * @param tableStore          The SegmentStore to delegate all requests to.
+     * @param tokenExpiryExecutor The executor to be used for running token expiration handling tasks.
      */
     @VisibleForTesting
-    public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore) {
+    public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor) {
         this(enableTls, false, "localhost", port, streamSegmentStore, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
-                new PassingTokenVerifier(), null, null, true);
+                new PassingTokenVerifier(), null, null, true, tokenExpiryExecutor);
     }
 
     /**
@@ -123,10 +128,12 @@ public final class PravegaConnectionListener implements AutoCloseable {
      * @param certFile           Path to the certificate file to be used for TLS.
      * @param keyFile            Path to be key file to be used for TLS.
      * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
+     * @param executor           The executor to be used for running token expiration handling tasks.
      */
     public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
-                                     DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, boolean replyWithStackTraceOnError) {
+                                     DelegationTokenVerifier tokenVerifier, String certFile, String keyFile,
+                                     boolean replyWithStackTraceOnError, ScheduledExecutorService executor) {
         this.enableTls = enableTls;
         if (this.enableTls) {
             this.enableTlsReload = enableTlsReload;
@@ -149,6 +156,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
         }
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.connectionTracker = new ConnectionTracker();
+        this.tokenExpiryHandlerExecutor = executor;
     }
 
     //endregion
@@ -205,7 +213,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError),
                          statsRecorder,
                          tokenVerifier,
-                         replyWithStackTraceOnError));
+                         replyWithStackTraceOnError, tokenExpiryHandlerExecutor));
              }
          });
 
