@@ -105,6 +105,7 @@ public class ClientConnectionImpl implements ClientConnection {
         promise.addListener(new ChannelFutureListener() {
             @Override
             public void operationComplete(ChannelFuture future) {
+                nettyHandler.setRecentMessage();
                 if (!future.isSuccess()) {
                     future.channel().pipeline().fireExceptionCaught(future.cause());
                 }
@@ -164,6 +165,7 @@ public class ClientConnectionImpl implements ClientConnection {
         ch.flush();
         ChannelPromise promise = ch.newPromise();
         promise.addListener(future -> {
+            nettyHandler.setRecentMessage();
             Throwable cause = future.cause();
             callback.complete(cause == null ? null : new ConnectionFailedException(cause));
         });

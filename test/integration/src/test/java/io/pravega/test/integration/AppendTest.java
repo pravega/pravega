@@ -17,6 +17,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -52,9 +53,11 @@ import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
@@ -79,6 +82,7 @@ import org.junit.Test;
 
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -312,6 +316,7 @@ public class AppendTest extends LeakDetectorTestSuite {
     @Test(timeout = 100000)
     public void appendALotOfData() {
         String endpoint = "localhost";
+        String scope = "Scope";
         String streamName = "abc";
         int port = TestUtils.getAvailableListenPort();
         ByteBuffer payload = ByteBuffer.allocate(1024 * 1024);
@@ -324,14 +329,27 @@ public class AppendTest extends LeakDetectorTestSuite {
         MockController controller = new MockController(endpoint, port, connectionFactory, true);
         @Cleanup
         StreamManagerImpl streamManager = new StreamManagerImpl(controller, connectionFactory);
-        streamManager.createScope("Scope");
+        streamManager.createScope(scope);
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl("Scope", controller);
-        streamManager.createStream("Scope", streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller);
+        streamManager.createStream("Scope", streamName,
+                                   StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
         @Cleanup
-        EventStreamWriter<ByteBuffer> producer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(), EventWriterConfig.builder().build());
-        for (int i = 0; i < 1000; i++) {
-            producer.writeEvent(payload.slice());
+        EventStreamWriter<ByteBuffer> producer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(),
+                                                                                 EventWriterConfig.builder().build());
+        @Cleanup
+        RawClient rawClient = new RawClient(new PravegaNodeUri(endpoint, port), connectionFactory);
+        for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 100; j++) {
+                producer.writeEvent(payload.slice());
+            }
+            producer.flush();
+            long requestId = rawClient.getFlow().getNextSequenceNumber();
+            String scopedName = new Segment(scope, streamName, 0).getScopedName();
+            WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(requestId, scopedName,
+                                                                                    i * 100 * payload.remaining(), "");
+            Reply join = rawClient.sendRequest(requestId, request).join();
+            assertFalse(join.isFailure());
         }
         producer.close();
     }

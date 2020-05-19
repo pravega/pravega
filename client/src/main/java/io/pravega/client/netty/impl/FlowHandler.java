@@ -324,6 +324,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
             public void operationComplete(ChannelFuture future) throws Exception {
                 recentMessage.set(true);
                 if (!future.isSuccess()) {
+                    log.warn("Keepalive failed for connection {}", connectionName);
                     future.channel().pipeline().fireExceptionCaught(future.cause());
                 }
             }
