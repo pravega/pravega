@@ -12,9 +12,12 @@ package io.pravega.common.security;
 import io.pravega.test.common.JwtBody;
 import org.junit.Test;
 
+<<<<<<< HEAD
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
+=======
+>>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692)
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -32,9 +35,14 @@ public class JwtUtilsTest {
         //        "aud": "segmentstore",
         //        "iat": 1516239022
         //     }
+<<<<<<< HEAD
         JwtBody jwtBody = JwtBody.builder().subject("1234567890").audience("segmentstore").issuedAtTime(1516239022L).build();
         String token = String.format("%s.%s.%s", "base64-encoded-header",
                 Base64.getEncoder().encodeToString(jwtBody.toString().getBytes(StandardCharsets.US_ASCII)),
+=======
+        String token = String.format("%s.%s.%s", "base64-encoded-header",
+                JwtBody.builder().subject("1234567890").audience("segmentstore").issuedAtTime(1516239022L).build(),
+>>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692)
                 "base64-encoded-signature");
 
         assertNull(JwtUtils.extractExpirationTime(token));

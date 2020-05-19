@@ -1053,6 +1053,7 @@ public class PravegaRequestProcessorTest {
 
     private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
         return ServiceBuilder.newInMemoryBuilder(config, (size, name, threadPriority) -> new InlineExecutor())
+<<<<<<< HEAD
                 .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
                         setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
     }
@@ -1060,6 +1061,10 @@ public class PravegaRequestProcessorTest {
     private ByteBuf toByteBuf(BufferView bufferView) {
         val buffers = bufferView.getContents().stream().map(Unpooled::wrappedBuffer).toArray(ByteBuf[]::new);
         return Unpooled.wrappedUnmodifiableBuffer(buffers);
+=======
+                             .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
+                                     setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
+>>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692)
     }
 
     //endregion

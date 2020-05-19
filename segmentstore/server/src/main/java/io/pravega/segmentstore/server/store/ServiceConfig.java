@@ -27,6 +27,7 @@ import lombok.SneakyThrows;
 public class ServiceConfig {
     //region Config Names
 
+<<<<<<< HEAD
     public static final Property<Integer> CONTAINER_COUNT = Property.named("container.count", null, "containerCount");
     public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("container.parallelStarts", 2);
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPool.core.size", 30, "threadPoolSize");
@@ -49,6 +50,23 @@ public class ServiceConfig {
     // 1. Modify the operator to set this old, as well as the new property.
     // 2. Modify this property to use the new key, with legacy key name set as the old key.
     // 3. Remove old property from the operator.
+=======
+    public static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount");
+    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 30);
+    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("storageThreadPoolSize", 200);
+    public static final Property<Integer> LOW_PRIORITY_THREAD_POOL_SIZE = Property.named("lowPriorityThreadPoolSize", 10);
+    public static final Property<Integer> LISTENING_PORT = Property.named("listeningPort", 12345);
+    public static final Property<Integer> PUBLISHED_PORT = Property.named("publishedPort");
+    public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
+    public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("publishedIPAddress", "");
+    public static final Property<String> ZK_URL = Property.named("zkURL", "localhost:2181");
+    public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
+    public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
+    public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 10000);
+    public static final Property<Boolean> SECURE_ZK = Property.named("secureZK", false);
+    public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zkTrustStore", "");
+    public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zkTrustStorePasswordPath", "");
+>>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692)
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY, "dataLogImplementation");
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS, "storageImplementation");

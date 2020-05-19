@@ -20,7 +20,11 @@ import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
+<<<<<<< HEAD
 import io.pravega.shared.protocol.netty.WireCommands;
+=======
+
+>>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692)
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
