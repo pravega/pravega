@@ -43,6 +43,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -170,7 +171,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
         addSegmentOffsetUpdateIfNeeded(segment, offset + length);
         return new EventReadImpl<>(deserializer.deserialize(buffer),
-                PositionImpl.builder().ownedSegments(ownedSegments).segmentRanges(ranges).updatesToSegmentOffsets(segmentOffsetUpdates).build(),
+                PositionImpl.builder().ownedSegments(Collections.unmodifiableMap(ownedSegments))
+                                      .segmentRanges(Collections.unmodifiableMap(ranges))
+                                      .updatesToSegmentOffsets(Collections.unmodifiableList(segmentOffsetUpdates)).build(),
                 new EventPointerImpl(segment, offset, length), null);
     }
 
