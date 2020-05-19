@@ -136,8 +136,8 @@ public class ClusterWrapper implements AutoCloseable {
 
         segmentStoreServer = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store, tableStore,
             SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
-            new TokenVerifierImpl(isAuthEnabled, tokenSigningKeyBasis),
-            null, null, true);
+            isAuthEnabled ? new TokenVerifierImpl(tokenSigningKeyBasis) : null,
+            null, null, true, serviceBuilder.getLowPriorityExecutor());
 
         segmentStoreServer.startListening();
         log.info("Done starting Segment Store");
