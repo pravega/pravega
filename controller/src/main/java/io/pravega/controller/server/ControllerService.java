@@ -94,15 +94,15 @@ public class ControllerService {
         }, executor);
     }
 
-    public CompletableFuture<CreateKeyValueTableStatus> createKeyValueTable(String scope, String kvtName, final KeyValueTableConfiguration kvtConfig,
-                                                              final long createTimestamp) {
-
-        Preconditions.checkNotNull(kvtConfig, "streamConfig");
+    public CompletableFuture<CreateKeyValueTableStatus> createKeyValueTable(String scope, String kvtName,
+                                                                            final KeyValueTableConfiguration kvtConfig,
+                                                                            final long createTimestamp) {
+        Preconditions.checkNotNull(kvtConfig, "kvTableConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
         Timer timer = new Timer();
         return kvtMetadataTasks.createKeyValueTable(scope, kvtName, kvtConfig, null)
                 .thenApplyAsync(status -> {
-                    reportCreateKVTableMetrics(scope, kvtName, 5, status, timer.getElapsed());
+                    reportCreateKVTableMetrics(scope, kvtName, kvtConfig.getPartitionCount(), status, timer.getElapsed());
                     return CreateKeyValueTableStatus.newBuilder().setStatus(status).build();
                 }, executor);
     }

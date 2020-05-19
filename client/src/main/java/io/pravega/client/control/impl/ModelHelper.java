@@ -21,6 +21,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
@@ -32,6 +33,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.AbstractMap;
 import java.util.List;
@@ -113,6 +115,20 @@ public final class ModelHelper {
                 .scalingPolicy(encode(config.getScalingPolicy()))
                 .retentionPolicy(encode(config.getRetentionPolicy()))
                 .build();
+    }
+
+    /**
+     * Helper to convert StreamConfig into Stream Configuration Impl.
+     *
+     * @param config The StreamConfig
+     * @return New instance of StreamConfiguration Impl.
+     */
+    public static final KeyValueTableConfiguration encode(final KeyValueTableConfig config) {
+        Preconditions.checkNotNull(config, "config");
+        Preconditions.checkNotNull(config.getScope(), "scope");
+        Preconditions.checkNotNull(config.getKvtName(), "kvtName");
+        Preconditions.checkArgument(config.getPartitionCount() > 0, "Number of partitions should be > 0.");
+        return new KeyValueTableConfiguration(config.getPartitionCount());
     }
 
     /**
