@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.auth;
+package io.pravega.common.security;
 
 public class ZKTLSUtils {
 

@@ -30,7 +30,8 @@ public class StartLocalService {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.SERVICE_PORT, store, tableStore);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.SERVICE_PORT,
+                store, tableStore, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
         
         @Cleanup
