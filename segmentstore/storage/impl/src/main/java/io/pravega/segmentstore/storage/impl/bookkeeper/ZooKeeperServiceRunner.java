@@ -12,7 +12,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.auth.JKSHelper;
+import io.pravega.common.security.JKSHelper;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -33,7 +33,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 
-import io.pravega.common.auth.ZKTLSUtils;
+import io.pravega.common.security.ZKTLSUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
