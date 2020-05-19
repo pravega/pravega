@@ -84,6 +84,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -105,7 +106,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
-    private static final long COMPLETION_TIMEOUT_NANOS = Duration.ofMinutes(2).toNanos();
+    private static final long COMPLETION_TIMEOUT_MILLIS = Duration.ofMinutes(2).toMillis();
 
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
@@ -117,7 +118,7 @@ public class StreamMetadataTasks extends TaskBase {
     private final GrpcAuthHelper authHelper;
     private final RequestTracker requestTracker;
     private final ScheduledExecutorService eventExecutor;
-    private final long completionTimeoutNanos;
+    private final AtomicLong completionTimeoutMillis = new AtomicLong(COMPLETION_TIMEOUT_MILLIS);
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
@@ -140,28 +141,7 @@ public class StreamMetadataTasks extends TaskBase {
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                 BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
                                 final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
-                                final ScheduledExecutorService eventExecutor,
-                                final Context context, GrpcAuthHelper authHelper, RequestTracker requestTracker) {
-        this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, eventExecutor, COMPLETION_TIMEOUT_NANOS, 
-                context, authHelper, requestTracker);
-    }
-
-    @VisibleForTesting
-    StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                        BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
-                        final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
-                        final ScheduledExecutorService eventExecutor,
-                        final long completionTimeoutNanos, final String hostId,
-                        GrpcAuthHelper authHelper, RequestTracker requestTracker) {
-        this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, eventExecutor, completionTimeoutNanos,
-                new Context(hostId), authHelper, requestTracker);
-    }
-
-    private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
-                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
-                                final ScheduledExecutorService eventExecutor, 
-                                final long completionTimeoutNanos, final Context context,
+                                final ScheduledExecutorService eventExecutor, final Context context,
                                 GrpcAuthHelper authHelper, RequestTracker requestTracker) {
         super(taskMetadataStore, executor, context);
         this.eventExecutor = eventExecutor;
@@ -170,7 +150,6 @@ public class StreamMetadataTasks extends TaskBase {
         this.segmentHelper = segmentHelper;
         this.authHelper = authHelper;
         this.requestTracker = requestTracker;
-        this.completionTimeoutNanos = completionTimeoutNanos;
         this.setReady();
     }
 
@@ -270,20 +249,11 @@ public class StreamMetadataTasks extends TaskBase {
     }
     
     private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition, long delay) {
+        // Check whether workflow is complete by adding a delay between each iteration. 
+        // If the work is not complete within `completionTimeoutMillis` throw TimeoutException.
         AtomicBoolean isDone = new AtomicBoolean(false);
-        Timer timer = new Timer();
-        return Futures.loop(() -> {
-                    if (isDone.get()) {
-                        return false;
-                    } else if (timer.getElapsedNanos() > completionTimeoutNanos) {
-                        throw new CompletionException(new TimeoutException("Workflow didnt complete in desired time - " + 
-                                Duration.ofNanos(completionTimeoutNanos).toMillis() +
-                                "Throwing timeout exception to caller"));
-                    }
-                    return true;
-                },
-                () -> Futures.delayedFuture(condition, delay, executor)
-                             .thenAccept(isDone::set), executor);
+        return RetryHelper.loopWithTimeout(() -> !isDone.get(), () -> condition.get().thenAccept(isDone::set),
+                delay, 5000L, completionTimeoutMillis.get(), executor);
     }
 
     @VisibleForTesting
@@ -1105,5 +1075,10 @@ public class StreamMetadataTasks extends TaskBase {
 
     public String retrieveDelegationToken() {
         return authHelper.retrieveMasterToken();
+    }
+
+    @VisibleForTesting
+    void setCompletionTimeoutMillis(long timeoutMillis) {
+        completionTimeoutMillis.set(timeoutMillis);
     }
 }
