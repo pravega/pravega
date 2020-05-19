@@ -10,71 +10,62 @@
 package io.pravega.segmentstore.server.host.delegationtoken;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.InvalidClaimException;
 import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
-import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
+
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import io.pravega.shared.security.token.JsonWebToken;
+import io.pravega.shared.security.token.JwtParser;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class TokenVerifierImpl implements DelegationTokenVerifier {
 
-    private final boolean isAuthEnabled;
     private final byte[] tokenSigningKey;
 
-    public TokenVerifierImpl(AutoScalerConfig config) {
-        this(config.isAuthEnabled(), config.getTokenSigningKey());
-    }
-
     @VisibleForTesting
-    public TokenVerifierImpl(boolean isAuthEnabled, String tokenSigningKeyBasis) {
-        this.isAuthEnabled = isAuthEnabled;
-        if (isAuthEnabled) {
-            Exceptions.checkNotNullOrEmpty(tokenSigningKeyBasis, "tokenSigningKeyBasis");
-            this.tokenSigningKey = tokenSigningKeyBasis.getBytes();
-        } else {
-            tokenSigningKey = null;
-        }
+    public TokenVerifierImpl(String tokenSigningKeyBasis) {
+        Exceptions.checkNotNullOrEmpty(tokenSigningKeyBasis, "tokenSigningKeyBasis");
+        this.tokenSigningKey = tokenSigningKeyBasis.getBytes();
     }
 
     @Override
-    public void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel)
+    public JsonWebToken verifyToken(@NonNull String resource, String token, @NonNull AuthHandler.Permissions expectedLevel)
             throws TokenExpiredException, InvalidTokenException, InvalidClaimException, TokenException {
-        if (isAuthEnabled) {
 
-            // All key value pairs inside the payload are returned, including standard fields such as sub (for subject),
-            // aud (for audience), iat, exp, as well as custom fields of the form "<resource> -> <permission>" set by
-            // Pravega.
-            Set<Map.Entry<String, Object>> claims = JsonWebToken.fetchClaims(token, tokenSigningKey);
+        if (Strings.isNullOrEmpty(token)) {
+            throw new InvalidTokenException("Token is null or empty");
+        }
 
-            if (claims == null) {
-                throw new InvalidTokenException("Token has no claims.");
-            }
+        // All key value pairs inside the payload are returned, including standard fields such as sub (for subject),
+        // aud (for audience), iat, exp, as well as custom fields of the form "<resource> -> <permission>" set by
+        // Pravega.
+        JsonWebToken jwt = JwtParser.parse(token, tokenSigningKey);
+        Map<String, Object> permissionsByResource = jwt.getPermissionsByResource();
 
-            Optional<Map.Entry<String, Object>> matchingClaim = claims.stream()
+        Optional<Map.Entry<String, Object>> matchingClaim = permissionsByResource.entrySet().stream()
                     .filter(entry -> resourceMatchesClaimKey(entry.getKey(), resource) &&
                                      expectedLevel.compareTo(AuthHandler.Permissions.valueOf(entry.getValue().toString())) <= 0)
                     .findFirst();
 
-            if (!matchingClaim.isPresent()) {
-                log.debug(String.format("No matching claim found for resource [%s] and permission [%s] in token [%s].",
+        if (!matchingClaim.isPresent()) {
+            log.debug(String.format("No matching claim found for resource [%s] and permission [%s] in token [%s].",
                         resource, expectedLevel, token));
 
-                throw new InvalidClaimException(String.format(
+            throw new InvalidClaimException(String.format(
                         "No matching claim found for resource: [%s] and permission: [%s] in the delegation token.",
                         resource, expectedLevel));
-
-            }
         }
-    }
+        return jwt;
+     }
 
     /**
      * Returns whether the specified resource} string matches the given claim key.

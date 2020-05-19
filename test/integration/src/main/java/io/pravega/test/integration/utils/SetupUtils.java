@@ -109,7 +109,8 @@ public final class SetupUtils {
 
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        this.server = new PravegaConnectionListener(false, servicePort, store, serviceBuilder.createTableStoreService());
+        this.server = new PravegaConnectionListener(false, servicePort, store, serviceBuilder.createTableStoreService(),
+                serviceBuilder.getLowPriorityExecutor());
         this.server.startListening();
         log.info("Started Pravega Service");
 

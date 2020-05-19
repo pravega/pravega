@@ -77,7 +77,8 @@ public class ReaderGroupTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
+                serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         @Cleanup
@@ -124,7 +125,8 @@ public class ReaderGroupTest {
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
+                serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         @Cleanup
