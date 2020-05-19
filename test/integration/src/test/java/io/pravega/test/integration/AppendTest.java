@@ -47,6 +47,8 @@ import io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor;
 import io.pravega.segmentstore.server.host.handler.ServerConnectionInboundHandler;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
@@ -81,6 +83,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -93,7 +96,13 @@ public class AppendTest extends LeakDetectorTestSuite {
 
     @Before
     public void setup() throws Exception {
-        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        ServiceBuilderConfig config = ServiceBuilderConfig.builder()
+                                                          .include(ServiceConfig.builder()
+                                                                                .with(ServiceConfig.CONTAINER_COUNT, 1))
+                                                          .include(WriterConfig.builder()
+                                                                               .with(WriterConfig.MAX_ROLLOVER_SIZE, 10485760L))
+                                                          .build();
+        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(config);
         this.serviceBuilder.initialize();
     }
 
@@ -347,7 +356,7 @@ public class AppendTest extends LeakDetectorTestSuite {
             long requestId = rawClient.getFlow().getNextSequenceNumber();
             String scopedName = new Segment(scope, streamName, 0).getScopedName();
             WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(requestId, scopedName,
-                                                                                    i * 100 * payload.remaining(), "");
+                                                                                    i * 100L * (payload.remaining() + TYPE_PLUS_LENGTH_SIZE), "");
             Reply join = rawClient.sendRequest(requestId, request).join();
             assertFalse(join.isFailure());
         }
