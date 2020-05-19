@@ -41,6 +41,12 @@ public class ServiceConfig {
     public static final Property<Boolean> SECURE_ZK = Property.named("zk.connect.security.enable", false, "secureZK");
     public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zk.connect.security.tls.trustStore.location", "", "zkTrustStore");
     public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zk.connect.security.tls.trustStore.pwd.location", "", "zkTrustStorePasswordPath");
+
+    // Not changing this configuration property (to "cluster.name"), as it is set by Pravega operator, and changing this
+    // will require simultaneous changes there. So, we'll change this at a later time, employing strategy like this:
+    // 1. Modify the operator to set this old, as well as the new property.
+    // 2. Modify this property to use the new key, with legacy key name set as the old key.
+    // 3. Remove old property from the operator.
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY, "dataLogImplementation");
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS, "storageImplementation");
