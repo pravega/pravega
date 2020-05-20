@@ -11,9 +11,18 @@ package io.pravega.controller.store.kvtable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
+import io.pravega.controller.store.kvtable.records.KVTableConfigurationRecord;
+import io.pravega.controller.store.kvtable.records.KVTableStateRecord;
+import io.pravega.controller.store.stream.records.EpochRecord;
+import io.pravega.controller.store.stream.records.StateRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -26,12 +35,11 @@ import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 /**
- * Pravega Table Stream.
- * This creates two top level tables per stream - metadataTable, epochsWithTransactionsTable.
+ * Pravega KeyValueTable.
+ * This creates a top level table per kvTable - metadataTable.
  * All metadata records are stored in metadata table.
- * EpochsWithTransactions is a top level table for storing epochs where any transaction was created.
- * This class is coded for transaction ids that follow the scheme that msb 32 bits represent epoch.
- * Each stream table is protected against recreation of stream by attaching a unique id to the stream when it is created.
+ *
+ * Each kvTable is protected against recreation of another kvTable/stream with same name by attaching a UUID to the name.
  */
 @Slf4j
 class PravegaTablesKeyValueTable extends PersistentKeyValueTableBase {
@@ -114,80 +122,108 @@ class PravegaTablesKeyValueTable extends PersistentKeyValueTableBase {
     private String getMetadataTableName(String id) {
         return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(METADATA_TABLE, id));
     }
-/*
 
-
-    private CompletableFuture<String> getWritersTable() {
-        return getId().thenApply(this::getWritersTableName);
+    @Override
+    public CompletableFuture<Void> createStateIfAbsent(final KVTableStateRecord state) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, STATE_KEY, state.toBytes())));
     }
 
-    private String getWritersTableName(String id) {
-        return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(WRITERS_POSITIONS_TABLE, id));
+    @Override
+    CompletableFuture<Version> setStateData(final VersionedMetadata<KVTableStateRecord> state) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, STATE_KEY,
+                        state.getObject().toBytes(), state.getVersion())
+                        .thenApply(r -> {
+                            storeHelper.invalidateCache(metadataTable, STATE_KEY);
+                            return r;
+                        }));
     }
-    // region overrides
 
+    @Override
+    CompletableFuture<VersionedMetadata<KVTableStateRecord>> getStateData(boolean ignoreCached) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> {
+                    if (ignoreCached) {
+                        return storeHelper.getEntry(metadataTable, STATE_KEY, KVTableStateRecord::fromBytes);
+                    }
+                    return storeHelper.getCachedData(metadataTable, STATE_KEY, KVTableStateRecord::fromBytes);
+                });
+    }
+
+    @Override
+    CompletableFuture<Version> setConfigurationData(final VersionedMetadata<KVTableConfigurationRecord> configuration) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, CONFIGURATION_KEY,
+                        configuration.getObject().toBytes(), configuration.getVersion())
+                        .thenApply(r -> {
+                            storeHelper.invalidateCache(metadataTable, CONFIGURATION_KEY);
+                            return r;
+                        }));
+    }
+
+    @Override
+    CompletableFuture<VersionedMetadata<KVTableConfigurationRecord>> getConfigurationData(boolean ignoreCached) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> {
+                    if (ignoreCached) {
+                        return storeHelper.getEntry(metadataTable, CONFIGURATION_KEY, KVTableConfigurationRecord::fromBytes);
+                    }
+                    return storeHelper.getCachedData(metadataTable, CONFIGURATION_KEY, KVTableConfigurationRecord::fromBytes);
+                });
+    }
+
+    @Override
+    public CompletableFuture<CreateKVTableResponse> checkKeyValueTableExists(final KeyValueTableConfiguration configuration,
+                                                                             final long creationTime,
+                                                                             final int startingSegmentNumber) {
+        // If kvtable exists, but is in a partially complete state, then fetch its creation time and configuration and any
+        // metadata that is available from a previous run. If the existing kvtable has already been created successfully earlier,
+        return storeHelper.expectingDataNotFound(getCreationTime(), null)
+                .thenCompose(storedCreationTime -> {
+                    if (storedCreationTime == null) {
+                        return CompletableFuture.completedFuture(new CreateKVTableResponse(CreateKVTableResponse.CreateStatus.NEW,
+                                configuration, creationTime, startingSegmentNumber));
+                    } else {
+                        return storeHelper.expectingDataNotFound(getConfiguration(), null)
+                                .thenCompose(config -> {
+                                    if (config != null) {
+                                        return handleConfigExists(storedCreationTime, config, startingSegmentNumber,
+                                                storedCreationTime == creationTime);
+                                    } else {
+                                        return CompletableFuture.completedFuture(
+                                                new CreateKVTableResponse(CreateKVTableResponse.CreateStatus.NEW,
+                                                        configuration, storedCreationTime, startingSegmentNumber));
+                                    }
+                                });
+                    }
+                });
+    }
+
+    private CompletableFuture<CreateKVTableResponse> handleConfigExists(long creationTime, KeyValueTableConfiguration config,
+                                                                       int startingSegmentNumber, boolean creationTimeMatched) {
+        CreateKVTableResponse.CreateStatus status = creationTimeMatched ?
+                CreateKVTableResponse.CreateStatus.NEW : CreateKVTableResponse.CreateStatus.EXISTS_CREATING;
+        return storeHelper.expectingDataNotFound(getState(true), null)
+                .thenApply(state -> {
+                    if (state == null) {
+                        return new CreateKVTableResponse(status, config, creationTime, startingSegmentNumber);
+                    } else if (state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
+                        return new CreateKVTableResponse(status, config, creationTime, startingSegmentNumber);
+                    } else {
+                        return new CreateKVTableResponse(CreateKVTableResponse.CreateStatus.EXISTS_ACTIVE,
+                                config, creationTime, startingSegmentNumber);
+                    }
+                });
+    }
 
     @Override
     CompletableFuture<Void> createKVTableMetadata() {
         return getId().thenCompose(id -> {
             String metadataTable = getMetadataTableName(id);
-            String epochWithTxnTable = getEpochsWithTransactionsTableName(id);
-            String writersPositionsTable = getWritersTableName(id);
-            return CompletableFuture.allOf(storeHelper.createTable(metadataTable),
-                    storeHelper.createTable(epochWithTxnTable), storeHelper.createTable(writersPositionsTable))
-                                    .thenAccept(v -> log.debug("stream {}/{} metadata tables {}, {} & {} created", getScope(), getName(), metadataTable,
-                                            epochWithTxnTable, writersPositionsTable));
+            return CompletableFuture.allOf(storeHelper.createTable(metadataTable))
+                    .thenAccept(v -> log.debug("stream {}/{} metadata table {} created", getScope(), getName(), metadataTable));
         });
-    }
-
-    @Override
-    public CompletableFuture<CreateStreamResponse> checkKeyValueTableExists(final StreamConfiguration configuration, final long creationTime,
-                                                                     final int startingSegmentNumber) {
-        // If stream exists, but is in a partially complete state, then fetch its creation time and configuration and any
-        // metadata that is available from a previous run. If the existing stream has already been created successfully earlier,
-        return storeHelper.expectingDataNotFound(getCreationTime(), null)
-                      .thenCompose(storedCreationTime -> {
-                          if (storedCreationTime == null) {
-                              return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
-                                      configuration, creationTime, startingSegmentNumber));
-                          } else {
-                              return storeHelper.expectingDataNotFound(getConfiguration(), null)
-                                            .thenCompose(config -> {
-                                                if (config != null) {
-                                                    return handleConfigExists(storedCreationTime, config, startingSegmentNumber,
-                                                            storedCreationTime == creationTime);
-                                                } else {
-                                                    return CompletableFuture.completedFuture(
-                                                            new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
-                                                                    configuration, storedCreationTime, startingSegmentNumber));
-                                                }
-                                            });
-                          }
-                      });
-    }
-
-    private CompletableFuture<CreateStreamResponse> handleConfigExists(long creationTime, StreamConfiguration config,
-                                                                       int startingSegmentNumber, boolean creationTimeMatched) {
-        CreateStreamResponse.CreateStatus status = creationTimeMatched ?
-                CreateStreamResponse.CreateStatus.NEW : CreateStreamResponse.CreateStatus.EXISTS_CREATING;
-        return storeHelper.expectingDataNotFound(getState(true), null)
-                      .thenApply(state -> {
-                          if (state == null) {
-                              return new CreateStreamResponse(status, config, creationTime, startingSegmentNumber);
-                          } else if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
-                              return new CreateStreamResponse(status, config, creationTime, startingSegmentNumber);
-                          } else {
-                              return new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE,
-                                      config, creationTime, startingSegmentNumber);
-                          }
-                      });
-    }
-
-    @Override
-    public CompletableFuture<Long> getCreationTime() {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.getCachedData(metadataTable, CREATION_TIME_KEY,
-                        data -> BitConverter.readLong(data, 0))).thenApply(VersionedMetadata::getObject);
     }
 
     @Override
@@ -199,6 +235,46 @@ class PravegaTablesKeyValueTable extends PersistentKeyValueTableBase {
                 .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CREATION_TIME_KEY, b)
                         .thenAccept(v -> storeHelper.invalidateCache(metadataTable, CREATION_TIME_KEY)));
     }
+
+    @Override
+    public CompletableFuture<Void> createConfigurationIfAbsent(final KVTableConfigurationRecord configuration) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CONFIGURATION_KEY, configuration.toBytes())
+                        .thenAccept(v -> storeHelper.invalidateCache(metadataTable, CONFIGURATION_KEY)));
+    }
+
+    @Override
+    CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data) {
+        String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, key, data.toBytes())
+                        .thenAccept(v -> storeHelper.invalidateCache(metadataTable, key)));
+    }
+
+    @Override
+    CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data) {
+        byte[] epochData = new byte[Integer.BYTES];
+        BitConverter.writeInt(epochData, 0, data.getEpoch());
+
+        return getMetadataTable()
+                .thenCompose(metadataTable -> {
+                    return storeHelper.addNewEntryIfAbsent(metadataTable, CURRENT_EPOCH_KEY, epochData)
+                            .thenAccept(v -> {
+                                storeHelper.invalidateCache(metadataTable, CURRENT_EPOCH_KEY);
+                            });
+                });
+    }
+
+/*
+
+    @Override
+    public CompletableFuture<Long> getCreationTime() {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.getCachedData(metadataTable, CREATION_TIME_KEY,
+                        data -> BitConverter.readLong(data, 0))).thenApply(VersionedMetadata::getObject);
+    }
+
+
 */
 /*
     @Override
@@ -294,22 +370,6 @@ class PravegaTablesKeyValueTable extends PersistentKeyValueTableBase {
     }
 
     @Override
-    CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, EpochRecord data) {
-        String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, key, data.toBytes())
-                                                         .thenAccept(v -> storeHelper.invalidateCache(metadataTable, key)))
-                .thenCompose(v -> {
-                    if (data.getEpoch() == data.getReferenceEpoch()) {
-                        // this is an original epoch. we should create transactions in epoch table
-                        return createTransactionsInEpochTable(epoch);
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                });
-    }
-
-    @Override
     CompletableFuture<VersionedMetadata<EpochRecord>> getEpochRecordData(int epoch) {
         return getMetadataTable()
                 .thenCompose(metadataTable -> {
@@ -342,21 +402,6 @@ class PravegaTablesKeyValueTable extends PersistentKeyValueTableBase {
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransitionNode() {
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.getEntry(metadataTable, EPOCH_TRANSITION_KEY, EpochTransitionRecord::fromBytes));
-    }
-
-
-
-    @Override
-    public CompletableFuture<Void> createConfigurationIfAbsent(final StreamConfigurationRecord configuration) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CONFIGURATION_KEY, configuration.toBytes())
-                                                         .thenAccept(v -> storeHelper.invalidateCache(metadataTable, CONFIGURATION_KEY)));
-    }
-
-    @Override
-    public CompletableFuture<Void> createStateIfAbsent(final KVTableStateRecord state) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, STATE_KEY, state.toBytes())));
     }
 
     private CompletableFuture<List<Integer>> getEpochsWithTransactions() {
@@ -394,28 +439,7 @@ class PravegaTablesKeyValueTable extends PersistentKeyValueTableBase {
                 });
     }
 
-    @Override
-    CompletableFuture<Version> setStateData(final VersionedMetadata<KVTableStateRecord> state) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, STATE_KEY,
-                        state.getObject().toBytes(), state.getVersion())
-                                                         .thenApply(r -> {
-                                                             storeHelper.invalidateCache(metadataTable, STATE_KEY);
-                                                             return r;
-                                                         }));
-    }
 
-    @Override
-    CompletableFuture<VersionedMetadata<StateRecord>> getStateData(boolean ignoreCached) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> {
-                    if (ignoreCached) {
-                        return storeHelper.getEntry(metadataTable, STATE_KEY, StateRecord::fromBytes);
-                    }
-
-                    return storeHelper.getCachedData(metadataTable, STATE_KEY, StateRecord::fromBytes);
-                });
-    }
 
 
     @Override

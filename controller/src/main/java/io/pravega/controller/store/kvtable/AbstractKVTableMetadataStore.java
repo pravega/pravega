@@ -8,10 +8,12 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Scope;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.kvtable.KVTOperationContext;
 import io.pravega.controller.store.kvtable.KVTOperationContextImpl;
 import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.kvtable.KeyValueTable;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
@@ -131,8 +133,8 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                 }), executor));
     }
 
-    String getScopedKVTName(String scope, String stream) {
-        return String.format("%s/%s", scope, stream);
+    String getScopedKVTName(String scope, String name) {
+        return String.format("%s/%s", scope, name);
     }
 
     @Override
@@ -161,6 +163,37 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
 
         return result;
     }
+
+    @Override
+    public CompletableFuture<Void> setState(final String scope, final String name,
+                                            final KVTableState state, final KVTOperationContext context,
+                                            final Executor executor) {
+        return withCompletion(getKVTable(scope, name, context).updateState(state), executor);
+    }
+
+    @Override
+    public CompletableFuture<KVTableState> getState(final String scope, final String name,
+                                             final boolean ignoreCached,
+                                             final KVTOperationContext context,
+                                             final Executor executor) {
+        return withCompletion(getKVTable(scope, name, context).getState(ignoreCached), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final String scope, final String name,
+                                                                            final KVTableState state, final VersionedMetadata<KVTableState> previous,
+                                                                            final KVTOperationContext context,
+                                                                            final Executor executor) {
+        return withCompletion(getKVTable(scope, name, context).updateVersionedState(previous, state), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<KVTableState>> getVersionedState(final String scope, final String name,
+                                                                         final KVTOperationContext context,
+                                                                         final Executor executor) {
+        return withCompletion(getKVTable(scope, name, context).getVersionedState(), executor);
+    }
+
     /**
      * This method retrieves a safe base segment number from which a stream's segment ids may start. In the case of a
      * new stream, this method will return 0 as a starting segment number (default). In the case that a stream with the

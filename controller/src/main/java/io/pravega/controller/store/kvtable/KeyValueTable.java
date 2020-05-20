@@ -9,8 +9,9 @@
  */
 package io.pravega.controller.store.kvtable;
 
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.controller.store.kvtable.records.KVTableConfigurationRecord;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
@@ -90,28 +91,28 @@ interface KeyValueTable {
      *
      * @return current stream configuration.
      */
-    //CompletableFuture<StreamConfiguration> getConfiguration();
+    CompletableFuture<KeyValueTableConfiguration> getConfiguration();
 
     /**
      * Fetches the current stream configuration.
      *
      * @return current stream configuration.
      */
-    //CompletableFuture<VersionedMetadata<StreamConfigurationRecord>> getVersionedConfigurationRecord();
+    CompletableFuture<VersionedMetadata<KVTableConfigurationRecord>> getVersionedConfigurationRecord();
 
     /**
      * Api to get the current state with its current version.
      *
      * @return Future which when completed has the versioned state.
      */
-    //CompletableFuture<VersionedMetadata<KVTableState>> getVersionedState();
+    CompletableFuture<VersionedMetadata<KVTableState>> getVersionedState();
 
     /**
      * Update the state of the stream.
      *
      * @return boolean indicating whether the state of stream is updated.
      */
-    //CompletableFuture<Void> updateState(final KVTableState state);
+    CompletableFuture<Void> updateState(final KVTableState state);
 
     /**
      * Api to update versioned state as a CAS operation.
@@ -119,7 +120,7 @@ interface KeyValueTable {
      * @param state desired state
      * @return Future which when completed contains the updated state and version if successful or exception otherwise.
      */
-    //CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final VersionedMetadata<KVTableState> state, final KVTableState newState);
+    CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final VersionedMetadata<KVTableState> state, final KVTableState newState);
     
     /**
      * Get the state of the stream.
@@ -127,7 +128,7 @@ interface KeyValueTable {
      * @return state othe given stream.
      * @param ignoreCached ignore cached value and fetch from store
      */
-    //CompletableFuture<KVTableState> getState(boolean ignoreCached);
+    CompletableFuture<KVTableState> getState(boolean ignoreCached);
 
     /**
      * Fetches details of specified segment.

@@ -21,6 +21,7 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
+import io.pravega.controller.store.kvtable.KVTableState;
 import io.pravega.controller.store.stream.*;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -100,11 +101,29 @@ public class ControllerService {
         Preconditions.checkNotNull(kvtConfig, "kvTableConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
         Timer timer = new Timer();
-        return kvtMetadataTasks.createKeyValueTable(scope, kvtName, kvtConfig, null)
-                .thenApplyAsync(status -> {
-                    reportCreateKVTableMetrics(scope, kvtName, kvtConfig.getPartitionCount(), status, timer.getElapsed());
-                    return CreateKeyValueTableStatus.newBuilder().setStatus(status).build();
-                }, executor);
+        try {
+            NameUtils.validateUserKeyValueTableName(kvtName);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create KeyValueTable failed due to invalid name {}", kvtName);
+            return CompletableFuture.completedFuture(
+                    CreateKeyValueTableStatus.newBuilder().setStatus(CreateKeyValueTableStatus.Status.INVALID_TABLE_NAME).build());
+        }
+        // check if stream with same name exists...
+        // alternatively for KVTables have segment names suffixed with _table
+        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
+                .thenCompose(state -> {
+                    if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                        return kvtMetadataTasks.createKeyValueTable(scope, kvtName, kvtConfig, createTimestamp)
+                                .thenApplyAsync(status -> {
+                                    reportCreateKVTableMetrics(scope, kvtName, kvtConfig.getPartitionCount(), status, timer.getElapsed());
+                                    return CreateKeyValueTableStatus.newBuilder().setStatus(status).build();
+                                }, executor);
+                    } else {
+                        return CompletableFuture.completedFuture(
+                                CreateKeyValueTableStatus.newBuilder().setStatus(CreateKeyValueTableStatus.Status.TABLE_EXISTS).build());
+                    }
+                });
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,

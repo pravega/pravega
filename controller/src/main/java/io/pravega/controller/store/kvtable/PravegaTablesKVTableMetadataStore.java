@@ -47,6 +47,7 @@ public class PravegaTablesKVTableMetadataStore extends AbstractKVTableMetadataSt
     @Getter(AccessLevel.PACKAGE)
     private final PravegaTablesStoreHelper storeHelper;
     private final ScheduledExecutorService executor;
+
     @VisibleForTesting
     PravegaTablesKVTableMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, ScheduledExecutorService executor, GrpcAuthHelper authHelper) {
         this(segmentHelper, client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS), authHelper);
@@ -96,6 +97,36 @@ public class PravegaTablesKVTableMetadataStore extends AbstractKVTableMetadataSt
                         .thenCompose(id -> super.createKeyValueTable(scope, name, configuration, createTimestamp, context, executor)),
                 executor);
     }
+
+    @Override
+    public CompletableFuture<Boolean> checkKeyValueTableExists(final String scopeName,
+                                                               final String streamName) {
+        return withCompletion(((PravegaTablesScope) getScope(scopeName)).checkKVTableExistsInScope(streamName), executor);
+    }
+
+    @Override
+    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String kvtName) {
+        return withCompletion(storeHelper.getEntry(DELETED_STREAMS_TABLE, getScopedKVTName(scopeName, kvtName),
+                x -> BitConverter.readInt(x, 0))
+                .handle((data, ex) -> {
+                    if (ex == null) {
+                        return data.getObject() + 1;
+                    } else if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
+                        return 0;
+                    } else {
+                        log.error("Problem found while getting a safe starting segment number for {}.",
+                                getScopedKVTName(scopeName, kvtName), ex);
+                        throw new CompletionException(ex);
+                    }
+                }), executor);
+    }
+
+
+
+    @Override
+    public void close() {
+        // do nothing
+    }
 /*
     @Override
     public CompletableFuture<Void> deleteStream(final String scope,
@@ -134,33 +165,5 @@ public class PravegaTablesKVTableMetadataStore extends AbstractKVTableMetadataSt
                 executor);
     }
 */
-    @Override
-    public CompletableFuture<Boolean> checkKeyValueTableExists(final String scopeName,
-                                                        final String streamName) {
-        return withCompletion(((PravegaTablesScope) getScope(scopeName)).checkKVTableExistsInScope(streamName), executor);
-    }
 
-    @Override
-    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String kvtName) {
-        return withCompletion(storeHelper.getEntry(DELETED_STREAMS_TABLE, getScopedKVTName(scopeName, kvtName),
-                x -> BitConverter.readInt(x, 0))
-                          .handle((data, ex) -> {
-                              if (ex == null) {
-                                  return data.getObject() + 1;
-                              } else if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
-                                  return 0;
-                              } else {
-                                  log.error("Problem found while getting a safe starting segment number for {}.",
-                                          getScopedKVTName(scopeName, kvtName), ex);
-                                  throw new CompletionException(ex);
-                              }
-                          }), executor);
-    }
-
-
-
-    @Override
-    public void close() {
-        // do nothing
-    }
 }

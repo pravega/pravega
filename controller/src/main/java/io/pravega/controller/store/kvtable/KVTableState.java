@@ -22,7 +22,6 @@ public enum KVTableState {
     CREATING,
     ACTIVE;
 
-
     private enum StateTransitions {
         UNKNOWN(KVTableState.UNKNOWN, KVTableState.CREATING),
         CREATING(KVTableState.CREATING, KVTableState.ACTIVE),

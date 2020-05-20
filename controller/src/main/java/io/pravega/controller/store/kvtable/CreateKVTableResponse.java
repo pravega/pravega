@@ -16,13 +16,13 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class CreateKVTableResponse {
-    public enum KVTCreateStatus {
+    public enum CreateStatus {
         NEW,
         EXISTS_CREATING,
         EXISTS_ACTIVE,
         FAILED
     }
-    private final KVTCreateStatus status;
+    private final CreateStatus status;
     private final KeyValueTableConfiguration configuration;
     private final long timestamp;
     private final int startingSegmentNumber;

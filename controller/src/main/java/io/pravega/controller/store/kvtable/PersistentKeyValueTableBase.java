@@ -24,6 +24,9 @@ import io.pravega.common.util.CollectionHelpers;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
+import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
+import io.pravega.controller.store.kvtable.records.KVTableConfigurationRecord;
 import io.pravega.controller.store.kvtable.records.KVTableStateRecord;
 import io.pravega.controller.store.stream.*;
 import io.pravega.controller.store.stream.StoreException.DataNotFoundException;
@@ -75,81 +78,10 @@ public abstract class PersistentKeyValueTableBase implements KeyValueTable {
     }
 
     @Override
-    public CompletableFuture<CreateKVTableResponse> create(final KeyValueTableConfiguration configuration, long createTimestamp, int startingSegmentNumber) {
-        /*
-        return checkKeyValueTableExists(configuration, createTimestamp, startingSegmentNumber)
-                .thenCompose(createKVTResponse -> createKVTableMetadata()
-                        .thenCompose((Void v) -> storeCreationTimeIfAbsent(createKVTResponse.getTimestamp()))
-                        .thenCompose((Void v) -> createConfigurationIfAbsent(StreamConfigurationRecord.complete(
-                                scope, name, createKVTResponse.getConfiguration())))
-                        .thenCompose((Void v) -> createStateIfAbsent(StateRecord.builder().state(State.CREATING).build()))
-                        .thenCompose((Void v) -> createHistoryRecords(startingSegmentNumber, createKVTResponse))
-                        .thenApply((Void v) -> createKVTResponse));
-                        */
-        KeyValueTableConfiguration config = new KeyValueTableConfiguration(5);
-        CreateKVTableResponse createResponse = new CreateKVTableResponse(CreateKVTableResponse.KVTCreateStatus.NEW,
-                                                                configuration, createTimestamp, startingSegmentNumber);
-        return CompletableFuture.completedFuture(createResponse);
-
-    }
-
-    /*
-    private CompletionStage<Void> createHistoryRecords(int startingSegmentNumber, CreateStreamResponse createStreamResponse) {
-        final int numSegments = createStreamResponse.getConfiguration().getScalingPolicy().getMinNumSegments();
-        // create epoch 0 record
-        final double keyRangeChunk = 1.0 / numSegments;
-
-        long creationTime = createStreamResponse.getTimestamp();
-        final ImmutableList.Builder<StreamSegmentRecord> builder = ImmutableList.builder();
-        
-        IntStream.range(0, numSegments).boxed()
-                 .forEach(x -> builder.add(newSegmentRecord(0, startingSegmentNumber + x, creationTime,
-                                                                    x * keyRangeChunk, (x + 1) * keyRangeChunk)));
-
-        EpochRecord epoch0 = new EpochRecord(0, 0, builder.build(), creationTime);
-
-        return createEpochRecord(epoch0)
-                .thenCompose(r -> createHistoryChunk(epoch0))
-                .thenCompose(r -> createSealedSegmentSizeMapShardIfAbsent(0))
-                .thenCompose(r -> createRetentionSetDataIfAbsent(new RetentionSet(ImmutableList.of())))
-                .thenCompose(r -> createCurrentEpochRecordDataIfAbsent(epoch0));
-    }
-
-    private CompletionStage<Void> createHistoryChunk(EpochRecord epoch0) {
-        HistoryTimeSeriesRecord record = new HistoryTimeSeriesRecord(0, 0, 
-                ImmutableList.of(), epoch0.getSegments(), epoch0.getCreationTime());
-        return createHistoryTimeSeriesChunk(0, record);
-    }
-
-    private CompletableFuture<Void> createHistoryTimeSeriesChunk(int chunkNumber, HistoryTimeSeriesRecord epoch) {
-        ImmutableList.Builder<HistoryTimeSeriesRecord> builder = ImmutableList.builder();
-        HistoryTimeSeries timeSeries = new HistoryTimeSeries(builder.add(epoch).build());
-        return createHistoryTimeSeriesChunkDataIfAbsent(chunkNumber, timeSeries);
-    }
-
-*/
-    /**
-     * Fetch configuration at configurationPath.
-     *
-     * @return Future of stream configuration
-     */
-    /*
-    @Override
-    public CompletableFuture<KeyValueTableConfiguration> getConfiguration() {
-        return getConfigurationData(false).thenApply(x -> x.getObject().getStreamConfiguration());
-    }
-
-    @Override
-    public CompletableFuture<VersionedMetadata<KeyValueTableConfigurationRecord>> getVersionedConfigurationRecord() {
-        return getConfigurationData(true)
-                .thenApply(data -> new VersionedMetadata<>(data.getObject(), data.getVersion()));
-    }
-
-    @Override
-    public CompletableFuture<Void> updateState(final State state) {
+    public CompletableFuture<Void> updateState(final KVTableState state) {
         return getStateData(true)
                 .thenCompose(currState -> {
-                    VersionedMetadata<State> currentState = new VersionedMetadata<State>(currState.getObject().getState(), currState.getVersion());
+                    VersionedMetadata<KVTableState> currentState = new VersionedMetadata<KVTableState>(currState.getObject().getState(), currState.getVersion());
                     return Futures.toVoid(updateVersionedState(currentState, state));
                 });
     }
@@ -161,8 +93,8 @@ public abstract class PersistentKeyValueTableBase implements KeyValueTable {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<State>> updateVersionedState(final VersionedMetadata<State> previous, final State newState) {
-        if (State.isTransitionAllowed(previous.getObject(), newState)) {
+    public CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final VersionedMetadata<KVTableState> previous, final KVTableState newState) {
+        if (KVTableState.isTransitionAllowed(previous.getObject(), newState)) {
             return setStateData(new VersionedMetadata<>(KVTableStateRecord.builder().state(newState).build(), previous.getVersion()))
                     .thenApply(updatedVersion -> new VersionedMetadata<>(newState, updatedVersion));
         } else {
@@ -174,12 +106,89 @@ public abstract class PersistentKeyValueTableBase implements KeyValueTable {
     }
 
     @Override
-    public CompletableFuture<State> getState(boolean ignoreCached) {
+    public CompletableFuture<KVTableState> getState(boolean ignoreCached) {
         return getStateData(ignoreCached)
                 .thenApply(x -> x.getObject().getState());
     }
 
-*/
+    @Override
+    public CompletableFuture<CreateKVTableResponse> create(final KeyValueTableConfiguration configuration, long createTimestamp, int startingSegmentNumber) {
+
+        return checkKeyValueTableExists(configuration, createTimestamp, startingSegmentNumber)
+                .thenCompose(createKVTResponse -> createKVTableMetadata()
+                        .thenCompose((Void v) -> storeCreationTimeIfAbsent(createKVTResponse.getTimestamp()))
+                        .thenCompose((Void v) -> createConfigurationIfAbsent(KVTableConfigurationRecord.builder()
+                                .scope(scope).kvtName(name).kvtConfiguration(configuration).build()))
+                        .thenCompose((Void v) -> createStateIfAbsent(KVTableStateRecord.builder().state(KVTableState.CREATING).build()))
+                        .thenCompose((Void v) -> createHistoryRecords(startingSegmentNumber, createKVTResponse))
+                        .thenApply((Void v) -> createKVTResponse));
+
+
+    }
+
+    private CompletionStage<Void> createHistoryRecords(int startingSegmentNumber, CreateKVTableResponse createKvtResponse) {
+        final int numSegments = createKvtResponse.getConfiguration().getPartitionCount();
+        // create epoch 0 record
+        final double keyRangeChunk = 1.0 / numSegments;
+
+        long creationTime = createKvtResponse.getTimestamp();
+        final ImmutableList.Builder<KVTSegmentRecord> builder = ImmutableList.builder();
+
+        IntStream.range(0, numSegments).boxed()
+                .forEach(x -> builder.add(newSegmentRecord(0, startingSegmentNumber + x, creationTime,
+                        x * keyRangeChunk, (x + 1) * keyRangeChunk)));
+
+        KVTEpochRecord epoch0 = new KVTEpochRecord(0, builder.build(), creationTime);
+
+        return createEpochRecord(epoch0).thenCompose(r -> createCurrentEpochRecordDataIfAbsent(epoch0));
+
+    }
+
+    private KVTSegmentRecord newSegmentRecord(int epoch, int segmentNumber, long time, Double low, Double high) {
+        return KVTSegmentRecord.builder().creationEpoch(epoch).segmentNumber(segmentNumber).creationTime(time)
+                .keyStart(low).keyEnd(high).build();
+    }
+
+    private CompletableFuture<Void> createEpochRecord(KVTEpochRecord epoch) {
+        return createEpochRecordDataIfAbsent(epoch.getEpoch(), epoch);
+    }
+    /**
+     * Fetch configuration at configurationPath.
+     *
+     * @return Future of stream configuration
+     */
+
+    @Override
+    public CompletableFuture<KeyValueTableConfiguration> getConfiguration() {
+        return getConfigurationData(false).thenApply(x -> x.getObject().getKvtConfiguration());
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<KVTableConfigurationRecord>> getVersionedConfigurationRecord() {
+        return getConfigurationData(true)
+                .thenApply(data -> new VersionedMetadata<>(data.getObject(), data.getVersion()));
+    }
+
+    // region state
+    abstract CompletableFuture<Void> createStateIfAbsent(final KVTableStateRecord state);
+
+    abstract CompletableFuture<Version> setStateData(final VersionedMetadata<KVTableStateRecord> state);
+
+    abstract CompletableFuture<VersionedMetadata<KVTableStateRecord>> getStateData(boolean ignoreCached);
+    abstract CompletableFuture<CreateKVTableResponse> checkKeyValueTableExists(final KeyValueTableConfiguration configuration,
+                                                                               final long creationTime,
+                                                                               final int startingSegmentNumber);
+
+    abstract CompletableFuture<Void> createKVTableMetadata();
+
+    abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime);
+    abstract CompletableFuture<Version> setConfigurationData(final VersionedMetadata<KVTableConfigurationRecord> configuration);
+
+    abstract CompletableFuture<VersionedMetadata<KVTableConfigurationRecord>> getConfigurationData(boolean ignoreCached);
+    abstract CompletableFuture<Void> createConfigurationIfAbsent(final KVTableConfigurationRecord data);
+    abstract CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data);
+    abstract CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data);
+
     /**
      * Fetches Segment metadata from the epoch in which segment was created.
      *
@@ -239,42 +248,11 @@ public abstract class PersistentKeyValueTableBase implements KeyValueTable {
                 .thenCompose(v -> getActiveEpochRecord(true).thenApply(epochRecord -> epochRecord.getSegments()));
     }
 
-
-
     @Override
     public CompletableFuture<List<StreamSegmentRecord>> getSegmentsInEpoch(final int epoch) {
         return getEpochRecord(epoch)
                 .thenApply(epochRecord -> epochRecord.getSegments());
     }
- 
-    private CompletableFuture<Void> updateHistoryTimeSeries(HistoryTimeSeriesRecord record) {
-        int historyChunk = record.getEpoch() / historyChunkSize.get();
-        boolean isFirst = record.getEpoch() % historyChunkSize.get() == 0;
-
-        if (isFirst) {
-            return createHistoryTimeSeriesChunk(historyChunk, record);
-        } else {
-            return getHistoryTimeSeriesChunkData(historyChunk, true)
-                    .thenCompose(x -> {
-                        HistoryTimeSeries historyChunkTimeSeries = x.getObject();
-                        if (historyChunkTimeSeries.getLatestRecord().getEpoch() < record.getEpoch()) {
-                            HistoryTimeSeries update = HistoryTimeSeries.addHistoryRecord(historyChunkTimeSeries, record);
-                            return Futures.toVoid(updateHistoryTimeSeriesChunkData(historyChunk, new VersionedMetadata<>(update, x.getVersion())));
-                        } else {
-                            return CompletableFuture.completedFuture(null);
-                        }
-                    });
-        }
-    }
-
-
-
-    @Override
-    public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransition() {
-        return getEpochTransitionNode()
-                .thenApply(x -> new VersionedMetadata<>(x.getObject(), x.getVersion()));
-    }
-
 
     @SneakyThrows
     private TxnStatus handleDataNotFoundException(Throwable ex) {
@@ -341,28 +319,6 @@ public abstract class PersistentKeyValueTableBase implements KeyValueTable {
             return null;
         });
     }
-
-    private CompletableFuture<Void> createEpochRecord(EpochRecord epoch) {
-        return createEpochRecordDataIfAbsent(epoch.getEpoch(), epoch);
-    }
-
-    private CompletableFuture<Void> updateCurrentEpochRecord(int newActiveEpoch) {
-        return getEpochRecord(newActiveEpoch)
-                .thenCompose(epochRecord -> getCurrentEpochRecordData(true)
-                        .thenCompose(currentEpochRecordData -> {
-                            EpochRecord existing = currentEpochRecordData.getObject();
-                            if (existing.getEpoch() < newActiveEpoch) {
-                                return Futures.toVoid(updateCurrentEpochRecordData(
-                                        new VersionedMetadata<>(epochRecord, currentEpochRecordData.getVersion())));
-                            } else {
-                                return CompletableFuture.completedFuture(null);
-                            }
-                        }));
-    }
-
-
-
-
 
     private int getShardNumber(long segmentId) {
         return NameUtils.getEpoch(segmentId) / shardSize.get();
@@ -520,63 +476,13 @@ public abstract class PersistentKeyValueTableBase implements KeyValueTable {
                 });
     }
 */
-    // region abstract methods
-    /*
-    abstract CompletableFuture<CreateKVTableResponse> checkKeyValueTableExists(final StreamConfiguration configuration,
-                                                                       final long creationTime, final int startingSegmentNumber);
-
-    abstract CompletableFuture<Void> createKVTableMetadata();
-    
-    abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime);
-*/
-
-    // endregion
-
-    // region configuration
-    /*
-    abstract CompletableFuture<Void> createConfigurationIfAbsent(final StreamConfigurationRecord data);
-
-
-
-    // region state
-    abstract CompletableFuture<Void> createStateIfAbsent(final StateRecord state);
-*/
     /*
     abstract CompletableFuture<Void> deleteKeyValueTable();
-    abstract CompletableFuture<Version> setConfigurationData(final VersionedMetadata<StreamConfigurationRecord> configuration);
-
-    abstract CompletableFuture<VersionedMetadata<StreamConfigurationRecord>> getConfigurationData(boolean ignoreCached);
     // endregion
-
-    abstract CompletableFuture<Version> setStateData(final VersionedMetadata<KVTableStateRecord> state);
-
-    abstract CompletableFuture<VersionedMetadata<StateRecord>> getStateData(boolean ignoreCached);
-    // endregion
-
-    // region history
-    abstract CompletableFuture<Void> createHistoryTimeSeriesChunkDataIfAbsent(int chunkNumber, HistoryTimeSeries data);
-
-    abstract CompletableFuture<VersionedMetadata<HistoryTimeSeries>> getHistoryTimeSeriesChunkData(int chunkNumber, boolean ignoreCached);
-
-    abstract CompletableFuture<Version> updateHistoryTimeSeriesChunkData(int historyChunk, VersionedMetadata<HistoryTimeSeries> tData);
-
-    abstract CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(EpochRecord data);
-
-    abstract CompletableFuture<Version> updateCurrentEpochRecordData(VersionedMetadata<EpochRecord> data);
 
     abstract CompletableFuture<VersionedMetadata<EpochRecord>> getCurrentEpochRecordData(boolean ignoreCached);
 
-    abstract CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, EpochRecord data);
-
     abstract CompletableFuture<VersionedMetadata<EpochRecord>> getEpochRecordData(int epoch);
-
-    // region scale
-    abstract CompletableFuture<Void> createEpochTransitionIfAbsent(EpochTransitionRecord epochTransition);
-
-    abstract CompletableFuture<Version> updateEpochTransitionNode(VersionedMetadata<EpochTransitionRecord> epochTransition);
-
-    abstract CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransitionNode();
-    // endregion
 
     // region processor
     abstract CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String data);

@@ -79,7 +79,7 @@ public interface KVTableMetadataStore extends AutoCloseable {
     /**
      * Api to check if a stream exists in the store or not.
      * @param scopeName scope name
-     * @param streamName stream name
+     * @param kvtName KVTable name
      * @return true if stream exists, false otherwise
      */
     CompletableFuture<Boolean> checkKeyValueTableExists(final String scopeName,
@@ -124,12 +124,12 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return Future of boolean if state update succeeded.
      */
-/*
+
     CompletableFuture<Void> setState(String scope, String name,
                                      KVTableState state, KVTOperationContext context,
                                         Executor executor);
 
-    */
+
     /**
      * Api to get the state for stream from metadata.
      *
@@ -140,7 +140,7 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * @param executor callers executor
      * @return Future of boolean if state update succeeded.
      */
-    //CompletableFuture<KVTableState> getState(final String scope, final String name, final boolean ignoreCached, final KVTOperationContext context, final Executor executor);
+    CompletableFuture<KVTableState> getState(final String scope, final String name, final boolean ignoreCached, final KVTOperationContext context, final Executor executor);
 
     /**
      * Api to get the current state with its current version.
@@ -151,11 +151,11 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return Future which when completed has the versioned state.
      */
-    /*
+
     CompletableFuture<VersionedMetadata<KVTableState>> getVersionedState(final String scope, final String name,
                                                                          final KVTOperationContext context, final Executor executor);
 
-    */
+
     /**
      * Api to update versioned state as a CAS operation.
      *
@@ -167,12 +167,12 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return Future which when completed contains the updated state and version if successful or exception otherwise.
      */
-    /*
+
     CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final String scope, final String name,
                                                     final KVTableState state, final VersionedMetadata<KVTableState> previous, final KVTOperationContext context,
                                                     final Executor executor);
 
-    */
+
     /**
      * List existing streams in scopes.
      *

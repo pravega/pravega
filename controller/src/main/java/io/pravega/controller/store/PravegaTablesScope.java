@@ -46,6 +46,7 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
 @Slf4j
 public class PravegaTablesScope implements Scope {
     private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "streamsInScope" + SEPARATOR + "%s";
+    private static final String KVTABLES_IN_SCOPE_TABLE_FORMAT = "kvTablesInScope" + SEPARATOR + "%s";
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;
     private final AtomicReference<UUID> idRef;
@@ -101,6 +102,11 @@ public class PravegaTablesScope implements Scope {
     public CompletableFuture<String> getStreamsInScopeTableName() {
         return getId().thenApply(id ->
                 getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, id.toString())));
+    }
+
+    public CompletableFuture<String> getKVTablesInScopeTableName() {
+        return getId().thenApply(id ->
+                getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(KVTABLES_IN_SCOPE_TABLE_FORMAT, id.toString())));
     }
 
     CompletableFuture<UUID> getId() {
@@ -174,18 +180,18 @@ public class PravegaTablesScope implements Scope {
     }
 
     public CompletableFuture<Boolean> checkKVTableExistsInScope(String kvt) {
-        return getStreamsInScopeTableName()
+        return getKVTablesInScopeTableName()
                 .thenCompose(tableName -> storeHelper.expectingDataNotFound(
                         storeHelper.getEntry(tableName, kvt, x -> x).thenApply(v -> true), false));
     }
 
     public CompletableFuture<Void> addKVTableToScope(String kvt) {
-        return getStreamsInScopeTableName()
+        return getKVTablesInScopeTableName()
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, kvt, newId())));
     }
 
     public CompletableFuture<Void> removeKVTableFromScope(String kvt) {
-        return getStreamsInScopeTableName()
+        return getKVTablesInScopeTableName()
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, kvt)));
     }
 }
