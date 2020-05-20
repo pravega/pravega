@@ -70,6 +70,14 @@ public interface CompositeArrayView extends BufferView {
     <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectArray) throws ExceptionT;
 
     /**
+     * Gets the number of components in this {@link CompositeArrayView} instance.
+     *
+     * @return The number of components. This is equivalent to retrieving {@link #getContents()}{@link List#size()} and
+     * is the exact number of argument invocations for {@link #collect(Collector)}.
+     */
+    int getComponentCount();
+
+    /**
      * {@inheritDoc}
      * Gets a list of {@link ByteBuffer} that represent the contents of this {@link CompositeArrayView}. Since the
      * {@link CompositeArrayView} is a sparse array implementation, any "gaps" that are not allocated within this object
