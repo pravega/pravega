@@ -15,9 +15,9 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Main entry point for Integration tests that need an in process Pravega cluster.
+ * Main entry point for Integration tests that need an in-process Pravega cluster.
  * This class is intended to be used both by internal test suites
- * and  by test suites of applications that want to run tests against
+ * and by test suites of applications that want to run tests against
  * a real Pravega cluster.
  */
 @Slf4j
