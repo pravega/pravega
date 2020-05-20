@@ -1078,7 +1078,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     @VisibleForTesting
-    void setCompletionTimeoutMillis(long timeoutMillis) {
+    public void setCompletionTimeoutMillis(long timeoutMillis) {
         completionTimeoutMillis.set(timeoutMillis);
     }
 }
