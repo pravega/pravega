@@ -207,10 +207,14 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 if (appendDataBuf.readableBytes() == 0) {
                     currentBlock.release();
 <<<<<<< HEAD
+<<<<<<< HEAD
                     appendDataBuf = wrappedUnmodifiableBuffer(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
 =======
                     appendDataBuf = wrappedBuffer(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+                    appendDataBuf = wrappedUnmodifiableBuffer(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
+>>>>>>> Issue 4778: Using Unpooled.wrappedUnmodifableBuffer where possible. (#4787)
                 } else {
                     appendDataBuf = wrappedUnmodifiableBuffer(appendDataBuf, ((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
                 }

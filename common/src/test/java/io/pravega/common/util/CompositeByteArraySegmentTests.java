@@ -129,10 +129,16 @@ public class CompositeByteArraySegmentTests extends BufferViewTestBase {
             val targetData = new byte[s.getLength()];
             val targetOffset = new AtomicInteger();
             val count = new AtomicInteger();
+<<<<<<< HEAD
             s.collect(bb -> {
                 int len = bb.remaining();
                 bb.get(targetData, targetOffset.get(), len);
                 targetOffset.addAndGet(len);
+=======
+            s.collect((array, arrayOffset, arrayLength) -> {
+                System.arraycopy(array, arrayOffset, targetData, targetOffset.get(), arrayLength);
+                targetOffset.addAndGet(arrayLength);
+>>>>>>> Issue 4778: Using Unpooled.wrappedUnmodifableBuffer where possible. (#4787)
                 count.incrementAndGet();
             });
 
@@ -176,7 +182,8 @@ public class CompositeByteArraySegmentTests extends BufferViewTestBase {
 
             for (int sliceOffset = 0; sliceOffset <= s.getLength() / 2; sliceOffset++) {
                 val sliceLength = s.getLength() - 2 * sliceOffset;
-                val reader = s.slice(sliceOffset, sliceLength).getBufferViewReader();
+                val slice = s.slice(sliceOffset, sliceLength);
+                val reader = slice.getBufferViewReader();
                 if (sliceLength == 0) {
                     Assert.assertEquals("Unexpected data read for empty slice.", 0, reader.available());
                 } else {
@@ -185,6 +192,10 @@ public class CompositeByteArraySegmentTests extends BufferViewTestBase {
                             targetData, sliceOffset, actualData.array(), actualData.arrayOffset(), actualData.getLength());
                     Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
                 }
+
+                val actualComponentCount = new AtomicInteger();
+                slice.collect((a, o, l) -> actualComponentCount.incrementAndGet());
+                Assert.assertEquals("Unexpected number of components.", actualComponentCount.get(), slice.getComponentCount());
             }
         });
     }
