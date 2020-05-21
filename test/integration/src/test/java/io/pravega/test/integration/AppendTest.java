@@ -79,6 +79,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -97,12 +98,10 @@ public class AppendTest extends LeakDetectorTestSuite {
 
     @Before
     public void setup() throws Exception {
-        ServiceBuilderConfig config = ServiceBuilderConfig.builder()
-                                                          .include(ServiceConfig.builder()
-                                                                                .with(ServiceConfig.CONTAINER_COUNT, 1))
-                                                          .include(WriterConfig.builder()
-                                                                               .with(WriterConfig.MAX_ROLLOVER_SIZE, 10485760L))
-                                                          .build();
+        val config = ServiceBuilderConfig.builder()
+                                         .include(ServiceConfig.builder().with(ServiceConfig.CONTAINER_COUNT, 1))
+                                         .include(WriterConfig.builder().with(WriterConfig.MAX_ROLLOVER_SIZE, 10485760L))
+                                         .build();
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(config);
         this.serviceBuilder.initialize();
     }
@@ -332,7 +331,9 @@ public class AppendTest extends LeakDetectorTestSuite {
         String scope = "Scope";
         String streamName = "abc";
         int port = TestUtils.getAvailableListenPort();
-        ByteBuffer payload = ByteBuffer.allocate(1024 * 1024);
+        long heapSize = Runtime.getRuntime().maxMemory();
+        long messageSize = Math.min(1024 * 1024, heapSize / 20000);
+        ByteBuffer payload = ByteBuffer.allocate((int) messageSize);
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup("shutdown")
@@ -355,16 +356,16 @@ public class AppendTest extends LeakDetectorTestSuite {
         @Cleanup
         RawClient rawClient = new RawClient(new PravegaNodeUri(endpoint, port), connectionFactory);
         for (int i = 0; i < 10; i++) {
-            for (int j = 0; j < 100; j++) {
+            for (int j = 0; j < 1000; j++) {
                 producer.writeEvent(payload.slice());
             }
             producer.flush();
             long requestId = rawClient.getFlow().getNextSequenceNumber();
             String scopedName = new Segment(scope, streamName, 0).getScopedName();
             WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(requestId, scopedName,
-                                                                                    i * 100L * (payload.remaining() + TYPE_PLUS_LENGTH_SIZE), "");
-            Reply join = rawClient.sendRequest(requestId, request).join();
-            assertFalse(join.isFailure());
+                                                                                    i * 1000L * (payload.remaining() + TYPE_PLUS_LENGTH_SIZE), "");
+            Reply reply = rawClient.sendRequest(requestId, request).join();
+            assertFalse(reply.toString(), reply.isFailure());
         }
         producer.close();
     }
