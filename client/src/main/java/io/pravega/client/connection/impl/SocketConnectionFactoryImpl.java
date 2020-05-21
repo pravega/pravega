@@ -15,12 +15,11 @@ import io.pravega.client.ClientConfig;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class SocketConnectionFactoryImpl implements ConnectionFactory {
@@ -51,8 +50,7 @@ public class SocketConnectionFactoryImpl implements ConnectionFactory {
 
     @Override
     public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
-        return CompletableFuture.completedFuture(new TcpClientConnection(endpoint.getEndpoint(), endpoint.getPort(),
-                this.clientConfig, rp));
+        return CompletableFuture.completedFuture(TcpClientConnection.connect(endpoint, clientConfig, rp));
     }
 
 

@@ -12,16 +12,19 @@ package io.pravega.client.connection.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.util.concurrent.ScheduledFuture;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,8 +39,8 @@ import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_OUTSTANDING_APPE
 public class FlowHandler extends FailingReplyProcessor implements AutoCloseable {
 
     private static final int FLOW_DISABLED = 0;
-    private final String connectionName;
-    private final TcpClientConnection channel;
+    private final PravegaNodeUri location;
+    private TcpClientConnection channel; //Final (set in factory after construction)
     @Getter
     private final MetricNotifier metricNotifier;
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
@@ -51,20 +54,22 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
 
     private final AtomicBoolean disableFlow = new AtomicBoolean(false);
 
-    public FlowHandler(String connectionName, TcpClientConnection channel) {
-        this(connectionName, channel, MetricNotifier.NO_OP_METRIC_NOTIFIER);
+    private FlowHandler(PravegaNodeUri location, MetricNotifier updateMetric) {
+        this.location = location;
+        this.metricNotifier = updateMetric;
     }
 
-    public FlowHandler(String connectionName, TcpClientConnection channel, MetricNotifier updateMetric) {
-        this.connectionName = connectionName;
-        this.channel = channel;
-        this.metricNotifier = updateMetric;
+    public static CompletableFuture<FlowHandler> openConnection(PravegaNodeUri location, ClientConfig clientConfig, MetricNotifier updateMetric) {
+        FlowHandler flowHandler = new FlowHandler(location, updateMetric);
+        TcpClientConnection connection = TcpClientConnection.connect(location, clientConfig, flowHandler);
+        flowHandler.channel = connection;
+        return CompletableFuture.completedFuture(flowHandler);
         
         //TODO: hello
         //TODO: start keepalive
         //TODO: ch.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS)
     }
-
+    
     /**
      * Create a flow on existing connection.
      * @param flow Flow.
@@ -75,12 +80,12 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkState(!disableFlow.get(), "Ensure flows are enabled.");
         final int flowID = flow.getFlowId();
-        log.info("Creating Flow {} for endpoint {}. The current Channel is {}.", flow.getFlowId(), connectionName, channel);
+        log.info("Creating Flow {} for endpoint {}. ", flow.getFlowId(), location);
         if (flowIdReplyProcessorMap.put(flowID, rp) != null) {
             throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flowID);
         }
         createAppendBatchSizeTrackerIfNeeded(flowID);
-        return new FlowClientConnection(connectionName, flowID, this);
+        return new FlowClientConnection(location.toString(), flowID, this);
     }
 
     /**
@@ -92,10 +97,10 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     public ClientConnection createConnectionWithFlowDisabled(final ReplyProcessor rp) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkState(!disableFlow.getAndSet(true), "Flows are disabled, incorrect usage pattern.");
-        log.info("Creating a new connection with flow disabled for endpoint {}. The current Channel is {}.", connectionName, channel);
+        log.info("Creating a new connection with flow disabled for endpoint {}.", location);
         flowIdReplyProcessorMap.put(FLOW_DISABLED, rp);
         createAppendBatchSizeTrackerIfNeeded(FLOW_DISABLED);
-        return new FlowClientConnection(connectionName, FLOW_DISABLED, this);
+        return new FlowClientConnection(location.toString(), FLOW_DISABLED, this);
     }
 
     /**
@@ -160,7 +165,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
 
     @Override
     public void process(Reply cmd) {
-        log.debug(connectionName + " processing reply {} with flow {}", cmd, Flow.from(cmd.getRequestId()));
+        log.debug("{} processing reply {} with flow {}", location, cmd, Flow.from(cmd.getRequestId()));
 
         if (cmd instanceof WireCommands.Hello) {
             flowIdReplyProcessorMap.forEach((flowId, rp) -> {
@@ -232,7 +237,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
             if (future != null) {
                 future.cancel(false);
             }
-            log.info("Connection closed observed with endpoint {}", connectionName);
+            log.info("Connection closed observed with endpoint {}", location);
             flowIdReplyProcessorMap.forEach((flowId, rp) -> {
                 try {
                     log.debug("Connection dropped for flow id {}", flowId);
@@ -249,7 +254,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
             
             
            
-                log.info("Closing connection with endpoint {}", connectionName);
+                log.info("Closing connection with endpoint {}", location);
                 final int openFlowCount = flowIdReplyProcessorMap.size();
                 if (openFlowCount != 0) {
                     log.debug("{} flows are not closed", openFlowCount);
@@ -276,7 +281,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
                     channel.send(new WireCommands.KeepAlive());
                 }
             } catch (Exception e) {
-                log.warn("Failed to send KeepAlive to {}. Closing this connection.", connectionName, e);
+                log.warn("Failed to send KeepAlive to {}. Closing this connection.", location, e);
                 close();
             }
         }
