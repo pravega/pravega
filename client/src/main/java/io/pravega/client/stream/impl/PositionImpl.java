@@ -64,13 +64,13 @@ public class PositionImpl extends PositionInternal {
     
     @Builder(builderClassName = "PositionBuilder")
     PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges, List<Entry<Segment, Long>> updatesToSegmentOffsets) {
-        this.ownedSegments.set(ownedSegments);
-        this.updatesToSegmentOffsets = updatesToSegmentOffsets;
+        this.ownedSegments.set(Collections.unmodifiableMap(ownedSegments));
+        this.updatesToSegmentOffsets = Collections.unmodifiableList((updatesToSegmentOffsets == null) ? Collections.emptyList() : updatesToSegmentOffsets);
         this.version = (updatesToSegmentOffsets != null) ? updatesToSegmentOffsets.size() : 0;
         if (segmentRanges == null) {
             this.segmentRanges = Collections.emptyMap();
         } else {
-            this.segmentRanges = segmentRanges;
+            this.segmentRanges = Collections.unmodifiableMap(segmentRanges);
         }
     }
 
