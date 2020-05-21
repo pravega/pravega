@@ -35,7 +35,6 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLContext;
@@ -44,6 +43,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManagerFactory;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -130,7 +130,7 @@ public class TcpClientConnection implements ClientConnection {
         Socket socket = createClientSocket(location, clientConfig); //TODO: Switch to AsynchronousSocketChannel.connect
         SocketChannel channel = socket.getChannel();
         AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
-        ConnectionReader reader = new ConnectionReader(host, channel, callback, batchSizeTracker);
+        ConnectionReader reader = new ConnectionReader(location.toString(), channel, callback, batchSizeTracker);
         reader.start();
         CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, channel, 
                                                         ExecutorServiceHelpers.newScheduledThreadPool(1, "Timeouts for " + location));
@@ -138,7 +138,7 @@ public class TcpClientConnection implements ClientConnection {
         return new TcpClientConnection(socket, encoder, reader, location);
     }
 
-    private TrustManagerFactory createFromCert(String trustStoreFilePath)
+    private static TrustManagerFactory createFromCert(String trustStoreFilePath)
             throws CertificateException, IOException, NoSuchAlgorithmException, KeyStoreException {
         TrustManagerFactory factory = null;
         if (!Strings.isNullOrEmpty(trustStoreFilePath)) {
@@ -150,7 +150,8 @@ public class TcpClientConnection implements ClientConnection {
         return factory;
     }
 
-    private CompletableFuture<Socket> createClientSocket(PravegaNodeUri location, ClientConfig clientConfig) {
+    @SneakyThrows //Called in an async context
+    private static Socket createClientSocket(PravegaNodeUri location, ClientConfig clientConfig) {
         //TODO: Create the socket async
         //TODO: Parse pravega URI to deturmine if using TLS.
         
@@ -164,7 +165,7 @@ public class TcpClientConnection implements ClientConnection {
                     trustMgrFactory != null ? trustMgrFactory.getTrustManagers() : null,
                     null);
 
-            SSLSocket s = (SSLSocket) tlsContext.getSocketFactory().createSocket(host, port);
+            SSLSocket s = (SSLSocket) tlsContext.getSocketFactory().createSocket(location.getEndpoint(), location.getPort());
 
             // SSLSocket does not perform hostname verification by default. So, we must explicitly enable it.
             if (clientConfig.isValidateHostName()) {
@@ -175,7 +176,7 @@ public class TcpClientConnection implements ClientConnection {
             result = s;
 
         } else {
-            result = new Socket(host, port);
+            result = new Socket(location.getEndpoint(), location.getPort());
         }
         result.setTcpNoDelay(true);
         return result;

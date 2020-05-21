@@ -12,41 +12,18 @@ package io.pravega.client.connection.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
-import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.epoll.Epoll;
-import io.netty.channel.epoll.EpollEventLoopGroup;
-import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.metrics.ClientMetricUpdater;
 import io.pravega.shared.metrics.MetricListener;
 import io.pravega.shared.metrics.MetricNotifier;
-import io.pravega.shared.metrics.ClientMetricUpdater;
-import io.pravega.shared.protocol.netty.CommandDecoder;
-import io.pravega.shared.protocol.netty.CommandEncoder;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
-import io.pravega.shared.protocol.netty.WireCommands;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -58,9 +35,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLParameters;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
@@ -104,7 +78,6 @@ public class ConnectionPoolImpl implements ConnectionPool {
     }
     
     private final ClientConfig clientConfig;
-    private final EventLoopGroup group;
     private final MetricNotifier metricNotifier;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     @VisibleForTesting
@@ -115,8 +88,6 @@ public class ConnectionPoolImpl implements ConnectionPool {
 
     public ConnectionPoolImpl(ClientConfig clientConfig) {
         this.clientConfig = clientConfig;
-        // EventLoopGroup objects are expensive, do not create a new one for every connection.
-        this.group = getEventLoopGroup();
         MetricListener metricListener = clientConfig.getMetricListener();
         this.metricNotifier = metricListener == null ? NO_OP_METRIC_NOTIFIER : new ClientMetricUpdater(metricListener);
     }
@@ -206,12 +177,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
     /**
      * Establish a new connection to the Pravega Node.
      * @param location The Pravega Node Uri
-     * @param handler The flow handler for the connection
      * @return A future, which completes once the connection has been established, returning a FlowHandler that can be used to create
      * flows on the connection.
      */
     private CompletableFuture<FlowHandler> establishConnection(PravegaNodeUri location) {
-        TcpClientConnection connection = new TcpClientConnection(location, callback);
+        return FlowHandler.openConnection(location, clientConfig, metricNotifier);
         //TODO: set handler as callback 
         //TODO: Switch to AsynchronousSocketChannel.connect
         //TODO: Add ssl
@@ -220,51 +190,40 @@ public class ConnectionPoolImpl implements ConnectionPool {
         // return FlowHandler
     }
 
-    /**
-     * Obtain {@link SslContext} based on {@link ClientConfig}.
-     */
-    @VisibleForTesting
-    SslContext getSslContext() {
-        final SslContext sslCtx;
-        if (clientConfig.isEnableTlsToSegmentStore()) {
-            log.debug("Setting up an SSL/TLS Context");
-            try {
-                SslContextBuilder clientSslCtxBuilder = SslContextBuilder.forClient();
-
-                if (Strings.isNullOrEmpty(clientConfig.getTrustStore())) {
-                    log.debug("Client truststore wasn't specified.");
-                    File clientTruststore = null; // variable for disambiguating method call
-                    clientSslCtxBuilder.trustManager(clientTruststore);
-                } else {
-                    clientSslCtxBuilder.trustManager(new File(clientConfig.getTrustStore()));
-                    log.debug("Client truststore: {}", clientConfig.getTrustStore());
-                }
-
-                sslCtx = clientSslCtxBuilder.build();
-            } catch (SSLException e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            sslCtx = null;
-        }
-        return sslCtx;
-    }
-
-    private EventLoopGroup getEventLoopGroup() {
-        if (Epoll.isAvailable()) {
-            return new EpollEventLoopGroup();
-        } else {
-            log.warn("Epoll not available. Falling back on NIO.");
-            return new NioEventLoopGroup();
-        }
-    }
+//    /**
+//     * Obtain {@link SslContext} based on {@link ClientConfig}.
+//     */
+//    @VisibleForTesting
+//    SslContext getSslContext() {
+//        final SslContext sslCtx;
+//        if (clientConfig.isEnableTlsToSegmentStore()) {
+//            log.debug("Setting up an SSL/TLS Context");
+//            try {
+//                SslContextBuilder clientSslCtxBuilder = SslContextBuilder.forClient();
+//
+//                if (Strings.isNullOrEmpty(clientConfig.getTrustStore())) {
+//                    log.debug("Client truststore wasn't specified.");
+//                    File clientTruststore = null; // variable for disambiguating method call
+//                    clientSslCtxBuilder.trustManager(clientTruststore);
+//                } else {
+//                    clientSslCtxBuilder.trustManager(new File(clientConfig.getTrustStore()));
+//                    log.debug("Client truststore: {}", clientConfig.getTrustStore());
+//                }
+//
+//                sslCtx = clientSslCtxBuilder.build();
+//            } catch (SSLException e) {
+//                throw new RuntimeException(e);
+//            }
+//        } else {
+//            sslCtx = null;
+//        }
+//        return sslCtx;
+//    }
 
     @Override
     public void close() {
         log.info("Shutting down connection pool");
         if (closed.compareAndSet(false, true)) {
-            // Shut down the event loop to terminate all threads.
-            group.shutdownGracefully();
             metricNotifier.close();
         }
     }
