@@ -70,7 +70,7 @@ import static org.junit.Assert.assertEquals;
 
 @Ignore("Client append path benchmark")
 @Slf4j
-public class AppendPathBenchmarkTests {
+public class AppendPathBenchmarkTest {
     private static final String HOST = "127.0.0.1";
     private static final int PORT = 9090;
     private static final String SCOPE = "scope";
