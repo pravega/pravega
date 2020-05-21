@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import lombok.Getter;
 import lombok.NonNull;
@@ -62,8 +63,12 @@ class CompositeBufferView implements BufferView {
     //region BufferView implementation
 
     @Override
+    public Reader getBufferViewReader() {
+        return new Reader(this.components.stream().map(BufferView::getBufferViewReader).iterator(), getLength());
+    }
+
+    @Override
     public InputStream getReader() {
-        this.components.stream().map(BufferView::getReader).iterator();
         return new SequenceInputStream(Iterators.asEnumeration(this.components.stream().map(BufferView::getReader).iterator()));
     }
 
@@ -146,6 +151,47 @@ class CompositeBufferView implements BufferView {
     @Override
     public void release() {
         this.components.forEach(BufferView::release);
+    }
+
+    //endregion
+
+    //region Reader
+
+    private static class Reader implements BufferView.Reader {
+        private final Iterator<BufferView.Reader> readers;
+        private BufferView.Reader current;
+        private int available;
+
+        Reader(Iterator<BufferView.Reader> readers, int available) {
+            this.readers = readers;
+            this.available = available;
+        }
+
+        @Override
+        public int available() {
+            return this.available;
+        }
+
+        @Override
+        public int readBytes(ByteArraySegment segment) {
+            BufferView.Reader current = getCurrent();
+            if (current != null) {
+                int len = current.readBytes(segment);
+                this.available -= len;
+                assert this.available >= 0;
+                return len;
+            }
+
+            return 0;
+        }
+
+        private BufferView.Reader getCurrent() {
+            if (this.current == null || this.current.available() == 0) {
+                this.current = this.readers.hasNext() ? this.readers.next() : null;
+            }
+
+            return this.current;
+        }
     }
 
     //endregion
