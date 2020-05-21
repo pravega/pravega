@@ -37,13 +37,13 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.DeleteStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.SealStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.TruncateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.UpdateEventTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
@@ -165,7 +165,7 @@ public class ControllerGrpcAuthFocusedTest {
 
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, EXECUTOR),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, EXECUTOR),
-                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, EXECUTOR),
+                new UpdateEventTask(streamMetadataTasks, streamStore, bucketStore, EXECUTOR),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, EXECUTOR),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, EXECUTOR),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, EXECUTOR),

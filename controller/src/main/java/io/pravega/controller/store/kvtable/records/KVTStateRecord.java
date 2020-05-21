@@ -31,17 +31,17 @@ import java.io.IOException;
 @Builder
 @Slf4j
 @AllArgsConstructor
-public class KVTableStateRecord {
+public class KVTStateRecord {
     public static final KVTStateRecordSerializer SERIALIZER = new KVTStateRecordSerializer();
 
     private final KVTableState state;
 
-    public static class KVTableStateRecordBuilder implements ObjectBuilder<KVTableStateRecord> {
+    public static class KVTableStateRecordBuilder implements ObjectBuilder<KVTStateRecord> {
 
     }
 
     @SneakyThrows(IOException.class)
-    public static KVTableStateRecord fromBytes(final byte[] data) {
+    public static KVTStateRecord fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
@@ -50,7 +50,7 @@ public class KVTableStateRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
-    private static class KVTStateRecordSerializer extends VersionedSerializer.WithBuilder<KVTableStateRecord, KVTableStateRecord.KVTableStateRecordBuilder> {
+    private static class KVTStateRecordSerializer extends VersionedSerializer.WithBuilder<KVTStateRecord, KVTStateRecord.KVTableStateRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
@@ -66,17 +66,17 @@ public class KVTableStateRecord {
             if (ordinal < State.values().length) {
                 builder.state(KVTableState.values()[ordinal]);
             } else {
-                throw new VersionMismatchException(KVTableStateRecord.class.getName());
+                throw new VersionMismatchException(KVTStateRecord.class.getName());
             }
         }
 
-        private void write00(KVTableStateRecord state, RevisionDataOutput revisionDataOutput) throws IOException {
+        private void write00(KVTStateRecord state, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeCompactInt(state.getState().ordinal());
         }
 
         @Override
         protected KVTableStateRecordBuilder newBuilder() {
-            return KVTableStateRecord.builder();
+            return KVTStateRecord.builder();
         }
     }
 }

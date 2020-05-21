@@ -92,7 +92,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         }
     }
 
-    public static class TestRequestProcessor1 extends AbstractRequestProcessor<TestEvent1> implements StreamTask<TestEvent1> {
+    public static class TestRequestProcessor1 extends AbstractRequestProcessor<TestEvent1> implements EventTask<TestEvent1> {
         private final BlockingQueue<TestEvent1> queue;
         private boolean ignoreStarted;
         public TestRequestProcessor1(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor, BlockingQueue<TestEvent1> queue) {
@@ -122,7 +122,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         }
     }
 
-    public static class TestRequestProcessor2 extends AbstractRequestProcessor<TestEvent2> implements StreamTask<TestEvent2> {
+    public static class TestRequestProcessor2 extends AbstractRequestProcessor<TestEvent2> implements EventTask<TestEvent2> {
         private final BlockingQueue<TestEvent2> queue;
 
         public TestRequestProcessor2(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor, BlockingQueue<TestEvent2> queue) {
@@ -151,7 +151,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         }
     }
 
-    public static class FailingRequestProcessor extends AbstractRequestProcessor<FailingEvent> implements StreamTask<FailingEvent> {
+    public static class FailingRequestProcessor extends AbstractRequestProcessor<FailingEvent> implements EventTask<FailingEvent> {
         public FailingRequestProcessor(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor) {
             super(streamMetadataStore, executor);
         }

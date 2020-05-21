@@ -10,6 +10,8 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.store.ArtifactStore;
+import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
@@ -44,7 +46,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Stream Metadata.
  */
-public interface StreamMetadataStore extends AutoCloseable {
+public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
 
     /**
      * Method to create an operation context. A context ensures that multiple calls to store for the same data are avoided
@@ -56,7 +58,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param name  Stream name.
      * @return Return a streamContext
      */
-    OperationContext createContext(final String scope, final String name);
+    //OperationContext<Stream> createContext(final String scope, final String name);
 
     /**
      * Creates a new stream with the given name and configuration.
@@ -73,7 +75,7 @@ public interface StreamMetadataStore extends AutoCloseable {
                                             final String streamName,
                                             final StreamConfiguration configuration,
                                             final long createTimestamp,
-                                            final OperationContext context,
+                                            final OperationContext<Stream> context,
                                             final Executor executor);
 
     /**
@@ -1070,7 +1072,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return CompletableFuture which indicates that a node was either created successfully or records the failure.
      */
-    CompletableFuture<Void> createWaitingRequestIfAbsent(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
+    //CompletableFuture<Void> createWaitingRequestIfAbsent(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
 
     /**
      * This method fetches existing waiting request processor's name if any. It returns null if no processor is waiting.
@@ -1082,7 +1084,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return CompletableFuture which has the name of the processor that had requested for a wait, or null if there was no
      * such request.
      */
-    CompletableFuture<String> getWaitingRequestProcessor(String scope, String stream, OperationContext context, ScheduledExecutorService executor);
+    //CompletableFuture<String> getWaitingRequestProcessor(String scope, String stream, OperationContext context, ScheduledExecutorService executor);
 
     /**
      * Delete existing waiting request processor if the name of the existing matches suppied processor name.
@@ -1094,7 +1096,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return CompletableFuture which indicates completion of processing.
      */
-    CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
+    //CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
 
     /**
      * Method to record writer's mark in the metadata store. If this is a known writer, its mark is updated if it advances 

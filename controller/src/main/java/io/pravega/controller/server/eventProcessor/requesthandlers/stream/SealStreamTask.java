@@ -7,13 +7,15 @@
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor.requesthandlers;
+package io.pravega.controller.server.eventProcessor.requesthandlers.stream;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.server.eventProcessor.requesthandlers.EventTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
+import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
@@ -21,7 +23,7 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.shared.controller.event.SealStreamEvent;
+import io.pravega.shared.controller.event.stream.SealStreamEvent;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -32,7 +34,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Request handler for performing scale operations received from requeststream.
  */
-public class SealStreamTask implements StreamTask<SealStreamEvent> {
+public class SealStreamTask implements EventTask<SealStreamEvent> {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SealStreamTask.class));
 

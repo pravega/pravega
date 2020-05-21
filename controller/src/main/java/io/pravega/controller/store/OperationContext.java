@@ -7,14 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store;
 
 /**
  * Interface for defining an operation context.
  * A context caches metadata fetches so within a context if for the same entity, multiple
  * read operations against the store are requested, the values are served from the context's cache.
  */
-public interface OperationContext {
-
-    Stream getStream();
+public interface OperationContext<T> {
+    public T getObject();
 }

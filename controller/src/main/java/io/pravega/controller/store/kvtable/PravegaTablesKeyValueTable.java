@@ -18,11 +18,8 @@ import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
-import io.pravega.controller.store.kvtable.records.KVTableConfigurationRecord;
-import io.pravega.controller.store.kvtable.records.KVTableStateRecord;
-import io.pravega.controller.store.stream.records.EpochRecord;
-import io.pravega.controller.store.stream.records.StateRecord;
-import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
+import io.pravega.controller.store.kvtable.records.KVTConfigurationRecord;
+import io.pravega.controller.store.kvtable.records.KVTStateRecord;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -124,13 +121,13 @@ class PravegaTablesKeyValueTable extends PersistentKeyValueTableBase {
     }
 
     @Override
-    public CompletableFuture<Void> createStateIfAbsent(final KVTableStateRecord state) {
+    public CompletableFuture<Void> createStateIfAbsent(final KVTStateRecord state) {
         return getMetadataTable()
                 .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, STATE_KEY, state.toBytes())));
     }
 
     @Override
-    CompletableFuture<Version> setStateData(final VersionedMetadata<KVTableStateRecord> state) {
+    CompletableFuture<Version> setStateData(final VersionedMetadata<KVTStateRecord> state) {
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, STATE_KEY,
                         state.getObject().toBytes(), state.getVersion())
@@ -141,18 +138,18 @@ class PravegaTablesKeyValueTable extends PersistentKeyValueTableBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTableStateRecord>> getStateData(boolean ignoreCached) {
+    CompletableFuture<VersionedMetadata<KVTStateRecord>> getStateData(boolean ignoreCached) {
         return getMetadataTable()
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
-                        return storeHelper.getEntry(metadataTable, STATE_KEY, KVTableStateRecord::fromBytes);
+                        return storeHelper.getEntry(metadataTable, STATE_KEY, KVTStateRecord::fromBytes);
                     }
-                    return storeHelper.getCachedData(metadataTable, STATE_KEY, KVTableStateRecord::fromBytes);
+                    return storeHelper.getCachedData(metadataTable, STATE_KEY, KVTStateRecord::fromBytes);
                 });
     }
 
     @Override
-    CompletableFuture<Version> setConfigurationData(final VersionedMetadata<KVTableConfigurationRecord> configuration) {
+    CompletableFuture<Version> setConfigurationData(final VersionedMetadata<KVTConfigurationRecord> configuration) {
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, CONFIGURATION_KEY,
                         configuration.getObject().toBytes(), configuration.getVersion())
@@ -163,13 +160,13 @@ class PravegaTablesKeyValueTable extends PersistentKeyValueTableBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTableConfigurationRecord>> getConfigurationData(boolean ignoreCached) {
+    CompletableFuture<VersionedMetadata<KVTConfigurationRecord>> getConfigurationData(boolean ignoreCached) {
         return getMetadataTable()
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
-                        return storeHelper.getEntry(metadataTable, CONFIGURATION_KEY, KVTableConfigurationRecord::fromBytes);
+                        return storeHelper.getEntry(metadataTable, CONFIGURATION_KEY, KVTConfigurationRecord::fromBytes);
                     }
-                    return storeHelper.getCachedData(metadataTable, CONFIGURATION_KEY, KVTableConfigurationRecord::fromBytes);
+                    return storeHelper.getCachedData(metadataTable, CONFIGURATION_KEY, KVTConfigurationRecord::fromBytes);
                 });
     }
 
@@ -237,7 +234,7 @@ class PravegaTablesKeyValueTable extends PersistentKeyValueTableBase {
     }
 
     @Override
-    public CompletableFuture<Void> createConfigurationIfAbsent(final KVTableConfigurationRecord configuration) {
+    public CompletableFuture<Void> createConfigurationIfAbsent(final KVTConfigurationRecord configuration) {
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CONFIGURATION_KEY, configuration.toBytes())
                         .thenAccept(v -> storeHelper.invalidateCache(metadataTable, CONFIGURATION_KEY)));

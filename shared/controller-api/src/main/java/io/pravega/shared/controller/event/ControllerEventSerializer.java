@@ -13,6 +13,8 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+
+import io.pravega.shared.controller.event.stream.*;
 import lombok.SneakyThrows;
 
 /**

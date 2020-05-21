@@ -10,52 +10,17 @@
 package io.pravega.controller.store.kvtable;
 
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.controller.store.kvtable.records.KVTableConfigurationRecord;
-import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
-import io.pravega.controller.store.stream.records.EpochRecord;
-import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.HistoryTimeSeries;
-import io.pravega.controller.store.stream.records.RetentionSet;
-import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
-import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
-import io.pravega.controller.store.stream.records.StreamCutRecord;
-import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
-import io.pravega.controller.store.stream.records.StreamSegmentRecord;
-import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.Artifact;
+import io.pravega.controller.store.kvtable.records.KVTConfigurationRecord;
 import io.pravega.controller.store.VersionedMetadata;
 
-import java.util.AbstractMap.SimpleEntry;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * Properties of a stream and operations that can be performed on it.
  * Identifier for a stream is its name.
  */
-interface KeyValueTable {
-
-    String getScope();
-
-    /**
-     * Get name of stream.
-     *
-     * @return Name of stream.
-     */
-    String getName();
-
-    /**
-     * Get Scope Name.
-     *
-     * @return Name of scope.
-     */
-    String getScopeName();
+interface KeyValueTable extends Artifact {
 
     /**
      * Create the stream, by creating/modifying underlying data structures.
@@ -98,7 +63,7 @@ interface KeyValueTable {
      *
      * @return current stream configuration.
      */
-    CompletableFuture<VersionedMetadata<KVTableConfigurationRecord>> getVersionedConfigurationRecord();
+    CompletableFuture<VersionedMetadata<KVTConfigurationRecord>> getVersionedConfigurationRecord();
 
     /**
      * Api to get the current state with its current version.

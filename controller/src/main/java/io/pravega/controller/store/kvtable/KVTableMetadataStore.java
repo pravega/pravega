@@ -10,41 +10,17 @@
 package io.pravega.controller.store.kvtable;
 
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.controller.store.kvtable.KVTOperationContext;
+import io.pravega.controller.store.ArtifactStore;
 import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
-import io.pravega.controller.store.stream.records.EpochRecord;
-import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.HistoryTimeSeries;
-import io.pravega.controller.store.stream.records.RetentionSet;
-import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
-import io.pravega.controller.store.stream.records.StreamCutRecord;
-import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
-import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
-import io.pravega.controller.store.stream.records.StreamSegmentRecord;
-import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.store.task.TxnResource;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
-import org.apache.commons.lang3.tuple.Pair;
-
-import java.util.AbstractMap.SimpleEntry;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import io.pravega.controller.store.OperationContext;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Stream Metadata.
  */
-public interface KVTableMetadataStore extends AutoCloseable {
+public interface KVTableMetadataStore extends AutoCloseable, ArtifactStore {
 
     /**
      * Method to create an operation context. A context ensures that multiple calls to store for the same data are avoided
@@ -56,7 +32,7 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * @param name  Stream name.
      * @return Return a streamContext
      */
-    KVTOperationContext createContext(final String scope, final String name);
+    //OperationContext<KeyValueTable> createContext(final String scope, final String name);
 
     /**
      * Creates a new stream with the given name and configuration.
@@ -159,8 +135,8 @@ public interface KVTableMetadataStore extends AutoCloseable {
     /**
      * Api to update versioned state as a CAS operation.
      *
-     * @param scope scope
-     * @param name stream
+     * @param scope scope name
+     * @param name kvTable name
      * @param state desired state
      * @param previous current state with version
      * @param context operation context
@@ -331,7 +307,7 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * @param request     Request to index.
      * @return            A future when completed will indicate that the task is indexed for the given host.
      */
-    //CompletableFuture<Void> addRequestToIndex(final String hostId, final String id, final ControllerEvent request);
+    CompletableFuture<Void> addRequestToIndex(final String hostId, final String id, final ControllerEvent request);
 
     /**
      * Removes the index for task identified by `id` in host task index for host identified by `hostId`
@@ -341,7 +317,7 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * @param id     Unique id used while adding task to index.
      * @return Future which when completed will indicate that the task has been removed from index.
      */
-    //CompletableFuture<Void> removeTaskFromIndex(final String hostId, final String id);
+    CompletableFuture<Void> removeTaskFromIndex(final String hostId, final String id);
 
     /**
      * Returns a map of pending tasks that were created by the host but their corresponding event was probably not posted.

@@ -12,7 +12,7 @@ package io.pravega.controller.server.bucket;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;

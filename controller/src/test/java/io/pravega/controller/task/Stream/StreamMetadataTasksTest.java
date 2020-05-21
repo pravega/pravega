@@ -30,21 +30,21 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.DeleteStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.SealStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
-import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.TruncateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.UpdateEventTask;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -67,12 +67,12 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleSt
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.controller.event.AbortEvent;
-import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.controller.event.stream.AbortEvent;
+import io.pravega.shared.controller.event.stream.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.shared.controller.event.TruncateStreamEvent;
-import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.stream.ScaleOpEvent;
+import io.pravega.shared.controller.event.stream.TruncateStreamEvent;
+import io.pravega.shared.controller.event.stream.UpdateStreamEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
@@ -175,7 +175,7 @@ public abstract class StreamMetadataTasksTest {
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),
-                new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor),
+                new UpdateEventTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStorePartialMock, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
@@ -258,7 +258,7 @@ public abstract class StreamMetadataTasksTest {
                         .thenAccept(loop::set), executor).join();
 
         // event posted, first step performed. now pick the event for processing
-        UpdateStreamTask updateStreamTask = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor);
+        UpdateEventTask updateStreamTask = new UpdateEventTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor);
         UpdateStreamEvent taken = (UpdateStreamEvent) requestEventWriter.eventQueue.take();
         AssertExtensions.assertFutureThrows("", updateStreamTask.execute(taken),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
@@ -896,7 +896,7 @@ public abstract class StreamMetadataTasksTest {
         // verify that stream is not added to bucket
         assertTrue(!bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
 
-        UpdateStreamTask task = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor);
+        UpdateEventTask task = new UpdateEventTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor);
 
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
                 .retentionType(RetentionPolicy.RetentionType.TIME)

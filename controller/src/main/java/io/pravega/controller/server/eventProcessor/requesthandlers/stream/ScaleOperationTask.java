@@ -7,21 +7,23 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor.requesthandlers;
+package io.pravega.controller.server.eventProcessor.requesthandlers.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.controller.server.eventProcessor.requesthandlers.EventTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
-import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
-import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.stream.ScaleOpEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,7 +36,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Request handler for performing scale operations received from requeststream.
  */
-public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
+public class ScaleOperationTask implements EventTask<ScaleOpEvent> {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ScaleOperationTask.class));
 

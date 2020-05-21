@@ -15,6 +15,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.SegmentHelper;
@@ -22,23 +23,29 @@ import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.CreateKVTableResponse;
-import io.pravega.controller.store.kvtable.KVTOperationContext;
-import io.pravega.controller.store.stream.*;
+import io.pravega.controller.store.kvtable.KVTableState;
+import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
-import io.pravega.shared.NameUtils;
+import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.kvtable.CreateKVTableEvent;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import lombok.Synchronized;
 import org.slf4j.LoggerFactory;
+
+import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 
 
 /**
@@ -52,22 +59,25 @@ public class KVTableMetadataTasks {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(KVTableMetadataTasks.class));
     private final KVTableMetadataStore kvtMetadataStore;
     private final SegmentHelper segmentHelper;
+    private final ScheduledExecutorService executor;
+    private final ScheduledExecutorService eventExecutor;
+    private final String hostId;
+    private final GrpcAuthHelper authHelper;
+    private final RequestTracker requestTracker;
     private String requestStreamName;
     private final CompletableFuture<Void> writerInitFuture = new CompletableFuture<>();
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
-    private final GrpcAuthHelper authHelper;
-    private final RequestTracker requestTracker;
-    private final ScheduledExecutorService executor;
-    private final ScheduledExecutorService eventExecutor;
+
 
     public KVTableMetadataTasks(final KVTableMetadataStore kvtMetadataStore,
                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
-                               final ScheduledExecutorService eventExecutor,
+                               final ScheduledExecutorService eventExecutor, final String hostId,
                                GrpcAuthHelper authHelper, RequestTracker requestTracker) {
-        this.executor = executor;
-        this.eventExecutor = eventExecutor;
         this.kvtMetadataStore = kvtMetadataStore;
         this.segmentHelper = segmentHelper;
+        this.executor = executor;
+        this.eventExecutor = eventExecutor;
+        this.hostId = hostId;
         this.authHelper = authHelper;
         this.requestTracker = requestTracker;
     }
@@ -95,129 +105,25 @@ public class KVTableMetadataTasks {
                                                                                    KeyValueTableConfiguration kvtConfig,
                                                                                    final long createTimestamp) {
         final long requestId = requestTracker.getRequestIdFor("createKVTable", scope, kvtName);
-         return this.kvtMetadataStore.createKeyValueTable(scope, kvtName, kvtConfig, createTimestamp, null, executor)
-                .thenComposeAsync(response -> {
-                            log.info(requestId, "{}/{} created in metadata store", scope, kvtName);
-
-                            Controller.CreateKeyValueTableStatus.Status status = translate(response.getStatus());
-                            return CompletableFuture.completedFuture(status);
-                        });
-
-                    // only if its a new stream or an already existing non-active stream then we will create
-                    // segments and change the state of the stream to active.
-                    /*
-                    if (response.getStatus().equals(CreateStreamResponse.CreateStatus.NEW) ||
-                            response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
-                        final int startingSegmentNumber = response.getStartingSegmentNumber();
-                        final int minNumSegments = response.getConfiguration().getScalingPolicy().getMinNumSegments();
-                        List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
-                                .boxed()
-                                .map(x -> NameUtils.computeSegmentId(x, 0))
-                                .collect(Collectors.toList());
-                        return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken(), requestId)
-                                .thenCompose(v -> createMarkStream(scope, stream, timestamp, requestId))
-                                .thenCompose(y -> {
-                                    final OperationContext context = streamMetadataStore.createContext(scope, stream);
-
-                                    return withRetries(() -> {
-                                        CompletableFuture<Void> future;
-                                        if (config.getRetentionPolicy() != null) {
-                                            future = bucketStore.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor);
-                                        } else {
-                                            future = CompletableFuture.completedFuture(null);
-                                        }
-                                        return future
-                                                .thenCompose(v -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
-                                                        .thenCompose(state -> {
-                                                            if (state.getObject().equals(State.CREATING)) {
-                                                                return streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
-                                                                        state, context, executor);
-                                                            } else {
-                                                                return CompletableFuture.completedFuture(state);
-                                                            }
-                                                        }));
-                                    }, executor)
-                                            .thenApply(z -> status);
+        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
+                .thenCompose(state -> {
+                    if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                        // 1. post event for CreateKVTable.
+                        CreateKVTableEvent event = new CreateKVTableEvent(scope, kvtName, kvtConfig.getPartitionCount(), createTimestamp, requestId);
+                        return addIndexAndSubmitTask(event, () -> CompletableFuture.completedFuture(Boolean.TRUE))
+                                .handle( (result,ex) -> { if (result)
+                                    return CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.Status.SUCCESS);
+                                else
+                                    log.warn(requestId, "Exception thrown while creating KeyValueTable {}", ex.getMessage());
+                                    return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.FAILURE;
                                 });
                     } else {
-                        return CompletableFuture.completedFuture(status);
-                    }
-                }, executor)
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        Throwable cause = Exceptions.unwrap(ex);
-                        if (cause instanceof StoreException.DataNotFoundException) {
-                            return Controller.CreateStreamStatus.Status.SCOPE_NOT_FOUND;
-                        } else {
-                            log.warn(requestId, "Create stream failed due to ", ex);
-                            return Controller.CreateStreamStatus.Status.FAILURE;
-                        }
-                    } else {
-                        return result;
+                        return CompletableFuture.completedFuture(
+                                CreateKeyValueTableStatus.newBuilder().setStatus(CreateKeyValueTableStatus.Status.TABLE_EXISTS).build());
                     }
                 });
-        */
-        /*
-        // 1. get configuration
-        return kvtMetadataStore.getConfigurationRecord(scope, kvtName, context, executor)
-                .thenCompose(configProperty -> {
-                    // 2. post event to start update workflow
-                    if (!configProperty.getObject().isUpdating()) {
-                        return addIndexAndSubmitTask(new UpdateStreamEvent(scope, stream, requestId), 
-                                // 3. update new configuration in the store with updating flag = true
-                                // if attempt to update fails, we bail out with no harm done
-                                () -> kvtMetadataStore.startUpdateConfiguration(scope, stream, newConfig,
-                                        context, executor))
-                                // 4. wait for update to complete
-                                .thenCompose(x -> checkDone(() -> isUpdated(scope, stream, newConfig, context))
-                                        .thenApply(y -> UpdateStreamStatus.Status.SUCCESS));
-                    } else {
-                        log.warn(requestId, "Another update in progress for {}/{}",
-                                scope, stream);
-                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
-                    }
-                })
-                .exceptionally(ex -> {
-                    log.warn(requestId, "Exception thrown in trying to update stream configuration {}",
-                            ex.getMessage());
-                    return handleUpdateStreamError(ex, requestId);
-                });
-                */
-
     }
-/*
-    private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition) {
-        return checkDone(condition, 100L);
-    }
-    
-    private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition, long delay) {
-        AtomicBoolean isDone = new AtomicBoolean(false);
-        return Futures.loop(() -> !isDone.get(),
-                () -> Futures.delayedFuture(condition, delay, executor)
-                             .thenAccept(isDone::set), executor);
-    }
-
-    @VisibleForTesting
-    CompletableFuture<Boolean> isUpdated(String scope, String stream, StreamConfiguration newConfig, OperationContext context) {
-        CompletableFuture<State> stateFuture = kvtMetadataStore.getState(scope, stream, true, context, executor);
-        CompletableFuture<StreamConfigurationRecord> configPropertyFuture
-                = kvtMetadataStore.getConfigurationRecord(scope, stream, context, executor).thenApply(VersionedMetadata::getObject);
-        return CompletableFuture.allOf(stateFuture, configPropertyFuture)
-                                .thenApply(v -> {
-                                    State state = stateFuture.join();
-                                    StreamConfigurationRecord configProperty = configPropertyFuture.join();
-
-                                    // if property is updating and doesn't match our request, it's a subsequent update
-                                    if (configProperty.isUpdating()) {
-                                        return !configProperty.getStreamConfiguration().equals(newConfig);
-                                    } else {
-                                        // if update-barrier is not updating, then update is complete if property matches our expectation 
-                                        // and state is not updating 
-                                        return !(configProperty.getStreamConfiguration().equals(newConfig) && state.equals(State.UPDATING));
-                                    }
-                                });
-    }
-*/
 
     /**
      * Delete a stream. Precondition for deleting a stream is that the stream sholud be sealed.
@@ -301,7 +207,6 @@ public class KVTableMetadataTasks {
      * because event processing is idempotent. It is also safe to post event even if step 2 was not performed because the 
      * event will be ignored by the processor after a while.
      */
-    /*
     @VisibleForTesting
     <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, Supplier<CompletableFuture<T>> futureSupplier) {
         String id = UUID.randomUUID().toString();
@@ -312,14 +217,14 @@ public class KVTableMetadataTasks {
         // has succeeded, then the event will be used for processing. If the update had failed, then the event
         // will be discarded. We will throw the exception that we received from running futureSupplier or return the
         // successful value
-        return kvtMetadataStore.addRequestToIndex(context.getHostId(), id, event)
+        return kvtMetadataStore.addRequestToIndex(this.hostId, id, event)
             .thenCompose(v -> Futures.handleCompose(futureSupplier.get(),
                 (r, e) -> {
                     if (e == null || (Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException ||
                             Exceptions.unwrap(e) instanceof StoreException.WriteConflictException)) {
                         return RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event),
                                 ex -> log.warn("writing event failed with {}", ex.getMessage()), executor)
-                                          .thenCompose(z -> kvtMetadataStore.removeTaskFromIndex(context.getHostId(), id))
+                                          .thenCompose(z -> kvtMetadataStore.removeTaskFromIndex(this.hostId, id))
                                           .thenApply(vd -> {
                                               if (e != null) {
                                                   throw new CompletionException(e);
@@ -332,7 +237,7 @@ public class KVTableMetadataTasks {
                     }
                 }));
     }
-    */
+
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
@@ -363,22 +268,19 @@ public class KVTableMetadataTasks {
         writerInitFuture.complete(null);
     }
 
-    private CreateKeyValueTableStatus.Status translate(CreateKVTableResponse.CreateStatus status) {
-        CreateKeyValueTableStatus.Status retVal;
-        switch (status) {
-            case NEW:
-                retVal = CreateKeyValueTableStatus.Status.SUCCESS;
-                break;
-            case EXISTS_ACTIVE:
-            case EXISTS_CREATING:
-                retVal = CreateKeyValueTableStatus.Status.TABLE_EXISTS;
-                break;
-            case FAILED:
-            default:
-                retVal = CreateKeyValueTableStatus.Status.FAILURE;
-                break;
-        }
-        return retVal;
+    private CompletableFuture<Void> notifyNewSegments(String scope, String stream, KeyValueTableConfiguration configuration,
+                                                      List<Long> segmentIds, String controllerToken, long requestId) {
+        return Futures.toVoid(Futures.allOfWithResults(segmentIds
+                .stream()
+                .parallel()
+                .map(segment -> notifyNewSegment(scope, stream, segment, , controllerToken, requestId))
+                .collect(Collectors.toList())));
+    }
+
+    private CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ,
+                                                     String controllerToken, long requestId) {
+        return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope,
+                stream, segmentId, policy, controllerToken, requestId), executor));
     }
 /*
     public CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Long> segmentIds, OperationContext context,

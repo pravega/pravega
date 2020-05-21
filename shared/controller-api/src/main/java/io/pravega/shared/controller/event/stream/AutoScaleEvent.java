@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.controller.event;
+package io.pravega.shared.controller.event.stream;
 
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -15,6 +15,9 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.RequestProcessor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

@@ -7,18 +7,20 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor.requesthandlers;
+package io.pravega.controller.server.eventProcessor.requesthandlers.stream;
 
 import io.pravega.common.Exceptions;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AbstractRequestProcessor;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.shared.controller.event.AutoScaleEvent;
+import io.pravega.shared.controller.event.stream.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.DeleteStreamEvent;
-import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.shared.controller.event.SealStreamEvent;
-import io.pravega.shared.controller.event.TruncateStreamEvent;
-import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.stream.DeleteStreamEvent;
+import io.pravega.shared.controller.event.stream.ScaleOpEvent;
+import io.pravega.shared.controller.event.stream.SealStreamEvent;
+import io.pravega.shared.controller.event.stream.TruncateStreamEvent;
+import io.pravega.shared.controller.event.stream.UpdateStreamEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;

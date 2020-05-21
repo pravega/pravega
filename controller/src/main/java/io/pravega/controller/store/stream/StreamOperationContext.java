@@ -9,14 +9,17 @@
  */
 package io.pravega.controller.store.stream;
 
-import lombok.Getter;
+import io.pravega.controller.store.OperationContext;
 
-class OperationContextImpl<T> implements OperationContext {
 
-    @Getter
+class StreamOperationContext implements OperationContext<Stream> {
     private final Stream stream;
 
-    OperationContextImpl(Stream stream) {
+    StreamOperationContext(Stream stream) {
         this.stream = stream;
+    }
+
+    public Stream getObject(){
+        return this.stream;
     }
 }

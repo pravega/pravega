@@ -16,6 +16,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;

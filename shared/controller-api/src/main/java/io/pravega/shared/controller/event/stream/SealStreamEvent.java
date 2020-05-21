@@ -1,13 +1,13 @@
 /**
  * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.controller.event;
+package io.pravega.shared.controller.event.stream;
 
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -15,6 +15,9 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.RequestProcessor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,7 +25,7 @@ import lombok.Data;
 @Builder
 @Data
 @AllArgsConstructor
-public class TruncateStreamEvent implements ControllerEvent {
+public class SealStreamEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;
     private final String stream;
@@ -35,18 +38,18 @@ public class TruncateStreamEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return processor.processTruncateStream(this);
+        return processor.processSealStream(this);
     }
 
     //region Serialization
 
-    private static class TruncateStreamEventBuilder implements ObjectBuilder<TruncateStreamEvent> {
+    private static class SealStreamEventBuilder implements ObjectBuilder<SealStreamEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<TruncateStreamEvent, TruncateStreamEventBuilder> {
+    static class Serializer extends VersionedSerializer.WithBuilder<SealStreamEvent, SealStreamEventBuilder> {
         @Override
-        protected TruncateStreamEventBuilder newBuilder() {
-            return TruncateStreamEvent.builder();
+        protected SealStreamEventBuilder newBuilder() {
+            return SealStreamEvent.builder();
         }
 
         @Override
@@ -59,13 +62,13 @@ public class TruncateStreamEvent implements ControllerEvent {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void write00(TruncateStreamEvent e, RevisionDataOutput target) throws IOException {
+        private void write00(SealStreamEvent e, RevisionDataOutput target) throws IOException {
             target.writeUTF(e.scope);
             target.writeUTF(e.stream);
             target.writeLong(e.requestId);
         }
 
-        private void read00(RevisionDataInput source, TruncateStreamEventBuilder b) throws IOException {
+        private void read00(RevisionDataInput source, SealStreamEventBuilder b) throws IOException {
             b.scope(source.readUTF());
             b.stream(source.readUTF());
             b.requestId(source.readLong());

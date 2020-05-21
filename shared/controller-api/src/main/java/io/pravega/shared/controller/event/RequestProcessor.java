@@ -9,9 +9,20 @@
  */
 package io.pravega.shared.controller.event;
 
+import io.pravega.shared.controller.event.kvtable.CreateKVTableEvent;
+import io.pravega.shared.controller.event.stream.*;
+
 import java.util.concurrent.CompletableFuture;
 
 public interface RequestProcessor {
+
+    /**
+     * Method to create a KeyValueTable event.
+     *
+     * @param createKVTEvent create event
+     * @return CompletableFuture that caller can use to synchronize.
+     */
+    CompletableFuture<Void> processCreateKVTable(CreateKVTableEvent createKVTEvent);
 
     /**
      * Method to process abort txn event.

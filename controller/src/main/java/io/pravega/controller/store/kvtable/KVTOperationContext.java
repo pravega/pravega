@@ -9,12 +9,17 @@
  */
 package io.pravega.controller.store.kvtable;
 
-/**
- * Interface for defining an operation context.
- * A context caches metadata fetches so within a context if for the same entity, multiple
- * read operations against the store are requested, the values are served from the context's cache.
- */
-public interface KVTOperationContext {
+import io.pravega.controller.store.OperationContext;
 
-    KeyValueTable getKeyValueTable();
+class KVTOperationContext implements OperationContext<KeyValueTable> {
+
+    private final KeyValueTable kvTable;
+
+    KVTOperationContext(KeyValueTable kvt) {
+        this.kvTable = kvt;
+    }
+
+    public KeyValueTable getObject(){
+        return kvTable;
+    }
 }

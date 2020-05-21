@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.store.Artifact;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
@@ -38,23 +39,7 @@ import java.util.concurrent.CompletableFuture;
  * Properties of a stream and operations that can be performed on it.
  * Identifier for a stream is its name.
  */
-interface Stream {
-
-    String getScope();
-
-    /**
-     * Get name of stream.
-     *
-     * @return Name of stream.
-     */
-    String getName();
-
-    /**
-     * Get Scope Name.
-     *
-     * @return Name of scope.
-     */
-    String getScopeName();
+interface Stream extends Artifact {
 
     /**
      * Create the stream, by creating/modifying underlying data structures.
@@ -548,31 +533,6 @@ interface Stream {
      * @return A completableFuture which, when completed, will have transaction commit offset recorded successfully.
      */
     CompletableFuture<Void> recordCommitOffsets(UUID txnId, Map<Long, Long> commitOffsets);
-    
-    /**
-     * This method attempts to create a new Waiting Request node and set the processor's name in the node.
-     * If a node already exists, this attempt is ignored.
-     *
-     * @param processorName name of the request processor that is waiting to get an opportunity for processing.
-     * @return CompletableFuture which indicates that a node was either created successfully or records the failure.
-     */
-    CompletableFuture<Void> createWaitingRequestIfAbsent(String processorName);
-
-    /**
-     * This method fetches existing waiting request processor's name if any. It returns null if no processor is waiting.
-     *
-     * @return CompletableFuture which has the name of the processor that had requested for a wait, or null if there was no
-     * such request.
-     */
-    CompletableFuture<String> getWaitingRequestProcessor();
-
-    /**
-     * Delete existing waiting request processor if the name of the existing matches suppied processor name.
-     *
-     * @param processorName processor whose record is to be deleted.
-     * @return CompletableFuture which indicates completion of processing.
-     */
-    CompletableFuture<Void> deleteWaitingRequestConditionally(String processorName);
 
     /**
      * Method to record writer's mark in the metadata store. If this is a known writer, its mark is updated if it advances 

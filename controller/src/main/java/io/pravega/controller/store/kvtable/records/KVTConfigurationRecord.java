@@ -10,9 +10,6 @@
 package io.pravega.controller.store.kvtable.records;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.stream.RetentionPolicy;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -27,7 +24,7 @@ import java.io.IOException;
 @Builder
 @Slf4j
 @AllArgsConstructor
-public class KVTableConfigurationRecord {
+public class KVTConfigurationRecord {
 
     public static final ConfigurationRecordSerializer SERIALIZER = new ConfigurationRecordSerializer();
 
@@ -37,11 +34,11 @@ public class KVTableConfigurationRecord {
     private final String kvtName;
     private final KeyValueTableConfiguration kvtConfiguration;
 
-    public static class KVTableConfigurationRecordBuilder implements ObjectBuilder<KVTableConfigurationRecord> {
+    public static class KVTableConfigurationRecordBuilder implements ObjectBuilder<KVTConfigurationRecord> {
     }
 
     @SneakyThrows(IOException.class)
-    public static KVTableConfigurationRecord fromBytes(final byte[] data) {
+    public static KVTConfigurationRecord fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
@@ -51,7 +48,7 @@ public class KVTableConfigurationRecord {
     }
 
     private static class ConfigurationRecordSerializer
-            extends VersionedSerializer.WithBuilder<KVTableConfigurationRecord,
+            extends VersionedSerializer.WithBuilder<KVTConfigurationRecord,
         KVTableConfigurationRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
@@ -64,7 +61,7 @@ public class KVTableConfigurationRecord {
         }
 
         @Override
-        protected void beforeSerialization(KVTableConfigurationRecord kvtConfigurationRecord) {
+        protected void beforeSerialization(KVTConfigurationRecord kvtConfigurationRecord) {
             Preconditions.checkNotNull(kvtConfigurationRecord);
             Preconditions.checkNotNull(kvtConfigurationRecord.getKvtConfiguration());
         }
@@ -79,7 +76,7 @@ public class KVTableConfigurationRecord {
 
         }
 
-        private void write00(KVTableConfigurationRecord kvtConfigurationRecord, RevisionDataOutput revisionDataOutput)
+        private void write00(KVTConfigurationRecord kvtConfigurationRecord, RevisionDataOutput revisionDataOutput)
                 throws IOException {
             revisionDataOutput.writeUTF(kvtConfigurationRecord.getScope());
             revisionDataOutput.writeUTF(kvtConfigurationRecord.getKvtName());
@@ -89,7 +86,7 @@ public class KVTableConfigurationRecord {
 
         @Override
         protected KVTableConfigurationRecordBuilder newBuilder() {
-            return KVTableConfigurationRecord.builder();
+            return KVTConfigurationRecord.builder();
         }
     }
 }

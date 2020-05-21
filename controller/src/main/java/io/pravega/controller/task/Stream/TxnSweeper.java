@@ -18,8 +18,8 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.util.Config;
-import io.pravega.shared.controller.event.AbortEvent;
-import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.controller.event.stream.AbortEvent;
+import io.pravega.shared.controller.event.stream.CommitEvent;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 

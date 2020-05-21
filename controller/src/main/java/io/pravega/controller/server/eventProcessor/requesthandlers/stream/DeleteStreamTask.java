@@ -7,20 +7,21 @@
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor.requesthandlers;
+package io.pravega.controller.server.eventProcessor.requesthandlers.stream;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.server.eventProcessor.requesthandlers.EventTask;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.controller.event.DeleteStreamEvent;
+import io.pravega.shared.controller.event.stream.DeleteStreamEvent;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -31,7 +32,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Request handler for performing scale operations received from requeststream.
  */
-public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
+public class DeleteStreamTask implements EventTask<DeleteStreamEvent> {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(DeleteStreamTask.class));
 
@@ -42,7 +43,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
 
     public DeleteStreamTask(final StreamMetadataTasks streamMetadataTasks,
                             final StreamMetadataStore streamMetadataStore,
-                            final BucketStore bucketStore, 
+                            final BucketStore bucketStore,
                             final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);

@@ -1,13 +1,13 @@
 /**
  * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.controller.event;
+package io.pravega.shared.controller.event.stream;
 
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -15,6 +15,9 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.RequestProcessor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,11 +25,11 @@ import lombok.Data;
 @Builder
 @Data
 @AllArgsConstructor
-public class CommitEvent implements ControllerEvent {
+public class UpdateStreamEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;
     private final String stream;
-    private final int epoch;
+    private final long requestId;
 
     @Override
     public String getKey() {
@@ -35,18 +38,18 @@ public class CommitEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return processor.processCommitTxnRequest(this);
+        return processor.processUpdateStream(this);
     }
 
     //region Serialization
 
-    private static class CommitEventBuilder implements ObjectBuilder<CommitEvent> {
+    private static class UpdateStreamEventBuilder implements ObjectBuilder<UpdateStreamEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<CommitEvent, CommitEventBuilder> {
+    static class Serializer extends VersionedSerializer.WithBuilder<UpdateStreamEvent, UpdateStreamEventBuilder> {
         @Override
-        protected CommitEventBuilder newBuilder() {
-            return CommitEvent.builder();
+        protected UpdateStreamEventBuilder newBuilder() {
+            return UpdateStreamEvent.builder();
         }
 
         @Override
@@ -59,16 +62,16 @@ public class CommitEvent implements ControllerEvent {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void write00(CommitEvent e, RevisionDataOutput target) throws IOException {
+        private void write00(UpdateStreamEvent e, RevisionDataOutput target) throws IOException {
             target.writeUTF(e.scope);
             target.writeUTF(e.stream);
-            target.writeCompactInt(e.epoch);
+            target.writeLong(e.requestId);
         }
 
-        private void read00(RevisionDataInput source, CommitEventBuilder b) throws IOException {
+        private void read00(RevisionDataInput source, UpdateStreamEventBuilder b) throws IOException {
             b.scope(source.readUTF());
             b.stream(source.readUTF());
-            b.epoch(source.readCompactInt());
+            b.requestId(source.readLong());
         }
     }
 

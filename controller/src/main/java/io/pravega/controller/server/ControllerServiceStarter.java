@@ -280,7 +280,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             kvtMetadataStore = kvtMetaStoreRef.orElse(KeyValueTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
-            kvtMetadataTasks = new KVTableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, eventExecutor, authHelper, requestTracker);
+            kvtMetadataTasks = new KVTableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
             controllerService = new ControllerService(kvtMetadataStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
                     streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster);
 

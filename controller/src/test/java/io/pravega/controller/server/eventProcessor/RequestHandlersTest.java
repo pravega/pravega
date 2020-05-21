@@ -24,14 +24,14 @@ import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.CommitRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.DeleteStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.SealStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.TruncateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.stream.UpdateEventTask;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.State;
@@ -51,12 +51,12 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.controller.event.CommitEvent;
-import io.pravega.shared.controller.event.DeleteStreamEvent;
-import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.shared.controller.event.SealStreamEvent;
-import io.pravega.shared.controller.event.TruncateStreamEvent;
-import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.stream.CommitEvent;
+import io.pravega.shared.controller.event.stream.DeleteStreamEvent;
+import io.pravega.shared.controller.event.stream.ScaleOpEvent;
+import io.pravega.shared.controller.event.stream.SealStreamEvent;
+import io.pravega.shared.controller.event.stream.TruncateStreamEvent;
+import io.pravega.shared.controller.event.stream.UpdateStreamEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.net.InetAddress;
@@ -440,8 +440,8 @@ public abstract class RequestHandlersTest {
 
         StreamMetadataStore streamStore2 = getStore();
 
-        UpdateStreamTask requestHandler1 = new UpdateStreamTask(streamMetadataTasks, streamStore1Spied, bucketStore, executor);
-        UpdateStreamTask requestHandler2 = new UpdateStreamTask(streamMetadataTasks, streamStore2, bucketStore, executor);
+        UpdateEventTask requestHandler1 = new UpdateEventTask(streamMetadataTasks, streamStore1Spied, bucketStore, executor);
+        UpdateEventTask requestHandler2 = new UpdateEventTask(streamMetadataTasks, streamStore2, bucketStore, executor);
 
         CompletableFuture<Void> wait = new CompletableFuture<>();
         CompletableFuture<Void> signal = new CompletableFuture<>();
@@ -614,7 +614,7 @@ public abstract class RequestHandlersTest {
     public void testScaleIgnoreFairness() {
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
-                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new UpdateEventTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
@@ -664,7 +664,7 @@ public abstract class RequestHandlersTest {
     public void testUpdateIgnoreFairness() {
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
-                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new UpdateEventTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
@@ -713,7 +713,7 @@ public abstract class RequestHandlersTest {
     public void testTruncateIgnoreFairness() {
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
-                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new UpdateEventTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
@@ -807,7 +807,7 @@ public abstract class RequestHandlersTest {
     public void testSealIgnoreFairness() {
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
-                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new UpdateEventTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
@@ -855,7 +855,7 @@ public abstract class RequestHandlersTest {
     public void testDeleteIgnoreFairness() {
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
-                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new UpdateEventTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),

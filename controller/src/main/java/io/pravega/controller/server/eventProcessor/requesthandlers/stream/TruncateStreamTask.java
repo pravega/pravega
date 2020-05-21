@@ -7,18 +7,20 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor.requesthandlers;
+package io.pravega.controller.server.eventProcessor.requesthandlers.stream;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.server.eventProcessor.requesthandlers.EventTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
+import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
-import io.pravega.shared.controller.event.TruncateStreamEvent;
+import io.pravega.shared.controller.event.stream.TruncateStreamEvent;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import java.util.Map;
@@ -34,7 +36,7 @@ import static io.pravega.shared.MetricsTags.streamTags;
 /**
  * Request handler for performing truncation operations received from requeststream.
  */
-public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
+public class TruncateStreamTask implements EventTask<TruncateStreamEvent> {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TruncateStreamTask.class));
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();

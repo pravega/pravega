@@ -3,19 +3,13 @@ package io.pravega.controller.store.kvtable;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.store.Scope;
-import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.*;
 import io.pravega.controller.store.index.HostIndex;
-import io.pravega.controller.store.kvtable.KVTOperationContext;
-import io.pravega.controller.store.kvtable.KVTOperationContextImpl;
-import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.store.kvtable.KeyValueTable;
+import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -26,7 +20,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
-public abstract class AbstractKVTableMetadataStore implements KVTableMetadataStore{
+public abstract class AbstractKVTableMetadataStore implements KVTableMetadataStore {
     public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
     public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException;
 
@@ -95,14 +89,18 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
     abstract KeyValueTable newKeyValueTable(final String scope, final String kvTableName);
 
     @Override
-    public KVTOperationContext createContext(String scope, String name) {
-        return new KVTOperationContextImpl<>(getKVTable(scope, name, null));
+    public OperationContext createContext(String scope, String name) {
+        return new KVTOperationContext(getKVTable(scope, name, null));
     }
 
-    protected KeyValueTable getKVTable(String scope, final String name, KVTOperationContext context) {
+    public Artifact getArtifact(String scope, String stream, OperationContext context){
+        return getKVTable(scope, stream, context);
+    }
+
+    protected KeyValueTable getKVTable(String scope, final String name, OperationContext context) {
         KeyValueTable kvt;
         if (context != null) {
-            kvt = context.getKeyValueTable();
+            kvt = (KeyValueTable) context.getObject();
             assert kvt.getScope().equals(scope);
             assert kvt.getName().equals(name);
         } else {
@@ -194,6 +192,14 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
         return withCompletion(getKVTable(scope, name, context).getVersionedState(), executor);
     }
 
+    @Override
+    public CompletableFuture<Void> addRequestToIndex(String hostId, String id, ControllerEvent task) {
+        return hostTaskIndex.addEntity(hostId, id, controllerEventSerializer.toByteBuffer(task).array());
+    }
+    @Override
+    public CompletableFuture<Void> removeTaskFromIndex(String hostId, String id) {
+        return hostTaskIndex.removeEntity(hostId, id, true);
+    }
     /**
      * This method retrieves a safe base segment number from which a stream's segment ids may start. In the case of a
      * new stream, this method will return 0 as a starting segment number (default). In the case that a stream with the

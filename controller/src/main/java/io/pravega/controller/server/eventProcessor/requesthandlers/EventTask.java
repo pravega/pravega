@@ -13,7 +13,7 @@ import io.pravega.shared.controller.event.ControllerEvent;
 
 import java.util.concurrent.CompletableFuture;
 
-public interface StreamTask<T extends ControllerEvent> {
+public interface EventTask<T extends ControllerEvent> {
 
     /**
      * Method to process the supplied event.

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor.requesthandlers;
+package io.pravega.controller.server.eventProcessor.requesthandlers.stream;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
@@ -15,13 +15,13 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.controller.event.AutoScaleEvent;
-import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.stream.AutoScaleEvent;
+import io.pravega.shared.controller.event.stream.ScaleOpEvent;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;

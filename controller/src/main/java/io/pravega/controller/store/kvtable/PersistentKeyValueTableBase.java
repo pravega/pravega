@@ -9,47 +9,21 @@
  */
 package io.pravega.controller.store.kvtable;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.CollectionHelpers;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
-import io.pravega.controller.store.kvtable.records.KVTableConfigurationRecord;
-import io.pravega.controller.store.kvtable.records.KVTableStateRecord;
+import io.pravega.controller.store.kvtable.records.KVTConfigurationRecord;
+import io.pravega.controller.store.kvtable.records.KVTStateRecord;
 import io.pravega.controller.store.stream.*;
-import io.pravega.controller.store.stream.StoreException.DataNotFoundException;
-import io.pravega.controller.store.stream.records.*;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.shared.NameUtils;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
-import java.util.AbstractMap.SimpleEntry;
-import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
-import static io.pravega.shared.NameUtils.computeSegmentId;
-import static io.pravega.shared.NameUtils.getSegmentNumber;
 import static java.util.stream.Collectors.groupingBy;
 
 @Slf4j
@@ -95,7 +69,7 @@ public abstract class PersistentKeyValueTableBase implements KeyValueTable {
     @Override
     public CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final VersionedMetadata<KVTableState> previous, final KVTableState newState) {
         if (KVTableState.isTransitionAllowed(previous.getObject(), newState)) {
-            return setStateData(new VersionedMetadata<>(KVTableStateRecord.builder().state(newState).build(), previous.getVersion()))
+            return setStateData(new VersionedMetadata<>(KVTStateRecord.builder().state(newState).build(), previous.getVersion()))
                     .thenApply(updatedVersion -> new VersionedMetadata<>(newState, updatedVersion));
         } else {
             return Futures.failedFuture(StoreException.create(
@@ -117,9 +91,9 @@ public abstract class PersistentKeyValueTableBase implements KeyValueTable {
         return checkKeyValueTableExists(configuration, createTimestamp, startingSegmentNumber)
                 .thenCompose(createKVTResponse -> createKVTableMetadata()
                         .thenCompose((Void v) -> storeCreationTimeIfAbsent(createKVTResponse.getTimestamp()))
-                        .thenCompose((Void v) -> createConfigurationIfAbsent(KVTableConfigurationRecord.builder()
+                        .thenCompose((Void v) -> createConfigurationIfAbsent(KVTConfigurationRecord.builder()
                                 .scope(scope).kvtName(name).kvtConfiguration(configuration).build()))
-                        .thenCompose((Void v) -> createStateIfAbsent(KVTableStateRecord.builder().state(KVTableState.CREATING).build()))
+                        .thenCompose((Void v) -> createStateIfAbsent(KVTStateRecord.builder().state(KVTableState.CREATING).build()))
                         .thenCompose((Void v) -> createHistoryRecords(startingSegmentNumber, createKVTResponse))
                         .thenApply((Void v) -> createKVTResponse));
 
@@ -164,17 +138,17 @@ public abstract class PersistentKeyValueTableBase implements KeyValueTable {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<KVTableConfigurationRecord>> getVersionedConfigurationRecord() {
+    public CompletableFuture<VersionedMetadata<KVTConfigurationRecord>> getVersionedConfigurationRecord() {
         return getConfigurationData(true)
                 .thenApply(data -> new VersionedMetadata<>(data.getObject(), data.getVersion()));
     }
 
     // region state
-    abstract CompletableFuture<Void> createStateIfAbsent(final KVTableStateRecord state);
+    abstract CompletableFuture<Void> createStateIfAbsent(final KVTStateRecord state);
 
-    abstract CompletableFuture<Version> setStateData(final VersionedMetadata<KVTableStateRecord> state);
+    abstract CompletableFuture<Version> setStateData(final VersionedMetadata<KVTStateRecord> state);
 
-    abstract CompletableFuture<VersionedMetadata<KVTableStateRecord>> getStateData(boolean ignoreCached);
+    abstract CompletableFuture<VersionedMetadata<KVTStateRecord>> getStateData(boolean ignoreCached);
     abstract CompletableFuture<CreateKVTableResponse> checkKeyValueTableExists(final KeyValueTableConfiguration configuration,
                                                                                final long creationTime,
                                                                                final int startingSegmentNumber);
@@ -182,10 +156,10 @@ public abstract class PersistentKeyValueTableBase implements KeyValueTable {
     abstract CompletableFuture<Void> createKVTableMetadata();
 
     abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime);
-    abstract CompletableFuture<Version> setConfigurationData(final VersionedMetadata<KVTableConfigurationRecord> configuration);
+    abstract CompletableFuture<Version> setConfigurationData(final VersionedMetadata<KVTConfigurationRecord> configuration);
 
-    abstract CompletableFuture<VersionedMetadata<KVTableConfigurationRecord>> getConfigurationData(boolean ignoreCached);
-    abstract CompletableFuture<Void> createConfigurationIfAbsent(final KVTableConfigurationRecord data);
+    abstract CompletableFuture<VersionedMetadata<KVTConfigurationRecord>> getConfigurationData(boolean ignoreCached);
+    abstract CompletableFuture<Void> createConfigurationIfAbsent(final KVTConfigurationRecord data);
     abstract CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data);
     abstract CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data);
 

@@ -14,21 +14,26 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
-import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.ArtifactStore;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.shared.controller.event.AbortEvent;
-import io.pravega.shared.controller.event.AutoScaleEvent;
-import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.controller.event.kvtable.CreateKVTableEvent;
+import io.pravega.shared.controller.event.stream.AbortEvent;
+import io.pravega.shared.controller.event.stream.AutoScaleEvent;
+import io.pravega.shared.controller.event.stream.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.DeleteStreamEvent;
+import io.pravega.shared.controller.event.stream.DeleteStreamEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
-import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.shared.controller.event.SealStreamEvent;
-import io.pravega.shared.controller.event.TruncateStreamEvent;
-import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.stream.ScaleOpEvent;
+import io.pravega.shared.controller.event.stream.SealStreamEvent;
+import io.pravega.shared.controller.event.stream.TruncateStreamEvent;
+import io.pravega.shared.controller.event.stream.UpdateStreamEvent;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
@@ -57,12 +62,19 @@ import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.wit
 public abstract class AbstractRequestProcessor<T extends ControllerEvent> extends SerializedRequestHandler<T> implements RequestProcessor {
     protected static final Predicate<Throwable> OPERATION_NOT_ALLOWED_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException;
 
-    protected final StreamMetadataStore streamMetadataStore;
+    @Getter
+    protected final ArtifactStore metadataStore;
 
     public AbstractRequestProcessor(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor) {
         super(executor);
         Preconditions.checkNotNull(streamMetadataStore);
-        this.streamMetadataStore = streamMetadataStore;
+        this.metadataStore = streamMetadataStore;
+    }
+
+    public AbstractRequestProcessor(KVTableMetadataStore kvtMetadataStore, ScheduledExecutorService executor) {
+        super(executor);
+        Preconditions.checkNotNull(kvtMetadataStore);
+        this.metadataStore = kvtMetadataStore;
     }
 
     public String getProcessorName() {
@@ -72,6 +84,11 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
     @Override
     public CompletableFuture<Void> processEvent(ControllerEvent controllerEvent) {
         return controllerEvent.process(this);
+    }
+
+    @Override
+    public CompletableFuture<Void> processCreateKVTable(CreateKVTableEvent createKVTEvent){
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 
     @Override
@@ -114,7 +131,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
         return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 
-    protected <T extends ControllerEvent> CompletableFuture<Void> withCompletion(StreamTask<T> task, T event, String scope, String stream,
+    protected <T extends ControllerEvent> CompletableFuture<Void> withCompletion(EventTask<T> task, T event, String scope, String stream,
                                                                                  Predicate<Throwable> writeBackPredicate) {
         Preconditions.checkNotNull(task);
         Preconditions.checkNotNull(event);
@@ -123,8 +140,8 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
         Preconditions.checkNotNull(writeBackPredicate);
         CompletableFuture<Void> resultFuture = new CompletableFuture<>();
 
-        OperationContext context = streamMetadataStore.createContext(scope, stream);
-        CompletableFuture<String> waitingProcFuture = suppressException(streamMetadataStore.getWaitingRequestProcessor(scope, stream, context, executor), null,
+        OperationContext context = metadataStore.createContext(scope, stream);
+        CompletableFuture<String> waitingProcFuture = suppressException(metadataStore.getWaitingRequestProcessor(scope, stream, context, executor), null,
                 "Exception while trying to fetch waiting request. Logged and ignored.");
         CompletableFuture<Boolean> hasTaskStarted = task.hasTaskStarted(event);
         
@@ -136,7 +153,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                         withRetries(() -> task.execute(event), executor)
                                 .whenComplete((r, ex) -> {
                                     if (ex != null && writeBackPredicate.test(ex)) {
-                                        suppressException(streamMetadataStore.createWaitingRequestIfAbsent(scope, stream, getProcessorName(), context, executor),
+                                        suppressException(metadataStore.createWaitingRequestIfAbsent(scope, stream, getProcessorName(), context, executor),
                                                 null, "Exception while trying to create waiting request. Logged and ignored.")
                                                 .thenCompose(ignore ->  retryIndefinitelyThenComplete(() -> task.writeBack(event), resultFuture, ex));
                                     } else {
@@ -144,7 +161,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                         // the waiting request if it matches the current processor.
                                         // If we don't delete it then some other processor will never be able to do the work.
                                         // So we need to retry indefinitely until deleted.
-                                        retryIndefinitelyThenComplete(() -> streamMetadataStore.deleteWaitingRequestConditionally(scope,
+                                        retryIndefinitelyThenComplete(() -> metadataStore.deleteWaitingRequestConditionally(scope,
                                                 stream, getProcessorName(), context, executor), resultFuture, ex);
                                     }
                                 });

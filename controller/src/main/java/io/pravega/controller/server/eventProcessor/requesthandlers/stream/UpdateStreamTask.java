@@ -7,19 +7,21 @@
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor.requesthandlers;
+package io.pravega.controller.server.eventProcessor.requesthandlers.stream;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.eventProcessor.requesthandlers.EventTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
-import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.stream.UpdateStreamEvent;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -29,7 +31,7 @@ import lombok.extern.slf4j.Slf4j;
  * Request handler for performing scale operations received from requeststream.
  */
 @Slf4j
-public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
+public class UpdateStreamTask implements EventTask<UpdateStreamEvent> {
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;

@@ -21,7 +21,7 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
-import io.pravega.controller.store.kvtable.KVTableState;
+import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.stream.*;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -110,20 +110,12 @@ public class ControllerService {
         }
         // check if stream with same name exists...
         // alternatively for KVTables have segment names suffixed with _table
-        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
-                .thenCompose(state -> {
-                    if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
-                        return kvtMetadataTasks.createKeyValueTable(scope, kvtName, kvtConfig, createTimestamp)
-                                .thenApplyAsync(status -> {
-                                    reportCreateKVTableMetrics(scope, kvtName, kvtConfig.getPartitionCount(), status, timer.getElapsed());
-                                    return CreateKeyValueTableStatus.newBuilder().setStatus(status).build();
-                                }, executor);
-                    } else {
-                        return CompletableFuture.completedFuture(
-                                CreateKeyValueTableStatus.newBuilder().setStatus(CreateKeyValueTableStatus.Status.TABLE_EXISTS).build());
-                    }
-                });
+        return kvtMetadataTasks.createKeyValueTable(scope, kvtName, kvtConfig, createTimestamp)
+                .thenApplyAsync(status -> {
+                    reportCreateKVTableMetrics(scope, kvtName, kvtConfig.getPartitionCount(), status, timer.getElapsed());
+                    return CreateKeyValueTableStatus.newBuilder().setStatus(status).build();
+                }, executor);
+
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,

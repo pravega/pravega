@@ -1,0 +1,84 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.shared.controller.event.kvtable;
+
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.RequestProcessor;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+
+import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
+
+@Builder
+@Data
+@AllArgsConstructor
+public class CreateKVTableEvent implements ControllerEvent {
+    private static final long serialVersionUID = 1L;
+    private final String scopeName;
+    private final String kvtName;
+    private final int partitionCount;
+    private final long timestamp;
+    private final long requestId;
+
+    @Override
+    public String getKey() {
+        return String.format("%s/%s", scopeName, kvtName);
+    }
+
+    @Override
+    public CompletableFuture<Void> process(RequestProcessor processor) {
+        return processor.processCreateKVTable(this);
+    }
+
+    //region Serialization
+
+    private static class CreateKVTableEventBuilder implements ObjectBuilder<CreateKVTableEvent> {
+    }
+
+    static class Serializer extends VersionedSerializer.WithBuilder<CreateKVTableEvent, CreateKVTableEventBuilder> {
+        @Override
+        protected CreateKVTableEventBuilder newBuilder() {
+            return CreateKVTableEvent.builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void write00(CreateKVTableEvent e, RevisionDataOutput target) throws IOException {
+            target.writeUTF(e.scopeName);
+            target.writeUTF(e.kvtName);
+            target.writeInt(e.partitionCount);
+            target.writeLong(e.timestamp);
+            target.writeLong(e.requestId);
+        }
+
+        private void read00(RevisionDataInput source, CreateKVTableEventBuilder eb) throws IOException {
+            eb.scopeName(source.readUTF());
+            eb.kvtName(source.readUTF());
+            eb.partitionCount(source.readInt());
+            eb.timestamp(source.readLong());
+            eb.requestId(source.readLong());
+        }
+    }
+    //endregion
+}
