@@ -155,8 +155,7 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
                 Assert.assertNotNull("Expecting a value for non removal.", result.getValue());
                 val resultValue = result.getValue();
                 Assert.assertEquals("Unexpected value length.", item.value.length, resultValue.getLength());
-                AssertExtensions.assertArrayEquals("Unexpected result value", item.value, 0,
-                        resultValue.array(), resultValue.arrayOffset(), item.value.length);
+                Assert.assertTrue("Unexpected result value", new ByteArraySegment(item.value).contentEquals(resultValue));
             }
 
             keyVersion++;

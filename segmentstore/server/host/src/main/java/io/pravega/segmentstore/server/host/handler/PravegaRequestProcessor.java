@@ -82,7 +82,6 @@ import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -315,14 +314,20 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * Collect all the data from the given contents into a {@link ByteBuf}.
      */
     private ByteBuf getData(List<BufferView> contents) {
-        val compositeView = BufferView.wrap(contents);
-        val rawBuffers = compositeView.getContents();
-        val result = Unpooled.compositeBuffer(rawBuffers.size());
-        for (ByteBuffer b : rawBuffers) {
-            result.addComponent(Unpooled.wrappedBuffer(b));
-        }
+        val buffers = contents.stream()
+                .flatMap(bv -> bv.getContents().stream())
+                .map(Unpooled::wrappedBuffer)
+                .toArray(ByteBuf[]::new);
+        return Unpooled.wrappedUnmodifiableBuffer(buffers);
+    }
 
-        return result.writerIndex(result.capacity()).resetReaderIndex();
+    private ByteBuf getData(ArrayView arrayView) {
+        return Unpooled.wrappedBuffer(arrayView.array(), arrayView.arrayOffset(), arrayView.getLength());
+    }
+
+    private ByteBuf getData(BufferView bufferView) {
+        val buffers = bufferView.getContents().stream().map(Unpooled::wrappedBuffer).toArray(ByteBuf[]::new);
+        return Unpooled.wrappedUnmodifiableBuffer(buffers);
     }
 
     @Override
@@ -636,7 +641,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.info(updateTableEntries.getRequestId(), "Updating table segment {}.", updateTableEntries);
+        log.debug(updateTableEntries.getRequestId(), "Update Table Segment Entries: Segment={}, Offset={}, Count={}.",
+                updateTableEntries.getSegment(), updateTableEntries.getTableSegmentOffset(), updateTableEntries.getTableEntries().getEntries().size());
         val entries = new ArrayList<TableEntry>(updateTableEntries.getTableEntries().getEntries().size());
         val conditional = new AtomicBoolean(false);
         for (val e : updateTableEntries.getTableEntries().getEntries()) {
@@ -665,7 +671,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.info(removeTableKeys.getRequestId(), "Removing table keys {}.", removeTableKeys);
+        log.debug(removeTableKeys.getRequestId(), "Remove Table Segment Keys: Segment={}, Offset={}, Count={}.",
+                removeTableKeys.getSegment(), removeTableKeys.getTableSegmentOffset(), removeTableKeys.getKeys().size());
         val keys = new ArrayList<TableKey>(removeTableKeys.getKeys().size());
         val conditional = new AtomicBoolean(false);
         for (val k : removeTableKeys.getKeys()) {
@@ -694,11 +701,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.info(readTable.getRequestId(), "Reading from table {}.", readTable);
+        log.debug(readTable.getRequestId(), "Get Table Segment Keys: Segment={}, Count={}.",
+                readTable.getSegment(), readTable.getKeys());
 
         final List<ArrayView> keys = readTable.getKeys().stream()
-                                              .map(k -> getArrayView(k.getData()))
-                                              .collect(Collectors.toList());
+                .map(k -> getArrayView(k.getData()))
+                .collect(Collectors.toList());
         val timer = new Timer();
         tableStore.get(segment, keys, TIMEOUT)
                 .thenAccept(values -> {
@@ -717,7 +725,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.info(readTableKeys.getRequestId(), "Fetching keys from {}.", readTableKeys);
+        log.debug(readTableKeys.getRequestId(), "Iterate Table Segment Keys: Segment={}, Count={}.",
+                readTableKeys.getSegment(), readTableKeys.getSuggestedKeyCount());
 
         int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
         ByteBuf token = readTableKeys.getContinuationToken();
@@ -727,47 +736,38 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             state = token.array();
         }
 
-        final AtomicInteger msgSize = new AtomicInteger(0);
-        final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
-        final List<TableKey> keys = new ArrayList<>();
-
+        val msgSize = new AtomicInteger(segment.getBytes().length + WireCommands.TableKeysRead.HEADER_BYTES);
+        val continuationToken = new AtomicReference<>(EMPTY_BUFFER);
+        val keys = new ArrayList<WireCommands.TableKey>();
         val timer = new Timer();
         tableStore.keyIterator(segment, state, TIMEOUT)
-                  .thenCompose(itr -> itr.collectRemaining(
-                          e -> {
-                              synchronized (keys) {
-                                  if (keys.size() < suggestedKeyCount && msgSize.get() < MAX_READ_SIZE) {
-                                      Collection<TableKey> tableKeys = e.getEntries();
-                                      ArrayView lastState = e.getState();
+                .thenCompose(itr -> itr.collectRemaining(
+                        e -> {
+                            if (keys.size() >= suggestedKeyCount || msgSize.get() >= MAX_READ_SIZE) {
+                                return false;
+                            }
+                            Collection<TableKey> tableKeys = e.getEntries();
+                            ArrayView lastState = e.getState();
 
-                                      // Store all tableKeys.
-                                      keys.addAll(tableKeys);
-                                      // update the continuation token.
-                                      continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
-                                      // Update msgSize.
-                                      msgSize.addAndGet(getTableKeyBytes(segment, tableKeys, lastState.getLength()));
-                                      return true;
-                                  } else {
-                                      return false;
-                                  }
-                              }
-                          }))
-                  .thenAccept(v -> {
-                      final List<WireCommands.TableKey> wireCommandKeys;
-                      synchronized (keys) {
-                          log.debug(readTableKeys.getRequestId(), "{} keys obtained for ReadTableKeys request.", keys.size());
-                          wireCommandKeys = keys.stream()
-                                                .map(k -> {
-                                                    ArrayView keyArray = k.getKey();
-                                                    return new WireCommands.TableKey(wrappedBuffer(keyArray.array(),
-                                                                                                   keyArray.arrayOffset(),
-                                                                                                   keyArray.getLength()), k.getVersion());
-                                                })
-                                                .collect(toList());
-                      }
-                      connection.send(new WireCommands.TableKeysRead(readTableKeys.getRequestId(), segment, wireCommandKeys, continuationToken.get()));
-                      this.tableStatsRecorder.iterateKeys(readTableKeys.getSegment(), keys.size(), timer.getElapsed());
-                  }).exceptionally(e -> handleException(readTableKeys.getRequestId(), segment, operation, e));
+                            // Store all TableKeys.
+                            for (val key : e.getEntries()) {
+                                val k = new WireCommands.TableKey(getData(key.getKey()), key.getVersion());
+                                keys.add(k);
+                                msgSize.addAndGet(k.size());
+                            }
+
+                            // Update message size. Make sure to subtract the last one we added since we're replacing it.
+                            msgSize.addAndGet(-continuationToken.get().readableBytes() + e.getState().getLength());
+
+                            // Update the continuation token.
+                            continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
+                            return true;
+                        }))
+                .thenAccept(v -> {
+                    log.debug(readTableKeys.getRequestId(), "Iterate Table Segment Keys complete ({}).", keys.size());
+                    connection.send(new WireCommands.TableKeysRead(readTableKeys.getRequestId(), segment, keys, continuationToken.get()));
+                    this.tableStatsRecorder.iterateKeys(readTableKeys.getSegment(), keys.size(), timer.getElapsed());
+                }).exceptionally(e -> handleException(readTableKeys.getRequestId(), segment, operation, e));
     }
 
     @Override
@@ -779,7 +779,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.info(readTableEntries.getRequestId(), "Fetching keys from {}.", readTableEntries);
+        log.debug(readTableEntries.getRequestId(), "Iterate Table Segment Entries: Segment={}, Count={}.",
+                readTableEntries.getSegment(), readTableEntries.getSuggestedEntryCount());
 
         int suggestedEntryCount = readTableEntries.getSuggestedEntryCount();
         ByteBuf token = readTableEntries.getContinuationToken();
@@ -789,71 +790,39 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             state = token.array();
         }
 
-        final AtomicInteger msgSize = new AtomicInteger(0);
-        final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
-        final List<TableEntry> entries = new ArrayList<>();
+        val msgSize = new AtomicInteger(segment.getBytes().length + WireCommands.TableEntriesRead.HEADER_BYTES);
+        val continuationToken = new AtomicReference<>(EMPTY_BUFFER);
+        val entries = new ArrayList<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>>();
         val timer = new Timer();
         tableStore.entryIterator(segment, state, TIMEOUT)
-                  .thenCompose(itr -> itr.collectRemaining(
-                          e -> {
-                              synchronized (entries) {
-                                  if (entries.size() < suggestedEntryCount && msgSize.get() < MAX_READ_SIZE) {
-                                      final Collection<TableEntry> tableEntries = e.getEntries();
-                                      final ArrayView lastState = e.getState();
+                .thenCompose(itr -> itr.collectRemaining(
+                        e -> {
+                            if (entries.size() >= suggestedEntryCount || msgSize.get() >= MAX_READ_SIZE) {
+                                return false;
+                            }
 
-                                      // Store all TableEntrys.
-                                      entries.addAll(tableEntries);
-                                      // Update the continuation token.
-                                      continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
-                                      // Update message size.
-                                      msgSize.addAndGet(getTableEntryBytes(segment, tableEntries, lastState.getLength()));
-                                      return true;
-                                  } else {
-                                      return false;
-                                  }
-                              }
-                          }))
-                  .thenAccept(v -> {
-                      final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries;
-                      synchronized (entries) {
-                          log.debug(readTableEntries.getRequestId(), "{} entries obtained for ReadTableEntries request.", entries.size());
-                          wireCommandEntries = entries.stream()
-                                                      .map(e -> {
-                                                          TableKey k = e.getKey();
-                                                          val keyWireCommand = new WireCommands.TableKey(wrappedBuffer(k.getKey().array(), k.getKey().arrayOffset(),
-                                                                                                                       k.getKey().getLength()),
-                                                                                                         k.getVersion());
-                                                          ArrayView value = e.getValue();
-                                                          val valueWireCommand = new WireCommands.TableValue(wrappedBuffer(value.array(), value.arrayOffset(),
-                                                                                                                           value.getLength()));
-                                                          return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, valueWireCommand);
-                                                      })
-                                                      .collect(toList());
-                      }
+                            // Store all TableEntries.
+                            for (val entry : e.getEntries()) {
+                                val k = new WireCommands.TableKey(getData(entry.getKey().getKey()), entry.getKey().getVersion());
+                                val v = new WireCommands.TableValue(getData(entry.getValue()));
+                                entries.add(new AbstractMap.SimpleImmutableEntry<>(k, v));
+                                msgSize.addAndGet(k.size() + v.size());
+                            }
 
-                      connection.send(new WireCommands.TableEntriesRead(readTableEntries.getRequestId(), segment,
-                                                                        new WireCommands.TableEntries(wireCommandEntries),
-                                                                        continuationToken.get()));
-                      this.tableStatsRecorder.iterateEntries(readTableEntries.getSegment(), entries.size(), timer.getElapsed());
-                  }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
-    }
+                            // Update message size. Make sure to subtract the last one we added since we're replacing it.
+                            msgSize.addAndGet(-continuationToken.get().readableBytes() + e.getState().getLength());
 
-    private int getTableKeyBytes(String segment, Collection<TableKey> keys, int continuationTokenLength) {
-        int headerLength = WireCommands.TableKeysRead.GET_HEADER_BYTES.apply(keys.size());
-        int segmentLength = segment.getBytes().length;
-        int dataLength = keys.stream().mapToInt(value -> value.getKey().getLength() + Long.BYTES).sum();
-        return continuationTokenLength + headerLength + segmentLength + dataLength;
-    }
-
-    private int getTableEntryBytes(String segment, Collection<TableEntry> items, int continuationTokenLength) {
-        int headerLength = WireCommands.TableEntriesRead.GET_HEADER_BYTES.apply(items.size());
-        int segmentLength = segment.getBytes().length;
-        int dataLength = items.stream().mapToInt(value -> {
-            return value.getKey().getKey().getLength() // key
-                    + Long.BYTES // key version
-                    + value.getValue().getLength(); // value
-        }).sum();
-        return headerLength + segmentLength + dataLength + continuationTokenLength;
+                            // Update the continuation token.
+                            continuationToken.set(getData(e.getState()));
+                            return true;
+                        }))
+                .thenAccept(v -> {
+                    log.debug(readTableEntries.getRequestId(), "Iterate Table Segment Entries complete ({}).", entries.size());
+                    connection.send(new WireCommands.TableEntriesRead(readTableEntries.getRequestId(), segment,
+                            new WireCommands.TableEntries(entries),
+                            continuationToken.get()));
+                    this.tableStatsRecorder.iterateEntries(readTableEntries.getSegment(), entries.size(), timer.getElapsed());
+                }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
     }
 
     private ArrayView getArrayView(ByteBuf buf) {
@@ -883,11 +852,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                              } else {
                                  TableEntry te = resultEntries.get(i);
                                  TableKey k = te.getKey();
-                                 val keyWireCommand = new WireCommands.TableKey(wrappedBuffer(k.getKey().array(), k.getKey().arrayOffset(),
-                                                                                              k.getKey().getLength()),
-                                                                                k.getVersion());
-                                 ArrayView v = te.getValue();
-                                 val valueWireCommand = new WireCommands.TableValue(wrappedBuffer(v.array(), v.arrayOffset(), v.getLength()));
+                                 val keyWireCommand = new WireCommands.TableKey(getData(k.getKey()), k.getVersion());
+                                 val valueWireCommand = new WireCommands.TableValue(getData(te.getValue()));
                                  return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, valueWireCommand);
 
                              }

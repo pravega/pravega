@@ -17,6 +17,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -289,7 +290,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
+    public CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
         ensureRunning();
         return this.tableStore
                 .get(tableName, keys, timeout)
@@ -297,7 +298,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout) {
+    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, BufferView>>>> iterateTableEntries(String tableName, Duration timeout) {
         ensureRunning();
         return this.tableStore
                 .entryIterator(tableName, null, timeout)
@@ -308,7 +309,7 @@ class SegmentStoreAdapter extends StoreAdapter {
                             } else {
                                 return item.getEntries().stream()
                                            .map(e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey().getKey(), e.getValue()))
-                                           .collect(Collectors.<Map.Entry<ArrayView, ArrayView>>toList());
+                                           .collect(Collectors.<Map.Entry<ArrayView, BufferView>>toList());
                             }
                         }));
     }

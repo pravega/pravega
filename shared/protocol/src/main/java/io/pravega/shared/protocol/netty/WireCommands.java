@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -1661,7 +1660,7 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
-            TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
+            TableEntries entries = TableEntries.readFrom(in, in.available());
             long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
             return new UpdateTableEntries(requestId, segment, delegationToken, entries, tableSegmentOffset);
@@ -1880,8 +1879,7 @@ public final class WireCommands {
 
     @Data
     public static final class TableKeysRead implements Reply, WireCommand {
-        public static final Function<Integer, Integer> GET_HEADER_BYTES =
-                keyCount -> Long.BYTES + Integer.BYTES + TableKey.HEADER_BYTES * keyCount + Integer.BYTES;
+        public static final int HEADER_BYTES = Long.BYTES;
 
         final WireCommandType type = WireCommandType.TABLE_KEYS_READ;
         final long requestId;
@@ -1907,22 +1905,23 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            final int initialAvailable = in.available();
             long requestId = in.readLong();
             String segment = in.readUTF();
             int numberOfKeys = in.readInt();
             List<TableKey> keys = new ArrayList<>(numberOfKeys);
-            int keyByteCount = 0;
             for (int i = 0; i < numberOfKeys; i++) {
                 TableKey k = TableKey.readFrom(in, in.available());
                 keys.add(k);
-                keyByteCount += TableKey.HEADER_BYTES + Long.BYTES + k.getData().readableBytes();
             }
+
             int dataLength = in.readInt();
-            if (length < dataLength + Long.BYTES + segment.getBytes(UTF_8).length + Integer.BYTES + keyByteCount) {
-                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + dataLength);
-            }
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
+
+            if (initialAvailable - in.available() < length) {
+                throw new InvalidMessageException("Was expecting length " + length + " but read " + (initialAvailable - in.available()));
+            }
 
             return new TableKeysRead(requestId, segment, keys, wrappedBuffer(continuationToken));
         }
@@ -1976,8 +1975,7 @@ public final class WireCommands {
 
     @Data
     public static final class TableEntriesRead implements Reply, WireCommand {
-        public static final Function<Integer, Integer> GET_HEADER_BYTES =
-                entryCount -> Long.BYTES + TableEntries.GET_HEADER_BYTES.apply(entryCount) + Integer.BYTES;
+        public static final int HEADER_BYTES = Long.BYTES;
 
         final WireCommandType type = WireCommandType.TABLE_ENTRIES_READ;
         final long requestId;
@@ -2001,26 +1999,24 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            final int initialAvailable = in.available();
             long requestId = in.readLong();
             String segment = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());
             int dataLength = in.readInt();
-
-            if (length < dataLength + Long.BYTES + segment.getBytes(UTF_8).length + entries.size() + Integer.BYTES ) {
-                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + dataLength);
-            }
-
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
 
+            if (initialAvailable - in.available() < length) {
+                throw new InvalidMessageException("Was expecting length " + length + " but read " + (initialAvailable - in.available()));
+            }
             return new TableEntriesRead(requestId, segment, entries, wrappedBuffer(continuationToken));
         }
     }
 
     @Data
     public static final class TableEntries {
-        static final Function<Integer, Integer> GET_HEADER_BYTES =
-                entryCount -> Integer.BYTES + entryCount * (TableKey.HEADER_BYTES + TableValue.HEADER_BYTES);
+        public static final int HEADER_BYTES = Integer.BYTES;
 
         final List<Map.Entry<TableKey, TableValue>> entries;
 
@@ -2041,13 +2037,6 @@ public final class WireCommands {
             }
 
             return new TableEntries(entries);
-        }
-
-        public int size() {
-            int dataBytes = entries.stream()
-                                   .mapToInt(e -> e.getKey().getData().readableBytes() + Long.BYTES + e.getValue().getData().readableBytes())
-                                   .sum();
-            return GET_HEADER_BYTES.apply(entries.size()) + dataBytes;
         }
     }
 
@@ -2084,6 +2073,10 @@ public final class WireCommands {
             long keyVersion = in.readLong();
             return new TableKey(wrappedBuffer(msg), keyVersion);
         }
+
+        public int size() {
+            return HEADER_BYTES + this.data.readableBytes() + Long.BYTES;
+        }
     }
 
     @Data
@@ -2107,12 +2100,16 @@ public final class WireCommands {
             if (valueLength == 0) {
                 return TableValue.EMPTY;
             }
-            if ( length < payloadSize) {
+            if (length < payloadSize) {
                 throw new InvalidMessageException("Was expecting length of at least : " + payloadSize + " but found: " + length);
             }
             byte[] msg = new byte[valueLength];
             in.readFully(msg);
             return new TableValue(wrappedBuffer(msg));
+        }
+
+        public int size() {
+            return HEADER_BYTES + this.data.readableBytes();
         }
     }
 

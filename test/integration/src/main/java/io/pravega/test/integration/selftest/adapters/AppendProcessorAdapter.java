@@ -13,6 +13,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
@@ -184,12 +185,12 @@ public class AppendProcessorAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
+    public CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
         throw new UnsupportedOperationException("getTableEntries");
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout) {
+    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, BufferView>>>> iterateTableEntries(String tableName, Duration timeout) {
         throw new UnsupportedOperationException("iterateTableEntries");
     }
 

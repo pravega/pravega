@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.List;
+import lombok.NonNull;
 
 /**
  * Defines a generic read-only view of a readable memory buffer with a known length.
@@ -124,6 +125,29 @@ public interface BufferView {
      */
     default void release() {
         // Default implementation intentionally left blank. Any derived class may implement if needed.
+    }
+
+    /**
+     * Compares the contents of this {@link BufferView} with that of another's.
+     *
+     * @param other The other {@link BufferView} to compare with.
+     * @return True if this {@link BufferView}'s contents is the same as the other's contents (byte-by-byte comparison).
+     */
+    @VisibleForTesting
+    default boolean contentEquals(@NonNull BufferView other) {
+        List<ByteBuffer> thisContents = this.getContents();
+        List<ByteBuffer> otherContents = other.getContents();
+        if (thisContents.size() != otherContents.size()) {
+            return false;
+        }
+
+        for (int i = 0; i < thisContents.size(); i++) {
+            if (!thisContents.get(i).equals(otherContents.get(i))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

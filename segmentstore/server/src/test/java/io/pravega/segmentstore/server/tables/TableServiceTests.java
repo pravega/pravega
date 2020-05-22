@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -272,7 +273,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                 // Deleted keys will be returned as nulls.
                 Assert.assertNull("Not expecting a value for a deleted Key", actual);
             } else {
-                Assert.assertTrue("Unexpected value for non-deleted Key.", HashedArray.arrayEquals(expectedEntry.getValue(), actual.getValue()));
+                Assert.assertTrue("Unexpected value for non-deleted Key.", expectedEntry.getValue().contentEquals(actual.getValue()));
                 Assert.assertTrue("Unexpected key for non-deleted Key.", HashedArray.arrayEquals(expectedKey, actual.getKey().getKey()));
                 Assert.assertEquals("Unexpected TableKey.Version for non-deleted Key.", expectedEntry.getVersion(), actual.getKey().getVersion());
             }
@@ -421,9 +422,9 @@ public class TableServiceTests extends ThreadPooledTestSuite {
     private static class EntryData {
         final String segmentName;
         private final AtomicLong version = new AtomicLong(TableKey.NOT_EXISTS);
-        private final AtomicReference<ArrayView> value = new AtomicReference<>(null);
+        private final AtomicReference<BufferView> value = new AtomicReference<>(null);
 
-        void setValue(ArrayView value, long version) {
+        void setValue(BufferView value, long version) {
             this.value.set(value);
             this.version.set(version);
         }
@@ -436,7 +437,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             return this.version.get() == TableKey.NOT_EXISTS;
         }
 
-        ArrayView getValue() {
+        BufferView getValue() {
             return this.value.get();
         }
 

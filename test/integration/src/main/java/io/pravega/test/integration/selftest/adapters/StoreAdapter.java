@@ -14,6 +14,7 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.test.integration.selftest.Event;
@@ -177,7 +178,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout   Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the result.
      */
-    public abstract CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout);
+    public abstract CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout);
 
     /**
      * Iterates through all the Entries in a Table.
@@ -186,7 +187,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout   Timeout for the operation.
      * @return A CompletableFuture that will return an {@link AsyncIterator} to iterate through all entries in the table.
      */
-    public abstract CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout);
+    public abstract CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, BufferView>>>> iterateTableEntries(String tableName, Duration timeout);
 
     //endregion
 

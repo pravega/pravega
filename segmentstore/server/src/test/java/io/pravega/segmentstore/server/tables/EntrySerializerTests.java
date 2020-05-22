@@ -147,9 +147,9 @@ public class EntrySerializerTests {
                 serialization, offset + headerStream.getKeyOffset(),
                 e.getKey().getKey().array(), e.getKey().getKey().arrayOffset(), headerStream.getKeyLength());
 
-        AssertExtensions.assertArrayEquals("Unexpected serialized value.",
-                serialization, offset + headerStream.getValueOffset(),
-                e.getValue().array(), e.getValue().arrayOffset(), headerStream.getValueLength());
+        Assert.assertTrue("Unexpected serialized value.",
+                new ByteArraySegment(serialization, offset + headerStream.getValueOffset(), headerStream.getValueLength())
+                        .contentEquals(e.getValue()));
 
         return headerArray.getTotalLength();
     }

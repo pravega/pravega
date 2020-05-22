@@ -440,8 +440,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 val key1 = current.expectedEntries.keySet().stream().findFirst().orElse(null);
                 val get1 = ext.get(SEGMENT_NAME, Collections.singletonList(key1), TIMEOUT);
                 val getResult1 = get1.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                Assert.assertEquals("Unexpected completion result for recovered get.",
-                        current.expectedEntries.get(key1), new HashedArray(getResult1.get(0).getValue()));
+                Assert.assertTrue("Unexpected completion result for recovered get.",
+                        current.expectedEntries.get(key1).contentEquals(getResult1.get(0).getValue()));
 
                 if (useProcessor) {
                     // Create, populate, and flush the processor.
@@ -478,7 +478,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         Assert.assertNotNull(processor);
 
         // Update.
-        val expectedEntries = new HashMap<HashedArray, HashedArray>();
+        val expectedEntries = new HashMap<HashedArray, BufferView>();
         val removedKeys = new ArrayList<ArrayView>();
         val keyVersions = new HashMap<ArrayView, Long>();
         Function<ArrayView, Long> getKeyVersion = k -> keyVersions.getOrDefault(k, TableKey.NOT_EXISTS);
@@ -492,7 +492,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected result size from update.", 1, updateResult.get().size());
             keyVersions.put(key, updateResult.get().get(0));
 
-            expectedEntries.put(new HashedArray(toUpdate.getKey().getKey()), new HashedArray(toUpdate.getValue()));
+            expectedEntries.put(new HashedArray(toUpdate.getKey().getKey()), toUpdate.getValue());
             check(expectedEntries, removedKeys, context.ext);
             processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             check(expectedEntries, removedKeys, context.ext);
@@ -608,14 +608,14 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    private void check(Map<HashedArray, HashedArray> expectedEntries, Collection<ArrayView> nonExistentKeys, ContainerTableExtension ext) throws Exception {
+    private void check(Map<HashedArray, BufferView> expectedEntries, Collection<ArrayView> nonExistentKeys, ContainerTableExtension ext) throws Exception {
         // Verify that non-existing keys are not returned by accident.
         val nonExistingResult = ext.get(SEGMENT_NAME, new ArrayList<>(nonExistentKeys), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected result size for non-existing key search.", nonExistentKeys.size(), nonExistingResult.size());
         Assert.assertTrue("Unexpected result for non-existing key search.", nonExistingResult.stream().allMatch(Objects::isNull));
 
         // Verify existing Keys.
-        val expectedResult = new ArrayList<HashedArray>();
+        val expectedResult = new ArrayList<BufferView>();
         val existingKeys = new ArrayList<ArrayView>();
         expectedEntries.forEach((k, v) -> {
             existingKeys.add(k);
@@ -629,12 +629,12 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             val expectedKey = existingKeys.get(i);
             val actualEntry = existingResult.get(i);
             Assert.assertEquals("Unexpected key at position " + i, expectedKey, new HashedArray(actualEntry.getKey().getKey()));
-            Assert.assertEquals("Unexpected value at position " + i, expectedValue, new HashedArray(actualEntry.getValue()));
+            Assert.assertTrue("Unexpected value at position " + i, expectedValue.contentEquals(actualEntry.getValue()));
         }
     }
 
     @SneakyThrows
-    private void checkIterators(Map<HashedArray, HashedArray> expectedEntries, ContainerTableExtension ext) {
+    private void checkIterators(Map<HashedArray, BufferView> expectedEntries, ContainerTableExtension ext) {
         // Collect and verify all Table Entries.
         val entryIterator = ext.entryIterator(SEGMENT_NAME, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualEntries = collectIteratorItems(entryIterator);
@@ -702,7 +702,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
     private TestBatchData generateAndPopulateEntriesBatch(int batchSize, TestBatchData previous, TestContext context) {
         val expectedEntries = previous == null
-                ? new HashMap<HashedArray, HashedArray>()
+                ? new HashMap<HashedArray, BufferView>()
                 : new HashMap<>(previous.expectedEntries);
 
         val removalCandidates = previous == null
@@ -1013,7 +1013,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         /**
          * The expected result after toUpdate and toRemove have been applied. Key->Value.
          */
-        final Map<HashedArray, HashedArray> expectedEntries;
+        final Map<HashedArray, BufferView> expectedEntries;
     }
 
     @FunctionalInterface
@@ -1028,7 +1028,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
     @FunctionalInterface
     private interface CheckTable {
-        void accept(Map<HashedArray, HashedArray> expectedEntries, Collection<ArrayView> removedKeys, ContainerTableExtension ext) throws Exception;
+        void accept(Map<HashedArray, BufferView> expectedEntries, Collection<ArrayView> removedKeys, ContainerTableExtension ext) throws Exception;
     }
 
     //endregion

@@ -17,6 +17,7 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -97,7 +98,7 @@ class EntrySerializer {
         targetOffset += key.getLength();
 
         // Value.
-        System.arraycopy(value.array(), value.arrayOffset(), target, targetOffset, value.getLength());
+        value.copyTo(ByteBuffer.wrap(target, targetOffset, value.getLength()));
         targetOffset += value.getLength();
 
         return targetOffset;

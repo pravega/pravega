@@ -99,7 +99,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         val validResult = reader.find(validEntry.getKey().getKey(), data.getBucketOffset(), new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected version from valid key.", data.getEntryOffset(1), validResult.getKey().getVersion());
         Assert.assertTrue("Unexpected 'valid' key returned.", HashedArray.arrayEquals(validEntry.getKey().getKey(), validResult.getKey().getKey()));
-        Assert.assertTrue("Unexpected 'valid' key returned.", HashedArray.arrayEquals(validEntry.getValue(), validResult.getValue()));
+        Assert.assertTrue("Unexpected 'valid' key returned.", validEntry.getValue().contentEquals(validResult.getValue()));
 
         // Check a key that does not exist.
         val invalidKey = data.unlinkedEntry.getKey();

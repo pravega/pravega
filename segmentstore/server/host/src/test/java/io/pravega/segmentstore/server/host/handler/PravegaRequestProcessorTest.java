@@ -990,7 +990,7 @@ public class PravegaRequestProcessorTest {
                 return new AbstractMap.SimpleImmutableEntry<>(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY);
             } else {
                 val tableKey = new WireCommands.TableKey(wrappedBuffer(te.getKey().getKey().array()), te.getKey().getVersion());
-                val tableValue = new WireCommands.TableValue(wrappedBuffer(te.getValue().array()));
+                val tableValue = new WireCommands.TableValue(wrappedBuffer(te.getValue().getCopy()));
                 return new AbstractMap.SimpleImmutableEntry<>(tableKey, tableValue);
             }
         }).collect(toList());
