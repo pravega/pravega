@@ -13,13 +13,12 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import lombok.val;
-
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import lombok.val;
 
 /**
  * Reports Test State on a periodic basis.
@@ -160,7 +159,7 @@ class Reporter extends AbstractScheduledService {
      */
     void outputSummary() {
         TestLogger.log(LOG_ID, "Operation Summary");
-        outputRow("Operation Type", "Count", "LAvg", "L50", "L75", "L90", "L99", "L999", "Total");
+        outputRow("Operation Type", "Count", "LSum", "LAvg", "L50", "L75", "L90", "L99", "L999");
         for (OperationType ot : TestState.SUMMARY_OPERATION_TYPES) {
             val durations = this.testState.getDurations(ot);
             if (durations == null || durations.count() == 0) {
@@ -168,12 +167,12 @@ class Reporter extends AbstractScheduledService {
             }
 
             int[] percentiles = durations.percentiles(0.5, 0.75, 0.9, 0.99, 0.999);
-            outputRow(ot, durations.count(), (int) durations.average(), percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4], (int) durations.sum());
+            outputRow(ot, durations.count(), (int) durations.sum(), (int) durations.average(), percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4]);
         }
     }
 
-    private void outputRow(Object opType, Object count, Object lAvg, Object l50, Object l75, Object l90, Object l99, Object l999, Object total) {
-        TestLogger.log(LOG_ID, "%18s | %7s | %5s | %5s | %5s | %5s | %5s | %5s | %5s", opType, count, lAvg, l50, l75, l90, l99, l999, total);
+    private void outputRow(Object opType, Object count, Object lAvg, Object l50, Object l75, Object l90, Object l99, Object l999, Object sum) {
+        TestLogger.log(LOG_ID, "%18s | %7s | %5s | %5s | %5s | %5s | %5s | %5s | %5s", opType, sum, count, lAvg, l50, l75, l90, l99, l999);
     }
 
     private double toMB(double bytes) {
