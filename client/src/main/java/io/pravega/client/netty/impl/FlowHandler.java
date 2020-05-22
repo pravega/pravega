@@ -50,6 +50,9 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
     private final AtomicBoolean recentMessage = new AtomicBoolean(true);
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
+    private final KeepAliveTask keepAlive = new KeepAliveTask();
     @Getter
     private final ReusableFutureLatch<Void> registeredFutureLatch = new ReusableFutureLatch<>();
     @VisibleForTesting
@@ -203,7 +206,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         registeredFutureLatch.release(null); //release all futures waiting for channel registration to complete.
         // WireCommands.KeepAlive messages are sent for every network connection to a SegmentStore.
         ScheduledFuture<?> old = keepAliveFuture.getAndSet(ch.eventLoop()
-                                                             .scheduleWithFixedDelay(new KeepAliveTask(),
+                                                             .scheduleWithFixedDelay(keepAlive,
                                                                                      KEEP_ALIVE_TIMEOUT_SECONDS,
                                                                                      KEEP_ALIVE_TIMEOUT_SECONDS,
                                                                                      TimeUnit.SECONDS));
@@ -317,15 +320,16 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         }
     }
 
-    private final class KeepAliveTask implements Runnable {
-        
+    final class KeepAliveTask implements Runnable {
+        @VisibleForTesting
+        @Getter(AccessLevel.PACKAGE)
         private final ChannelFutureListener listener = new ChannelFutureListener() {
             @Override
             public void operationComplete(ChannelFuture future) throws Exception {
                 recentMessage.set(true);
                 if (!future.isSuccess()) {
                     log.warn("Keepalive failed for connection {}", connectionName);
-                    future.channel().pipeline().fireExceptionCaught(future.cause());
+                    close();
                 }
             }
         };
