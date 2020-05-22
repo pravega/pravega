@@ -383,6 +383,28 @@ public class FlowHandlerTest {
         AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection1.send(mock(WireCommand.class)));
         AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection2.send(mock(WireCommand.class)));
     }
+    
+    @Test
+    public void keepAliveTimeoutTest() throws Exception {
+        ReplyProcessor replyProcessor = mock(ReplyProcessor.class);
+        @Cleanup
+        ClientConnection connection1 = flowHandler.createFlow(flow, processor);
+        @Cleanup
+        ClientConnection connection2 = flowHandler.createFlow(new Flow(11, 0), replyProcessor);
+        flowHandler.channelActive(ctx);
+        KeepAliveTask keepAlive = flowHandler.getKeepAlive();
+        keepAlive.run();
+        keepAlive.run(); //Triggers a timeout.
+        
+        // ensure all the reply processors are informed immediately of the channel being closed due to KeepAlive Failure.
+        verify(processor).processingFailure(any(ConnectionFailedException.class));
+        verify(replyProcessor).processingFailure(any(ConnectionFailedException.class));
+
+        // verify any attempt to send msg over the connection will throw a ConnectionFailedException.
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection1.send(mock(WireCommand.class)));
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection2.send(mock(WireCommand.class)));
+    }
+
 
     private ChannelFuture failedFuture(String message) {
         DefaultChannelPipeline pipeline = new DefaultChannelPipeline(ch) {
