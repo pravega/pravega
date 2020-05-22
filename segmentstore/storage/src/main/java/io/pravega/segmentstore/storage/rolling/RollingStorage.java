@@ -15,6 +15,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CollectionHelpers;
+import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -32,14 +33,13 @@ import io.pravega.shared.NameUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -524,72 +524,6 @@ public class RollingStorage implements SyncStorage {
                 props -> NameUtils.isHeaderSegment(props.getName()));
     }
 
-    /**
-     * Iterator for segments in Rolling storage.
-     */
-    public static class RollingStorageSegmentIterator implements Iterator<SegmentProperties> {
-        protected RollingStorage instance;
-        protected SegmentProperties current;
-        private final Iterator<SegmentProperties> results;
-        private final java.util.function.Predicate<SegmentProperties> patternMatchPredicate;
-        private boolean isAvailable;
-
-        RollingStorageSegmentIterator(RollingStorage instance, Iterator<SegmentProperties> results, java.util.function.Predicate<SegmentProperties> patternMatchPredicate) {
-            this.instance = instance;
-            this.results = results;
-            this.patternMatchPredicate = patternMatchPredicate;
-            this.isAvailable = false;
-        }
-
-        /**
-         * Method to check the presence of next element in the iterator.
-         * It also sets the position of the current element for Next method, but repetitive call to this method before Next
-         * will not advance the current element.
-         * @return true if the next element is there, else false.
-         */
-        @Override
-        public boolean hasNext() {
-            if (isAvailable) {
-                return true;
-            }
-            if (results != null) {
-                while (results.hasNext()) {
-                    current = results.next();
-                    if (patternMatchPredicate.test(current)) {
-                        isAvailable = true;
-                        return true;
-                    }
-                }
-            }
-            current = null;
-            return false;
-        }
-
-        /**
-         * Method to return the next element in the iterator.
-         * @return A newly created StreamSegmentInformation class.
-         * @throws NoSuchElementException in case of an unexpected failure.
-         */
-        @Override
-        public SegmentProperties next() throws NoSuchElementException {
-            if (hasNext()) { // Check if next exists. Also sets the current object to the next object in the list.
-                try {
-                    String segmentName = NameUtils.getSegmentNameFromHeader(current.getName());
-                    val handle = instance.openHandle(segmentName, true);
-                    isAvailable = false;
-                    return StreamSegmentInformation.builder()
-                            .name(segmentName)
-                            .length(handle.length())
-                            .sealed(handle.isSealed()).build();
-                } catch (StreamSegmentException e) {
-                    isAvailable = true;
-                    log.error("Exception occurred while fetching the next segment.", e);
-                }
-            }
-            throw new NoSuchElementException();
-        }
-    }
-
     //endregion
 
     //region SegmentChunk Operations
@@ -908,5 +842,53 @@ public class RollingStorage implements SyncStorage {
         }
     }
 
+    /**
+     * Iterator for segments in Rolling storage.
+     */
+    public static class RollingStorageSegmentIterator implements Iterator<SegmentProperties> {
+        protected RollingStorage instance;
+        private final Iterator<SegmentProperties> results;
+
+        RollingStorageSegmentIterator(RollingStorage instance, Iterator<SegmentProperties> results, java.util.function.Predicate<SegmentProperties> patternMatchPredicate) {
+            this.instance = instance;
+            this.results = StreamSupport.stream(Spliterators.spliteratorUnknownSize(results, 0), false)
+                    .filter(patternMatchPredicate)
+                    .map(this::toSegmentProperties)
+                    .iterator();
+        }
+
+        public SegmentProperties toSegmentProperties(SegmentProperties segmentProperties) {
+            try {
+                String segmentName = NameUtils.getSegmentNameFromHeader(segmentProperties.getName());
+                val handle = instance.openHandle(segmentName, true);
+                return StreamSegmentInformation.builder()
+                        .name(segmentName)
+                        .length(handle.length())
+                        .sealed(handle.isSealed()).build();
+            } catch (StreamSegmentException e) {
+                throw new NoSuchElementException();
+            }
+        }
+        /**
+         * Method to check the presence of next element in the iterator.
+         * It also sets the position of the current element for Next method, but repetitive call to this method before Next
+         * will not advance the current element.
+         * @return true if the next element is there, else false.
+         */
+        @Override
+        public boolean hasNext() {
+            return results.hasNext();
+        }
+
+        /**
+         * Method to return the next element in the iterator.
+         * @return A newly created StreamSegmentInformation class.
+         * @throws NoSuchElementException in case of an unexpected failure.
+         */
+        @Override
+        public SegmentProperties next() throws NoSuchElementException {
+            return results.next();
+        }
+    }
     //endregion
 }

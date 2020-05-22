@@ -212,12 +212,12 @@ class HDFSStorage implements SyncStorage {
 
         try {
             return HDFS_RETRY.run(() -> {
-                            int totalBytesRead  = readInternal(handle, buffer, offset, bufferOffset, length);
-                            HDFSMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
-                            HDFSMetrics.READ_BYTES.add(totalBytesRead);
-                            LoggerHelpers.traceLeave(log, "read", traceId, handle, offset, totalBytesRead);
-                            return totalBytesRead;
-                        });
+                int totalBytesRead  = readInternal(handle, buffer, offset, bufferOffset, length);
+                HDFSMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
+                HDFSMetrics.READ_BYTES.add(totalBytesRead);
+                LoggerHelpers.traceLeave(log, "read", traceId, handle, offset, totalBytesRead);
+                return totalBytesRead;
+            });
         } catch (IOException e) {
             throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), e);
         } catch (RetriesExhaustedException e) {
@@ -356,7 +356,7 @@ class HDFSStorage implements SyncStorage {
                 throw new StorageNotPrimaryException(handle.getSegmentName());
             }
         } catch (IOException e) {
-             throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), e);
+            throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), e);
         }
 
         Timer timer = new Timer();
@@ -514,73 +514,6 @@ class HDFSStorage implements SyncStorage {
         }
     }
 
-    /**
-     * Iterator for segments in HDFS Storage.
-     */
-    public static class HDFSSegmentIterator implements Iterator<SegmentProperties> {
-        protected FileStatus current;
-        private final RemoteIterator<FileStatus> results;
-        private final java.util.function.Predicate<FileStatus> patternMatchPredicate;
-        private boolean isAvailable;
-
-        HDFSSegmentIterator(RemoteIterator<FileStatus> results, java.util.function.Predicate<FileStatus> patternMatchPredicate) {
-            this.results = results;
-            this.patternMatchPredicate = patternMatchPredicate;
-            this.isAvailable = false;
-        }
-
-        /**
-         * Method to check the presence of next element in the iterator.
-         * It also sets the position of the current element for Next method, but repetitive call to this method before Next
-         * will not advance the current element.
-         * @return true if the next element is there, else false.
-         */
-        @Override
-        public boolean hasNext() {
-            if (isAvailable) {
-                return true;
-            }
-            try {
-                if (results != null) {
-                    while (results.hasNext()) {
-                        current = results.next();
-                        if (patternMatchPredicate.test(current)) {
-                            isAvailable = true;
-                            return true;
-                        }
-                    }
-                }
-            } catch (IOException e) {
-                log.error("Exception occurred while trying to check the next object.", e);
-            }
-            current = null;
-            return false;
-        }
-
-        /**
-         * Method to return the next element in the iterator.
-         * @return A newly created StreamSegmentInformation class.
-         * @throws NoSuchElementException in case of an unexpected failure.
-         */
-        @Override
-        public SegmentProperties next() throws NoSuchElementException {
-            if (hasNext()) { // Check if next exists. Also sets the current object to the next one in the list.
-                try {
-                    isAvailable = false;
-                    boolean isSealed = isSealed(current.getPath());
-                    return StreamSegmentInformation.builder()
-                            .name(getSegmentNameFromPath(current.getPath()))
-                            .length(current.getLen())
-                            .sealed(isSealed).build();
-                } catch (FileNameFormatException e) {
-                    isAvailable = true;
-                    log.error("Exception occurred while trying to get the next object.", e);
-                }
-            }
-            throw new NoSuchElementException();
-        }
-    }
-
     //endregion
 
     //region Helpers
@@ -669,8 +602,8 @@ class HDFSStorage implements SyncStorage {
         }
 
         val result = Arrays.stream(rawFiles)
-                           .sorted(this::compareFileStatus)
-                           .collect(Collectors.toList());
+                .sorted(this::compareFileStatus)
+                .collect(Collectors.toList());
         return result.get(result.size() -1);
     }
 
@@ -757,5 +690,72 @@ class HDFSStorage implements SyncStorage {
         return length;
     }
 
+
+    /**
+     * Iterator for segments in HDFS Storage.
+     */
+    public static class HDFSSegmentIterator implements Iterator<SegmentProperties> {
+        protected FileStatus current;
+        private final RemoteIterator<FileStatus> results;
+        private final java.util.function.Predicate<FileStatus> patternMatchPredicate;
+        private boolean isAvailable;
+
+        HDFSSegmentIterator(RemoteIterator<FileStatus> results, java.util.function.Predicate<FileStatus> patternMatchPredicate) {
+            this.results = results;
+            this.patternMatchPredicate = patternMatchPredicate;
+            this.isAvailable = false;
+        }
+
+        /**
+         * Method to check the presence of next element in the iterator.
+         * It also sets the position of the current element for Next method, but repetitive call to this method before Next
+         * will not advance the current element.
+         * @return true if the next element is there, else false.
+         */
+        @Override
+        public boolean hasNext() {
+            if (isAvailable) {
+                return true;
+            }
+            try {
+                if (results != null) {
+                    while (results.hasNext()) {
+                        current = results.next();
+                        if (patternMatchPredicate.test(current)) {
+                            isAvailable = true;
+                            return true;
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                log.error("Exception occurred while trying to check the next object.", e);
+            }
+            current = null;
+            return false;
+        }
+
+        /**
+         * Method to return the next element in the iterator.
+         * @return A newly created StreamSegmentInformation class.
+         * @throws NoSuchElementException in case of an unexpected failure.
+         */
+        @Override
+        public SegmentProperties next() throws NoSuchElementException {
+            if (hasNext()) { // Check if next exists. Also sets the current object to the next one in the list.
+                try {
+                    isAvailable = false;
+                    boolean isSealed = isSealed(current.getPath());
+                    return StreamSegmentInformation.builder()
+                            .name(getSegmentNameFromPath(current.getPath()))
+                            .length(current.getLen())
+                            .sealed(isSealed).build();
+                } catch (FileNameFormatException e) {
+                    isAvailable = true;
+                    log.error("Exception occurred while trying to get the next object.", e);
+                }
+            }
+            throw new NoSuchElementException();
+        }
+    }
     //endregion
 }
