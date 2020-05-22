@@ -356,14 +356,14 @@ public class AppendTest extends LeakDetectorTestSuite {
         @Cleanup
         RawClient rawClient = new RawClient(new PravegaNodeUri(endpoint, port), connectionFactory);
         for (int i = 0; i < 10; i++) {
-            for (int j = 0; j < 1000; j++) {
+            for (int j = 0; j < 100; j++) {
                 producer.writeEvent(payload.slice());
             }
             producer.flush();
             long requestId = rawClient.getFlow().getNextSequenceNumber();
             String scopedName = new Segment(scope, streamName, 0).getScopedName();
             WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(requestId, scopedName,
-                                                                                    i * 1000L * (payload.remaining() + TYPE_PLUS_LENGTH_SIZE), "");
+                                                                                    i * 100L * (payload.remaining() + TYPE_PLUS_LENGTH_SIZE), "");
             Reply reply = rawClient.sendRequest(requestId, request).join();
             assertFalse(reply.toString(), reply.isFailure());
         }
