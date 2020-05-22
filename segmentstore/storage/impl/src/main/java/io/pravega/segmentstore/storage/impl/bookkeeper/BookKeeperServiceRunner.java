@@ -11,8 +11,8 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import io.pravega.common.auth.JKSHelper;
-import io.pravega.common.auth.ZKTLSUtils;
+import io.pravega.common.security.JKSHelper;
+import io.pravega.common.security.ZKTLSUtils;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;

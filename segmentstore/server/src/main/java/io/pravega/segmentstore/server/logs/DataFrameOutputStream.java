@@ -11,7 +11,9 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.io.BufferViewSink;
 import io.pravega.common.io.SerializationException;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -22,11 +24,11 @@ import lombok.Getter;
 /**
  * An OutputStream that abstracts writing to Data Frames. Allows writing arbitrary bytes, and seamlessly transitions
  * from one Data Frame to another if the previous Data Frame was full.
- *
+ * <p>
  * Data written with this class can be read back using DataFrameInputStream.
  */
 @NotThreadSafe
-class DataFrameOutputStream extends OutputStream {
+class DataFrameOutputStream extends OutputStream implements BufferViewSink {
     //region Members
 
     private final Consumer<DataFrame> dataFrameCompleteCallback;
@@ -87,22 +89,25 @@ class DataFrameOutputStream extends OutputStream {
 
     @Override
     public void write(byte[] data, int offset, int length) throws IOException {
+        writeBuffer(new ByteArraySegment(data, offset, length));
+    }
+
+    @Override
+    public void writeBuffer(BufferView data) throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
 
-        int totalBytesWritten = 0;
         int attemptsWithNoProgress = 0;
-        while (totalBytesWritten < length) {
-            int bytesWritten = this.currentFrame.append(new ByteArraySegment(data, offset + totalBytesWritten, length - totalBytesWritten));
+        BufferView.Reader reader = data.getBufferViewReader();
+        while (reader.available() > 0) {
+            int bytesWritten = this.currentFrame.append(reader);
             attemptsWithNoProgress = bytesWritten == 0 ? attemptsWithNoProgress + 1 : 0;
             if (attemptsWithNoProgress > 1) {
                 // We had two consecutive attempts to write to a frame with no progress made.
                 throw new IOException("Unable to make progress in serializing to DataFrame.");
             }
 
-            // Update positions.
-            totalBytesWritten += bytesWritten;
-            if (totalBytesWritten < length) {
+            if (reader.available() > 0) {
                 // We were only able to write this partially because the current frame is full. Seal it and create a new one.
                 this.currentFrame.endEntry(false);
                 flush();

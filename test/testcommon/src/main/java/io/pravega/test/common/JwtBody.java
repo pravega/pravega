@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.security.auth;
+package io.pravega.test.common;
 
 import com.google.gson.annotations.SerializedName;
 import lombok.Builder;
@@ -20,7 +20,7 @@ import lombok.Setter;
 @Builder
 @Getter
 @Setter
-class JwtBody {
+public class JwtBody {
 
     // See https://tools.ietf.org/html/rfc7519#page-9 for additional details about these fields.
 
