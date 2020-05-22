@@ -10,8 +10,9 @@
 package io.pravega.client.security.auth;
 
 import com.google.gson.Gson;
-import org.junit.Test;
 import java.time.Instant;
+import org.junit.Test;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 

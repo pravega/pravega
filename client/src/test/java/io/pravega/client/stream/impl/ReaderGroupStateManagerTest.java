@@ -15,7 +15,7 @@ import com.google.common.collect.Sets;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;

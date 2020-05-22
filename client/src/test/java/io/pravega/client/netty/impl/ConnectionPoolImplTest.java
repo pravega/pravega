@@ -11,10 +11,11 @@ package io.pravega.client.netty.impl;
 
 import io.netty.handler.ssl.SslContext;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.test.common.SecurityConfigDefaults;
-import org.junit.Test;
-
 import java.net.URI;
+import org.junit.Test;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;

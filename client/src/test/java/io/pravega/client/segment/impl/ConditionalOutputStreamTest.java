@@ -9,7 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;

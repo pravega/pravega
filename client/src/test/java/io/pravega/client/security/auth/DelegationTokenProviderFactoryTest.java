@@ -12,9 +12,8 @@ package io.pravega.client.security.auth;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.test.common.AssertExtensions;
-import org.junit.Test;
-
 import java.time.Instant;
+import org.junit.Test;
 
 import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
 import static io.pravega.client.security.auth.JwtTestUtils.dummyToken;

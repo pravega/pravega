@@ -13,7 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.SynchronizerClientFactory;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -62,8 +62,8 @@ import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.pravega.common.concurrent.Futures.allOfWithResults;

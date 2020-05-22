@@ -10,6 +10,8 @@ package io.pravega.client.netty.impl;
 
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -21,11 +23,10 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
+import io.pravega.test.common.AssertExtensions;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-
-import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;

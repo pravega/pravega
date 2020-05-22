@@ -11,7 +11,7 @@ package io.pravega.client.batch.impl;
 
 import com.google.common.collect.ImmutableSet;
 import io.pravega.client.batch.SegmentRange;
-import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;

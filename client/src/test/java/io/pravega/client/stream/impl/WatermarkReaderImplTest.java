@@ -22,10 +22,9 @@ import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.InlineExecutor;
-import lombok.Cleanup;
-
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

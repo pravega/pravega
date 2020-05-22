@@ -13,7 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;

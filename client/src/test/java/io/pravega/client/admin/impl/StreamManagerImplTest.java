@@ -11,7 +11,7 @@ package io.pravega.client.admin.impl;
 
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -22,6 +22,9 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Before;
@@ -30,14 +33,10 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
-
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 

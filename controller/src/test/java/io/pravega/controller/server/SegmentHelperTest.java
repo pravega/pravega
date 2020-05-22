@@ -11,9 +11,10 @@ package io.pravega.controller.server;
 
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.Flow;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.ClientConnection.CompletedCallback;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.tables.impl.IteratorState;
 import io.pravega.client.tables.impl.IteratorStateImpl;
@@ -51,7 +52,6 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.val;
 import org.junit.Test;
-
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.common.Exceptions.unwrap;

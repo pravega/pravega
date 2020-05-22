@@ -10,7 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.Controller;

@@ -11,7 +11,6 @@ package io.pravega.client.connection.impl;
 import com.google.common.base.Strings;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.AppendBatchSizeTrackerImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.CertificateUtils;
 import io.pravega.shared.protocol.netty.Append;

@@ -11,9 +11,8 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import org.junit.Test;
-
 import java.util.concurrent.CompletableFuture;
+import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
