@@ -10,6 +10,11 @@
 package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -22,10 +27,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import javax.annotation.concurrent.GuardedBy;
-import javax.annotation.concurrent.ThreadSafe;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 /**
  * Represents the current State of the SelfTest.
@@ -574,15 +575,22 @@ public class TestState {
         }
 
         /**
-         * Gets a value indicating the average latency.
+         * Gets a value indicating the overall latency.
          */
-        synchronized double average() {
+        synchronized double sum() {
             long sum = 0;
             for (int i = 0; i < this.latencyCounts.length; i++) {
                 sum += (long) this.latencyCounts[i] * i;
             }
 
-            return (double) sum / this.size;
+            return (double) sum;
+        }
+
+        /**
+         * Gets a value indicating the average latency.
+         */
+        synchronized double average() {
+            return sum() / this.size;
         }
 
         /**
