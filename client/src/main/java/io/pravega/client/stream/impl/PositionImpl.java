@@ -244,5 +244,4 @@ public class PositionImpl extends PositionInternal {
         this.updatesToSegmentOffsets = null;
         this.version = 0;
     }
-
 }
