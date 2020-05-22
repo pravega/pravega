@@ -13,7 +13,7 @@ import com.google.common.annotations.Beta;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import lombok.val;
@@ -36,7 +36,7 @@ public interface ByteStreamClientFactory extends AutoCloseable {
      * @return Instance of ByteStreamClientFactory implementation.
      */
     static ByteStreamClientFactory withScope(String scope, ClientConfig config) {
-        val connectionFactory = new ConnectionFactoryImpl(config);
+        val connectionFactory = new SocketConnectionFactoryImpl(config);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                            connectionFactory.getInternalExecutor());
         return new ByteStreamClientImpl(scope, controller, connectionFactory);

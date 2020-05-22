@@ -10,8 +10,8 @@
 package io.pravega.client.segment.impl;
 
 import io.netty.buffer.Unpooled;
-import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.netty.impl.Flow;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;

@@ -12,7 +12,7 @@ package io.pravega.client.stream.mock;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.SynchronizerClientFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -31,19 +31,19 @@ import java.util.function.Supplier;
 import lombok.Getter;
 
 public class MockClientFactory implements EventStreamClientFactory, SynchronizerClientFactory, AutoCloseable {
-    private final ConnectionFactoryImpl connectionFactory;
+    private final SocketConnectionFactoryImpl connectionFactory;
     @Getter
     private final Controller controller;
     private final ClientFactoryImpl impl;
 
     public MockClientFactory(String scope, MockSegmentStreamFactory ioFactory) {
-        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        this.connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         this.controller = new MockController("localhost", 0, connectionFactory, false);
         this.impl = new ClientFactoryImpl(scope, controller, connectionFactory, ioFactory, ioFactory, ioFactory, ioFactory);
     }
 
     public MockClientFactory(String scope, Controller controller) {
-        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        this.connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         this.controller = controller;
         this.impl = new ClientFactoryImpl(scope, controller, connectionFactory);
     }

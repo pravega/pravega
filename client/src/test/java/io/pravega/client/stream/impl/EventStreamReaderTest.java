@@ -9,40 +9,13 @@
  */
 package io.pravega.client.stream.impl;
 
-import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
-
-import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import org.junit.Assert;
-import org.junit.Test;
-import org.mockito.InOrder;
-import org.mockito.Mockito;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchEventException;
@@ -78,8 +51,32 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.val;
+import org.junit.Assert;
+import org.junit.Test;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
+
+import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 
 public class EventStreamReaderTest {
     private final Consumer<Segment> segmentSealedCallback = segment -> { };

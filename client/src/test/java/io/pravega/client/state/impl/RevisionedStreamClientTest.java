@@ -12,7 +12,7 @@ package io.pravega.client.state.impl;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.SynchronizerClientFactory;
-import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -43,7 +43,8 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
+import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.Serializable;
@@ -52,9 +53,6 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
-
-import io.pravega.shared.protocol.netty.ReplyProcessor;
-import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;

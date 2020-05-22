@@ -10,9 +10,9 @@
 package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.netty.impl.Flow;
-import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.Flow;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;

@@ -54,13 +54,13 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScalingPolicy;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceBlockingStub;
@@ -68,14 +68,6 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.Controller
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.AssertExtensions;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.junit.rules.Timeout;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -89,9 +81,15 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.junit.rules.Timeout;
 
 import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

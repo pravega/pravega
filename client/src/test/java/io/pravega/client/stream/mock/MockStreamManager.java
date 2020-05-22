@@ -16,7 +16,7 @@ import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Position;
@@ -48,14 +48,14 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     private final String scope;
     @Getter
-    private final ConnectionFactoryImpl connectionFactory;
+    private final SocketConnectionFactoryImpl connectionFactory;
     private final MockController controller;
     @Getter
     private final MockClientFactory clientFactory;
 
     public MockStreamManager(String scope, String endpoint, int port) {
         this.scope = scope;
-        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(URI.create("tcp://localhost")).build());
+        this.connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().controllerURI(URI.create("tcp://localhost")).build());
         this.controller = new MockController(endpoint, port, connectionFactory, true);
         this.clientFactory = new MockClientFactory(scope, controller);
     }

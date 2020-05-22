@@ -12,7 +12,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
