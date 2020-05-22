@@ -88,7 +88,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @VisibleForTesting 
     CompletableFuture<Void> gcCompletedTxn() {
         List<String> batches = new ArrayList<>();
-        return withCompletion(storeHelper.expectingDataNotFound(storeHelper.getAllKeys(COMPLETED_TRANSACTIONS_BATCHES_TABLE)
+        return Futures.withCompletion(storeHelper.expectingDataNotFound(storeHelper.getAllKeys(COMPLETED_TRANSACTIONS_BATCHES_TABLE)
                                                          .collectRemaining(batches::add)
                                                          .thenApply(v -> findStaleBatches(batches))
                                                          .thenCompose(toDeleteList -> {
@@ -155,12 +155,12 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     CompletableFuture<Int96> getNextCounter() {
-        return withCompletion(counter.getNextCounter(), executor);
+        return Futures.withCompletion(counter.getNextCounter(), executor);
     }
 
     @Override
     CompletableFuture<Boolean> checkScopeExists(String scope) {
-        return withCompletion(storeHelper.expectingDataNotFound(
+        return Futures.withCompletion(storeHelper.expectingDataNotFound(
                 storeHelper.getEntry(SCOPES_TABLE, scope, x -> x).thenApply(v -> true),
                 false), executor);
     }
@@ -172,7 +172,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                                 final long createTimestamp,
                                                                 final OperationContext context,
                                                                 final Executor executor) {
-        return withCompletion(
+        return Futures.withCompletion(
                 ((PravegaTablesScope) getScope(scope))
                         .addStreamToScope(name)
                         .thenCompose(id -> super.createStream(scope, name, configuration, createTimestamp, context, executor)), 
@@ -184,7 +184,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                 final String name,
                                                 final OperationContext context,
                                                 final Executor executor) {
-        return withCompletion(super.deleteStream(scope, name, context, executor)
+        return Futures.withCompletion(super.deleteStream(scope, name, context, executor)
                     .thenCompose(status -> ((PravegaTablesScope) getScope(scope)).removeStreamFromScope(name).thenApply(v -> status)),
                 executor);
     }
@@ -206,14 +206,14 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
-        return withCompletion(storeHelper.getEntry(SCOPES_TABLE, scopeName, x -> x)
+        return Futures.withCompletion(storeHelper.getEntry(SCOPES_TABLE, scopeName, x -> x)
                           .thenApply(x -> scopeName), executor);
     }
 
     @Override
     public CompletableFuture<List<String>> listScopes() {
         List<String> scopes = new ArrayList<>();
-        return withCompletion(Futures.exceptionallyComposeExpecting(storeHelper.getAllKeys(SCOPES_TABLE)
+        return Futures.withCompletion(Futures.exceptionallyComposeExpecting(storeHelper.getAllKeys(SCOPES_TABLE)
                                                                 .collectRemaining(scopes::add)
                                                                 .thenApply(v -> scopes), DATA_NOT_FOUND_PREDICATE,
                 () -> storeHelper.createTable(SCOPES_TABLE).thenApply(v -> Collections.emptyList())),
@@ -223,12 +223,12 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @Override
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
                                                         final String streamName) {
-        return withCompletion(((PravegaTablesScope) getScope(scopeName)).checkStreamExistsInScope(streamName), executor);
+        return Futures.withCompletion(((PravegaTablesScope) getScope(scopeName)).checkStreamExistsInScope(streamName), executor);
     }
 
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
-        return withCompletion(storeHelper.getEntry(DELETED_STREAMS_TABLE, getScopedStreamName(scopeName, streamName), 
+        return Futures.withCompletion(storeHelper.getEntry(DELETED_STREAMS_TABLE, getScopedStreamName(scopeName, streamName),
                 x -> BitConverter.readInt(x, 0))
                           .handle((data, ex) -> {
                               if (ex == null) {
@@ -249,7 +249,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         final String key = getScopedStreamName(scope, stream);
         byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
         BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
-        return withCompletion(storeHelper.createTable(DELETED_STREAMS_TABLE)
+        return Futures.withCompletion(storeHelper.createTable(DELETED_STREAMS_TABLE)
                           .thenCompose(created -> {
                               return storeHelper.expectingDataNotFound(storeHelper.getEntry(
                                       DELETED_STREAMS_TABLE, key, x -> BitConverter.readInt(x, 0)),

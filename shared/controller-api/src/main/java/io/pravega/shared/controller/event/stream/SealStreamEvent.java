@@ -46,7 +46,7 @@ public class SealStreamEvent implements ControllerEvent {
     private static class SealStreamEventBuilder implements ObjectBuilder<SealStreamEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<SealStreamEvent, SealStreamEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<SealStreamEvent, SealStreamEventBuilder> {
         @Override
         protected SealStreamEventBuilder newBuilder() {
             return SealStreamEvent.builder();

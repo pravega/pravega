@@ -1479,38 +1479,7 @@ public abstract class PersistentStreamBase implements Stream {
                         record.getVersion()))));
     }
 
-    @Override
-    public CompletableFuture<Void> createWaitingRequestIfAbsent(String processorName) {
-        return createWaitingRequestNodeIfAbsent(processorName);
-    }
 
-    @Override
-    public CompletableFuture<String> getWaitingRequestProcessor() {
-        return getWaitingRequestNode()
-                .handle((data, e) -> {
-                    if (e != null) {
-                        if (Exceptions.unwrap(e) instanceof DataNotFoundException) {
-                            return null;
-                        } else {
-                            throw new CompletionException(e);
-                        }
-                    } else {
-                        return data;
-                    }
-                });
-    }
-
-    @Override
-    public CompletableFuture<Void> deleteWaitingRequestConditionally(String processorName) {
-        return getWaitingRequestProcessor()
-                .thenCompose(waitingRequest -> {
-                    if (waitingRequest != null && waitingRequest.equals(processorName)) {
-                        return deleteWaitingRequestNode();
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                });
-    }
 
     @Override
     public CompletableFuture<WriterTimestampResponse> noteWriterMark(String writer, long timestamp, Map<Long, Long> position) {
@@ -2083,14 +2052,6 @@ public abstract class PersistentStreamBase implements Stream {
     abstract CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getCommitTxnRecord();
 
     abstract CompletableFuture<Version> updateCommittingTxnRecord(VersionedMetadata<CommittingTransactionsRecord> data);
-    // endregion
-
-    // region processor
-    abstract CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String data);
-
-    abstract CompletableFuture<String> getWaitingRequestNode();
-
-    abstract CompletableFuture<Void> deleteWaitingRequestNode();
     // endregion
 
     // region watermarking

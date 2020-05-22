@@ -48,7 +48,7 @@ public class CreateKVTableEvent implements ControllerEvent {
     private static class CreateKVTableEventBuilder implements ObjectBuilder<CreateKVTableEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<CreateKVTableEvent, CreateKVTableEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<CreateKVTableEvent, CreateKVTableEventBuilder> {
         @Override
         protected CreateKVTableEventBuilder newBuilder() {
             return CreateKVTableEvent.builder();

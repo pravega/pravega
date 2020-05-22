@@ -33,11 +33,8 @@ import java.io.IOException;
 @AllArgsConstructor
 public class KVTStateRecord {
     public static final KVTStateRecordSerializer SERIALIZER = new KVTStateRecordSerializer();
-
     private final KVTableState state;
-
-    public static class KVTableStateRecordBuilder implements ObjectBuilder<KVTStateRecord> {
-
+    public static class KVTStateRecordBuilder implements ObjectBuilder<KVTStateRecord> {
     }
 
     @SneakyThrows(IOException.class)
@@ -50,7 +47,7 @@ public class KVTStateRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
-    private static class KVTStateRecordSerializer extends VersionedSerializer.WithBuilder<KVTStateRecord, KVTStateRecord.KVTableStateRecordBuilder> {
+    private static class KVTStateRecordSerializer extends VersionedSerializer.WithBuilder<KVTStateRecord, KVTStateRecord.KVTStateRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
@@ -61,7 +58,7 @@ public class KVTStateRecord {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void read00(RevisionDataInput revisionDataInput, KVTableStateRecordBuilder builder) throws IOException {
+        private void read00(RevisionDataInput revisionDataInput, KVTStateRecordBuilder builder) throws IOException {
             int ordinal = revisionDataInput.readCompactInt();
             if (ordinal < State.values().length) {
                 builder.state(KVTableState.values()[ordinal]);
@@ -75,7 +72,7 @@ public class KVTStateRecord {
         }
 
         @Override
-        protected KVTableStateRecordBuilder newBuilder() {
+        protected KVTStateRecordBuilder newBuilder() {
             return KVTStateRecord.builder();
         }
     }

@@ -129,7 +129,7 @@ public interface KVTableMetadataStore extends AutoCloseable, ArtifactStore {
      */
 
     CompletableFuture<VersionedMetadata<KVTableState>> getVersionedState(final String scope, final String name,
-                                                                         final KVTOperationContext context, final Executor executor);
+                                                                         final OperationContext context, final Executor executor);
 
 
     /**
@@ -145,7 +145,8 @@ public interface KVTableMetadataStore extends AutoCloseable, ArtifactStore {
      */
 
     CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final String scope, final String name,
-                                                    final KVTableState state, final VersionedMetadata<KVTableState> previous, final KVTOperationContext context,
+                                                    final KVTableState state, final VersionedMetadata<KVTableState> previous,
+                                                    final OperationContext context,
                                                     final Executor executor);
 
 
@@ -155,7 +156,7 @@ public interface KVTableMetadataStore extends AutoCloseable, ArtifactStore {
      * @param scopeName Name of the scope
      * @return A map of streams in scope to their configurations
      */
-    //CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName);
+    //CompletableFuture<Map<String, StreamConfiguration>> listKVTablesInScope(final String scopeName);
 
     /**
      * List existing streams in scopes with pagination. This api continues listing streams from the supplied continuation token
@@ -168,7 +169,7 @@ public interface KVTableMetadataStore extends AutoCloseable, ArtifactStore {
      * @return A pair of list of streams in scope with the continuation token. 
      */
     /*
-    CompletableFuture<Pair<List<String>, String>> listStream(final String scopeName, final String continuationToken,
+    CompletableFuture<Pair<List<String>, String>> listKVTables(final String scopeName, final String continuationToken,
                                                              final int limit, final Executor executor);
 */
     /**

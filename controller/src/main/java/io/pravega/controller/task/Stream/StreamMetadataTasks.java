@@ -60,6 +60,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
+import io.pravega.controller.task.TaskStepsRetryHelper;
 import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
@@ -91,7 +92,7 @@ import lombok.Synchronized;
 import org.apache.commons.lang3.NotImplementedException;
 import org.slf4j.LoggerFactory;
 
-import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
+import static io.pravega.controller.task.TaskStepsRetryHelper.withRetries;
 
 /**
  * Collection of metadata update tasks on stream.

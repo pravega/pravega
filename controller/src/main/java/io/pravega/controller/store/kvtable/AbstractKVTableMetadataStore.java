@@ -21,11 +21,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 public abstract class AbstractKVTableMetadataStore implements KVTableMetadataStore {
-    public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
-    public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException;
-
-    private final static String RESOURCE_PART_SEPARATOR = "_%_";
-
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, KeyValueTable> cache;
     private final HostIndex hostTaskIndex;
@@ -119,7 +114,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                                                 final Executor executor) {
         return getSafeStartingSegmentNumberFor(scope, name)
                 .thenCompose(startingSegmentNumber ->
-                        withCompletion(checkScopeExists(scope)
+                        Futures.withCompletion(checkScopeExists(scope)
                                 .thenCompose(exists -> {
                                     if (exists) {
                                         // Create stream may fail if scope is deleted as we attempt to create the stream under scope.
@@ -140,33 +135,14 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                                    final String name,
                                                    final KVTOperationContext context,
                                                    final Executor executor) {
-        return withCompletion(getKVTable(scope, name, context).getCreationTime(), executor);
-    }
-
-    protected <T> CompletableFuture<T> withCompletion(CompletableFuture<T> future, final Executor executor) {
-
-        // Following makes sure that the result future given out to caller is actually completed on
-        // caller's executor. So any chaining, if done without specifying an executor, will either happen on
-        // caller's executor or fork join pool but never on someone else's executor.
-
-        CompletableFuture<T> result = new CompletableFuture<>();
-
-        future.whenCompleteAsync((r, e) -> {
-            if (e != null) {
-                result.completeExceptionally(e);
-            } else {
-                result.complete(r);
-            }
-        }, executor);
-
-        return result;
+        return Futures.withCompletion(getKVTable(scope, name, context).getCreationTime(), executor);
     }
 
     @Override
     public CompletableFuture<Void> setState(final String scope, final String name,
                                             final KVTableState state, final KVTOperationContext context,
                                             final Executor executor) {
-        return withCompletion(getKVTable(scope, name, context).updateState(state), executor);
+        return Futures.withCompletion(getKVTable(scope, name, context).updateState(state), executor);
     }
 
     @Override
@@ -174,22 +150,22 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                              final boolean ignoreCached,
                                              final KVTOperationContext context,
                                              final Executor executor) {
-        return withCompletion(getKVTable(scope, name, context).getState(ignoreCached), executor);
+        return Futures.withCompletion(getKVTable(scope, name, context).getState(ignoreCached), executor);
     }
 
     @Override
     public CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final String scope, final String name,
                                                                             final KVTableState state, final VersionedMetadata<KVTableState> previous,
-                                                                            final KVTOperationContext context,
+                                                                            final OperationContext context,
                                                                             final Executor executor) {
-        return withCompletion(getKVTable(scope, name, context).updateVersionedState(previous, state), executor);
+        return Futures.withCompletion(getKVTable(scope, name, context).updateVersionedState(previous, state), executor);
     }
 
     @Override
     public CompletableFuture<VersionedMetadata<KVTableState>> getVersionedState(final String scope, final String name,
-                                                                         final KVTOperationContext context,
+                                                                         final OperationContext context,
                                                                          final Executor executor) {
-        return withCompletion(getKVTable(scope, name, context).getVersionedState(), executor);
+        return Futures.withCompletion(getKVTable(scope, name, context).getVersionedState(), executor);
     }
 
     @Override

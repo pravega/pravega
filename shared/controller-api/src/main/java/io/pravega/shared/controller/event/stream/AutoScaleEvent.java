@@ -60,7 +60,7 @@ public class AutoScaleEvent implements ControllerEvent {
     private static class AutoScaleEventBuilder implements ObjectBuilder<AutoScaleEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<AutoScaleEvent, AutoScaleEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<AutoScaleEvent, AutoScaleEventBuilder> {
         @Override
         protected AutoScaleEventBuilder newBuilder() {
             return AutoScaleEvent.builder();

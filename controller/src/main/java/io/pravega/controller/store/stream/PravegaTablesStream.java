@@ -898,14 +898,14 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String waitingRequestProcessor) {
+    public CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String waitingRequestProcessor) {
         return getMetadataTable()
                 .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(
                         metadataTable, WAITING_REQUEST_PROCESSOR_PATH, waitingRequestProcessor.getBytes(StandardCharsets.UTF_8))));
     }
 
     @Override
-    CompletableFuture<String> getWaitingRequestNode() {
+    public CompletableFuture<String> getWaitingRequestNode() {
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.getEntry(metadataTable, WAITING_REQUEST_PROCESSOR_PATH,
                         x -> StandardCharsets.UTF_8.decode(ByteBuffer.wrap(x)).toString()))
@@ -913,7 +913,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> deleteWaitingRequestNode() {
+    public CompletableFuture<Void> deleteWaitingRequestNode() {
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.removeEntry(metadataTable, WAITING_REQUEST_PROCESSOR_PATH));
     }

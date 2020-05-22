@@ -46,7 +46,7 @@ public class UpdateStreamEvent implements ControllerEvent {
     private static class UpdateStreamEventBuilder implements ObjectBuilder<UpdateStreamEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<UpdateStreamEvent, UpdateStreamEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<UpdateStreamEvent, UpdateStreamEventBuilder> {
         @Override
         protected UpdateStreamEventBuilder newBuilder() {
             return UpdateStreamEvent.builder();

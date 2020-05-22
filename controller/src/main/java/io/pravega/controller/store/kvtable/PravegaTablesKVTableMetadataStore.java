@@ -11,6 +11,7 @@ package io.pravega.controller.store.kvtable;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.common.Exceptions;
@@ -70,16 +71,10 @@ public class PravegaTablesKVTableMetadataStore extends AbstractKVTableMetadataSt
     PravegaTablesScope newScope(final String scopeName) {
         return new PravegaTablesScope(scopeName, storeHelper);
     }
-/*
-    @Override
-    CompletableFuture<Int96> getNextCounter() {
-        return withCompletion(counter.getNextCounter(), executor);
-    }
-*/
 
     @Override
     CompletableFuture<Boolean> checkScopeExists(String scope) {
-        return withCompletion(storeHelper.expectingDataNotFound(
+        return Futures.withCompletion(storeHelper.expectingDataNotFound(
                 storeHelper.getEntry(SCOPES_TABLE, scope, x -> x).thenApply(v -> true),
                 false), executor);
     }
@@ -91,7 +86,7 @@ public class PravegaTablesKVTableMetadataStore extends AbstractKVTableMetadataSt
                                                                 final long createTimestamp,
                                                                 final KVTOperationContext context,
                                                                 final Executor executor) {
-        return withCompletion(
+        return Futures.withCompletion(
                 ((PravegaTablesScope) getScope(scope))
                         .addKVTableToScope(name)
                         .thenCompose(id -> super.createKeyValueTable(scope, name, configuration, createTimestamp, context, executor)),
@@ -101,12 +96,12 @@ public class PravegaTablesKVTableMetadataStore extends AbstractKVTableMetadataSt
     @Override
     public CompletableFuture<Boolean> checkKeyValueTableExists(final String scopeName,
                                                                final String streamName) {
-        return withCompletion(((PravegaTablesScope) getScope(scopeName)).checkKVTableExistsInScope(streamName), executor);
+        return Futures.withCompletion(((PravegaTablesScope) getScope(scopeName)).checkKVTableExistsInScope(streamName), executor);
     }
 
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String kvtName) {
-        return withCompletion(storeHelper.getEntry(DELETED_STREAMS_TABLE, getScopedKVTName(scopeName, kvtName),
+        return Futures.withCompletion(storeHelper.getEntry(DELETED_STREAMS_TABLE, getScopedKVTName(scopeName, kvtName),
                 x -> BitConverter.readInt(x, 0))
                 .handle((data, ex) -> {
                     if (ex == null) {
@@ -127,43 +122,5 @@ public class PravegaTablesKVTableMetadataStore extends AbstractKVTableMetadataSt
     public void close() {
         // do nothing
     }
-/*
-    @Override
-    public CompletableFuture<Void> deleteStream(final String scope,
-                                                final String name,
-                                                final OperationContext context,
-                                                final Executor executor) {
-        return withCompletion(super.deleteStream(scope, name, context, executor)
-                    .thenCompose(status -> ((PravegaTablesScope) getScope(scope)).removeStreamFromScope(name).thenApply(v -> status)),
-                executor);
-    }
-*/
-    /*
-    @Override
-    Version getEmptyVersion() {
-        return Version.LongVersion.EMPTY;
-    }
-
-    @Override
-    Version parseVersionData(byte[] data) {
-        return Version.IntVersion.fromBytes(data);
-    }
-
-    @Override
-    public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
-        return withCompletion(storeHelper.getEntry(SCOPES_TABLE, scopeName, x -> x)
-                          .thenApply(x -> scopeName), executor);
-    }
-
-    @Override
-    public CompletableFuture<List<String>> listScopes() {
-        List<String> scopes = new ArrayList<>();
-        return withCompletion(Futures.exceptionallyComposeExpecting(storeHelper.getAllKeys(SCOPES_TABLE)
-                                                                .collectRemaining(scopes::add)
-                                                                .thenApply(v -> scopes), DATA_NOT_FOUND_PREDICATE,
-                () -> storeHelper.createTable(SCOPES_TABLE).thenApply(v -> Collections.emptyList())),
-                executor);
-    }
-*/
 
 }

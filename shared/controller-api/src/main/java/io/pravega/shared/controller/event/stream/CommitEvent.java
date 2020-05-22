@@ -46,7 +46,7 @@ public class CommitEvent implements ControllerEvent {
     private static class CommitEventBuilder implements ObjectBuilder<CommitEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<CommitEvent, CommitEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<CommitEvent, CommitEventBuilder> {
         @Override
         protected CommitEventBuilder newBuilder() {
             return CommitEvent.builder();

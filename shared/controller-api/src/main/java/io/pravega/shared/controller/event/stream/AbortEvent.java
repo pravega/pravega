@@ -48,7 +48,7 @@ public class AbortEvent implements ControllerEvent {
     private static class AbortEventBuilder implements ObjectBuilder<AbortEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<AbortEvent, AbortEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<AbortEvent, AbortEventBuilder> {
         @Override
         protected AbortEventBuilder newBuilder() {
             return AbortEvent.builder();

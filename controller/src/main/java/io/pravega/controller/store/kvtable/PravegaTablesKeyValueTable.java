@@ -22,6 +22,8 @@ import io.pravega.controller.store.kvtable.records.KVTConfigurationRecord;
 import io.pravega.controller.store.kvtable.records.KVTStateRecord;
 import lombok.extern.slf4j.Slf4j;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -261,7 +263,26 @@ class PravegaTablesKeyValueTable extends PersistentKeyValueTableBase {
                             });
                 });
     }
+    @Override
+    public CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String waitingRequestProcessor) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(
+                        metadataTable, WAITING_REQUEST_PROCESSOR_PATH, waitingRequestProcessor.getBytes(StandardCharsets.UTF_8))));
+    }
 
+    @Override
+    public CompletableFuture<String> getWaitingRequestNode() {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.getEntry(metadataTable, WAITING_REQUEST_PROCESSOR_PATH,
+                        x -> StandardCharsets.UTF_8.decode(ByteBuffer.wrap(x)).toString()))
+                .thenApply(VersionedMetadata::getObject);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteWaitingRequestNode() {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.removeEntry(metadataTable, WAITING_REQUEST_PROCESSOR_PATH));
+    }
 /*
 
     @Override
@@ -273,195 +294,4 @@ class PravegaTablesKeyValueTable extends PersistentKeyValueTableBase {
 
 
 */
-/*
-    @Override
-    public CompletableFuture<Void> deleteKeyValueTable() {
-        // delete all tables for this stream even if they are not empty!
-        // 1. read epoch table
-        // delete all epoch txn specific tables
-        // delete epoch txn base table
-        // delete metadata table
-
-        // delete stream in scope
-        return getId()
-                .thenCompose(id -> storeHelper.expectingDataNotFound(tryRemoveOlderTransactionsInEpochTables(epoch -> true), null)
-                        .thenCompose(v -> getEpochsWithTransactionsTable()
-                                .thenCompose(epochWithTxnTable -> storeHelper.expectingDataNotFound(
-                                        storeHelper.deleteTable(epochWithTxnTable, false), null))
-                                .thenCompose(deleted -> storeHelper.deleteTable(getMetadataTableName(id), false))));
-    }
-
-    @Override
-    CompletableFuture<Void> createHistoryTimeSeriesChunkDataIfAbsent(int chunkNumber, HistoryTimeSeries data) {
-        String key = String.format(HISTORY_TIMESERES_CHUNK_FORMAT, chunkNumber);
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, key, data.toBytes())
-                                                         .thenAccept(x -> storeHelper.invalidateCache(metadataTable, key)));
-    }
-
-    @Override
-    CompletableFuture<VersionedMetadata<HistoryTimeSeries>> getHistoryTimeSeriesChunkData(int chunkNumber, boolean ignoreCached) {
-        String key = String.format(HISTORY_TIMESERES_CHUNK_FORMAT, chunkNumber);
-        return getMetadataTable()
-                .thenCompose(metadataTable -> {
-                    if (ignoreCached) {
-                        return storeHelper.getEntry(metadataTable, key, HistoryTimeSeries::fromBytes);
-                    }
-                    return storeHelper.getCachedData(metadataTable, key, HistoryTimeSeries::fromBytes);
-                });
-    }
-
-    @Override
-    CompletableFuture<Version> updateHistoryTimeSeriesChunkData(int chunkNumber, VersionedMetadata<HistoryTimeSeries> data) {
-        String key = String.format(HISTORY_TIMESERES_CHUNK_FORMAT, chunkNumber);
-        return getMetadataTable()
-                .thenCompose(metadataTable -> {
-                    return storeHelper.updateEntry(metadataTable, key, data.getObject().toBytes(), data.getVersion())
-                                      .thenApply(version -> {
-                                          storeHelper.invalidateCache(metadataTable, key);
-                                          return version;
-                                      });
-                });
-    }
-
-    @Override
-    CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(EpochRecord data) {
-        byte[] epochData = new byte[Integer.BYTES];
-        BitConverter.writeInt(epochData, 0, data.getEpoch());
-
-        return getMetadataTable()
-                .thenCompose(metadataTable -> {
-                    return storeHelper.addNewEntryIfAbsent(metadataTable, CURRENT_EPOCH_KEY, epochData)
-                                      .thenAccept(v -> {
-                                          storeHelper.invalidateCache(metadataTable, CURRENT_EPOCH_KEY);
-                                      });
-                });
-    }
-
-    @Override
-    CompletableFuture<Version> updateCurrentEpochRecordData(VersionedMetadata<EpochRecord> data) {
-        byte[] epochData = new byte[Integer.BYTES];
-        BitConverter.writeInt(epochData, 0, data.getObject().getEpoch());
-
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, CURRENT_EPOCH_KEY, epochData, data.getVersion())
-                                                         .thenApply(v -> {
-                                                             storeHelper.invalidateCache(metadataTable, CURRENT_EPOCH_KEY);
-                                                             return v;
-                                                         }));
-    }
-
-    @Override
-    CompletableFuture<VersionedMetadata<EpochRecord>> getCurrentEpochRecordData(boolean ignoreCached) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> {
-                    CompletableFuture<VersionedMetadata<Integer>> future;
-                    if (ignoreCached) {
-                        future = storeHelper.getEntry(metadataTable, CURRENT_EPOCH_KEY, x -> BitConverter.readInt(x, 0));
-                    } else {
-                        future = storeHelper.getCachedData(metadataTable, CURRENT_EPOCH_KEY, x -> BitConverter.readInt(x, 0));
-                    }
-                    return future.thenCompose(versionedEpochNumber -> getEpochRecord(versionedEpochNumber.getObject())
-                                              .thenApply(epochRecord -> new VersionedMetadata<>(epochRecord, versionedEpochNumber.getVersion())));
-                });
-    }
-
-    @Override
-    CompletableFuture<VersionedMetadata<EpochRecord>> getEpochRecordData(int epoch) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> {
-                    String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);
-                    return storeHelper.getCachedData(metadataTable, key, EpochRecord::fromBytes);
-                });
-    }
-
-
-
-    @Override
-    CompletableFuture<Void> createEpochTransitionIfAbsent(EpochTransitionRecord epochTransition) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, EPOCH_TRANSITION_KEY, epochTransition.toBytes())
-                                                         .thenAccept(v -> storeHelper.invalidateCache(metadataTable, EPOCH_TRANSITION_KEY)));
-    }
-
-    @Override
-    CompletableFuture<Version> updateEpochTransitionNode(VersionedMetadata<EpochTransitionRecord> epochTransition) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, EPOCH_TRANSITION_KEY,
-                        epochTransition.getObject().toBytes(), epochTransition.getVersion())
-                                                         .thenApply(v -> {
-                                                             storeHelper.invalidateCache(metadataTable, EPOCH_TRANSITION_KEY);
-                                                             return v;
-                                                         }));
-    }
-
-    @Override
-    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransitionNode() {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.getEntry(metadataTable, EPOCH_TRANSITION_KEY, EpochTransitionRecord::fromBytes));
-    }
-
-    private CompletableFuture<List<Integer>> getEpochsWithTransactions() {
-        return getEpochsWithTransactionsTable()
-                .thenCompose(epochWithTxnTable -> {
-                    List<Integer> epochsWithTransactions = new ArrayList<>();
-                    return storeHelper.getAllKeys(epochWithTxnTable)
-                               .collectRemaining(x -> {
-                                   epochsWithTransactions.add(Integer.parseInt(x));
-                                   return true;
-                               }).thenApply(v -> epochsWithTransactions);
-                });
-    }
-
-    @Override
-    CompletableFuture<Version> setConfigurationData(final VersionedMetadata<StreamConfigurationRecord> configuration) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, CONFIGURATION_KEY,
-                        configuration.getObject().toBytes(), configuration.getVersion())
-                                                         .thenApply(r -> {
-                                                             storeHelper.invalidateCache(metadataTable, CONFIGURATION_KEY);
-                                                             return r;
-                                                         }));
-    }
-
-    @Override
-    CompletableFuture<VersionedMetadata<StreamConfigurationRecord>> getConfigurationData(boolean ignoreCached) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> {
-                    if (ignoreCached) {
-                        return storeHelper.getEntry(metadataTable, CONFIGURATION_KEY, StreamConfigurationRecord::fromBytes);
-                    }
-
-                    return storeHelper.getCachedData(metadataTable, CONFIGURATION_KEY, StreamConfigurationRecord::fromBytes);
-                });
-    }
-
-
-
-
-    @Override
-    CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String waitingRequestProcessor) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(
-                        metadataTable, WAITING_REQUEST_PROCESSOR_PATH, waitingRequestProcessor.getBytes(StandardCharsets.UTF_8))));
-    }
-
-    @Override
-    CompletableFuture<String> getWaitingRequestNode() {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.getEntry(metadataTable, WAITING_REQUEST_PROCESSOR_PATH,
-                        x -> StandardCharsets.UTF_8.decode(ByteBuffer.wrap(x)).toString()))
-                .thenApply(VersionedMetadata::getObject);
-    }
-
-    @Override
-    CompletableFuture<Void> deleteWaitingRequestNode() {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.removeEntry(metadataTable, WAITING_REQUEST_PROCESSOR_PATH));
-    }
-
-
-    */
-
-    // endregion
 }

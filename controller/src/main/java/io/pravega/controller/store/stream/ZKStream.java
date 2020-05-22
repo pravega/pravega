@@ -659,19 +659,19 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String waitingRequestProcessor) {
+    public CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String waitingRequestProcessor) {
         return Futures.toVoid(store.createZNodeIfNotExist(waitingRequestProcessorPath, 
                 waitingRequestProcessor.getBytes(StandardCharsets.UTF_8)));
     }
 
     @Override
-    CompletableFuture<String> getWaitingRequestNode() {
+    public CompletableFuture<String> getWaitingRequestNode() {
         return store.getData(waitingRequestProcessorPath, x -> StandardCharsets.UTF_8.decode(ByteBuffer.wrap(x)).toString())
                 .thenApply(VersionedMetadata::getObject);
     }
 
     @Override
-    CompletableFuture<Void> deleteWaitingRequestNode() {
+    public CompletableFuture<Void> deleteWaitingRequestNode() {
         return store.deletePath(waitingRequestProcessorPath, false);
     }
 

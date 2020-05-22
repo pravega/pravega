@@ -47,7 +47,7 @@ public class DeleteStreamEvent implements ControllerEvent {
     private static class DeleteStreamEventBuilder implements ObjectBuilder<DeleteStreamEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<DeleteStreamEvent, DeleteStreamEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<DeleteStreamEvent, DeleteStreamEventBuilder> {
         @Override
         protected DeleteStreamEventBuilder newBuilder() {
             return DeleteStreamEvent.builder();

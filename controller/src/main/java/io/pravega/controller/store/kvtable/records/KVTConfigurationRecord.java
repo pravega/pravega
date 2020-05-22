@@ -25,16 +25,14 @@ import java.io.IOException;
 @Slf4j
 @AllArgsConstructor
 public class KVTConfigurationRecord {
-
     public static final ConfigurationRecordSerializer SERIALIZER = new ConfigurationRecordSerializer();
-
     @NonNull
     private final String scope;
     @NonNull
     private final String kvtName;
     private final KeyValueTableConfiguration kvtConfiguration;
 
-    public static class KVTableConfigurationRecordBuilder implements ObjectBuilder<KVTConfigurationRecord> {
+    public static class KVTConfigurationRecordBuilder implements ObjectBuilder<KVTConfigurationRecord> {
     }
 
     @SneakyThrows(IOException.class)
@@ -49,7 +47,7 @@ public class KVTConfigurationRecord {
 
     private static class ConfigurationRecordSerializer
             extends VersionedSerializer.WithBuilder<KVTConfigurationRecord,
-        KVTableConfigurationRecordBuilder> {
+        KVTConfigurationRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
@@ -67,7 +65,7 @@ public class KVTConfigurationRecord {
         }
 
         private void read00(RevisionDataInput revisionDataInput,
-                            KVTableConfigurationRecordBuilder configurationRecordBuilder)
+                            KVTConfigurationRecordBuilder configurationRecordBuilder)
                 throws IOException {
             configurationRecordBuilder.scope(revisionDataInput.readUTF())
                                       .kvtName(revisionDataInput.readUTF());
@@ -85,7 +83,7 @@ public class KVTConfigurationRecord {
 
 
         @Override
-        protected KVTableConfigurationRecordBuilder newBuilder() {
+        protected KVTConfigurationRecordBuilder newBuilder() {
             return KVTConfigurationRecord.builder();
         }
     }

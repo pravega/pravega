@@ -32,7 +32,7 @@ import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.stream.*;
-import io.pravega.controller.server.eventProcessor.requesthandlers.stream.UpdateEventTask;
+
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.stream.BucketStore;

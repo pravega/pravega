@@ -46,7 +46,7 @@ public class TruncateStreamEvent implements ControllerEvent {
     private static class TruncateStreamEventBuilder implements ObjectBuilder<TruncateStreamEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<TruncateStreamEvent, TruncateStreamEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<TruncateStreamEvent, TruncateStreamEventBuilder> {
         @Override
         protected TruncateStreamEventBuilder newBuilder() {
             return TruncateStreamEvent.builder();

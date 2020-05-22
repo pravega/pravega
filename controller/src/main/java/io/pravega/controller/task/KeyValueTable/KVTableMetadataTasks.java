@@ -22,7 +22,6 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
-import io.pravega.controller.store.kvtable.CreateKVTableResponse;
 import io.pravega.controller.store.kvtable.KVTableState;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
@@ -45,7 +44,8 @@ import java.util.stream.Collectors;
 import lombok.Synchronized;
 import org.slf4j.LoggerFactory;
 
-import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
+import static io.pravega.controller.task.TaskStepsRetryHelper.withRetries;
+import static io.pravega.shared.NameUtils.getQualifiedTableSegmentName;
 
 
 /**
@@ -105,93 +105,28 @@ public class KVTableMetadataTasks {
                                                                                    KeyValueTableConfiguration kvtConfig,
                                                                                    final long createTimestamp) {
         final long requestId = requestTracker.getRequestIdFor("createKVTable", scope, kvtName);
-        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
+        Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                 .thenCompose(state -> {
                     if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
                         // 1. post event for CreateKVTable.
                         CreateKVTableEvent event = new CreateKVTableEvent(scope, kvtName, kvtConfig.getPartitionCount(), createTimestamp, requestId);
                         return addIndexAndSubmitTask(event, () -> CompletableFuture.completedFuture(Boolean.TRUE))
-                                .handle( (result,ex) -> { if (result)
-                                    return CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.Status.SUCCESS);
-                                else
+                                .handle( (result,ex) -> { if (result) {
+                                    return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SUCCESS);
+                                }
+                                else {
                                     log.warn(requestId, "Exception thrown while creating KeyValueTable {}", ex.getMessage());
-                                    return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.FAILURE;
+                                    return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.FAILURE);
+                                }
                                 });
                     } else {
-                        return CompletableFuture.completedFuture(
-                                CreateKeyValueTableStatus.newBuilder().setStatus(CreateKeyValueTableStatus.Status.TABLE_EXISTS).build());
+                       return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.TABLE_EXISTS);
                     }
                 });
+        return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SUCCESS);
     }
 
-    /**
-     * Delete a stream. Precondition for deleting a stream is that the stream sholud be sealed.
-     *
-     * @param scope      scope.
-     * @param stream     stream name.
-     * @param contextOpt optional context
-     * @return delete status.
-     */
-    /*
-    public CompletableFuture<DeleteStreamStatus.Status> deleteStream(final String scope, final String stream,
-                                                                     final OperationContext contextOpt) {
-
-        final OperationContext context = contextOpt == null ? kvtMetadataStore.createContext(scope, stream) : contextOpt;
-        final long requestId = requestTracker.getRequestIdFor("deleteStream", scope, stream);
-
-        // We can delete streams only if they are sealed. However, for partially created streams, they could be in different
-        // stages of partial creation and we should be able to clean them up. 
-        // Case 1: A partially created stream may just have some initial metadata created, in which case the Stream's state may not
-        // have been set up it may be present under the scope.
-        // In this case we can simply delete all metadata for the stream directly. 
-        // Case 2: A partially created stream could be in state CREATING, in which case it would definitely have metadata created 
-        // and possibly segments too. This requires same clean up as for a sealed stream - metadata + segments. 
-        // So we will submit delete workflow.  
-        return Futures.exceptionallyExpecting(
-                kvtMetadataStore.getState(scope, stream, false, context, executor),
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
-                .thenCompose(state -> {
-                    if (State.SEALED.equals(state) || State.CREATING.equals(state)) {
-                        return kvtMetadataStore.getCreationTime(scope, stream, context, executor)
-                                                  .thenApply(time -> new DeleteStreamEvent(scope, stream, requestId, time))
-                                                  .thenCompose(event -> writeEvent(event))
-                                                  .thenApply(x -> true);
-                    } else if (State.UNKNOWN.equals(state)) {
-                        // Since the state is not created, so the segments and state 
-                        // are definitely not created.
-                        // so we can simply delete the stream metadata which deletes stream from scope as well. 
-                        return kvtMetadataStore.deleteStream(scope, stream, context, executor)
-                                                  .exceptionally(e -> {
-                                                      throw new CompletionException(e);
-                                                  })
-                                                  .thenApply(v -> true);
-                    } else {
-                        // we cannot delete the stream. Return false from here. 
-                        return CompletableFuture.completedFuture(false);
-                    }
-                })
-                .thenCompose(result -> {
-                    if (result) {
-                        return checkDone(() -> isDeleted(scope, stream))
-                                .thenApply(x -> DeleteStreamStatus.Status.SUCCESS);
-                    } else {
-                        return CompletableFuture.completedFuture(DeleteStreamStatus.Status.STREAM_NOT_SEALED);
-                    }
-                })
-                .exceptionally(ex -> {
-                    log.warn(requestId, "Exception thrown while deleting stream {}", ex.getMessage());
-                    return handleDeleteStreamError(ex, requestId);
-                });
-
-
-    }
-
-    private CompletableFuture<Boolean> isDeleted(String scope, String stream) {
-        return kvtMetadataStore.checkStreamExists(scope, stream)
-                .thenApply(x -> !x);
-    }
-*/
     /**
      * This method takes an event and a future supplier and guarantees that if future supplier has been executed then event will 
      * be posted in request stream. It does it by following approach:
@@ -268,89 +203,23 @@ public class KVTableMetadataTasks {
         writerInitFuture.complete(null);
     }
 
-    private CompletableFuture<Void> notifyNewSegments(String scope, String stream, KeyValueTableConfiguration configuration,
-                                                      List<Long> segmentIds, String controllerToken, long requestId) {
-        return Futures.toVoid(Futures.allOfWithResults(segmentIds
-                .stream()
-                .parallel()
-                .map(segment -> notifyNewSegment(scope, stream, segment, , controllerToken, requestId))
-                .collect(Collectors.toList())));
-    }
-
-    private CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ,
-                                                     String controllerToken, long requestId) {
-        return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope,
-                stream, segmentId, policy, controllerToken, requestId), executor));
-    }
-/*
-    public CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Long> segmentIds, OperationContext context,
-                                                     String controllerToken) {
-        return notifyNewSegments(scope, stream, segmentIds, context, controllerToken, RequestTag.NON_EXISTENT_ID);
-    }
-
-    public CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Long> segmentIds, OperationContext context,
-                                                     String controllerToken, long requestId) {
-        return withRetries(() -> kvtMetadataStore.getConfiguration(scope, stream, context, executor), executor)
-                .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration, segmentIds, controllerToken, requestId));
-    }
-
-    public CompletableFuture<Void> notifyNewSegments(String scope, String stream, StreamConfiguration configuration,
-                                                     List<Long> segmentIds, String controllerToken, long requestId) {
-        return Futures.toVoid(Futures.allOfWithResults(segmentIds
-                .stream()
-                .parallel()
-                .map(segment -> notifyNewSegment(scope, stream, segment, configuration.getScalingPolicy(), controllerToken, requestId))
-                .collect(Collectors.toList())));
-    }
-
-    public CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ScalingPolicy policy,
-                                                    String controllerToken) {
-        return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope, stream, segmentId, policy,
-                controllerToken, RequestTag.NON_EXISTENT_ID), executor));
-    }
-
-    public CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ScalingPolicy policy,
-                                                    String controllerToken, long requestId) {
-        return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope,
-                stream, segmentId, policy, controllerToken, requestId), executor));
-    }
-
-    public CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete,
-                                                        String delegationToken, long requestId) {
-        return Futures.allOf(segmentsToDelete
-                 .stream()
-                 .parallel()
-                 .map(segment -> notifyDeleteSegment(scope, stream, segment, delegationToken, requestId))
-                 .collect(Collectors.toList()));
-    }
-
-    public CompletableFuture<Void> notifyDeleteSegment(String scope, String stream, long segmentId, String delegationToken,
-                                                       long requestId) {
-        return Futures.toVoid(withRetries(() -> segmentHelper.deleteSegment(scope,
-                stream, segmentId, delegationToken, requestId), executor));
-    }
-
-    private CompletableFuture<Long> getSegmentOffset(String scope, String stream, long segmentId, String delegationToken) {
-
-        return withRetries(() -> segmentHelper.getSegmentInfo(
-                scope,
-                stream,
-                segmentId,
-                delegationToken), executor)
-                .thenApply(WireCommands.StreamSegmentInfo::getWriteOffset);
-    }
-
-    private DeleteStreamStatus.Status handleDeleteStreamError(Throwable ex, long requestId) {
-        Throwable cause = Exceptions.unwrap(ex);
-        if (cause instanceof StoreException.DataNotFoundException) {
-            return DeleteStreamStatus.Status.STREAM_NOT_FOUND;
-        } else {
-            log.warn(requestId, "Delete stream failed.", ex);
-            return DeleteStreamStatus.Status.FAILURE;
-        }
-    }
-*/
-    public String retrieveDelegationToken() {
+    private String retrieveDelegationToken() {
         return authHelper.retrieveMasterToken();
     }
+    
+    public CompletableFuture<Void> notifyNewSegments(String scope, String kvt,
+                                                      List<Long> segmentIds,  long requestId) {
+        return Futures.toVoid(Futures.allOfWithResults(segmentIds
+                .stream()
+                .parallel()
+                .map(segment -> notifyNewSegment(scope, kvt, segment, retrieveDelegationToken(), requestId))
+                .collect(Collectors.toList())));
+    }
+
+    private CompletableFuture<Void> notifyNewSegment(String scope, String kvt, long segmentId, String controllerToken,
+                                                     long requestId) {
+        final String qualifiedTableSegmentName = getQualifiedTableSegmentName(scope, kvt, segmentId);
+        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(qualifiedTableSegmentName, controllerToken, requestId), executor));
+    }
+
 }

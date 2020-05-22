@@ -54,7 +54,7 @@ public class ScaleOpEvent implements ControllerEvent {
     private static class ScaleOpEventBuilder implements ObjectBuilder<ScaleOpEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<ScaleOpEvent, ScaleOpEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<ScaleOpEvent, ScaleOpEventBuilder> {
         @Override
         protected ScaleOpEventBuilder newBuilder() {
             return ScaleOpEvent.builder();

@@ -940,7 +940,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String data) {
+    public CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String data) {
         synchronized (lock) {
             if (waitingRequestNode == null) {
                 waitingRequestNode = data;
@@ -950,7 +950,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<String> getWaitingRequestNode() {
+    public CompletableFuture<String> getWaitingRequestNode() {
         CompletableFuture<String> result = new CompletableFuture<>();
 
         synchronized (lock) {
@@ -964,7 +964,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> deleteWaitingRequestNode() {
+    public CompletableFuture<Void> deleteWaitingRequestNode() {
         synchronized (lock) {
             this.waitingRequestNode = null;
         }
