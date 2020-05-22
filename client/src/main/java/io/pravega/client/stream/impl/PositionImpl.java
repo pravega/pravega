@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.SneakyThrows;
@@ -37,7 +36,7 @@ import static io.pravega.common.io.serialization.RevisionDataOutput.COMPACT_LONG
 public class PositionImpl extends PositionInternal {
 
     private static final PositionSerializer SERIALIZER = new PositionSerializer();
-    private final AtomicReference<Map<Segment, Long>> ownedSegments = new AtomicReference<>();
+    private Map<Segment, Long> ownedSegments;
     private final Map<Segment, Range> segmentRanges;
 
     // If this field is set, it means that we will need to apply the updates on the ownedSegments.
@@ -51,20 +50,20 @@ public class PositionImpl extends PositionInternal {
      * @param segments Current segments that the position refers to.
      */
     public PositionImpl(Map<SegmentWithRange, Long> segments) {
-        this.ownedSegments.set(new HashMap<>(segments.size()));
+        this.ownedSegments = new HashMap<>(segments.size());
         this.segmentRanges = new HashMap<>(segments.size());
         this.updatesToSegmentOffsets = null;
         this.version = 0;
         for (Entry<SegmentWithRange, Long> entry : segments.entrySet()) {
             SegmentWithRange s = entry.getKey();
-            this.ownedSegments.get().put(s.getSegment(), entry.getValue());
+            this.ownedSegments.put(s.getSegment(), entry.getValue());
             this.segmentRanges.put(s.getSegment(), s.getRange());
         }
     }
     
     @Builder(builderClassName = "PositionBuilder")
     PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges, List<Entry<Segment, Long>> updatesToSegmentOffsets) {
-        this.ownedSegments.set(Collections.unmodifiableMap(ownedSegments));
+        this.ownedSegments = Collections.unmodifiableMap(ownedSegments);
         this.updatesToSegmentOffsets = Collections.unmodifiableList((updatesToSegmentOffsets == null) ? Collections.emptyList() : updatesToSegmentOffsets);
         this.version = (updatesToSegmentOffsets != null) ? updatesToSegmentOffsets.size() : 0;
         if (segmentRanges == null) {
@@ -77,20 +76,20 @@ public class PositionImpl extends PositionInternal {
     @Override
     public Set<Segment> getOwnedSegments() {
         applySegmentOffsetUpdatesIfNeeded();
-        return Collections.unmodifiableSet(ownedSegments.get().keySet());
+        return Collections.unmodifiableSet(ownedSegments.keySet());
     }
 
     @Override
     public Map<Segment, Long> getOwnedSegmentsWithOffsets() {
         applySegmentOffsetUpdatesIfNeeded();
-        return Collections.unmodifiableMap(ownedSegments.get());
+        return Collections.unmodifiableMap(ownedSegments);
     }
     
     @Override
     Map<SegmentWithRange, Long> getOwnedSegmentRangesWithOffsets() {
         applySegmentOffsetUpdatesIfNeeded();
         HashMap<SegmentWithRange, Long> result = new HashMap<>();
-        for (Entry<Segment, Long> entry : ownedSegments.get().entrySet()) {
+        for (Entry<Segment, Long> entry : ownedSegments.entrySet()) {
             result.put(new SegmentWithRange(entry.getKey(), segmentRanges.get(entry.getKey())), entry.getValue());
         }
         return result;
@@ -99,7 +98,7 @@ public class PositionImpl extends PositionInternal {
     @Override
     public Set<Segment> getCompletedSegments() {
         applySegmentOffsetUpdatesIfNeeded();
-        return ownedSegments.get().entrySet()
+        return ownedSegments.entrySet()
             .stream()
             .filter(x -> x.getValue() < 0)
             .map(Map.Entry::getKey)
@@ -109,7 +108,7 @@ public class PositionImpl extends PositionInternal {
     @Override
     public Long getOffsetForOwnedSegment(Segment segmentId) {
         applySegmentOffsetUpdatesIfNeeded();
-        return ownedSegments.get().get(segmentId);
+        return ownedSegments.get(segmentId);
     }
 
     @Override
@@ -121,7 +120,7 @@ public class PositionImpl extends PositionInternal {
     @Override
     public String toString() {
         applySegmentOffsetUpdatesIfNeeded();
-        return ToStringUtils.mapToString(ownedSegments.get());
+        return ToStringUtils.mapToString(ownedSegments);
     }
 
     @Override
@@ -134,13 +133,13 @@ public class PositionImpl extends PositionInternal {
             return false;
         }
         PositionImpl position = (PositionImpl) o;
-        return ownedSegments.get().equals(position.getOwnedSegmentsWithOffsets()) && segmentRanges.equals(position.segmentRanges);
+        return ownedSegments.equals(position.getOwnedSegmentsWithOffsets()) && segmentRanges.equals(position.segmentRanges);
     }
 
     @Override
     public int hashCode() {
         applySegmentOffsetUpdatesIfNeeded();
-        return Objects.hash(ownedSegments.get(), segmentRanges);
+        return Objects.hash(ownedSegments, segmentRanges);
     }
 
     static class PositionBuilder implements ObjectBuilder<PositionImpl> {
@@ -232,15 +231,15 @@ public class PositionImpl extends PositionInternal {
 
     private synchronized void applySegmentOffsetUpdatesIfNeeded() {
         // No updates, so nothing to do.
-        if (this.updatesToSegmentOffsets == null) {
+        if (this.updatesToSegmentOffsets == null || this.updatesToSegmentOffsets.isEmpty()) {
             return;
         }
         // We are going to modify ownedSegments to match the segment offsets at the time this event was read, so copying
         // the map of ownedSegments to do not impact to the map referenced by other PositionImpl objects.
-        this.ownedSegments.set(new HashMap<>(ownedSegments.get()));
+        this.ownedSegments = new HashMap<>(ownedSegments);
         // Apply all the Segment offset updates up to the point in which this event was read.
         for (int i = 0; i < this.version; i++) {
-            this.ownedSegments.get().put(this.updatesToSegmentOffsets.get(i).getKey(), this.updatesToSegmentOffsets.get(i).getValue());
+            this.ownedSegments.put(this.updatesToSegmentOffsets.get(i).getKey(), this.updatesToSegmentOffsets.get(i).getValue());
         }
         this.updatesToSegmentOffsets = null;
         this.version = 0;
