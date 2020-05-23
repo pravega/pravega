@@ -29,6 +29,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
@@ -900,7 +901,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
     private EmbeddedChannel createChannel(StreamSegmentStore store) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
-                new CommandEncoder(null),
+                new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
                 new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                 new CommandDecoder(),
                 new AppendDecoder(),
