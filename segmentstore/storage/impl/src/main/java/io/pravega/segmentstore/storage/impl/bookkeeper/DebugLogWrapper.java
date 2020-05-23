@@ -154,7 +154,7 @@ public class DebugLogWrapper implements AutoCloseable {
      * @throws IllegalStateException   If this BookKeeperLog is not disabled.
      * @throws DurableDataLogException If an exception occurred while updating the metadata.
      */
-    public boolean reconcileLedgers(List<? extends Handle> candidateLedgers) throws DurableDataLogException {
+    public boolean reconcileLedgers(List<? extends ReadHandle> candidateLedgers) throws DurableDataLogException {
         // Load metadata and verify if disabled (metadata may be null if it doesn't exist).
         LogMetadata metadata = this.log.loadMetadata();
         final long highestLedgerId;
@@ -231,16 +231,8 @@ public class DebugLogWrapper implements AutoCloseable {
         return changed;
     }
     
-    private static long getHandleLength(Handle handle) {
-        // unfortunately Handle API does not expose a getLength() method,
-        // only subclasses have their own method.
-        if (handle instanceof WriteHandle) {
-            return ((WriteHandle) handle).getLength();
-        } else if (handle instanceof ReadHandle) {
-            return ((ReadHandle) handle).getLength();
-        } else {
-            throw new IllegalArgumentException("Unexpected Handle type " + handle);
-        }
+    private static <T extends ReadHandle> long getHandleLength(T handle) {
+        return handle.getLength();
     }
 
     private void initialize() throws DurableDataLogException {

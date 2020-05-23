@@ -599,7 +599,7 @@ class BookKeeperLog implements DurableDataLog {
 
             // Convert the response code into an Exception. Eventually this will be picked up by the WriteProcessor which
             // will retry it or fail it permanently (this includes exceptions from rollovers).
-            handleWriteException(error, write);
+            handleWriteException(error, write, this);
         } catch (Throwable ex) {
             // Most likely a bug in our code. We still need to fail the write so we don't leave it hanging.
             write.fail(ex, !isRetryable(ex));
@@ -645,7 +645,8 @@ class BookKeeperLog implements DurableDataLog {
      * @param ex The exception from BookKeeper client.
      * @param write The Write that failed.
      */
-    private void handleWriteException(Throwable ex, Write write) {
+    @VisibleForTesting
+    static void handleWriteException(Throwable ex, Write write, BookKeeperLog bookKeeperLog) {
         try {
             int code = Code.UnexpectedConditionException;
             if (ex instanceof BKException) {
@@ -672,7 +673,7 @@ class BookKeeperLog implements DurableDataLog {
                     break;
                 case Code.ClientClosedException:
                     // The BookKeeper client was closed externally. We cannot restart it here. We should close.
-                    ex = new ObjectClosedException(this, ex);
+                    ex = new ObjectClosedException(bookKeeperLog, ex);
                     break;
                 default:
                     // All the other kind of exceptions go in the same bucket.
