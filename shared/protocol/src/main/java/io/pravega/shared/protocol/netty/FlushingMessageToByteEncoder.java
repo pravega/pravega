@@ -13,8 +13,10 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.MessageToByteEncoder;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.RequiredArgsConstructor;
 
-abstract class FlushingMessageToByteEncoder<I> extends MessageToByteEncoder<I> {
+@RequiredArgsConstructor
+public abstract class FlushingMessageToByteEncoder<I> extends MessageToByteEncoder<I> {
 
     private final AtomicBoolean shouldFlush = new AtomicBoolean(false);
     
