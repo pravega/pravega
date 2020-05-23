@@ -14,13 +14,11 @@ import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import java.util.concurrent.CompletableFuture;
 import org.apache.bookkeeper.client.BKException;
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 import static org.mockito.Mockito.mock;
 
@@ -69,7 +67,7 @@ public class BookKeeperLogUnitTests {
         Write result = new Write(new CompositeByteArraySegment(new byte[0]), mock(WriteLedger.class), new CompletableFuture<>());
         BookKeeperLog bookKeeperLog = mock(BookKeeperLog.class);
         BookKeeperLog.handleWriteException(ex, result, bookKeeperLog);
-        assertThat(result.getFailureCause(), instanceOf(expectedErrorType));
+        assertTrue("Unexpected failure cause " + result.getFailureCause(), expectedErrorType.isInstance(result.getFailureCause()));
         assertSame(ex, result.getFailureCause().getCause());
         return result;
     }

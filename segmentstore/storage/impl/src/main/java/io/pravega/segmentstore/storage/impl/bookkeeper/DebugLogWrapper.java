@@ -36,7 +36,6 @@ import org.apache.bookkeeper.client.api.ReadHandle;
 import lombok.val;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.client.api.Handle;
-import org.apache.bookkeeper.client.api.WriteHandle;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
@@ -180,7 +179,7 @@ public class DebugLogWrapper implements AutoCloseable {
         candidateLedgers = candidateLedgers
                 .stream()
                 .filter(lh -> Ledgers.getBookKeeperLogId(lh) == this.log.getLogId()
-                        && getHandleLength(lh) > 0)
+                        && lh.getLength() > 0)
                 .collect(Collectors.toList());
 
         // Begin reconstructing the Ledger List by eliminating references to inexistent ledgers.
@@ -229,10 +228,6 @@ public class DebugLogWrapper implements AutoCloseable {
         }
 
         return changed;
-    }
-    
-    private static <T extends ReadHandle> long getHandleLength(T handle) {
-        return handle.getLength();
     }
 
     private void initialize() throws DurableDataLogException {
