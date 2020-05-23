@@ -55,7 +55,6 @@ public class ClientConnectionImpl implements ClientConnection {
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
         checkClientConnectionClosed();
-        nettyHandler.setRecentMessage();
         write(cmd);
     }
 
@@ -63,7 +62,6 @@ public class ClientConnectionImpl implements ClientConnection {
     public void send(Append append) throws ConnectionFailedException {
         Timer timer = new Timer();
         checkClientConnectionClosed();
-        nettyHandler.setRecentMessage();
         write(append);
         // Monitoring appends has a performance cost (e.g., split strings); only do that if we configure a metric notifier.
         if (!nettyHandler.getMetricNotifier().equals(MetricNotifier.NO_OP_METRIC_NOTIFIER)) {
@@ -81,15 +79,21 @@ public class ClientConnectionImpl implements ClientConnection {
             @Override
             public void operationComplete(ChannelFuture future) {
                 throttle.release(cmd.getDataLength());
+                nettyHandler.setRecentMessage();
                 if (!future.isSuccess()) {
                     future.channel().pipeline().fireExceptionCaught(future.cause());
-                    future.channel().close();
                 }
             }
         });
         // Work around for https://github.com/netty/netty/issues/3246
         eventLoop.execute(() -> {
-            channel.write(cmd, promise);
+            try {
+                if (!closed.get()) {
+                    channel.write(cmd, promise);
+                }
+            } catch (Exception e) {
+                channel.pipeline().fireExceptionCaught(e);
+            }
         });
         Exceptions.handleInterrupted(() -> throttle.acquire(cmd.getDataLength()));
     }
@@ -101,15 +105,21 @@ public class ClientConnectionImpl implements ClientConnection {
         promise.addListener(new ChannelFutureListener() {
             @Override
             public void operationComplete(ChannelFuture future) {
+                nettyHandler.setRecentMessage();
                 if (!future.isSuccess()) {
                     future.channel().pipeline().fireExceptionCaught(future.cause());
-                    future.channel().close();
                 }
             }
         });
         // Work around for https://github.com/netty/netty/issues/3246
         eventLoop.execute(() -> {
-            channel.write(cmd, promise);
+            try {
+                if (!closed.get()) {
+                    channel.write(cmd, promise);
+                }
+            } catch (Exception e) {
+                channel.pipeline().fireExceptionCaught(e);
+            }
         });
     }
     
@@ -118,12 +128,11 @@ public class ClientConnectionImpl implements ClientConnection {
         Channel channel = null;
         try {
             checkClientConnectionClosed();
-            nettyHandler.setRecentMessage();
-
             channel = nettyHandler.getChannel();
             log.debug("Write and flush message {} on channel {}", cmd, channel);
             channel.writeAndFlush(cmd)
                    .addListener((Future<? super Void> f) -> {
+                       nettyHandler.setRecentMessage();
                        if (f.isSuccess()) {
                            callback.complete(null);
                        } else {
@@ -144,7 +153,6 @@ public class ClientConnectionImpl implements ClientConnection {
         Channel ch;
         try {
             checkClientConnectionClosed();
-            nettyHandler.setRecentMessage();
             ch = nettyHandler.getChannel();
         } catch (ConnectionFailedException e) {
             callback.complete(new ConnectionFailedException("Connection to " + connectionName + " is not established."));
@@ -157,6 +165,7 @@ public class ClientConnectionImpl implements ClientConnection {
         ch.flush();
         ChannelPromise promise = ch.newPromise();
         promise.addListener(future -> {
+            nettyHandler.setRecentMessage();
             Throwable cause = future.cause();
             callback.complete(cause == null ? null : new ConnectionFailedException(cause));
         });
@@ -167,6 +176,7 @@ public class ClientConnectionImpl implements ClientConnection {
     public void close() {
         if (!closed.getAndSet(true)) {
             nettyHandler.closeFlow(this);
+            throttle.release(Integer.MAX_VALUE / 2); // Unblock any threads.
         }
     }
 
