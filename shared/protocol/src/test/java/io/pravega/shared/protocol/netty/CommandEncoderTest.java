@@ -67,7 +67,7 @@ public class CommandEncoderTest {
         verifyFlush(commandEncoder, allocator, new Append("segment", uuid, 1L, new Event(allocator.buffer()), 1L));
 
         allocator = new UnpooledByteBufAllocator(false, false);
-        commandEncoder = new CommandEncoder(s -> new TestBatchSizeTracker(1000));
+        commandEncoder = new CommandEncoder(s -> new TestBatchSizeTracker(1000), new TestMetricNotifier());
         verifyNoFlush(commandEncoder, allocator, new Hello(1, 2));
         verifyFlush(commandEncoder, allocator, new KeepAlive());
         verifyFlush(commandEncoder, allocator, new SetupAppend(1, uuid, "segment", ""));
