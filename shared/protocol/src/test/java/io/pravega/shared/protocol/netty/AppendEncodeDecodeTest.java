@@ -52,6 +52,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 import static io.pravega.shared.protocol.netty.WireCommandType.EVENT;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static org.junit.Assert.assertEquals;
@@ -64,7 +65,7 @@ public class AppendEncodeDecodeTest {
     private final UUID writerId = new UUID(1, 2);
     private final String streamName = "Test Stream Name";
     private final ConcurrentHashMap<Long, AppendBatchSizeTracker> idBatchSizeTrackerMap = new ConcurrentHashMap<>();
-    private final CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+    private final CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
     private final FakeLengthDecoder lengthDecoder = new FakeLengthDecoder();
     private final AppendDecoder appendDecoder = new AppendDecoder();
     private Level origionalLogLevel;
@@ -386,7 +387,7 @@ public class AppendEncodeDecodeTest {
     public void testIllegalWireCommand() throws Exception {
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
-        CommandEncoder commandEncoder = new CommandEncoder(null);
+        CommandEncoder commandEncoder = new CommandEncoder(null, NO_OP_METRIC_NOTIFIER);
         commandEncoder.encode(ctx, null, fakeNetwork);
     }
 
@@ -399,7 +400,7 @@ public class AppendEncodeDecodeTest {
         ByteBuf data = Unpooled.wrappedBuffer(content);
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         ArrayList<Object> received = new ArrayList<>();
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
@@ -418,7 +419,7 @@ public class AppendEncodeDecodeTest {
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
@@ -505,7 +506,7 @@ public class AppendEncodeDecodeTest {
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(null);
+        CommandEncoder commandEncoder = new CommandEncoder(null, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
@@ -528,7 +529,7 @@ public class AppendEncodeDecodeTest {
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
@@ -556,7 +557,7 @@ public class AppendEncodeDecodeTest {
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         ArrayList<Object> received = new ArrayList<>();
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
@@ -582,7 +583,7 @@ public class AppendEncodeDecodeTest {
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         ArrayList<Object> received = new ArrayList<>();
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
@@ -619,7 +620,7 @@ public class AppendEncodeDecodeTest {
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         ArrayList<Object> received = new ArrayList<>();
         Mockito.when(ch.writeAndFlush(Mockito.any())).thenAnswer(i -> {
             commandEncoder.encode(ctx, i.getArgument(0), fakeNetwork);
@@ -672,7 +673,7 @@ public class AppendEncodeDecodeTest {
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         commandEncoder.encode(ctx, msg, fakeNetwork);
@@ -690,7 +691,7 @@ public class AppendEncodeDecodeTest {
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         commandEncoder.encode(ctx, msg, fakeNetwork);
@@ -752,7 +753,7 @@ public class AppendEncodeDecodeTest {
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
 
-        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         SetupAppend setupAppend = new SetupAppend(1, writer1, streamName, "");
@@ -770,7 +771,7 @@ public class AppendEncodeDecodeTest {
         int size = 0; //Used to force a minimum size
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
-        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
@@ -796,7 +797,7 @@ public class AppendEncodeDecodeTest {
         int size = 100;
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
-        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
