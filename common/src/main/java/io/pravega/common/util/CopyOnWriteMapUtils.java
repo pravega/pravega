@@ -9,14 +9,12 @@
  */
 package io.pravega.common.util;
 
-import javax.annotation.concurrent.NotThreadSafe;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Utils class that contains copy-on-write methods for maps.
  */
-@NotThreadSafe
 public class CopyOnWriteMapUtils {
 
     /**
