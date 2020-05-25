@@ -113,10 +113,6 @@ public class CheckpointState {
                 checkpointsForHost.add(checkpointId);
             }
         }
-        // Sort checkpoints per reader so we have fast access based on time ordering.
-        for (List<String> checkpointsForHost: checkpointIndex.values()) {
-            checkpointsForHost.sort(String::compareTo);
-        }
     }
 
     void removeReader(String readerName, Map<Segment, Long> position) {
