@@ -15,7 +15,7 @@ import java.util.Map;
 /**
  * Utils class that contains copy-on-write methods for maps.
  */
-public class CopyOnWriteMapUtils {
+public final class CopyOnWriteMapUtils {
 
     /**
      * Generates a new map object consisting of applying put(key, value) on the oldMap object.
