@@ -677,7 +677,7 @@ public class RollingStorage implements SyncStorage {
                 && lastTarget.getLength() + lastSource.getLength() <= target.getRollingPolicy().getMaxLength();
     }
 
-    public RollingSegmentHandle openHandle(String segmentName, boolean readOnly) throws StreamSegmentException {
+    private RollingSegmentHandle openHandle(String segmentName, boolean readOnly) throws StreamSegmentException {
         // Load up the handle from Storage.
         RollingSegmentHandle handle;
         try {
@@ -848,7 +848,7 @@ public class RollingStorage implements SyncStorage {
     /**
      * Iterator for segments in Rolling storage.
      */
-    public static class RollingStorageSegmentIterator implements Iterator<SegmentProperties> {
+    private static class RollingStorageSegmentIterator implements Iterator<SegmentProperties> {
         protected RollingStorage instance;
         private final Iterator<SegmentProperties> results;
 
@@ -890,10 +890,11 @@ public class RollingStorage implements SyncStorage {
          */
         @Override
         public SegmentProperties next() throws NoSuchElementException {
-            if (hasNext()) {
+            try {
                 return results.next();
+            } catch (NoSuchElementException e) {
+                throw e;
             }
-            throw new NoSuchElementException();
         }
     }
     //endregion

@@ -621,10 +621,7 @@ public class ExtendedS3Storage implements SyncStorage {
          */
         @Override
         public SegmentProperties next() throws NoSuchElementException {
-            if (hasNext()) {
-                return innerIterator.next();
-            }
-            throw new NoSuchElementException();
+            return innerIterator.next();
         }
     }
 }

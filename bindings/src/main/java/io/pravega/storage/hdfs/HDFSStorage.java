@@ -732,10 +732,11 @@ class HDFSStorage implements SyncStorage {
          */
         @Override
         public SegmentProperties next() throws NoSuchElementException {
-            if (hasNext()) {
+            try {
                 return results.next();
+            } catch (NoSuchElementException e) {
+                throw e;
             }
-            throw new NoSuchElementException();
         }
     }
     //endregion

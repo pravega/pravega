@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -156,8 +157,31 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability of next to throw NoSuchElementException when asked for more segments than created.
+     * @throws Exception if an unexpected error occurred.
+     */
+    @Test
+    public void testListSegmentsNextNoSuchElementException() throws Exception {
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+            Iterator<SegmentProperties> iterator = s.listSegments();
+            Assert.assertFalse(iterator.hasNext());
+            int expectedCount = 10; // Create more segments than 1000 which is the maximum number of segments in one batch.
+            for (int i = 0; i < expectedCount; i++) {
+                String segmentName = "segment-" + i;
+                createSegment(segmentName, s);
+            }
+            iterator = s.listSegments();
+            for (int i = 0; i < expectedCount; i++) {
+                SegmentProperties prop = iterator.next();
+            }
+            Iterator<SegmentProperties> finalIterator = iterator;
+            AssertExtensions.assertThrows(NoSuchElementException.class, () -> finalIterator.next());
+        }
+    }
+
+    /**
      * Tests listSegments() on deleting some segments.
-     *
      * @throws Exception if an unexpected error occurred.
      */
     @Test

@@ -199,4 +199,8 @@ public class NoOpStorageUserDataWriteOnlyTests extends StorageTestBase {
     @Override
     public void testListSegmentsWithOneSegment() {
     }
+
+    @Override
+    public void testListSegmentsNextNoSuchElementException() {
+    }
 }

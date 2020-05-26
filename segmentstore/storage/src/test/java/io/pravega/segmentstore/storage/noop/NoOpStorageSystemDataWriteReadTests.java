@@ -55,4 +55,12 @@ public class NoOpStorageSystemDataWriteReadTests extends StorageTestBase {
     @Override
     public void testListSegmentsWithOneSegment() {
     }
+
+    /**
+     * This method intentionally left blank as it's out of concern for No-Op Storage.
+     * It must be here as it is defined as abstract method in super class.
+     */
+    @Override
+    public void testListSegmentsNextNoSuchElementException() {
+    }
 }
