@@ -14,7 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.ConditionalTableUpdateException;
-import io.pravega.client.tables.MapWrapper;
+import io.pravega.client.tables.KeyValueTableMap;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
@@ -49,14 +49,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
- * Implementation of {@link MapWrapper}.
+ * Implementation of {@link KeyValueTableMap}.
  *
  * @param <KeyT>   Key Type.
  * @param <ValueT> Value Type.
  */
 @RequiredArgsConstructor
 @SuppressWarnings({"unchecked", "NullableProblems"})
-final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
+final class KeyValueTableMapImpl<KeyT, ValueT> implements KeyValueTableMap<KeyT, ValueT> {
     private static final int ITERATOR_BATCH_SIZE = 100;
     private static final Retry.RetryAndThrowExceptionally<ConditionalTableUpdateException, RuntimeException> RETRY = Retry
             .withExpBackoff(10, 4, 10, 30000)
@@ -79,7 +79,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
     public boolean containsValue(@NonNull Object o) {
         requiresKeyFamily("containsValue");
         ValueT value = (ValueT) o;
-        return entryStream().anyMatch(e -> areSame(e.getValue(), value));
+        return entryStream().anyMatch(e -> Objects.equals(e.getValue(), value));
     }
 
     @Override
@@ -134,7 +134,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
         return RETRY.run(
                 () -> this.kvt.get(this.keyFamily, key)
                         .thenCompose(e -> {
-                            if (e != null && areSame(expectedValue, e.getValue())) {
+                            if (e != null && Objects.equals(expectedValue, e.getValue())) {
                                 return this.kvt.replace(this.keyFamily, key, newValue, e.getKey().getVersion())
                                         .thenApply(v -> true);
                             } else {
@@ -203,7 +203,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
         return RETRY.run(
                 () -> this.kvt.get(this.keyFamily, k)
                         .thenCompose(e -> {
-                            if (e != null && areSame(ev, e.getValue())) {
+                            if (e != null && Objects.equals(ev, e.getValue())) {
                                 return this.kvt.remove(this.keyFamily, k, e.getKey().getVersion()).thenApply(v -> true);
                             } else {
                                 return CompletableFuture.completedFuture(false);
@@ -227,7 +227,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
 
             return null;
         } else {
-            if (!areSame(existingValue, newValue)) {
+            if (!Objects.equals(existingValue, newValue)) {
                 putDirect(key, newValue);
             }
             return newValue;
@@ -240,7 +240,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
         if (existingValue != null) {
             ValueT newValue = toCompute.apply(key, existingValue);
             if (newValue != null) {
-                if (!areSame(existingValue, newValue)) {
+                if (!Objects.equals(existingValue, newValue)) {
                     putDirect(key, newValue);
                 }
             } else {
@@ -303,7 +303,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
 
     private boolean clear(Predicate<? super KeyT> keyFilter) {
         requiresKeyFamily("clear");
-        val baseIterator = MapWrapperImpl.this.kvt.keyIterator(this.keyFamily, ITERATOR_BATCH_SIZE, null).asIterator();
+        val baseIterator = KeyValueTableMapImpl.this.kvt.keyIterator(this.keyFamily, ITERATOR_BATCH_SIZE, null).asIterator();
         val deleteFutures = new ArrayList<CompletableFuture<Void>>();
         while (baseIterator.hasNext()) {
             val toDelete = baseIterator.next().getItems().stream()
@@ -333,15 +333,11 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
         }
     }
 
-    private boolean areSame(ValueT expected, ValueT actual) {
-        return expected == null && actual == null || Objects.equals(expected, actual);
-    }
-
     private boolean areSame(List<TableEntry<KeyT, ValueT>> expected, List<ValueT> actual) {
         assert expected.size() == actual.size();
         for (int i = 0; i < expected.size(); i++) {
             TableEntry<KeyT, ValueT> e = expected.get(i);
-            if (((e == null) != (actual == null)) || !areSame(actual.get(i), expected.get(i).getValue())) {
+            if (((e == null) != (actual == null)) || !Objects.equals(actual.get(i), expected.get(i).getValue())) {
                 return false;
             }
         }
@@ -350,13 +346,13 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
     }
 
     private Stream<TableKey<KeyT>> keyStream() {
-        val baseIterator = MapWrapperImpl.this.kvt.keyIterator(MapWrapperImpl.this.keyFamily, ITERATOR_BATCH_SIZE, null).asIterator();
+        val baseIterator = KeyValueTableMapImpl.this.kvt.keyIterator(KeyValueTableMapImpl.this.keyFamily, ITERATOR_BATCH_SIZE, null).asIterator();
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(baseIterator, 0), false)
                 .flatMap(iteratorItem -> iteratorItem.getItems().stream());
     }
 
     private Stream<TableEntry<KeyT, ValueT>> entryStream() {
-        val baseIterator = MapWrapperImpl.this.kvt.entryIterator(MapWrapperImpl.this.keyFamily, ITERATOR_BATCH_SIZE, null).asIterator();
+        val baseIterator = KeyValueTableMapImpl.this.kvt.entryIterator(KeyValueTableMapImpl.this.keyFamily, ITERATOR_BATCH_SIZE, null).asIterator();
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(baseIterator, 0), false)
                 .flatMap(iteratorItem -> iteratorItem.getItems().stream());
     }
@@ -372,17 +368,17 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
     private abstract class BaseCollection<T> extends AbstractCollection<T> implements Collection<T> {
         @Override
         public void clear() {
-            MapWrapperImpl.this.clear();
+            KeyValueTableMapImpl.this.clear();
         }
 
         @Override
         public int size() {
-            return MapWrapperImpl.this.size();
+            return KeyValueTableMapImpl.this.size();
         }
 
         @Override
         public boolean isEmpty() {
-            return MapWrapperImpl.this.isEmpty();
+            return KeyValueTableMapImpl.this.isEmpty();
         }
 
         @Override
@@ -428,36 +424,36 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
     private class KeySetImpl extends BaseCollection<KeyT> implements Set<KeyT> {
         @Override
         public boolean contains(Object key) {
-            return MapWrapperImpl.this.containsKey(key);
+            return KeyValueTableMapImpl.this.containsKey(key);
         }
 
         @Override
         public boolean remove(Object key) {
-            return MapWrapperImpl.this.remove(key) != null;
+            return KeyValueTableMapImpl.this.remove(key) != null;
         }
 
         @Override
         public boolean containsAll(Collection<?> keyCollection) {
             val keys = toKeys(keyCollection, Functions.identity());
-            val existingEntries = MapWrapperImpl.this.kvt.getAll(MapWrapperImpl.this.keyFamily, keys).join();
+            val existingEntries = KeyValueTableMapImpl.this.kvt.getAll(KeyValueTableMapImpl.this.keyFamily, keys).join();
             return existingEntries.stream().allMatch(Objects::nonNull);
         }
 
         @Override
         public boolean removeAll(Collection<?> keyCollection) {
             val keys = toKeys(keyCollection, TableKey::unversioned);
-            MapWrapperImpl.this.kvt.removeAll(MapWrapperImpl.this.keyFamily, keys).join();
+            KeyValueTableMapImpl.this.kvt.removeAll(KeyValueTableMapImpl.this.keyFamily, keys).join();
             return true;
         }
 
         @Override
         public boolean removeIf(Predicate<? super KeyT> filter) {
-            return MapWrapperImpl.this.clear(filter);
+            return KeyValueTableMapImpl.this.clear(filter);
         }
 
         @Override
         public Stream<KeyT> stream() {
-            return MapWrapperImpl.this.keyStream().map(TableKey::getKey);
+            return KeyValueTableMapImpl.this.keyStream().map(TableKey::getKey);
         }
 
         private <T> List<T> toKeys(Collection<?> keyCollection, Function<KeyT, T> converter) {
@@ -478,13 +474,13 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
         @Override
         public boolean contains(@NonNull Object o) {
             ValueT value = (ValueT) o;
-            return stream().anyMatch(v -> areSame(value, v));
+            return stream().anyMatch(v -> Objects.equals(value, v));
         }
 
         @Override
         public boolean remove(Object o) {
             ValueT value = (ValueT) o;
-            return removeIf(v -> areSame(value, v));
+            return removeIf(v -> Objects.equals(value, v));
         }
 
         @Override
@@ -544,8 +540,8 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
         public boolean contains(@NonNull Object o) {
             if (o instanceof Map.Entry) {
                 Map.Entry<KeyT, ValueT> e = (Map.Entry<KeyT, ValueT>) o;
-                ValueT value = MapWrapperImpl.this.get(e.getKey());
-                return areSame(e.getValue(), value);
+                ValueT value = KeyValueTableMapImpl.this.get(e.getKey());
+                return Objects.equals(e.getValue(), value);
             }
             return false;
         }
@@ -563,26 +559,26 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
                 values.add(e.getValue());
             }
 
-            val existingEntries = MapWrapperImpl.this.kvt.getAll(MapWrapperImpl.this.keyFamily, keys).join();
+            val existingEntries = KeyValueTableMapImpl.this.kvt.getAll(KeyValueTableMapImpl.this.keyFamily, keys).join();
             return areSame(existingEntries, values);
         }
 
         @Override
         public boolean add(@NonNull Entry<KeyT, ValueT> e) {
             ValueT finalValue = putIfAbsent(e.getKey(), e.getValue());
-            return areSame(e.getValue(), finalValue);
+            return Objects.equals(e.getValue(), finalValue);
         }
 
         @Override
         public boolean addAll(@NonNull Collection<? extends Entry<KeyT, ValueT>> collection) {
-            MapWrapperImpl.this.kvt.putAll(MapWrapperImpl.this.keyFamily, Collections.unmodifiableCollection(collection)).join();
+            KeyValueTableMapImpl.this.kvt.putAll(KeyValueTableMapImpl.this.keyFamily, Collections.unmodifiableCollection(collection)).join();
             return true;
         }
 
         @Override
         public boolean remove(Object o) {
             Map.Entry<KeyT, ValueT> e = (Map.Entry<KeyT, ValueT>) o;
-            return MapWrapperImpl.this.remove(e.getKey(), e.getValue());
+            return KeyValueTableMapImpl.this.remove(e.getKey(), e.getValue());
         }
 
         @Override
@@ -594,11 +590,11 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
                 keys.add(e.getKey());
                 values.add(e.getValue());
             }
-            return MapWrapperImpl.this.kvt.getAll(MapWrapperImpl.this.keyFamily, keys)
+            return KeyValueTableMapImpl.this.kvt.getAll(KeyValueTableMapImpl.this.keyFamily, keys)
                     .thenCompose(existingValues -> {
                         if (areSame(existingValues, values)) {
                             val toRemove = existingValues.stream().map(TableEntry::getKey).collect(Collectors.toList());
-                            return MapWrapperImpl.this.kvt.removeAll(MapWrapperImpl.this.keyFamily, toRemove).thenApply(v -> true);
+                            return KeyValueTableMapImpl.this.kvt.removeAll(KeyValueTableMapImpl.this.keyFamily, toRemove).thenApply(v -> true);
                         } else {
                             return CompletableFuture.completedFuture(false);
                         }
@@ -611,7 +607,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
             val deleteFutures = new ArrayList<CompletableFuture<Void>>();
             while (baseIterator.hasNext()) {
                 val toDelete = baseIterator.next().getItems().stream()
-                        .map(MapWrapperImpl.this::toMapEntry)
+                        .map(KeyValueTableMapImpl.this::toMapEntry)
                         .filter(filter)
                         .map(e -> TableKey.unversioned(e.getKey()))
                         .collect(Collectors.toList());
@@ -630,7 +626,7 @@ final class MapWrapperImpl<KeyT, ValueT> implements MapWrapper<KeyT, ValueT> {
 
         @Override
         public Stream<Entry<KeyT, ValueT>> stream() {
-            return MapWrapperImpl.this.entryStream().map(MapWrapperImpl.this::toMapEntry);
+            return KeyValueTableMapImpl.this.entryStream().map(KeyValueTableMapImpl.this::toMapEntry);
         }
     }
 

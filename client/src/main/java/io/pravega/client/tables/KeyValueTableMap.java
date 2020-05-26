@@ -24,7 +24,7 @@ import lombok.NonNull;
  * Performance considerations:
  * <ul>
  * <li> The {@link Map} interface defines synchronous operations, however {@link KeyValueTable} defines async operations.
- * All methods implementations defined in this interface or inherited from {@link Map} invoke
+ * All method implementations defined in this interface or inherited from {@link Map} invoke
  * {@link CompletableFuture#join()} on any {@link KeyValueTable} methods invoked. This means that two threads are used
  * to fulfill these calls: one from the Executor passed in to the {@link KeyValueTable} factory, and one on which this
  * request is executing.
@@ -89,9 +89,9 @@ import lombok.NonNull;
  * @param <KeyT>   Table Key Type.
  * @param <ValueT> Table Value Type.
  */
-public interface MapWrapper<KeyT, ValueT> extends Map<KeyT, ValueT> {
+public interface KeyValueTableMap<KeyT, ValueT> extends Map<KeyT, ValueT> {
     /**
-     * Gets the Key Family over which this {@link MapWrapper} applies.
+     * Gets the Key Family over which this {@link KeyValueTableMap} applies.
      *
      * @return The Key Family, or null if operating over Keys with no Key Family.
      */

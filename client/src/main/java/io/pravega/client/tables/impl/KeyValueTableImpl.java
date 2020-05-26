@@ -20,7 +20,7 @@ import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTable;
-import io.pravega.client.tables.MapWrapper;
+import io.pravega.client.tables.KeyValueTableMap;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
@@ -107,8 +107,8 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     //region KeyValueTable Implementation
 
     @Override
-    public MapWrapper<KeyT, ValueT> asMap(String keyFamily) {
-        return new MapWrapperImpl<>(this, keyFamily);
+    public KeyValueTableMap<KeyT, ValueT> getMapFor(String keyFamily) {
+        return new KeyValueTableMapImpl<>(this, keyFamily);
     }
 
     @Override

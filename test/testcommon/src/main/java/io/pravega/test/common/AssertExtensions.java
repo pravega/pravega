@@ -549,7 +549,7 @@ public class AssertExtensions {
     * @param precision the maximum absolute difference between the two values.
     * @return true if the two operands are both null or the represent the same
     * value within the given precision
-     */
+    */
     public static boolean nearlyEquals(Double a, Double b, double precision) {
         if (a == null && b == null) {
             return true;

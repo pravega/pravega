@@ -39,9 +39,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * Unit tests for {@link MapWrapperImpl}.
+ * Unit tests for {@link KeyValueTableMapImpl}.
  */
-public class MapWrapperImplTests extends KeyValueTableTestSetup {
+public class KeyValueTableMapImplTests extends KeyValueTableTestSetup {
     private static final KeyValueTableInfo KVT = new KeyValueTableInfo("Scope", "KVT");
     private MockConnectionFactoryImpl connectionFactory;
     private MockTableSegmentFactory segmentFactory;
@@ -82,8 +82,8 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
     //endregion
 
     /**
-     * Tests {@link MapWrapperImpl#put}, {@link MapWrapperImpl#putDirect}, {@link MapWrapperImpl#putIfAbsent},
-     * {@link MapWrapperImpl#replace} and {@link MapWrapperImpl#remove}.
+     * Tests {@link KeyValueTableMapImpl#put}, {@link KeyValueTableMapImpl#putDirect}, {@link KeyValueTableMapImpl#putIfAbsent},
+     * {@link KeyValueTableMapImpl#replace} and {@link KeyValueTableMapImpl#remove}.
      */
     @Test
     public void testSingleKeyOperations() {
@@ -96,7 +96,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         forEveryKey((keyFamily, keyId) -> {
             val key = getKey(keyId);
             val value = getValue(keyId, iteration.get());
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
 
             // putIfAbsent should work when the key doesn't exist.
             val result = map.putIfAbsent(key, value);
@@ -118,7 +118,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         forEveryKey((keyFamily, keyId) -> {
             val key = getKey(keyId);
             val value = getValue(keyId, iteration.get());
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
 
             // PutDirect should just override the value.
             val randomValue = value + "random";
@@ -137,7 +137,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
             val key = getKey(keyId);
             val oldValue = getValue(keyId, iteration.get() - 1);
             val value = getValue(keyId, iteration.get());
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
 
             // Replace
             if (keyId % 2 == 0) {
@@ -159,7 +159,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         forEveryKey((keyFamily, keyId) -> {
             val key = getKey(keyId);
             val oldValue = getValue(keyId, iteration.get() - 1);
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
 
             // Remove.
             Assert.assertFalse(map.remove(key, oldValue + "foo"));
@@ -183,7 +183,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
     }
 
     /**
-     * Tests {@link MapWrapperImpl#compute}, {@link MapWrapperImpl#computeIfAbsent}, {@link MapWrapperImpl#computeIfPresent}.
+     * Tests {@link KeyValueTableMapImpl#compute}, {@link KeyValueTableMapImpl#computeIfAbsent}, {@link KeyValueTableMapImpl#computeIfPresent}.
      */
     @Test
     public void testCompute() {
@@ -197,7 +197,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         forEveryKey((keyFamily, keyId) -> {
             val key = getKey(keyId);
             val value = getValue(keyId, iteration.get());
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
 
             // computeIfPresent() should not invoke or return anything.
             val cp = map.computeIfPresent(key, (k, existingValue) -> AssertExtensions.fail("computeIfPresent executed when no key present."));
@@ -229,7 +229,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         forEveryKey((keyFamily, keyId) -> {
             val key = getKey(keyId);
             val value = getValue(keyId, iteration.get());
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
 
             if (key % 2 == 0) {
                 // Remove via computeIfPresent.
@@ -269,8 +269,8 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
     }
 
     /**
-     * Tests {@link MapWrapperImpl#putAll}, {@link MapWrapperImpl#replaceAll}, {@link MapWrapperImpl#clear()},
-     * {@link MapWrapperImpl#size()}, {@link MapWrapperImpl#isEmpty()}.
+     * Tests {@link KeyValueTableMapImpl#putAll}, {@link KeyValueTableMapImpl#replaceAll}, {@link KeyValueTableMapImpl#clear()},
+     * {@link KeyValueTableMapImpl#size()}, {@link KeyValueTableMapImpl#isEmpty()}.
      */
     @Test
     public void testMultiKeyOperations() {
@@ -281,7 +281,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // PutAll.
         val iteration = new AtomicInteger(0);
         forEveryKeyFamily(false, (keyFamily, keyIds) -> {
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val toPut = keyIds.stream().collect(Collectors.toMap(this::getKey, keyId -> getValue(keyId, iteration.get())));
             map.putAll(toPut);
             expectedValues.putAll(keyFamily, toPut);
@@ -291,7 +291,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // ReplaceAll.
         iteration.incrementAndGet();
         forEveryKeyFamily(false, (keyFamily, keyIds) -> {
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             map.replaceAll((keyId, existingValue) -> {
                 Assert.assertEquals(expectedValues.get(keyFamily).get(keyId), existingValue);
                 val newValue = getValue(keyId, iteration.get());
@@ -304,7 +304,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // Clear.
         iteration.incrementAndGet();
         forEveryKeyFamily(false, (keyFamily, keyIds) -> {
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             map.clear();
             Assert.assertTrue(map.isEmpty());
             Assert.assertEquals(0, map.size());
@@ -314,7 +314,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
     }
 
     /**
-     * Tests {@link MapWrapperImpl#keySet()} and all operations on it.
+     * Tests {@link KeyValueTableMapImpl#keySet()} and all operations on it.
      */
     @Test
     public void testKeySet() {
@@ -326,7 +326,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
 
         // Contains, ContainsAll, size, isEmpty, iterator, stream, toArray.
         forEveryKeyFamily(false, (keyFamily, keyIds) -> {
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val keySet = map.keySet();
             val expected = expectedEntries.get(keyFamily);
             Assert.assertEquals(expected.size(), keySet.size());
@@ -349,7 +349,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // RemoveAll, ContainsAll.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Remove first 3 elements using removeAll.
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val first3Keys = keysByKeyFamily.get(keyFamily).subList(0, 3);
             Assert.assertTrue(map.keySet().removeAll(first3Keys));
             Assert.assertFalse(map.keySet().containsAll(first3Keys));
@@ -360,7 +360,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // Remove.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Remove 4th element using remove.
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val fourthKey = keysByKeyFamily.get(keyFamily).get(3);
             Assert.assertTrue(map.keySet().remove(fourthKey));
             Assert.assertFalse(map.keySet().remove(fourthKey)); // Already removed.
@@ -371,7 +371,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // RetainAll.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Preserve only indices 4-8.
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val toPreserve = keysByKeyFamily.get(keyFamily).subList(4, 8);
             Assert.assertTrue(map.keySet().retainAll(toPreserve));
             Assert.assertFalse(map.keySet().retainAll(toPreserve)); // Already removed.
@@ -382,7 +382,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // RemoveIf.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Remove all even indices
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             Assert.assertTrue(map.keySet().removeIf(key -> key % 2 == 0));
             Assert.assertFalse(map.keySet().removeIf(key -> key % 2 == 0)); // Already removed.
             val toRemove = expectedEntries.get(keyFamily).keySet().stream().filter(key -> key % 2 == 0).collect(Collectors.toList());
@@ -392,14 +392,14 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
 
         // Clear.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
-            kvt.asMap(keyFamily).keySet().clear();
+            kvt.getMapFor(keyFamily).keySet().clear();
             expectedEntries.removeAll(keyFamily);
         });
         check(kvt, expectedEntries);
     }
 
     /**
-     * Tests {@link MapWrapperImpl#entrySet()} and all operations on it.
+     * Tests {@link KeyValueTableMapImpl#entrySet()} and all operations on it.
      */
     @Test
     public void testEntrySet() {
@@ -410,7 +410,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
 
         // Add, AddAll
         forEveryKeyFamily(false, (keyFamily, keyIds) -> {
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val entrySet = map.entrySet();
             if (expectedEntries.getKeyFamilies().size() % 2 == 0) {
                 // Add.
@@ -432,7 +432,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
 
         // Contains, ContainsAll, size, isEmpty, iterator, stream, toArray.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val entrySet = map.entrySet();
             val expected = expectedEntries.get(keyFamily);
             Assert.assertEquals(expected.size(), entrySet.size());
@@ -462,7 +462,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
             // First try with mismatched values.
             val first3EntriesBad = first3Entries.stream().map(e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey(), e.getValue() + "foo"))
                     .collect(Collectors.toList());
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             Assert.assertFalse(map.entrySet().containsAll(first3EntriesBad));
             Assert.assertFalse(map.entrySet().removeAll(first3EntriesBad));
 
@@ -481,7 +481,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
 
             // First try with mismatched value.
             val fourthEntryBad = new AbstractMap.SimpleImmutableEntry<>(fourthEntry.getKey(), fourthEntry.getValue() + "foo");
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             Assert.assertFalse(map.entrySet().contains(fourthEntryBad));
             Assert.assertFalse(map.entrySet().remove(fourthEntryBad));
 
@@ -496,7 +496,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Preserve only indices 4-8. We do not try with "mismatched" values as that will clear out the entire map.
             val toPreserve = entriesByKeyFamily.get(keyFamily).subList(4, 8);
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             Assert.assertTrue(map.entrySet().retainAll(toPreserve));
             Assert.assertFalse(map.entrySet().retainAll(toPreserve)); // Already removed.
             expectedEntries.remove(keyFamily,
@@ -510,7 +510,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // RemoveIf.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Remove all even indices.
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             Assert.assertTrue(map.entrySet().removeIf(e -> e.getKey() % 2 == 0));
             Assert.assertFalse(map.entrySet().removeIf(e -> e.getKey() % 2 == 0)); // Already removed.
             val toRemove = expectedEntries.get(keyFamily).keySet().stream().filter(key -> key % 2 == 0).collect(Collectors.toList());
@@ -520,14 +520,14 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
 
         // Clear.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
-            kvt.asMap(keyFamily).entrySet().clear();
+            kvt.getMapFor(keyFamily).entrySet().clear();
             expectedEntries.removeAll(keyFamily);
         });
         check(kvt, expectedEntries);
     }
 
     /**
-     * Tests {@link MapWrapperImpl#values()} and all operations on it.
+     * Tests {@link KeyValueTableMapImpl#values()} and all operations on it.
      */
     @Test
     public void testValues() {
@@ -540,7 +540,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         forEveryKey((keyFamily, keyId) -> {
             val key = getKey(keyId + DEFAULT_KEYS_PER_KEY_FAMILY);
             val value = getValue(keyId, 0);
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             map.putDirect(key, value);
             expectedEntries.put(keyFamily, key, value);
         });
@@ -548,7 +548,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
 
         // Contains, ContainsAll, size, isEmpty, iterator, stream, toArray.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val values = map.values();
             val expected = expectedEntries.get(keyFamily);
             Assert.assertEquals(expected.size(), values.size());
@@ -571,7 +571,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // RemoveAll, ContainsAll.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Remove first 3 values using removeAll.
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val first3Entries = entriesByKeyFamily.get(keyFamily).subList(0, 3);
             val first3Values = first3Entries.stream().map(Map.Entry::getValue).collect(Collectors.toList());
             Assert.assertTrue(map.values().removeAll(first3Values));
@@ -583,7 +583,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // Remove.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Remove 4th element using remove.
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val fourthValue = entriesByKeyFamily.get(keyFamily).get(3).getValue();
             Assert.assertTrue(map.values().remove(fourthValue));
             Assert.assertFalse(map.values().remove(fourthValue)); // Already removed.
@@ -594,7 +594,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // RetainAll.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Preserve only indices 4-8.
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val toPreserveEntries = entriesByKeyFamily.get(keyFamily).subList(4, 8);
             val toPreserveValues = toPreserveEntries.stream().map(Map.Entry::getValue).collect(Collectors.toList());
             Assert.assertTrue(map.values().retainAll(toPreserveValues));
@@ -608,7 +608,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // RemoveIf.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Remove all even indices
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             Assert.assertTrue(map.values().removeIf(v -> getKeyFromValue(v) % 2 == 0));
             Assert.assertFalse(map.values().removeIf(v -> getKeyFromValue(v) % 2 == 0)); // Already removed.
             val toRemove = expectedEntries.get(keyFamily).keySet().stream().filter(key -> key % 2 == 0).collect(Collectors.toList());
@@ -618,15 +618,15 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
 
         // Clear.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
-            kvt.asMap(keyFamily).values().clear();
+            kvt.getMapFor(keyFamily).values().clear();
             expectedEntries.removeAll(keyFamily);
         });
         check(kvt, expectedEntries);
     }
 
     /**
-     * Tests the ability to remove entries via the {@link MapWrapperImpl#keySet()}, {@link MapWrapperImpl#entrySet()} or
-     * {@link MapWrapperImpl#values()} iterators.
+     * Tests the ability to remove entries via the {@link KeyValueTableMapImpl#keySet()}, {@link KeyValueTableMapImpl#entrySet()} or
+     * {@link KeyValueTableMapImpl#values()} iterators.
      */
     @Test
     public void testIteratorRemove() {
@@ -637,14 +637,14 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         forEveryKey((keyFamily, keyId) -> {
             val key = getKey(keyId + DEFAULT_KEYS_PER_KEY_FAMILY);
             val value = getValue(keyId, 0);
-            kvt.asMap(keyFamily).putDirect(key, value);
+            kvt.getMapFor(keyFamily).putDirect(key, value);
             expectedEntries.put(keyFamily, key, value);
         });
 
         // KeySet.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Remove all even indices
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val iterator = map.keySet().iterator();
             AssertExtensions.assertThrows("", iterator::remove, ex -> ex instanceof IllegalStateException);
             while (iterator.hasNext()) {
@@ -661,7 +661,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // EntrySet.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Remove all even indices
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val iterator = map.entrySet().iterator();
             AssertExtensions.assertThrows("", iterator::remove, ex -> ex instanceof IllegalStateException);
             while (iterator.hasNext()) {
@@ -678,7 +678,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         // Values.
         forEveryKeyFamily(false, (keyFamily, ignored) -> {
             // Remove all even indices
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             val iterator = map.values().iterator();
             AssertExtensions.assertThrows("", iterator::remove, ex -> ex instanceof IllegalStateException);
             while (iterator.hasNext()) {
@@ -694,13 +694,13 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
     }
 
     /**
-     * Tests {@link MapWrapperImpl} without a Key Family (limited functionality).
+     * Tests {@link KeyValueTableMapImpl} without a Key Family (limited functionality).
      */
     @Test
     public void testNoKeyFamily() {
         @Cleanup
         val kvt = createKeyValueTable();
-        val map = kvt.asMap(null);
+        val map = kvt.getMapFor(null);
         val toTest = new AssertExtensions.RunnableWithException[]{
                 map::keySet, map::entrySet, map::values, map::clear, map::size, map::isEmpty, () -> map.replaceAll((a, b) -> b),
                 () -> map.putAll(Collections.emptyMap()), () -> map.forEach((k, v) -> Runnables.doNothing()), () -> map.containsValue("")};
@@ -718,7 +718,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
         forEveryKey((keyFamily, keyId) -> {
             val key = getKey(keyId);
             val value = getValue(keyId, iteration);
-            val map = kvt.asMap(keyFamily);
+            val map = kvt.getMapFor(keyFamily);
             map.putDirect(key, value);
             expectedValues.put(keyFamily, key, value);
         });
@@ -727,7 +727,7 @@ public class MapWrapperImplTests extends KeyValueTableTestSetup {
     private void check(KeyValueTable<Integer, String> kvt, ExpectedValues values) {
         values.getKeyFamilies().forEach(keyFamily -> {
             val expectedMap = values.get(keyFamily);
-            val actualMap = kvt.asMap(keyFamily);
+            val actualMap = kvt.getMapFor(keyFamily);
             if (keyFamily == null) {
                 // There are no iterators available, so we need to check each entry.
                 for (val e : expectedMap.entrySet()) {

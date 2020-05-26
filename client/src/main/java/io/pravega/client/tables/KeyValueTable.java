@@ -282,17 +282,17 @@ public interface KeyValueTable<KeyT, ValueT> extends AutoCloseable {
     void close();
 
     /**
-     * Exposes this {@link KeyValueTable} instance as a {@link Map}. Please refer to the {@link MapWrapper} documentation
-     * for special cases and limitations.
+     * Exposes this {@link KeyValueTable} instance as a {@link Map}. Please refer to the {@link KeyValueTableMap}
+     * documentation for special cases and limitations.
      * <p>
      * This is useful for integrating code that expects to deal with a {@link Map}. Not all the {@link KeyValueTable}
      * functionality can be implemented using a {@link Map}, however the {@link Map} interface is fully implemented.
      *
-     * @param keyFamily (Optional) The Key Family to create the {@link MapWrapper} for. Any operations on the returned
-     *                  {@link MapWrapper} will only affect this Key Family. If no Key Family is provided (null), then
-     *                  certain {@link MapWrapper} APIs may not be supported. Refer to {@link MapWrapper} documentation
-     *                  for more details.
-     * @return A new {@link MapWrapper} instance bound to this {@link KeyValueTable} and Key Family.
+     * @param keyFamily (Optional) The Key Family to create the {@link KeyValueTableMap} for. Any operations on the
+     *                  returned {@link KeyValueTableMap} will only affect this Key Family. If no Key Family is
+     *                  provided (null), then certain {@link KeyValueTableMap} APIs may not be supported. Refer to
+     *                  {@link KeyValueTableMap} documentation for more details.
+     * @return A new {@link KeyValueTableMap} instance bound to this {@link KeyValueTable} and Key Family.
      */
-    MapWrapper<KeyT, ValueT> asMap(@Nullable String keyFamily);
+    KeyValueTableMap<KeyT, ValueT> getMapFor(@Nullable String keyFamily);
 }
