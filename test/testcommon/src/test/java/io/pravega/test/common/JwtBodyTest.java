@@ -9,7 +9,6 @@
  */
 package io.pravega.test.common;
 
-import com.google.gson.Gson;
 import org.junit.Test;
 import java.time.Instant;
 import static org.junit.Assert.assertEquals;
@@ -25,15 +24,13 @@ public class JwtBodyTest {
                 .issuedAtTime(Instant.now().getEpochSecond())
                 .expirationTime(Instant.now().plusSeconds(50).getEpochSecond())
                 .build();
-
-        String json = new Gson().toJson(jwtBody);
-        assertNotNull(json);
+        assertNotNull(jwtBody.toString());
     }
 
     @Test
     public void testDeserialize() {
         String json = "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384,\"exp\":1569837434}";
-        JwtBody jwtBody = new Gson().fromJson(json, JwtBody.class);
+        JwtBody jwtBody = JwtBody.fromJson(json);
 
         assertEquals("subject", jwtBody.getSubject());
         assertEquals("segmentstore", jwtBody.getAudience());

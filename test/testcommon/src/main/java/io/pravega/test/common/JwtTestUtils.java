@@ -9,8 +9,6 @@
  */
 package io.pravega.test.common;
 
-import com.google.gson.Gson;
-
 import java.time.Instant;
 import java.util.Base64;
 
@@ -26,7 +24,7 @@ public class JwtTestUtils {
      * @return a Base64 encoded JSON representing the specified {@code jwtBodyPart}
      */
     public static String toCompact(JwtBody jwtBodyPart) {
-        String json = new Gson().toJson(jwtBodyPart);
+        String json = jwtBodyPart.toString();
         return Base64.getEncoder().encodeToString(json.getBytes());
     }
 

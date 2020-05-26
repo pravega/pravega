@@ -9,10 +9,14 @@
  */
 package io.pravega.test.common;
 
-import com.google.gson.annotations.SerializedName;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.SneakyThrows;
+
+import java.io.StringReader;
 
 /**
  * Represents a JWT body for serialization/deserialization purposes.
@@ -27,26 +31,38 @@ public class JwtBody {
     /**
      * The "sub" (for subject) claim of the JWT body.
      */
-    @SerializedName("sub")
+    @JsonProperty("sub")
     private final String subject;
 
     /**
      * The "aud" (for audience) claim of the JWT body.
      */
-    @SerializedName("aud")
+    @JsonProperty("aud")
     private final String audience;
 
     /**
      * The "iat" (for issued at) claim of the JWT body.
      */
-    @SerializedName("iat")
+    @JsonProperty("iat")
     private final Long issuedAtTime;
 
     /**
      * The "exp" (for expiration time) claim of the JWT body. It identifies the time on or after which the JWT must not
      * be accepted for processing. The value represents seconds past 1970-01-01 00:00:00Z.
      */
-    @SerializedName("exp")
+    @JsonProperty("exp")
     private final Long expirationTime;
-}
 
+    @SneakyThrows
+    @Override
+    public String toString() {
+        return new ObjectMapper().writeValueAsString(this);
+    }
+
+    @SneakyThrows
+    public static JwtBody fromJson(String json) {
+        try (StringReader jsonReader = new StringReader(json)) {
+            return new ObjectMapper().readValue(jsonReader, JwtBody.class);
+        }
+    }
+}
