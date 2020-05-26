@@ -293,8 +293,7 @@ public class ServiceConfig {
         this.containerCount = properties.getInt(CONTAINER_COUNT);
         this.coreThreadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.storageThreadPoolSize = properties.getInt(STORAGE_THREAD_POOL_SIZE);
-        this.lowPriorityThreadPoolSize = properties.getInt(
-        );
+        this.lowPriorityThreadPoolSize = properties.getInt(LOW_PRIORITY_THREAD_POOL_SIZE);
         this.listeningPort = properties.getInt(LISTENING_PORT);
 
         int publishedPort;
