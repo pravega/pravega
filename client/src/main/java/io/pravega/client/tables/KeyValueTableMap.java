@@ -72,8 +72,8 @@ import lombok.NonNull;
  * {@link #keySet()}, {@link #entrySet()} or {@link #values()} will invoke those collections' iterators (see above).
  * </ul>
  * <p><p>
- * The following operations are not supported (will throw {@link UnsupportedOperationException}) if
- * {@link #getKeyFamily()} is null):
+ * If {@link #getKeyFamily()} is null), the following operations are not supported and will throw throw
+ * {@link UnsupportedOperationException}).
  * <ul>
  * <li>{@link #containsValue}.
  * <li>{@link #putAll}.
