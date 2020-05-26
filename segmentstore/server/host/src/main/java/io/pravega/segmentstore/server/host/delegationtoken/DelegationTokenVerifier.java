@@ -14,6 +14,7 @@ import io.pravega.auth.InvalidClaimException;
 import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
+import io.pravega.shared.security.token.JsonWebToken;
 
 /**
  * This interface represents the code on segment store side that verifies the delegation token.
@@ -33,7 +34,8 @@ public interface DelegationTokenVerifier {
      * @throws InvalidClaimException  if the {@code token} does not contain the claim representing
      *                                {@code expectedLevel} of access
      * @throws TokenException         if any other failure condition is encountered
+     * @return JsonWebToken           a non-null value if token was parsed and verified successfully, otherwise null.
      */
-    void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel)
+    JsonWebToken verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel)
             throws TokenExpiredException, InvalidTokenException, InvalidClaimException, TokenException;
 }
