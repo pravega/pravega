@@ -491,29 +491,6 @@ class HDFSStorage implements SyncStorage {
         return HDFSSegmentHandle.write(streamSegmentName);
     }
 
-    @Override
-    public Iterator<SegmentProperties> listSegments() throws IOException {
-        try {
-            return new HDFSSegmentIterator(this.fileSystem.listStatus(new Path(config.getHdfsRoot() + Path.SEPARATOR)),
-                    fileStatus -> {
-                        String fileName = fileStatus.getPath().getName();
-                        int index = fileName.lastIndexOf(PART_SEPARATOR);
-                        if (fileName.endsWith(PART_SEPARATOR + SEALED)) {
-                            return true;
-                        }
-                        try {
-                            Long.parseLong(fileName.substring(index + 1));
-                        } catch (NumberFormatException nfe) {
-                            return false;
-                        }
-                        return true;
-                    });
-        } catch (Exception e) {
-            log.error("Exception occurred while listing the segments.", e);
-            throw e;
-        }
-    }
-
     //endregion
 
     //region Helpers
@@ -690,6 +667,28 @@ class HDFSStorage implements SyncStorage {
         return length;
     }
 
+    @Override
+    public Iterator<SegmentProperties> listSegments() throws IOException {
+        try {
+            return new HDFSSegmentIterator(this.fileSystem.listStatus(new Path(config.getHdfsRoot() + Path.SEPARATOR)),
+                    fileStatus -> {
+                        String fileName = fileStatus.getPath().getName();
+                        int index = fileName.lastIndexOf(PART_SEPARATOR);
+                        if (fileName.endsWith(PART_SEPARATOR + SEALED)) {
+                            return true;
+                        }
+                        try {
+                            Long.parseLong(fileName.substring(index + 1));
+                        } catch (NumberFormatException nfe) {
+                            return false;
+                        }
+                        return true;
+                    });
+        } catch (Exception e) {
+            log.error("Exception occurred while listing the segments.", e);
+            throw e;
+        }
+    }
 
     /**
      * Iterator for segments in HDFS Storage.
@@ -712,24 +711,18 @@ class HDFSStorage implements SyncStorage {
                         .length(fileStatus.getLen())
                         .sealed(isSealed).build();
             } catch (Exception e) {
-                log.error("Exception found");
+                log.error("Exception occurred while transforming the object into SegmentProperties.");
                 return null;
             }
         }
 
         /**
          * Method to check the presence of next element in the iterator.
-         * It also sets the position of the current element for Next method, but repetitive call to this method before Next
-         * will not advance the current element.
          * @return true if the next element is there, else false.
          */
         @Override
         public boolean hasNext() {
-            try {
-                return results.hasNext();
-            } catch (Exception e) {
-                return false;
-            }
+            return results.hasNext();
         }
 
         /**
@@ -739,11 +732,10 @@ class HDFSStorage implements SyncStorage {
          */
         @Override
         public SegmentProperties next() throws NoSuchElementException {
-            try {
+            if (hasNext()) {
                 return results.next();
-            } catch (Exception e) {
-                throw new NoSuchElementException();
             }
+            throw new NoSuchElementException();
         }
     }
     //endregion

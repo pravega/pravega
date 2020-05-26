@@ -869,14 +869,13 @@ public class RollingStorage implements SyncStorage {
                         .length(handle.length())
                         .sealed(handle.isSealed()).build();
             } catch (StreamSegmentException e) {
-                throw new NoSuchElementException();
+                log.error("Exception occurred while transforming the object into SegmentProperties.");
+                return null;
             }
         }
 
         /**
          * Method to check the presence of next element in the iterator.
-         * It also sets the position of the current element for Next method, but repetitive call to this method before Next
-         * will not advance the current element.
          * @return true if the next element is there, else false.
          */
         @Override
@@ -891,7 +890,10 @@ public class RollingStorage implements SyncStorage {
          */
         @Override
         public SegmentProperties next() throws NoSuchElementException {
-            return results.next();
+            if (hasNext()) {
+                return results.next();
+            }
+            throw new NoSuchElementException();
         }
     }
     //endregion

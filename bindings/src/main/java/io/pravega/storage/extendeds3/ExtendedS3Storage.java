@@ -185,11 +185,6 @@ public class ExtendedS3Storage implements SyncStorage {
         return false;
     }
 
-    @Override
-    public Iterator<SegmentProperties> listSegments() {
-        return new ExtendedS3SegmentIterator(s3object -> true);
-    }
-
     //endregion
 
     //region private sync implementation
@@ -555,6 +550,11 @@ public class ExtendedS3Storage implements SyncStorage {
 
     //endregion
 
+    @Override
+    public Iterator<SegmentProperties> listSegments() {
+        return new ExtendedS3SegmentIterator(s3object -> true);
+    }
+
     /**
      * Iterator for segments in ExtendedS3Storage.
      */
@@ -574,6 +574,11 @@ public class ExtendedS3Storage implements SyncStorage {
             this.nextBatch = false;
         }
 
+        /**
+         * Transforms a S3Object to SegmentProperties.
+         * @param s3Object The S3Object to be transformed.
+         * @return A SegmentProperties object.
+         */
         public SegmentProperties toSegmentProperties(S3Object s3Object) {
             AccessControlList acls = client.getObjectAcl(config.getBucket(), s3Object.getKey());
             boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
@@ -587,8 +592,6 @@ public class ExtendedS3Storage implements SyncStorage {
 
         /**
          * Method to check the presence of next element in the iterator.
-         * It also sets the position of the current element for Next method, but repetitive call to this method before Next
-         * will not advance the current element.
          * @return true if the next element is there, else false.
          */
         @Override
