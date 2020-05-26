@@ -13,7 +13,6 @@ package io.pravega.test.integration.selftest.adapters;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.mock.MockStreamManager;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -284,7 +283,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout) {
+        public CompletableFuture<List<TableEntry>> get(String segmentName, List<BufferView> keys, Duration timeout) {
             throw new UnsupportedOperationException("get");
         }
 

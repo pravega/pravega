@@ -13,7 +13,6 @@ import com.google.common.collect.Iterators;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
@@ -70,8 +69,7 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
                     ? TableKey.NOT_EXISTS
                     : (e.explicitVersion == TableKey.NO_VERSION) ? 1L : e.explicitVersion;
             Assert.assertEquals("Unexpected version.", expectedVersion, result.getVersion());
-            AssertExtensions.assertArrayEquals("Unexpected key read back.", e.key, 0,
-                    result.getKey().array(), result.getKey().arrayOffset(), e.key.length);
+            Assert.assertEquals("Unexpected key read back.", new ByteArraySegment(e.key), result.getKey());
         }
     }
 
@@ -138,8 +136,7 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
             // Check key.
             val resultKey = result.getKey().getKey();
             Assert.assertEquals("Unexpected result key length.", item.key.length, resultKey.getLength());
-            AssertExtensions.assertArrayEquals("Unexpected result key.", item.key, 0,
-                    resultKey.array(), resultKey.arrayOffset(), item.key.length);
+            Assert.assertEquals("Unexpected result key.", new ByteArraySegment(item.key), resultKey);
 
             if (item.isRemoval) {
                 // Verify there is no value and that the key has been properly set.
@@ -155,7 +152,7 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
                 Assert.assertNotNull("Expecting a value for non removal.", result.getValue());
                 val resultValue = result.getValue();
                 Assert.assertEquals("Unexpected value length.", item.value.length, resultValue.getLength());
-                Assert.assertTrue("Unexpected result value", new ByteArraySegment(item.value).contentEquals(resultValue));
+                Assert.assertEquals("Unexpected result value", new ByteArraySegment(item.value), resultValue);
             }
 
             keyVersion++;
@@ -222,8 +219,8 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
             val actual = AsyncTableEntryReader.readEntryComponents(input, offset, SERIALIZER);
 
             // Check Key.
-            Assert.assertTrue("Unexpected key parsed at index " + i,
-                    HashedArray.arrayEquals(new ByteArraySegment(expected.key), new ByteArraySegment(actual.getKey())));
+            Assert.assertEquals("Unexpected key parsed at index " + i,
+                    new ByteArraySegment(expected.key), new ByteArraySegment(actual.getKey()));
 
             Assert.assertEquals("Unexpected Header.isDeletion() at index " + i, expected.isRemoval, actual.getHeader().isDeletion());
             if (expected.isRemoval) {
@@ -232,8 +229,8 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
                         TableKey.NO_VERSION, actual.getHeader().getEntryVersion());
             } else {
                 Assert.assertNotNull("Expecting a value for a non-deletion at index " + i, actual.getValue());
-                Assert.assertTrue("Unexpected value parsed at index " + i,
-                        HashedArray.arrayEquals(new ByteArraySegment(expected.value), new ByteArraySegment(actual.getValue())));
+                Assert.assertEquals("Unexpected value parsed at index " + i,
+                        new ByteArraySegment(expected.value), new ByteArraySegment(actual.getValue()));
                 long expectedVersion = expected.explicitVersion == TableKey.NO_VERSION ? offset : expected.explicitVersion;
                 Assert.assertEquals("Unexpected version at index " + i, expectedVersion, actual.getVersion());
             }

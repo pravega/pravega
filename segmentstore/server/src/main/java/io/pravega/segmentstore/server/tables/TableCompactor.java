@@ -14,7 +14,6 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
@@ -316,7 +315,7 @@ class TableCompactor {
             byte[] appendData = new byte[totalLength];
             this.connector.getSerializer().serializeUpdateWithExplicitVersion(toWrite, appendData);
             result = segment.append(new ByteArraySegment(appendData), attributes, timer.getRemaining());
-            log.debug("TableCompactor[{}]: Compacting {}, CopyCount={}, CopyLength={}.", segment.getSegmentId(), args, toWrite, totalLength);
+            log.debug("TableCompactor[{}]: Compacting {}, CopyCount={}, CopyLength={}.", segment.getSegmentId(), args, toWrite.size(), totalLength);
         }
 
         return Futures.toVoid(result);
@@ -390,7 +389,7 @@ class TableCompactor {
         /**
          * Candidates, indexed by their TableKey.
          */
-        final Map<HashedArray, Candidate> byKey = new HashMap<>();
+        final Map<BufferView, Candidate> byKey = new HashMap<>();
 
         /**
          * Adds the given {@link Candidate}, but only if its Key does not exist or exists with a lower version.
@@ -398,7 +397,7 @@ class TableCompactor {
          * @param c The {@link Candidate} to add.
          */
         void add(Candidate c) {
-            val key = new HashedArray(c.entry.getKey().getKey());
+            val key = c.entry.getKey().getKey();
             val existing = this.byKey.get(key);
             if (existing == null || existing.entry.getKey().getVersion() < c.entry.getKey().getVersion()) {
                 // Either first time seeing this key or we saw it before with a smaller version - use this one.
@@ -413,7 +412,7 @@ class TableCompactor {
          * @param existingKeyOffset The existing Key's offset.
          */
         void handleExistingKey(TableKey existingKey, long existingKeyOffset) {
-            val key = new HashedArray(existingKey.getKey());
+            val key = existingKey.getKey();
             val c = this.byKey.get(key);
             if (c != null && c.segmentOffset < existingKeyOffset) {
                 this.byKey.remove(key);

@@ -31,7 +31,7 @@ import lombok.NonNull;
  * component array maps to a contiguous offset range and is only allocated when the first index within its range needs
  * to be set (if unallocated, any index within its range will have a value of 0).
  */
-public class CompositeByteArraySegment implements CompositeArrayView {
+public class CompositeByteArraySegment extends AbstractBufferView implements CompositeArrayView {
     //region Members
     /**
      * Default component array size. 4KB maps to the kernel's page size.
@@ -129,7 +129,7 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     public InputStream getReader() {
         // Use the collector to create a list of ByteArrayInputStreams and then return them as combined.
         ArrayList<ByteArrayInputStream> streams = new ArrayList<>();
-        collect((array, offset, length) -> streams.add(new ByteArrayInputStream(array, offset, length)));
+        collect((array, offset, length) -> streams.add(new ByteArrayInputStream(array, offset, length)), this.length);
         return new SequenceInputStream(Iterators.asEnumeration(streams.iterator()));
     }
 
@@ -150,11 +150,11 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     }
 
     @Override
-    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectArray) throws ExceptionT {
-        collect(collectArray, this.length);
+    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT {
+        collect((array, offset, len) -> collectBuffer.accept(ByteBuffer.wrap(array, offset, len)), this.length);
     }
 
-    private <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectArray, int length) throws ExceptionT {
+    private <ExceptionT extends Exception> void collect(ArrayCollector<ExceptionT> collectArray, int length) throws ExceptionT {
         if (length == 0) {
             // Nothing to collect.
             return;
@@ -214,7 +214,7 @@ public class CompositeByteArraySegment implements CompositeArrayView {
 
     @Override
     public void copyTo(OutputStream target) throws IOException {
-        collect(target::write);
+        collect(target::write, this.length);
     }
 
     @Override
@@ -319,4 +319,17 @@ public class CompositeByteArraySegment implements CompositeArrayView {
     }
 
     //endregion
+
+    @FunctionalInterface
+    private interface ArrayCollector<ExceptionT extends Exception> {
+        /**
+         * Processes an array range.
+         *
+         * @param array       The array.
+         * @param arrayOffset The start offset within the array.
+         * @param length      The number of bytes, beginning at startOffset, that need to be processed.
+         * @throws ExceptionT (Optional) Any exception to throw.
+         */
+        void accept(byte[] array, int arrayOffset, int length) throws ExceptionT;
+    }
 }

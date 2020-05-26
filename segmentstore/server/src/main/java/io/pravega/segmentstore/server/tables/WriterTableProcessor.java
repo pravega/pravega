@@ -14,7 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.HashedArray;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -342,6 +342,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     @SneakyThrows(IOException.class)
     private KeyUpdateCollection readKeysFromSegment(DirectSegmentAccess segment, long firstOffset, long lastOffset, TimeoutTimer timer) {
         KeyUpdateCollection keyUpdates = new KeyUpdateCollection();
+        // TODO: this makes a bunch of copies. Eliminate them.
         try (InputStream input = readFromInMemorySegment(segment, firstOffset, lastOffset, timer).getReader()) {
             long segmentOffset = firstOffset;
             while (segmentOffset < lastOffset) {
@@ -363,10 +364,9 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private int indexSingleKey(InputStream input, long entryOffset, KeyUpdateCollection keyUpdateCollection) throws IOException {
         // Retrieve the next entry, get its Key and hash it.
         val e = AsyncTableEntryReader.readEntryComponents(input, entryOffset, this.connector.getSerializer());
-        HashedArray key = new HashedArray(e.getKey());
 
         // Index the Key. If it was used before, then their versions will be compared to determine which one prevails.
-        val update = new BucketUpdate.KeyUpdate(key, entryOffset, e.getVersion(), e.getHeader().isDeletion());
+        val update = new BucketUpdate.KeyUpdate(new ByteArraySegment(e.getKey()), entryOffset, e.getVersion(), e.getHeader().isDeletion());
         keyUpdateCollection.add(update, e.getHeader().getTotalLength(), e.getHeader().getEntryVersion());
         return e.getHeader().getTotalLength();
     }
@@ -431,7 +431,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         return TableBucketReader
                 .key(segment, this.indexWriter::getBackpointerOffset, this.executor)
                 .findAll(builder.getBucket().getSegmentOffset(),
-                        (key, offset) -> builder.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(key.getKey()), offset, key.getVersion())),
+                        (key, offset) -> builder.withExistingKey(new BucketUpdate.KeyInfo(key.getKey(), offset, key.getVersion())),
                         timer);
 
     }

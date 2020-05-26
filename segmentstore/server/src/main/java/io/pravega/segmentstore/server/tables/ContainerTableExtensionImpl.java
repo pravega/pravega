@@ -17,6 +17,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -213,7 +214,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     @Override
-    public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<ArrayView> keys, Duration timeout) {
+    public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<BufferView> keys, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         logRequest("get", segmentName, keys.size());
         if (keys.isEmpty()) {
@@ -245,7 +246,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 // directly from the index if unable to find anything and there is a chance the sought key actually exists.
                 // Encountering a truncated Segment offset indicates that the Segment may have recently been compacted and
                 // we are using a stale cache value.
-                ArrayView key = builder.getKeys().get(i);
+                BufferView key = builder.getKeys().get(i);
                 builder.includeResult(Futures
                         .exceptionallyExpecting(bucketReader.find(key, offset, timer), ex -> ex instanceof StreamSegmentTruncatedException, null)
                         .thenComposeAsync(entry -> {
@@ -418,7 +419,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
          * Sought keys.
          */
         @Getter
-        private final List<ArrayView> keys;
+        private final List<BufferView> keys;
         /**
          * Sought keys's hashes, in the same order as the keys.
          */
@@ -430,7 +431,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
          */
         private final List<CompletableFuture<TableEntry>> resultFutures;
 
-        GetResultBuilder(List<ArrayView> keys, KeyHasher hasher) {
+        GetResultBuilder(List<BufferView> keys, KeyHasher hasher) {
             this.keys = keys;
             this.hashes = keys.stream().map(hasher::hash).collect(Collectors.toList());
             this.resultFutures = new ArrayList<>();

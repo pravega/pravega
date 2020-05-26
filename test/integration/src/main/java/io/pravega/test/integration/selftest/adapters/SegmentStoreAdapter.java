@@ -15,7 +15,6 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -271,17 +270,17 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Long> updateTableEntry(String tableName, ArrayView key, ArrayView value, Long compareVersion, Duration timeout) {
+    public CompletableFuture<Long> updateTableEntry(String tableName, BufferView key, BufferView value, Long compareVersion, Duration timeout) {
         ensureRunning();
         TableEntry e = compareVersion == null || compareVersion == TableKey.NO_VERSION
                 ? TableEntry.unversioned(key, value)
                 : TableEntry.versioned(key, value, compareVersion);
         return this.tableStore.put(tableName, Collections.singletonList(e), timeout)
-                              .thenApply(versions -> versions.get(0));
+                .thenApply(versions -> versions.get(0));
     }
 
     @Override
-    public CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout) {
+    public CompletableFuture<Void> removeTableEntry(String tableName, BufferView key, Long compareVersion, Duration timeout) {
         ensureRunning();
         TableKey e = compareVersion == null || compareVersion == TableKey.NO_VERSION
                 ? TableKey.unversioned(key)
@@ -290,7 +289,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
+    public CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<BufferView> keys, Duration timeout) {
         ensureRunning();
         return this.tableStore
                 .get(tableName, keys, timeout)
@@ -298,7 +297,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, BufferView>>>> iterateTableEntries(String tableName, Duration timeout) {
+    public CompletableFuture<AsyncIterator<List<Map.Entry<BufferView, BufferView>>>> iterateTableEntries(String tableName, Duration timeout) {
         ensureRunning();
         return this.tableStore
                 .entryIterator(tableName, null, timeout)
@@ -308,8 +307,8 @@ class SegmentStoreAdapter extends StoreAdapter {
                                 return null;
                             } else {
                                 return item.getEntries().stream()
-                                           .map(e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey().getKey(), e.getValue()))
-                                           .collect(Collectors.<Map.Entry<ArrayView, BufferView>>toList());
+                                        .map(e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey().getKey(), e.getValue()))
+                                        .collect(Collectors.<Map.Entry<BufferView, BufferView>>toList());
                             }
                         }));
     }

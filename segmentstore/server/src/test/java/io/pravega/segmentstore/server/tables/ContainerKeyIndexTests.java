@@ -12,9 +12,8 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -192,7 +191,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         AssertExtensions.assertSuppliedFutureThrows(
                 "update() allowed conditional update on inexistent key conditioned on existing.",
                 () -> context.index.update(context.segment, toUpdateBatch(TableKey.versioned(keyData, 0L)), noPersist, context.timer),
-                ex -> ex instanceof KeyNotExistsException && keyMatches(((KeyNotExistsException) ex).getKey(), keyData));
+                ex -> ex instanceof KeyNotExistsException && ((KeyNotExistsException) ex).getKey().equals(keyData));
 
         // Create the key. We must actually write something to the segment here as this will be used in the subsequent
         // calls to validate the key.
@@ -233,7 +232,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val keys = generateUnversionedKeys(2, context);
 
         // First, write two keys with the same hash (and serialize them to the Segment).
-        val versions = new HashMap<ArrayView, Long>();
+        val versions = new HashMap<BufferView, Long>();
         for (val key : keys) {
             val s = new EntrySerializer();
             val toUpdate = TableEntry.unversioned(key.getKey(), new ByteArraySegment(new byte[100]));
@@ -295,7 +294,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             hashes.add(hash);
             boolean exists = hashes.size() % 2 == 0;
             if (exists) {
-                keysWithOffsets.put(hash, new KeyWithOffset(new HashedArray(k.getKey()), offset.getAndAdd(k.getKey().getLength())));
+                keysWithOffsets.put(hash, new KeyWithOffset(k.getKey(), offset.getAndAdd(k.getKey().getLength())));
             } else {
                 keysWithOffsets.put(hash, null);
             }
@@ -357,15 +356,15 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             if (i < keys.size() / 3) {
                 // Does not exist in the cache.
                 noCacheKeys.add(k);
-                keysWithOffsets.put(hash, new KeyWithOffset(new HashedArray(k.getKey()), noCacheOffset));
+                keysWithOffsets.put(hash, new KeyWithOffset(k.getKey(), noCacheOffset));
             } else if (i < keys.size() * 2 / 3) {
                 // Exists in the cache, but with a lower offset than in the index.
                 lowerCacheOffsetKeys.add(k);
-                keysWithOffsets.put(hash, new KeyWithOffset(new HashedArray(k.getKey()), lowerCacheOffset));
+                keysWithOffsets.put(hash, new KeyWithOffset(k.getKey(), lowerCacheOffset));
             } else {
                 // Exists in the cache with a higher offset than in the index.
                 higherCacheOffsetKeys.add(k);
-                keysWithOffsets.put(hash, new KeyWithOffset(new HashedArray(k.getKey()), higherCacheOffset));
+                keysWithOffsets.put(hash, new KeyWithOffset(k.getKey(), higherCacheOffset));
             }
         }
 
@@ -427,7 +426,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             byte[] valueData = new byte[Math.max(1, context.random.nextInt(100))];
             context.random.nextBytes(valueData);
             val entry = TableEntry.unversioned(k.getKey(), new ByteArraySegment(valueData));
-            keysWithOffsets.put(hash, new KeyWithOffset(new HashedArray(k.getKey()), offset.getAndAdd(s.getUpdateLength(entry))));
+            keysWithOffsets.put(hash, new KeyWithOffset(k.getKey(), offset.getAndAdd(s.getUpdateLength(entry))));
             entries1.add(entry);
         }
         val update1 = new byte[(int) offset.get()];
@@ -558,7 +557,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         for (val k : keys) {
             val hash = HASHER.hash(k.getKey());
             hashes.add(hash);
-            keysWithOffsets.put(hash, new KeyWithOffset(new HashedArray(k.getKey()), offset));
+            keysWithOffsets.put(hash, new KeyWithOffset(k.getKey(), offset));
             offset += k.getKey().getLength();
         }
 
@@ -776,19 +775,15 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         return batch;
     }
 
-    private boolean keyMatches(ArrayView k1, ArrayView k2) {
-        return new HashedArray(k1).equals(new HashedArray(k2));
-    }
-
-    private boolean keyMatches(Map<TableKey, Long> expectedVersions, ArrayView k2) {
-        return expectedVersions.size() == 1 && keyMatches(expectedVersions.keySet().stream().findFirst().get().getKey(), k2);
+    private boolean keyMatches(Map<TableKey, Long> expectedVersions, BufferView k2) {
+        return expectedVersions.size() == 1 && expectedVersions.keySet().stream().findFirst().get().getKey().equals(k2);
     }
 
     //region Helper Classes
 
     @RequiredArgsConstructor
     private static class KeyWithOffset {
-        final HashedArray key;
+        final BufferView key;
         final long offset;
     }
 

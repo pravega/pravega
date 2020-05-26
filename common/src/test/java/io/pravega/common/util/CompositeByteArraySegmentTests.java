@@ -129,9 +129,10 @@ public class CompositeByteArraySegmentTests {
             val targetData = new byte[s.getLength()];
             val targetOffset = new AtomicInteger();
             val count = new AtomicInteger();
-            s.collect((array, arrayOffset, arrayLength) -> {
-                System.arraycopy(array, arrayOffset, targetData, targetOffset.get(), arrayLength);
-                targetOffset.addAndGet(arrayLength);
+            s.collect(bb -> {
+                int len = bb.remaining();
+                bb.get(targetData, targetOffset.get(), len);
+                targetOffset.addAndGet(len);
                 count.incrementAndGet();
             });
 
@@ -187,7 +188,7 @@ public class CompositeByteArraySegmentTests {
                 }
 
                 val actualComponentCount = new AtomicInteger();
-                slice.collect((a, o, l) -> actualComponentCount.incrementAndGet());
+                slice.collect(bb -> actualComponentCount.incrementAndGet());
                 Assert.assertEquals("Unexpected number of components.", actualComponentCount.get(), slice.getComponentCount());
             }
         });

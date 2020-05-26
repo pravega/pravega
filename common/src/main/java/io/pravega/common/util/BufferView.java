@@ -15,7 +15,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.List;
-import lombok.NonNull;
 
 /**
  * Defines a generic read-only view of a readable memory buffer with a known length.
@@ -128,34 +127,22 @@ public interface BufferView {
     }
 
     /**
-     * Compares the contents of this {@link BufferView} with that of another's.
-     *
-     * @param other The other {@link BufferView} to compare with.
-     * @return True if this {@link BufferView}'s contents is the same as the other's contents (byte-by-byte comparison).
-     */
-    @VisibleForTesting
-    default boolean contentEquals(@NonNull BufferView other) {
-        List<ByteBuffer> thisContents = this.getContents();
-        List<ByteBuffer> otherContents = other.getContents();
-        if (thisContents.size() != otherContents.size()) {
-            return false;
-        }
-
-        for (int i = 0; i < thisContents.size(); i++) {
-            if (!thisContents.get(i).equals(otherContents.get(i))) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
      * Gets a list of {@link ByteBuffer} that represent the contents of this {@link BufferView}.
      *
      * @return A List of {@link ByteBuffer}.
      */
     List<ByteBuffer> getContents();
+
+    /**
+     * Iterates through each of the buffers that make up this {@link BufferView}, in order, and invokes the given
+     * {@link Collector} on each.
+     *
+     * @param collectBuffer A {@link Collector} function that will be invoked for each component.
+     * @param <ExceptionT>  Type of exception that the {@link Collector} function throws, if any.
+     * @throws ExceptionT If the {@link Collector} function throws an exception of this type, the iteration will end
+     *                    and the exception will be bubbled up.
+     */
+    <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT;
 
     /**
      * Wraps the given {@link BufferView} into a single instance.
@@ -215,5 +202,21 @@ public interface BufferView {
             assert available() == 0;
             return readBuffer;
         }
+    }
+
+    /**
+     * Defines a collector function that can be applied to a ByteBuffer.
+     *
+     * @param <ExceptionT> Type of exception that this function can throw.
+     */
+    @FunctionalInterface
+    interface Collector<ExceptionT extends Exception> {
+        /**
+         * Processes a ByteBuffer.
+         *
+         * @param buffer The ByteBuffer.
+         * @throws ExceptionT (Optional) Any exception to throw.
+         */
+        void accept(ByteBuffer buffer) throws ExceptionT;
     }
 }

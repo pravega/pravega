@@ -230,22 +230,22 @@ class BookKeeperAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Long> updateTableEntry(String tableName, ArrayView key, ArrayView value, Long compareVersion, Duration timeout) {
+    public CompletableFuture<Long> updateTableEntry(String tableName, BufferView key, BufferView value, Long compareVersion, Duration timeout) {
         throw new UnsupportedOperationException("updateTableEntry() is not supported on " + this.logId);
     }
 
     @Override
-    public CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout) {
+    public CompletableFuture<Void> removeTableEntry(String tableName, BufferView key, Long compareVersion, Duration timeout) {
         throw new UnsupportedOperationException("removeTableEntry() is not supported on " + this.logId);
     }
 
     @Override
-    public CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
+    public CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<BufferView> keys, Duration timeout) {
         throw new UnsupportedOperationException("getTableEntry() is not supported on " + this.logId);
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, BufferView>>>> iterateTableEntries(String tableName, Duration timeout) {
+    public CompletableFuture<AsyncIterator<List<Map.Entry<BufferView, BufferView>>>> iterateTableEntries(String tableName, Duration timeout) {
         throw new UnsupportedOperationException();
     }
 

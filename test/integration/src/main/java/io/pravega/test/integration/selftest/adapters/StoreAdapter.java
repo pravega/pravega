@@ -12,7 +12,6 @@ package io.pravega.test.integration.selftest.adapters;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -157,7 +156,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout        Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the latest version of the Key.
      */
-    public abstract CompletableFuture<Long> updateTableEntry(String tableName, ArrayView key, ArrayView value, Long compareVersion, Duration timeout);
+    public abstract CompletableFuture<Long> updateTableEntry(String tableName, BufferView key, BufferView value, Long compareVersion, Duration timeout);
 
     /**
      * Removes a Table Entry from a Table.
@@ -168,7 +167,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout        Timeout for the operation.
      * @return A CompletableFuture that will be completed when the key has been removed.
      */
-    public abstract CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout);
+    public abstract CompletableFuture<Void> removeTableEntry(String tableName, BufferView key, Long compareVersion, Duration timeout);
 
     /**
      * Retrieves the latest value of for multiple Table Entry from a Table.
@@ -178,7 +177,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout   Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the result.
      */
-    public abstract CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout);
+    public abstract CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<BufferView> keys, Duration timeout);
 
     /**
      * Iterates through all the Entries in a Table.
@@ -187,7 +186,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout   Timeout for the operation.
      * @return A CompletableFuture that will return an {@link AsyncIterator} to iterate through all entries in the table.
      */
-    public abstract CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, BufferView>>>> iterateTableEntries(String tableName, Duration timeout);
+    public abstract CompletableFuture<AsyncIterator<List<Map.Entry<BufferView, BufferView>>>> iterateTableEntries(String tableName, Duration timeout);
 
     //endregion
 

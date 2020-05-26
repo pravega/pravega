@@ -10,8 +10,8 @@
 package io.pravega.segmentstore.contracts.tables;
 
 import com.google.common.annotations.Beta;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.BadSegmentTypeException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -169,7 +169,7 @@ public interface TableStore {
      * Looks up a List of Keys in the given Table Segment.
      *
      * @param segmentName The name of the Table Segment to look up into.
-     * @param keys        A List of {@link ArrayView} instances representing the Keys to look up.
+     * @param keys        A List of {@link BufferView} instances representing the Keys to look up.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the sought result. This will be organized as a List
      * of {@link TableEntry} instances in the same order as their Keys in the provided input list. If the operation failed,
@@ -180,7 +180,7 @@ public interface TableStore {
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
      */
-    CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout);
+    CompletableFuture<List<TableEntry>> get(String segmentName, List<BufferView> keys, Duration timeout);
 
     /**
      * Creates a new Iterator over all the {@link TableKey} instances in the given Table Segment. This is a resumable

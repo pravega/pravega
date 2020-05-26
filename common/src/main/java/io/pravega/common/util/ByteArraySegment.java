@@ -19,11 +19,12 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import lombok.SneakyThrows;
 
 /**
  * Allows segmenting a byte array and operating only on that segment.
  */
-public class ByteArraySegment implements ArrayView {
+public class ByteArraySegment extends AbstractBufferView implements ArrayView {
     //region Members
 
     private final byte[] array;
@@ -167,6 +168,45 @@ public class ByteArraySegment implements ArrayView {
     @Override
     public void copyTo(OutputStream stream) throws IOException {
         stream.write(this.array, this.startOffset, this.length);
+    }
+
+    @Override
+    @SneakyThrows(IOException.class)
+    public boolean equals(BufferView other) {
+        if (this.length != other.getLength()) {
+            return false;
+        } else if (other instanceof ArrayView) {
+            return equals((ArrayView) other);
+        }
+
+        InputStream otherReader = other.getReader();
+        for (int i = 0; i < this.length; i++) {
+            if ((byte) otherReader.read() != this.array[this.startOffset + i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean equals(ArrayView other) {
+        if (this.length != other.getLength()) {
+            return false;
+        }
+
+        byte[] otherArray = other.array();
+        int otherOffset = other.arrayOffset();
+        for (int i = 0; i < this.length; i++) {
+            if (this.array[this.startOffset + i] != otherArray[otherOffset + i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    @Override
+    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT {
+        collectBuffer.accept(ByteBuffer.wrap(this.array, this.startOffset, this.length));
     }
 
     //endregion

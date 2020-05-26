@@ -94,7 +94,7 @@ class EntrySerializer {
         targetOffset = writeHeader(target, targetOffset, key.getLength(), value.getLength(), version);
 
         // Key
-        System.arraycopy(key.array(), key.arrayOffset(), target, targetOffset, key.getLength());
+        key.copyTo(ByteBuffer.wrap(target, targetOffset, key.getLength()));
         targetOffset += key.getLength();
 
         // Value.
@@ -164,7 +164,7 @@ class EntrySerializer {
         targetOffset = writeHeader(target, targetOffset, key.getLength(), NO_VALUE, TableKey.NO_VERSION);
 
         // Key
-        System.arraycopy(key.array(), key.arrayOffset(), target, targetOffset, key.getLength());
+        key.copyTo(ByteBuffer.wrap(target, targetOffset, key.getLength()));
         return targetOffset + key.getLength();
     }
 

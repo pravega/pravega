@@ -21,7 +21,7 @@ import org.junit.Test;
 /**
  * Unit tests for the HashedArray class.
  */
-public class HashedArrayTests {
+public class AbstractBufferViewTests {
     private static final int COUNT = 1000;
     private static final int MAX_LENGTH = 100;
 
@@ -32,10 +32,10 @@ public class HashedArrayTests {
     public void testEqualsHashCode() {
         val data1 = generate();
         val data2 = copy(data1);
-        HashedArray prev = null;
+        ByteArraySegment prev = null;
         for (int i = 0; i < data1.size(); i++) {
-            val a1 = new HashedArray(data1.get(i));
-            val a2 = new HashedArray(data2.get(i));
+            val a1 = data1.get(i);
+            val a2 = data2.get(i);
             Assert.assertEquals("Expecting hashCode() to be the same for the same array contents.", a1.hashCode(), a2.hashCode());
             Assert.assertTrue("Expecting equals() to return true for the same array contents.", a1.equals(a2) && a2.equals(a1));
             if (prev != null) {
@@ -46,10 +46,24 @@ public class HashedArrayTests {
         }
     }
 
+    /**
+     * Tests equals() and hashCode().
+     */
+    @Test
+    public void testEqualsHashCodeComposite() {
+        val data = generate();
+        val b = data.get(data.size() - 1);
+        val s1 = b.slice(0, b.getLength() / 2);
+        val s2 = b.slice(b.getLength() / 2, b.getLength() / 2);
+        val cb = BufferView.wrap(Arrays.asList(s1, s2));
+        Assert.assertEquals(b.hashCode(), cb.hashCode());
+       Assert.assertEquals(b, cb);
+    }
+
     private List<ByteArraySegment> copy(List<ByteArraySegment> source) {
         return source.stream()
-                     .map(a -> new ByteArraySegment(Arrays.copyOf(a.array(), a.array().length), a.arrayOffset(), a.getLength()))
-                     .collect(Collectors.toList());
+                .map(a -> new ByteArraySegment(Arrays.copyOf(a.array(), a.array().length), a.arrayOffset(), a.getLength()))
+                .collect(Collectors.toList());
     }
 
     private List<ByteArraySegment> generate() {

@@ -11,8 +11,8 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -287,7 +287,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
      * @param context TestContext.
      * @return A Map of Keys to {@link KeyData}.
      */
-    private Map<HashedArray, KeyData> populate(TestContext context) {
+    private Map<BufferView, KeyData> populate(TestContext context) {
         val rnd = new Random(0);
 
         // Generate keys.
@@ -295,7 +295,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         for (int i = 0; i < KEY_COUNT; i++) {
             byte[] key = new byte[KEY_LENGTH];
             rnd.nextBytes(key);
-            keys.add(new KeyData(new HashedArray(key)));
+            keys.add(new KeyData(new ByteArraySegment(key)));
         }
 
         // Populate segment.
@@ -327,7 +327,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
                 val keyData = keys.get(keyIndex);
                 byte[] valueData = new byte[VALUE_LENGTH];
                 rnd.nextBytes(valueData);
-                val value = new HashedArray(valueData);
+                val value = new ByteArraySegment(valueData);
 
                 // Serialize and append it to the segment.
                 val entry = TableEntry.unversioned(keyData.key, value);
@@ -386,7 +386,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
      * @param context TestContext.
      * @return Result.
      */
-    private List<KeyInfo> sort(Map<HashedArray, KeyData> keys, TestContext context) {
+    private List<KeyInfo> sort(Map<BufferView, KeyData> keys, TestContext context) {
         val result = new ArrayList<KeyInfo>();
         for (val keyData : keys.values()) {
             long lastOffset = keyData.values.lastKey();
@@ -468,7 +468,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
 
     @RequiredArgsConstructor
     private static class KeyInfo {
-        final HashedArray key;
+        final BufferView key;
         final long offset;
         final int length;
         final boolean isActive;
@@ -480,11 +480,11 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
     }
 
     private static class KeyData {
-        final HashedArray key;
+        final BufferView key;
         final UUID keyHash;
         final SortedMap<Long, TableEntry> values = new TreeMap<>();
 
-        KeyData(HashedArray key) {
+        KeyData(BufferView key) {
             this.key = key;
             this.keyHash = KEY_HASHER.hash(key);
         }

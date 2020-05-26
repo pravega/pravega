@@ -25,7 +25,7 @@ import lombok.NonNull;
 /**
  * Provides a unified view of multiple wrapped {@link BufferView} instances.
  */
-class CompositeBufferView implements BufferView {
+class CompositeBufferView extends AbstractBufferView implements BufferView {
     //region Members
 
     private final List<BufferView> components;
@@ -141,6 +141,13 @@ class CompositeBufferView implements BufferView {
         }
 
         return result;
+    }
+
+    @Override
+    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT {
+        for (BufferView bv : this.components) {
+            bv.collect(collectBuffer);
+        }
     }
 
     @Override

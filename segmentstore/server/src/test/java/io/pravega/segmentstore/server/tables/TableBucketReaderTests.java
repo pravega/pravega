@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
@@ -72,7 +71,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         val validKey = data.entries.get(1).getKey();
         val validResult = reader.find(validKey.getKey(), data.getBucketOffset(), new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected version from valid key.", data.getEntryOffset(1), validResult.getVersion());
-        Assert.assertTrue("Unexpected 'valid' key returned.", HashedArray.arrayEquals(validKey.getKey(), validResult.getKey()));
+        Assert.assertEquals("Unexpected 'valid' key returned.", validKey.getKey(), validResult.getKey());
 
         // Check a key that does not exist.
         val invalidKey = data.unlinkedEntry.getKey();
@@ -98,8 +97,8 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         val validEntry = data.entries.get(1);
         val validResult = reader.find(validEntry.getKey().getKey(), data.getBucketOffset(), new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected version from valid key.", data.getEntryOffset(1), validResult.getKey().getVersion());
-        Assert.assertTrue("Unexpected 'valid' key returned.", HashedArray.arrayEquals(validEntry.getKey().getKey(), validResult.getKey().getKey()));
-        Assert.assertTrue("Unexpected 'valid' key returned.", validEntry.getValue().contentEquals(validResult.getValue()));
+        Assert.assertEquals("Unexpected 'valid' key returned.", validEntry.getKey().getKey(), validResult.getKey().getKey());
+        Assert.assertEquals("Unexpected 'valid' key returned.", validEntry.getValue(), validResult.getValue());
 
         // Check a key that does not exist.
         val invalidKey = data.unlinkedEntry.getKey();

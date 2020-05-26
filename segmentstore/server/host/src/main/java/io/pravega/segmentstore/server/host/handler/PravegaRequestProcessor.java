@@ -704,7 +704,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.debug(readTable.getRequestId(), "Get Table Segment Keys: Segment={}, Count={}.",
                 readTable.getSegment(), readTable.getKeys());
 
-        final List<ArrayView> keys = readTable.getKeys().stream()
+        final List<BufferView> keys = readTable.getKeys().stream()
                 .map(k -> getArrayView(k.getData()))
                 .collect(Collectors.toList());
         val timer = new Timer();
@@ -826,6 +826,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private ArrayView getArrayView(ByteBuf buf) {
+        // TODO: eliminate the copy here.
         final int length = buf.readableBytes();
         if (buf.hasArray()) {
             return new ByteArraySegment(buf.array(), buf.readerIndex(), length);
@@ -837,17 +838,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
     }
 
-    private WireCommands.TableEntries getTableEntriesCommand(final List<ArrayView> inputKeys, final List<TableEntry> resultEntries) {
-
+    private WireCommands.TableEntries getTableEntriesCommand(final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {
         Preconditions.checkArgument(resultEntries.size() == inputKeys.size(), "Number of input keys should match result entry count.");
         final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries =
                 IntStream.range(0, resultEntries.size())
                          .mapToObj(i -> {
                              TableEntry resultTableEntry = resultEntries.get(i);
                              if (resultTableEntry == null) { // no entry for key at index i.
-                                 ArrayView k = inputKeys.get(i); // key for which the read result was null.
-                                 val keyWireCommand = new WireCommands.TableKey(wrappedBuffer(k.array(), k.arrayOffset(), k.getLength()),
-                                                                                TableKey.NOT_EXISTS);
+                                 BufferView k = inputKeys.get(i); // key for which the read result was null.
+                                 val keyWireCommand = new WireCommands.TableKey(getData(k), TableKey.NOT_EXISTS);
                                  return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, WireCommands.TableValue.EMPTY);
                              } else {
                                  TableEntry te = resultEntries.get(i);

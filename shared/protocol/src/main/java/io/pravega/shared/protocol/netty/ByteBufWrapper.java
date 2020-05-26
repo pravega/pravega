@@ -12,6 +12,7 @@ package io.pravega.shared.protocol.netty;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.AbstractBufferView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
@@ -28,7 +29,7 @@ import lombok.RequiredArgsConstructor;
  * {@link BufferView} wrapper for {@link ByteBuf} instances.
  */
 @NotThreadSafe
-public class ByteBufWrapper implements BufferView {
+public class ByteBufWrapper extends AbstractBufferView implements BufferView {
     //region Members
 
     private final ByteBuf buf;
@@ -78,6 +79,13 @@ public class ByteBufWrapper implements BufferView {
     @Override
     public List<ByteBuffer> getContents() {
         return Arrays.asList(this.buf.nioBuffers());
+    }
+
+    @Override
+    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT {
+        for (ByteBuffer bb : this.buf.duplicate().nioBuffers()) {
+            collectBuffer.accept(bb);
+        }
     }
 
     @Override

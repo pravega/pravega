@@ -84,9 +84,9 @@ public class EntrySerializerTests {
             Assert.assertEquals("Unexpected key length (array).", key.getKey().getLength(), headerArray.getKeyLength());
             Assert.assertTrue("Unexpected value from isDeletion().", headerStream.isDeletion() && headerArray.isDeletion());
 
-            AssertExtensions.assertArrayEquals("Unexpected serialized key.",
-                    serialization, offset + headerStream.getKeyOffset(),
-                    key.getKey().array(), key.getKey().arrayOffset(), headerStream.getKeyLength());
+            Assert.assertEquals("Unexpected serialized key.",
+                    new ByteArraySegment(serialization, offset + headerStream.getKeyOffset(), headerStream.getKeyLength()),
+                    key.getKey());
 
             AssertExtensions.assertThrows(
                     "Able to retrieve value for deletion header.",
@@ -143,13 +143,13 @@ public class EntrySerializerTests {
         Assert.assertEquals("Unexpected value length (array).", e.getValue().getLength(), headerArray.getValueLength());
         Assert.assertFalse("Unexpected value from isDeletion().", headerStream.isDeletion() || headerArray.isDeletion());
 
-        AssertExtensions.assertArrayEquals("Unexpected serialized key.",
-                serialization, offset + headerStream.getKeyOffset(),
-                e.getKey().getKey().array(), e.getKey().getKey().arrayOffset(), headerStream.getKeyLength());
+        Assert.assertEquals("Unexpected serialized key.",
+                new ByteArraySegment(serialization, offset + headerStream.getKeyOffset(), headerStream.getKeyLength()),
+                e.getKey().getKey());
 
-        Assert.assertTrue("Unexpected serialized value.",
-                new ByteArraySegment(serialization, offset + headerStream.getValueOffset(), headerStream.getValueLength())
-                        .contentEquals(e.getValue()));
+        Assert.assertEquals("Unexpected serialized value.",
+                new ByteArraySegment(serialization, offset + headerStream.getValueOffset(), headerStream.getValueLength()),
+                e.getValue());
 
         return headerArray.getTotalLength();
     }

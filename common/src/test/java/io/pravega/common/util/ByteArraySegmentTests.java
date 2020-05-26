@@ -79,10 +79,6 @@ public class ByteArraySegmentTests {
             Assert.assertEquals("Unexpected value after copyFrom (1) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
         }
 
-        Assert.assertTrue(source.slice(0, copyLength).contentEquals(target.slice(targetOffset, copyLength)));
-        Assert.assertFalse(source.slice(0, copyLength).contentEquals(target));
-        Assert.assertFalse(source.contentEquals(target));
-
         // Test copyFrom with source offset.
         Arrays.fill(targetBuffer, (byte) 0);
         final int sourceOffset = 3;
