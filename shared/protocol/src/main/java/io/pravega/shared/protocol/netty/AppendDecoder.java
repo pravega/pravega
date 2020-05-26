@@ -20,7 +20,7 @@ import java.util.UUID;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static io.netty.buffer.Unpooled.wrappedUnmodifiableBuffer;
 
 /**
  * AppendBlocks are decoded specially to avoid having to parse every append individually.
@@ -206,9 +206,9 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 // See https://github.com/netty/netty/issues/5597
                 if (appendDataBuf.readableBytes() == 0) {
                     currentBlock.release();
-                    appendDataBuf = wrappedBuffer(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
+                    appendDataBuf = wrappedUnmodifiableBuffer(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
                 } else {
-                    appendDataBuf = wrappedBuffer(appendDataBuf, ((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
+                    appendDataBuf = wrappedUnmodifiableBuffer(appendDataBuf, ((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
                 }
             }
         }
