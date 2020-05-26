@@ -12,6 +12,7 @@ package io.pravega.common.security;
 import io.pravega.test.common.JwtBody;
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 import static org.junit.Assert.assertEquals;
@@ -33,7 +34,7 @@ public class JwtUtilsTest {
         //     }
         JwtBody jwtBody = JwtBody.builder().subject("1234567890").audience("segmentstore").issuedAtTime(1516239022L).build();
         String token = String.format("%s.%s.%s", "base64-encoded-header",
-                Base64.getEncoder().encodeToString(jwtBody.toString().getBytes()),
+                Base64.getEncoder().encodeToString(jwtBody.toString().getBytes(StandardCharsets.US_ASCII)),
                 "base64-encoded-signature");
 
         assertNull(JwtUtils.extractExpirationTime(token));

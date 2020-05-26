@@ -9,6 +9,7 @@
  */
 package io.pravega.test.common;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 
@@ -25,7 +26,7 @@ public class JwtTestUtils {
      */
     public static String toCompact(JwtBody jwtBodyPart) {
         String json = jwtBodyPart.toString();
-        return Base64.getEncoder().encodeToString(json.getBytes());
+        return Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

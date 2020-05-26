@@ -17,7 +17,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.SneakyThrows;
 
-import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Represents a JWT body for serialization/deserialization purposes.
@@ -27,6 +27,8 @@ import java.io.StringReader;
 @Setter
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class JwtBody {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     // See https://tools.ietf.org/html/rfc7519#page-9 for additional details about these fields.
 
@@ -58,13 +60,11 @@ public class JwtBody {
     @SneakyThrows
     @Override
     public String toString() {
-        return new ObjectMapper().writeValueAsString(this);
+        return MAPPER.writeValueAsString(this);
     }
 
     @SneakyThrows
     public static JwtBody fromJson(String json) {
-        try (StringReader jsonReader = new StringReader(json)) {
-            return new ObjectMapper().readValue(jsonReader, JwtBody.class);
-        }
+        return MAPPER.readValue(json.getBytes(StandardCharsets.UTF_8), JwtBody.class);
     }
 }

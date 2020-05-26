@@ -11,20 +11,23 @@ package io.pravega.test.common;
 
 import org.junit.Test;
 import java.time.Instant;
+
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class JwtBodyTest {
 
     @Test
     public void testSerialize() {
         JwtBody jwtBody = JwtBody.builder()
-                .subject("subject")
+                .subject("testsubject")
                 .audience("segmentstore")
                 .issuedAtTime(Instant.now().getEpochSecond())
                 .expirationTime(Instant.now().plusSeconds(50).getEpochSecond())
                 .build();
-        assertNotNull(jwtBody.toString());
+        String jwtBodyJson = jwtBody.toString();
+        assertTrue(jwtBodyJson.contains("testsubject"));
+        assertTrue(jwtBodyJson.contains("segmentstore"));
     }
 
     @Test
