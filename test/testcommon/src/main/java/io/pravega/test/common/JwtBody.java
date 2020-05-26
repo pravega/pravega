@@ -9,6 +9,7 @@
  */
 package io.pravega.test.common;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Builder;
@@ -24,6 +25,7 @@ import java.io.StringReader;
 @Builder
 @Getter
 @Setter
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class JwtBody {
 
     // See https://tools.ietf.org/html/rfc7519#page-9 for additional details about these fields.

@@ -12,6 +12,8 @@ package io.pravega.common.security;
 import io.pravega.test.common.JwtBody;
 import org.junit.Test;
 
+import java.util.Base64;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -29,8 +31,9 @@ public class JwtUtilsTest {
         //        "aud": "segmentstore",
         //        "iat": 1516239022
         //     }
+        JwtBody jwtBody = JwtBody.builder().subject("1234567890").audience("segmentstore").issuedAtTime(1516239022L).build();
         String token = String.format("%s.%s.%s", "base64-encoded-header",
-                JwtBody.builder().subject("1234567890").audience("segmentstore").issuedAtTime(1516239022L).build(),
+                Base64.getEncoder().encodeToString(jwtBody.toString().getBytes()),
                 "base64-encoded-signature");
 
         assertNull(JwtUtils.extractExpirationTime(token));
