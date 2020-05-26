@@ -15,7 +15,6 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CollectionHelpers;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -33,7 +32,11 @@ import io.pravega.shared.NameUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
@@ -869,6 +872,7 @@ public class RollingStorage implements SyncStorage {
                 throw new NoSuchElementException();
             }
         }
+
         /**
          * Method to check the presence of next element in the iterator.
          * It also sets the position of the current element for Next method, but repetitive call to this method before Next

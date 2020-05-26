@@ -33,6 +33,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -42,7 +43,6 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IOUtils;
@@ -494,7 +494,7 @@ class HDFSStorage implements SyncStorage {
     @Override
     public Iterator<SegmentProperties> listSegments() throws IOException {
         try {
-            return new HDFSSegmentIterator(this.fileSystem.listStatusIterator(new Path(config.getHdfsRoot() + Path.SEPARATOR)),
+            return new HDFSSegmentIterator(this.fileSystem.listStatus(new Path(config.getHdfsRoot() + Path.SEPARATOR)),
                     fileStatus -> {
                         String fileName = fileStatus.getPath().getName();
                         int index = fileName.lastIndexOf(PART_SEPARATOR);
@@ -694,16 +694,28 @@ class HDFSStorage implements SyncStorage {
     /**
      * Iterator for segments in HDFS Storage.
      */
-    public static class HDFSSegmentIterator implements Iterator<SegmentProperties> {
+    private static class HDFSSegmentIterator implements Iterator<SegmentProperties> {
         protected FileStatus current;
-        private final RemoteIterator<FileStatus> results;
-        private final java.util.function.Predicate<FileStatus> patternMatchPredicate;
-        private boolean isAvailable;
+        private final Iterator<SegmentProperties> results;
 
-        HDFSSegmentIterator(RemoteIterator<FileStatus> results, java.util.function.Predicate<FileStatus> patternMatchPredicate) {
-            this.results = results;
-            this.patternMatchPredicate = patternMatchPredicate;
-            this.isAvailable = false;
+        HDFSSegmentIterator(FileStatus[] results, java.util.function.Predicate<FileStatus> patternMatchPredicate) {
+                this.results = Arrays.asList(results).stream()
+                        .filter(patternMatchPredicate)
+                        .map(this::toSegmentProperties)
+                        .iterator();
+        }
+
+        public SegmentProperties toSegmentProperties(FileStatus fileStatus) {
+            try {
+                boolean isSealed = isSealed(fileStatus.getPath());
+                return StreamSegmentInformation.builder()
+                        .name(getSegmentNameFromPath(fileStatus.getPath()))
+                        .length(fileStatus.getLen())
+                        .sealed(isSealed).build();
+            } catch (Exception e) {
+                log.error("Exception found");
+                return null;
+            }
         }
 
         /**
@@ -714,24 +726,11 @@ class HDFSStorage implements SyncStorage {
          */
         @Override
         public boolean hasNext() {
-            if (isAvailable) {
-                return true;
-            }
             try {
-                if (results != null) {
-                    while (results.hasNext()) {
-                        current = results.next();
-                        if (patternMatchPredicate.test(current)) {
-                            isAvailable = true;
-                            return true;
-                        }
-                    }
-                }
-            } catch (IOException e) {
-                log.error("Exception occurred while trying to check the next object.", e);
+                return results.hasNext();
+            } catch (Exception e) {
+                return false;
             }
-            current = null;
-            return false;
         }
 
         /**
@@ -741,20 +740,11 @@ class HDFSStorage implements SyncStorage {
          */
         @Override
         public SegmentProperties next() throws NoSuchElementException {
-            if (hasNext()) { // Check if next exists. Also sets the current object to the next one in the list.
-                try {
-                    isAvailable = false;
-                    boolean isSealed = isSealed(current.getPath());
-                    return StreamSegmentInformation.builder()
-                            .name(getSegmentNameFromPath(current.getPath()))
-                            .length(current.getLen())
-                            .sealed(isSealed).build();
-                } catch (FileNameFormatException e) {
-                    isAvailable = true;
-                    log.error("Exception occurred while trying to get the next object.", e);
-                }
+            try {
+                return results.next();
+            } catch (Exception e) {
+                throw new NoSuchElementException();
             }
-            throw new NoSuchElementException();
         }
     }
     //endregion
