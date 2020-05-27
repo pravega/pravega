@@ -1517,12 +1517,18 @@ public abstract class StreamMetadataTasksTest {
 
     @Test(timeout = 30000)
     public void testWorkflowCompletionTimeout() {
+<<<<<<< HEAD
         EventHelper helper = EventHelperMock.getEventHelperMock(executor, "host", ((AbstractStreamMetadataStore) streamStorePartialMock).getHostTaskIndex());
 
         StreamMetadataTasks streamMetadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore,
                 TaskStoreFactory.createZKStore(zkClient, executor),
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host",
                 new GrpcAuthHelper(authEnabled, "key", 300), requestTracker, helper);
+=======
+        StreamMetadataTasks streamMetadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore, TaskStoreFactory.createZKStore(zkClient, executor),
+                SegmentHelperMock.getSegmentHelperMock(), executor, executor, "host",
+                new GrpcAuthHelper(authEnabled, "key", 300), requestTracker);
+>>>>>>> Issue 4783: Timebound check for completion of workflow to avoid log flooding (#4800)
         streamMetadataTask.setCompletionTimeoutMillis(500L);
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
 
