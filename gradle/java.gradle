@@ -86,6 +86,9 @@ plugins.withId('java') {
         maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
         minHeapSize = "128m"
         maxHeapSize = "512m"
+        def jvmArgsCopy = jvmArgs
+        jvmArgsCopy.add("-XX:MaxDirectMemorySize=2g")
+        jvmArgs = jvmArgsCopy
     }
 
     dependencies {
