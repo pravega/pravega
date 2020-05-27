@@ -849,7 +849,7 @@ public class RollingStorage implements SyncStorage {
      * Iterator for segments in Rolling storage.
      */
     private static class RollingStorageSegmentIterator implements Iterator<SegmentProperties> {
-        protected RollingStorage instance;
+        protected final RollingStorage instance;
         private final Iterator<SegmentProperties> results;
 
         RollingStorageSegmentIterator(RollingStorage instance, Iterator<SegmentProperties> results, java.util.function.Predicate<SegmentProperties> patternMatchPredicate) {
@@ -890,11 +890,7 @@ public class RollingStorage implements SyncStorage {
          */
         @Override
         public SegmentProperties next() throws NoSuchElementException {
-            try {
-                return results.next();
-            } catch (NoSuchElementException e) {
-                throw e;
-            }
+            return results.next();
         }
     }
     //endregion

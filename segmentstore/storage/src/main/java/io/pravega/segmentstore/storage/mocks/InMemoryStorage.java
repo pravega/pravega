@@ -199,10 +199,11 @@ public class InMemoryStorage implements SyncStorage {
 
     @Override
     public Iterator<SegmentProperties> listSegments() {
+        Collection<StreamSegmentData> copyValues;
         synchronized (this) {
-            Collection<StreamSegmentData> copyValues = this.streamSegments.values();
-            return copyValues.stream().map(s -> s.getInfo()).iterator();
+            copyValues = new ArrayList<>(this.streamSegments.values());
         }
+        return copyValues.stream().map(s -> s.getInfo()).iterator();
     }
 
     /**
