@@ -21,6 +21,7 @@ import io.pravega.test.common.ErrorInjector;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -196,6 +197,11 @@ public class TestStorage implements Storage {
     @Override
     public boolean supportsTruncation() {
         return true;
+    }
+
+    @Override
+    public Iterator<SegmentProperties> listSegments() {
+        return null;
     }
 
     @Override

@@ -17,6 +17,8 @@ import com.emc.object.s3.bean.AccessControlList;
 import com.emc.object.s3.bean.CanonicalUser;
 import com.emc.object.s3.bean.CopyPartResult;
 import com.emc.object.s3.bean.Grant;
+import com.emc.object.s3.bean.ListObjectsResult;
+import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
@@ -43,6 +45,8 @@ import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
@@ -546,4 +550,78 @@ public class ExtendedS3Storage implements SyncStorage {
 
     //endregion
 
+    @Override
+    public Iterator<SegmentProperties> listSegments() {
+        return new ExtendedS3SegmentIterator(s3object -> true);
+    }
+
+    /**
+     * Iterator for segments in ExtendedS3Storage.
+     */
+    private class ExtendedS3SegmentIterator implements Iterator<SegmentProperties> {
+        private final java.util.function.Predicate<S3Object> patternMatchPredicate;
+        private final ListObjectsResult results;
+        private Iterator<SegmentProperties> innerIterator;
+        private boolean nextBatch;
+
+        ExtendedS3SegmentIterator(java.util.function.Predicate<S3Object> patternMatchPredicate) {
+            this.results = client.listObjects(config.getBucket(), config.getPrefix());
+            this.innerIterator = client.listObjects(config.getBucket(), config.getPrefix()).getObjects().stream()
+                    .filter(patternMatchPredicate)
+                    .map(this::toSegmentProperties)
+                    .iterator();
+            this.patternMatchPredicate = patternMatchPredicate;
+            this.nextBatch = false;
+        }
+
+        /**
+         * Transforms a S3Object to SegmentProperties.
+         * @param s3Object The S3Object to be transformed.
+         * @return A SegmentProperties object.
+         */
+        public SegmentProperties toSegmentProperties(S3Object s3Object) {
+            AccessControlList acls = client.getObjectAcl(config.getBucket(), s3Object.getKey());
+            boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
+            return StreamSegmentInformation.builder()
+                    .name(s3Object.getKey().replaceFirst(config.getPrefix(), ""))
+                    .length(s3Object.getSize())
+                    .sealed(!canWrite)
+                    .lastModified(new ImmutableDate(s3Object.getLastModified().toInstant().toEpochMilli()))
+                    .build();
+        }
+
+        /**
+         * Method to check the presence of next element in the iterator.
+         * @return true if the next element is there, else false.
+         */
+        @Override
+        public boolean hasNext() {
+            if (innerIterator == null) {
+                return false;
+            }
+            if (innerIterator.hasNext()) {
+                return true;
+            } else {
+                if (nextBatch || results.getObjects().size() < results.getMaxKeys()) {
+                    return false;
+                }
+                innerIterator = client.listMoreObjects(results).getObjects().stream()
+                        .filter(patternMatchPredicate)
+                        .map(this::toSegmentProperties)
+                        .iterator();
+                nextBatch = true;
+                return innerIterator.hasNext();
+            }
+        }
+
+        /**
+         * Method to return the next element in the iterator.
+         * @return A newly created StreamSegmentInformation class.
+         * @throws NoSuchElementException in case of an unexpected failure.
+         */
+        @Override
+        public SegmentProperties next() throws NoSuchElementException {
+            return innerIterator.next();
+        }
+    }
 }

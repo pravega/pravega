@@ -193,6 +193,16 @@ public final class NameUtils {
     }
 
     /**
+     * Checks whether given name is a Header Segment.
+     *
+     * @param segmentName The name of the segment.
+     * @return true if the name is Header Segment. False otherwise
+     */
+    public static boolean isHeaderSegment(String segmentName) {
+        return segmentName.endsWith(HEADER_SUFFIX);
+    }
+
+    /**
      * Gets the name of the Segment name from its Header Segment Name.
      *
      * @param headerSegmentName The name of the Header Segment.
