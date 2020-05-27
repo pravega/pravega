@@ -25,6 +25,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
+import java.util.Iterator;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -185,6 +186,35 @@ public class FileSystemStorage implements SyncStorage {
     @Override
     public boolean supportsTruncation() {
         return false;
+    }
+
+    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "OS_OPEN_STREAM", justification = "Rare operation. " +
+            "The leaked object is collected by GC. In case of a iteraror in a for loop this would be fast.")
+    @Override
+    public Iterator<SegmentProperties> listSegments() throws IOException {
+        try {
+            return Files.find(Paths.get(config.getRoot()),
+                    Integer.MAX_VALUE,
+                    (filePath, fileAttr) -> fileAttr.isRegularFile())
+                    .map(path -> (SegmentProperties) getStreamSegmentInformation(config.getRoot(), path))
+                    .iterator();
+        } catch (IOException e) {
+            log.error("Exception occurred while listing the segments.", e);
+            throw e;
+        }
+    }
+
+    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings
+    @SneakyThrows
+    private static StreamSegmentInformation getStreamSegmentInformation(String root, Path path) {
+        PosixFileAttributes attrs = Files.readAttributes(path.toAbsolutePath(),
+                PosixFileAttributes.class);
+        return StreamSegmentInformation.builder()
+                .name(Paths.get(root).relativize(path).toString())
+                .length(attrs.size())
+                .sealed(!(attrs.permissions().contains(OWNER_WRITE)))
+                .lastModified(new ImmutableDate(attrs.creationTime().toMillis()))
+                .build();
     }
 
     //endregion
