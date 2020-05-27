@@ -684,7 +684,7 @@ class HDFSStorage implements SyncStorage {
                         }
                         return true;
                     });
-        } catch (Exception e) {
+        } catch (IOException e) {
             log.error("Exception occurred while listing the segments.", e);
             throw e;
         }
@@ -710,7 +710,7 @@ class HDFSStorage implements SyncStorage {
                         .name(getSegmentNameFromPath(fileStatus.getPath()))
                         .length(fileStatus.getLen())
                         .sealed(isSealed).build();
-            } catch (Exception e) {
+            } catch (FileNameFormatException e) {
                 log.error("Exception occurred while transforming the object into SegmentProperties.");
                 return null;
             }
