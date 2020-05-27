@@ -31,17 +31,20 @@ import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.fault.FailoverSweeper;
-import io.pravega.controller.server.eventProcessor.requesthandlers.stream.*;
+import io.pravega.controller.server.eventProcessor.requesthandlers.*;
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.*;
 
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
+import io.pravega.controller.store.kvtable.TableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
-import io.pravega.shared.controller.event.stream.AbortEvent;
-import io.pravega.shared.controller.event.stream.CommitEvent;
+import io.pravega.shared.controller.event.AbortEvent;
+import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -81,9 +84,11 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private EventProcessorGroup<CommitEvent> commitEventProcessors;
     private EventProcessorGroup<AbortEvent> abortEventProcessors;
     private EventProcessorGroup<ControllerEvent> requestEventProcessors;
+    private EventProcessorGroup<ControllerEvent> kvtRequestEventProcessors;
     private final StreamRequestHandler streamRequestHandler;
     private final CommitRequestHandler commitRequestHandler;
     private final AbortRequestHandler abortRequestHandler;
+    private final TableRequestHandler kvtRequestHandler;
     private final long rebalanceIntervalMillis;
     private ScheduledExecutorService rebalanceExecutor;
 
@@ -96,9 +101,11 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                                     final TableMetadataStore kvtMetadataStore,
+                                     final TableMetadataTasks kvtMetadataTasks,
                                      final ScheduledExecutorService executor) {
         this(host, config, controller, checkpointStore, streamMetadataStore, bucketStore, connectionFactory,
-                streamMetadataTasks, streamTransactionMetadataTasks, null, executor);
+                streamMetadataTasks, streamTransactionMetadataTasks,  kvtMetadataStore, kvtMetadataTasks, null, executor);
     }
 
     @VisibleForTesting
@@ -111,6 +118,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                                     final TableMetadataStore kvtMetadataStore,
+                                     final TableMetadataTasks kvtMetadataTasks,
                                      final EventProcessorSystem system,
                                      final ScheduledExecutorService executor) {
         this.objectId = "ControllerEventProcessors";
@@ -130,6 +139,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 executor);
         this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, executor);
+        this.kvtRequestHandler = new TableRequestHandler(new CreateTableTask(kvtMetadataStore, kvtMetadataTasks, executor), kvtMetadataStore, executor);
         this.executor = executor;
         this.rebalanceIntervalMillis = config.getRebalanceIntervalMillis();
     }
@@ -373,7 +383,6 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         // endregion
 
         // region Create request event processor
-
         EventProcessorGroupConfig requestReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
                         .streamName(config.getRequestStreamName())
@@ -391,7 +400,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .minRebalanceIntervalMillis(rebalanceIntervalMillis)
                         .build();
 
-        log.info("Creating request event processors");
+        log.info("Creating stream request event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating request event processor group", e))
                 .run(() -> {
@@ -401,12 +410,41 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
 
         // endregion
 
+        // region Create KVtable event processor
+        EventProcessorGroupConfig kvtReadersConfig =
+                EventProcessorGroupConfigImpl.builder()
+                        .streamName(config.getKvtStreamName())
+                        .readerGroupName(config.getKvtReaderGroupName())
+                        .eventProcessorCount(1)
+                        .checkpointConfig(CheckpointConfig.none())
+                        .build();
+
+        EventProcessorConfig<ControllerEvent> kvtRequestConfig =
+                EventProcessorConfig.builder()
+                        .config(kvtReadersConfig)
+                        .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
+                        .serializer(CONTROLLER_EVENT_SERIALIZER)
+                        .supplier(() -> new ConcurrentEventProcessor<>(kvtRequestHandler, executor))
+                        .minRebalanceIntervalMillis(rebalanceIntervalMillis)
+                        .build();
+
+        log.info("Creating kvt request event processors");
+        Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
+                e -> log.warn("Error creating request event processor group", e))
+                .run(() -> {
+                    kvtRequestEventProcessors = system.createEventProcessorGroup(kvtRequestConfig, checkpointStore, rebalanceExecutor);
+                    return null;
+                });
+
+        // endregion
         log.info("Awaiting start of commit event processors");
         commitEventProcessors.awaitRunning();
         log.info("Awaiting start of abort event processors");
         abortEventProcessors.awaitRunning();
-        log.info("Awaiting start of request event processors");
+        log.info("Awaiting start of stream request event processors");
         requestEventProcessors.awaitRunning();
+        log.info("Awaiting start of kvt request event processors");
+        kvtRequestEventProcessors.awaitRunning();
     }
 
     private void stopEventProcessors() {
@@ -422,6 +460,11 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             log.info("Stopping request event processors");
             requestEventProcessors.stopAsync();
         }
+        if (kvtRequestEventProcessors != null) {
+            log.info("Stopping kvt request event processors");
+            kvtRequestEventProcessors.stopAsync();
+        }
+
         if (commitEventProcessors != null) {
             log.info("Awaiting termination of commit event processors");
             commitEventProcessors.awaitTerminated();
@@ -433,6 +476,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         if (requestEventProcessors != null) {
             log.info("Awaiting termination of request event processors");
             requestEventProcessors.awaitTerminated();
+        }
+        if (kvtRequestEventProcessors != null) {
+            log.info("Awaiting termination of kvt request event processors");
+            kvtRequestEventProcessors.awaitTerminated();
         }
     }
 }

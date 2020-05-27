@@ -15,7 +15,6 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.function.Supplier;
 
-import io.pravega.shared.controller.event.stream.*;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;

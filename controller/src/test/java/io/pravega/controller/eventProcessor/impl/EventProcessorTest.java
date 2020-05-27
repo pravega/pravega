@@ -35,7 +35,7 @@ import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.RequestProcessor;
+import io.pravega.shared.controller.event.StreamRequestProcessor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -96,7 +96,7 @@ public class EventProcessorTest {
         }
 
         @Override
-        public CompletableFuture<Void> process(RequestProcessor processor) {
+        public CompletableFuture<Void> process(StreamRequestProcessor processor) {
             return CompletableFuture.completedFuture(null);
         }
     }

@@ -12,7 +12,7 @@ package io.pravega.controller.eventProcessor.impl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.RequestProcessor;
+import io.pravega.shared.controller.event.StreamRequestProcessor;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Data;
@@ -380,7 +380,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> process(RequestProcessor processor) {
+        public CompletableFuture<Void> process(StreamRequestProcessor processor) {
             return CompletableFuture.completedFuture(null);
         }
 
@@ -401,7 +401,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> process(RequestProcessor processor) {
+        public CompletableFuture<Void> process(StreamRequestProcessor processor) {
             return CompletableFuture.completedFuture(null);
         }
     }

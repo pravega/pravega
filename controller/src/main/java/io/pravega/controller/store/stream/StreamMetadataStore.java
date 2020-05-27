@@ -49,18 +49,6 @@ import java.util.concurrent.ScheduledExecutorService;
 public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
 
     /**
-     * Method to create an operation context. A context ensures that multiple calls to store for the same data are avoided
-     * within the same operation. All api signatures are changed to accept context. If context is supplied, the data will be
-     * looked up within the context and, upon a cache miss, will be fetched from the external store and cached within the context.
-     * Once an operation completes, the context is discarded.
-     *
-     * @param scope Stream scope.
-     * @param name  Stream name.
-     * @return Return a streamContext
-     */
-    //OperationContext<Stream> createContext(final String scope, final String name);
-
-    /**
      * Creates a new stream with the given name and configuration.
      *
      * @param scopeName       scope name

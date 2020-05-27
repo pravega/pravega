@@ -14,7 +14,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.controller.event.stream.AutoScaleEvent;
+import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.ThreadPooledTestSuite;

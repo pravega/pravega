@@ -23,7 +23,7 @@ import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.stream.*;
-import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.TableMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
@@ -40,7 +40,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.task.KeyValueTable.KVTableMetadataTasks;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -68,8 +68,8 @@ import org.apache.commons.lang3.tuple.Pair;
 @AllArgsConstructor
 @Slf4j
 public class ControllerService {
-    private final KVTableMetadataStore kvtMetadataStore;
-    private final KVTableMetadataTasks kvtMetadataTasks;
+    private final TableMetadataStore kvtMetadataStore;
+    private final TableMetadataTasks kvtMetadataTasks;
     private final StreamMetadataStore streamStore;
     private final BucketStore bucketStore;
     private final StreamMetadataTasks streamMetadataTasks;

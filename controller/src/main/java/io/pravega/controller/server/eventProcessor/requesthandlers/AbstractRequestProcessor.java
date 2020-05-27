@@ -15,25 +15,24 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.store.ArtifactStore;
-import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.TableMetadataStore;
 import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.shared.controller.event.kvtable.CreateKVTableEvent;
-import io.pravega.shared.controller.event.stream.AbortEvent;
-import io.pravega.shared.controller.event.stream.AutoScaleEvent;
-import io.pravega.shared.controller.event.stream.CommitEvent;
+import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
+import io.pravega.shared.controller.event.AbortEvent;
+import io.pravega.shared.controller.event.AutoScaleEvent;
+import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.stream.DeleteStreamEvent;
-import io.pravega.shared.controller.event.RequestProcessor;
-import io.pravega.shared.controller.event.stream.ScaleOpEvent;
-import io.pravega.shared.controller.event.stream.SealStreamEvent;
-import io.pravega.shared.controller.event.stream.TruncateStreamEvent;
-import io.pravega.shared.controller.event.stream.UpdateStreamEvent;
+import io.pravega.shared.controller.event.DeleteStreamEvent;
+import io.pravega.shared.controller.event.StreamRequestProcessor;
+import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.SealStreamEvent;
+import io.pravega.shared.controller.event.TruncateStreamEvent;
+import io.pravega.shared.controller.event.UpdateStreamEvent;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
@@ -43,7 +42,7 @@ import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.wit
 
 /**
  * Abstract common class for all request processing done over SerializedRequestHandler.
- * This implements RequestProcessor interface and implements failing request processing for all ControllerEvent types with
+ * This implements StreamRequestProcessor interface and implements failing request processing for all ControllerEvent types with
  * RequestUnsupported.
  * Its derived classes should implement specific processing that they wish to handle.
  *
@@ -59,22 +58,16 @@ import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.wit
  * was set against its name.
  */
 @Slf4j
-public abstract class AbstractRequestProcessor<T extends ControllerEvent> extends SerializedRequestHandler<T> implements RequestProcessor {
+public abstract class AbstractRequestProcessor<T extends ControllerEvent> extends SerializedRequestHandler<T> implements StreamRequestProcessor {
     protected static final Predicate<Throwable> OPERATION_NOT_ALLOWED_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException;
 
     @Getter
-    protected final ArtifactStore metadataStore;
+    protected final StreamMetadataStore metadataStore;
 
     public AbstractRequestProcessor(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor) {
         super(executor);
         Preconditions.checkNotNull(streamMetadataStore);
         this.metadataStore = streamMetadataStore;
-    }
-
-    public AbstractRequestProcessor(KVTableMetadataStore kvtMetadataStore, ScheduledExecutorService executor) {
-        super(executor);
-        Preconditions.checkNotNull(kvtMetadataStore);
-        this.metadataStore = kvtMetadataStore;
     }
 
     public String getProcessorName() {
@@ -84,11 +77,6 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
     @Override
     public CompletableFuture<Void> processEvent(ControllerEvent controllerEvent) {
         return controllerEvent.process(this);
-    }
-
-    @Override
-    public CompletableFuture<Void> processCreateKVTable(CreateKVTableEvent createKVTEvent){
-        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 
     @Override
@@ -131,7 +119,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
         return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 
-    protected <T extends ControllerEvent> CompletableFuture<Void> withCompletion(EventTask<T> task, T event, String scope, String stream,
+    protected <T extends ControllerEvent> CompletableFuture<Void> withCompletion(StreamTask<T> task, T event, String scope, String stream,
                                                                                  Predicate<Throwable> writeBackPredicate) {
         Preconditions.checkNotNull(task);
         Preconditions.checkNotNull(event);

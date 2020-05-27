@@ -14,7 +14,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.RequestProcessor;
+import io.pravega.shared.controller.event.StreamRequestProcessor;
 import lombok.Data;
 import lombok.Getter;
 import org.junit.Test;
@@ -120,7 +120,7 @@ public class ConcurrentEPSerializedRHTest {
         }
 
         @Override
-        public CompletableFuture<Void> process(RequestProcessor processor) {
+        public CompletableFuture<Void> process(StreamRequestProcessor processor) {
             state.compareAndSet("ACTIVE", "STATE1");
 
             // set state to event 1
@@ -145,7 +145,7 @@ public class ConcurrentEPSerializedRHTest {
         }
 
         @Override
-        public CompletableFuture<Void> process(RequestProcessor processor) {
+        public CompletableFuture<Void> process(StreamRequestProcessor processor) {
             state.compareAndSet("ACTIVE", "STATE2");
             if (state.get().equals("STATE2")) {
                 return CompletableFuture.completedFuture(null)
@@ -163,7 +163,7 @@ public class ConcurrentEPSerializedRHTest {
         }
 
         @Override
-        public CompletableFuture<Void> process(RequestProcessor processor) {
+        public CompletableFuture<Void> process(StreamRequestProcessor processor) {
             state.compareAndSet("ACTIVE", "STATE3");
             if (state.get().equals("STATE3")) {
                 return CompletableFuture.completedFuture(null)

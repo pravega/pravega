@@ -27,7 +27,7 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.controller.event.stream.AutoScaleEvent;
+import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import java.net.URI;
 import java.nio.ByteBuffer;

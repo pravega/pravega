@@ -44,14 +44,14 @@ import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.kvtable.KVTableMetadataStore;
-import io.pravega.controller.store.kvtable.KeyValueTableStoreFactory;
+import io.pravega.controller.store.kvtable.TableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
-import io.pravega.controller.task.KeyValueTable.KVTableMetadataTasks;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.RequestSweeper;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -95,8 +95,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private StreamMetadataStore streamStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private KVTableMetadataStore kvtMetadataStore;
-    private KVTableMetadataTasks kvtMetadataTasks;
+    private TableMetadataStore kvtMetadataStore;
+    private TableMetadataTasks kvtMetadataTasks;
     private BucketManager retentionService;
     private BucketManager watermarkingService;
     private SegmentContainerMonitor monitor;
@@ -120,7 +120,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private final Optional<SegmentHelper> segmentHelperRef;
     private final Optional<ConnectionFactory> connectionFactoryRef;
     private final Optional<StreamMetadataStore> streamMetadataStoreRef;
-    private final Optional<KVTableMetadataStore> kvtMetaStoreRef;
+    private final Optional<TableMetadataStore> kvtMetaStoreRef;
     
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
@@ -137,7 +137,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     @VisibleForTesting
     ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient, SegmentHelper segmentHelper,
-                             ConnectionFactory connectionFactory, StreamMetadataStore streamStore, KVTableMetadataStore kvtStore) {
+                             ConnectionFactory connectionFactory, StreamMetadataStore streamStore, TableMetadataStore kvtStore) {
         this.serviceConfig = serviceConfig;
         this.storeClient = storeClient;
         this.objectId = "ControllerServiceStarter";
@@ -279,8 +279,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
-            kvtMetadataStore = kvtMetaStoreRef.orElse(KeyValueTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
-            kvtMetadataTasks = new KVTableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
+            kvtMetadataStore = kvtMetaStoreRef.orElse(KVTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
+            kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
             controllerService = new ControllerService(kvtMetadataStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
                     streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster);
 
@@ -293,7 +293,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        bucketStore, connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
+                        bucketStore, connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks, kvtMetadataStore, kvtMetadataTasks,
                         eventExecutor);
 
                 // Bootstrap and start it asynchronously.
