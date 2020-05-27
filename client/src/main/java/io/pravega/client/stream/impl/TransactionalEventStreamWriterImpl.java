@@ -127,6 +127,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
                 tx.close();
             }
             Futures.getThrowingException(controller.commitTransaction(stream, writerId, timestamp, txId));
+            pinger.stopPing(txId);
             closed.set(true);
         }
 
