@@ -65,6 +65,7 @@ import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -610,6 +611,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         }
         if (cause instanceof StoreException.StoreConnectionException) {
             return Status.INTERNAL;
+        }
+        if (cause instanceof TimeoutException) {
+            return Status.DEADLINE_EXCEEDED;
         }
         return Status.UNKNOWN;
     }
