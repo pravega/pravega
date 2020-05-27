@@ -10,6 +10,7 @@
 package io.pravega.common.util;
 
 import io.pravega.common.hash.HashHelper;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -65,6 +66,18 @@ public abstract class AbstractBufferView implements BufferView {
     public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT {
         for (ByteBuffer bb : getContents()) {
             collectBuffer.accept(bb);
+        }
+    }
+
+    protected static abstract class AbstractReader implements BufferView.Reader {
+        @Override
+        public int readInt() throws EOFException {
+            return BitConverter.makeInt(readByte(), readByte(), readByte(), readByte());
+        }
+
+        @Override
+        public long readLong() throws EOFException {
+            return BitConverter.makeLong(readByte(), readByte(), readByte(), readByte(), readByte(), readByte(), readByte(), readByte());
         }
     }
 }

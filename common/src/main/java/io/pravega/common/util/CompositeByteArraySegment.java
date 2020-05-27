@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import java.io.ByteArrayInputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -299,7 +300,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
 
     //region Reader
 
-    private class CompositeReader implements BufferView.Reader {
+    private class CompositeReader extends AbstractReader implements BufferView.Reader {
         private int position = 0;
 
         @Override
@@ -315,6 +316,26 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
                 this.position += len;
             }
             return len;
+        }
+
+        @Override
+        public int readByte() throws EOFException {
+            try {
+                return get(this.position++);
+            } catch (IndexOutOfBoundsException ex) {
+                throw new EOFException();
+            }
+        }
+
+        @Override
+        public BufferView readSlice(int length) throws EOFException {
+            try {
+                BufferView result = slice(this.position, length);
+                this.position += length;
+                return result;
+            } catch (IndexOutOfBoundsException ex) {
+                throw new EOFException();
+            }
         }
     }
 

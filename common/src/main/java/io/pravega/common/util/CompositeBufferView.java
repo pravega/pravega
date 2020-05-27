@@ -11,6 +11,7 @@ package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -19,12 +20,15 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Provides a unified view of multiple wrapped {@link BufferView} instances.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 class CompositeBufferView extends AbstractBufferView implements BufferView {
     //region Members
 
@@ -164,7 +168,7 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
 
     //region Reader
 
-    private static class Reader implements BufferView.Reader {
+    private static class Reader extends AbstractReader implements BufferView.Reader {
         private final Iterator<BufferView.Reader> readers;
         private BufferView.Reader current;
         private int available;
@@ -190,6 +194,45 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
             }
 
             return 0;
+        }
+
+        @Override
+        public int readByte() throws EOFException {
+            BufferView.Reader current = getCurrent();
+            if (current == null) {
+                throw new EOFException();
+            }
+
+            int result = current.readByte();
+            this.available--;
+            assert this.available >= 0;
+            return result;
+        }
+
+        @Override
+        public BufferView readSlice(final int length) throws EOFException {
+            if (length > available()) {
+                throw new EOFException();
+            }
+
+            if (length == 0) {
+                return new ByteArraySegment(new byte[0]);
+            }
+
+            ArrayList<BufferView> components = new ArrayList<>();
+            int remaining = length;
+            while (remaining > 0) {
+                BufferView.Reader current = getCurrent();
+                assert current != null;
+                int currentLength = Math.min(current.available(), remaining);
+                components.add(current.readSlice(currentLength));
+                this.available -= currentLength;
+                remaining -= currentLength;
+            }
+
+            assert !components.isEmpty();
+            assert this.available >= 0;
+            return new CompositeBufferView(components, length);
         }
 
         private BufferView.Reader getCurrent() {

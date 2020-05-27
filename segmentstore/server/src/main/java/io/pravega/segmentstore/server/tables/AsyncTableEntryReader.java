@@ -13,7 +13,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
-import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -24,7 +23,6 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import lombok.AccessLevel;
@@ -114,13 +112,14 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      *                      unless the deserialized segment's Header contains an explicit version.
      * @param serializer    The {@link EntrySerializer} to use for deserializing entries.
      * @return A {@link DeserializedEntry} that contains all the components of the {@link TableEntry}.
-     * @throws IOException If an Exception occurred while reading from the given InputStream.
+     * @throws IOException If an Exception occurred while deserializing the {@link DeserializedEntry}.
      */
-    static DeserializedEntry readEntryComponents(InputStream input, long segmentOffset, EntrySerializer serializer) throws IOException {
+    static DeserializedEntry readEntryComponents(BufferView.Reader input, long segmentOffset, EntrySerializer serializer) throws IOException {
         val h = serializer.readHeader(input);
         long version = getKeyVersion(h, segmentOffset);
-        byte[] key = StreamHelpers.readAll(input, h.getKeyLength());
-        byte[] value = h.isDeletion() ? null : (h.getValueLength() == 0 ? new byte[0] : StreamHelpers.readAll(input, h.getValueLength()));
+        BufferView key = input.readSlice(h.getKeyLength());
+        BufferView value = h.isDeletion() ? null :
+                (h.getValueLength() == 0 ? new ByteArraySegment(new byte[0]) : input.readSlice(h.getValueLength()));
         return new DeserializedEntry(h, version, key, value);
     }
 
@@ -177,7 +176,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             contents.copyTo(this.readData); // TODO: there's a copy going on right here.
             if (this.header == null && this.readData.size() >= EntrySerializer.HEADER_LENGTH) {
                 // We now have enough to read the header.
-                this.header = this.serializer.readHeader(this.readData.getData());
+                this.header = this.serializer.readHeader(this.readData.getData().getBufferViewReader());
             }
 
             if (this.header != null) {
@@ -340,11 +339,11 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         /**
          * Key Data.
          */
-        private final byte[] key;
+        private final BufferView key;
 
         /**
          * Value data. Null if a deletion.
          */
-        private final byte[] value;
+        private final BufferView value;
     }
 }

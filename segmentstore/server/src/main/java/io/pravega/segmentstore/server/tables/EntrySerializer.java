@@ -13,10 +13,10 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import lombok.AccessLevel;
@@ -173,33 +173,17 @@ class EntrySerializer {
     //region Headers
 
     /**
-     * Reads the Entry's Header from the given {@link ArrayView}.
+     * Reads the Entry's Header from the given {@link BufferView.Reader}.
      *
      * @param input The {@link ArrayView} to read from.
      * @return The Entry Header.
-     * @throws SerializationException If an invalid header was detected.
+     * @throws IOException If an invalid header was detected.
      */
-    Header readHeader(@NonNull ArrayView input) throws SerializationException {
-        byte version = input.get(VERSION_POSITION);
-        int keyLength = BitConverter.readInt(input, KEY_POSITION);
-        int valueLength = BitConverter.readInt(input, VALUE_POSITION);
-        long entryVersion = BitConverter.readLong(input, ENTRY_VERSION_POSITION);
-        validateHeader(keyLength, valueLength);
-        return new Header(version, keyLength, valueLength, entryVersion);
-    }
-
-    /**
-     * Reads the Entry's Header from the given {@link InputStream}.
-     *
-     * @param input The {@link InputStream} to read from.
-     * @return The Entry Header.
-     * @throws IOException If an invalid header was detected or another IOException occurred.
-     */
-    Header readHeader(@NonNull InputStream input) throws IOException {
-        byte version = (byte) input.read();
-        int keyLength = BitConverter.readInt(input);
-        int valueLength = BitConverter.readInt(input);
-        long entryVersion = BitConverter.readLong(input);
+    Header readHeader(@NonNull BufferView.Reader input) throws IOException {
+        byte version = (byte) input.readByte();
+        int keyLength = input.readInt();
+        int valueLength = input.readInt();
+        long entryVersion = input.readLong();
         validateHeader(keyLength, valueLength);
         return new Header(version, keyLength, valueLength, entryVersion);
     }

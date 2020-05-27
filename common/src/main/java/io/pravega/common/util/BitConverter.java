@@ -177,6 +177,22 @@ public final class BitConverter {
     }
 
     /**
+     * Composes a 32-bit integer from the given byte components (Big-Endian order).
+     *
+     * @param b1 Byte #1.
+     * @param b2 Byte #2.
+     * @param b3 Byte #3.
+     * @param b4 Byte #4.
+     * @return The composed number.
+     */
+    public static int makeInt(int b1, int b2, int b3, int b4) {
+        return (b1 & 0xFF) << 24
+                | (b2 & 0xFF) << 16
+                | (b3 & 0xFF) << 8
+                | (b4 & 0xFF);
+    }
+
+    /**
      * Writes the given 64-bit Long to the given ArrayView at the given offset.
      *
      * @param target The ArrayView to write to.
@@ -303,15 +319,32 @@ public final class BitConverter {
         if ((b1 | b2 | b3 | b4 | b5 | b6 | b7 | b8) < 0) {
             throw new EOFException();
         } else {
-            return ((long) b1 << 56) +
-                    ((long) (b2 & 255) << 48) +
-                    ((long) (b3 & 255) << 40) +
-                    ((long) (b4 & 255) << 32) +
-                    ((long) (b5 & 255) << 24) +
-                    (long) ((b6 & 255) << 16) +
-                    (long) ((b7 & 255) << 8) +
-                    (long) ((b8 & 255));
+            return BitConverter.makeLong(b1, b2, b3, b4, b5, b6, b7, b8);
         }
+    }
+
+    /**
+     * Composes 64-bit long from the given byte components (in Big Endian order).
+     *
+     * @param b1 Byte #1.
+     * @param b2 Byte #2.
+     * @param b3 Byte #3.
+     * @param b4 Byte #4.
+     * @param b5 Byte #5.
+     * @param b6 Byte #6.
+     * @param b7 Byte #7.
+     * @param b8 Byte #8.
+     * @return The composed number.
+     */
+    public static long makeLong(int b1, int b2, int b3, int b4, int b5, int b6, int b7, int b8) {
+        return ((long) b1 << 56) +
+                ((long) (b2 & 255) << 48) +
+                ((long) (b3 & 255) << 40) +
+                ((long) (b4 & 255) << 32) +
+                ((long) (b5 & 255) << 24) +
+                (long) ((b6 & 255) << 16) +
+                (long) ((b7 & 255) << 8) +
+                (long) ((b8 & 255));
     }
 
     /**

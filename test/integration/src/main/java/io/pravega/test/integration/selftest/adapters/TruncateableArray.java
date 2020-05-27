@@ -152,6 +152,11 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
+    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT {
+        throw new UnsupportedOperationException("collect() not supported.");
+    }
+
+    @Override
     public void copyTo(byte[] target, int targetOffset, int length) {
         throw new UnsupportedOperationException("copyTo() not supported.");
     }

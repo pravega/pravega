@@ -312,7 +312,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             val opData = new byte[(int) op.getLength()];
             val bytesRead = context.segmentMock.read(op.getStreamSegmentOffset(), (int) op.getLength(), TIMEOUT).readRemaining(opData, TIMEOUT);
             assert bytesRead == opData.length;
-            val entryHeader = context.serializer.readHeader(new ByteArraySegment(opData));
+            val entryHeader = context.serializer.readHeader(new ByteArraySegment(opData).getBufferViewReader());
             if (!expectedEntries.containsKey(new ByteArraySegment(opData, entryHeader.getKeyOffset(), entryHeader.getKeyLength()))) {
                 result += op.getLength();
             } else {

@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.util.AbstractBufferView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -162,7 +163,7 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
      * {@link BufferView.Reader} implementation.
      */
     @RequiredArgsConstructor
-    private static class ByteBufReader implements Reader {
+    private static class ByteBufReader extends AbstractReader implements Reader {
         private final ByteBuf buf;
 
         @Override
@@ -177,6 +178,24 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
                 this.buf.readBytes(segment.array(), segment.arrayOffset(), len);
             }
             return len;
+        }
+
+        @Override
+        public int readByte() throws EOFException {
+            try {
+                return this.buf.readByte();
+            } catch (IndexOutOfBoundsException ex) {
+                throw new EOFException();
+            }
+        }
+
+        @Override
+        public BufferView readSlice(int length) throws EOFException {
+            try {
+                return new ByteBufWrapper(this.buf.readSlice(length));
+            } catch (IndexOutOfBoundsException ex) {
+                throw new EOFException();
+            }
         }
     }
 

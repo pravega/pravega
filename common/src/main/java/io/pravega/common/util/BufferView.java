@@ -10,6 +10,7 @@
 package io.pravega.common.util;
 
 import com.google.common.annotations.VisibleForTesting;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -182,6 +183,41 @@ public interface BufferView {
          * to 0, or there are no more bytes to be read ({@link #available()} is 0).
          */
         int readBytes(ByteArraySegment segment);
+
+        /**
+         * Reads one byte and advances the reader position by 1.
+         *
+         * @return The read byte.
+         * @throws EOFException If {@link #available()} is 0.
+         */
+        int readByte() throws EOFException;
+
+        /**
+         * Reads 4 bytes (and advances the reader position by 4) and composes a 32-bit Integer (Big-Endian).
+         *
+         * @return The read int.
+         * @throws EOFException If {@link #available()} is less than {@link Integer#BYTES}.
+         */
+        int readInt() throws EOFException;
+
+        /**
+         * Reads 8 bytes (and advances the reader position by 4) and composes a 64-bit Long (Big-Endian).
+         *
+         * @return The read long.
+         * @throws EOFException If {@link #available()} is less than {@link Long#BYTES}.
+         */
+        long readLong() throws EOFException;
+
+        /**
+         * Returns a {@link BufferView} that is a representation of the next bytes starting at the given position. The
+         * reader position will be advanced by the requested number of bytes.
+         *
+         * @param length The number of bytes to slice out.
+         * @return A {@link BufferView} that represents the given bytes. This {@link BufferView} represents a view into
+         * the underlying {@link BufferView} and is not a copy of the given range.
+         * @throws EOFException If {@link #available()} is less than length.
+         */
+        BufferView readSlice(int length) throws EOFException;
 
         /**
          * Reads all the remaining bytes from this {@link BufferView.Reader} into a new {@link ByteArraySegment}.

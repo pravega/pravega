@@ -27,7 +27,6 @@ import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -38,7 +37,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
-import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -213,8 +211,7 @@ class TableCompactor {
         int count = 0;
         long nextOffset = startOffset;
         final long maxOffset = startOffset + maxLength;
-        @Cleanup
-        InputStream input = inputData.getReader();
+        val input = inputData.getBufferViewReader();
         try {
             while (nextOffset < maxOffset) {
                 // TODO: Handle error when compaction offset is not on Entry boundary (https://github.com/pravega/pravega/issues/3560).
@@ -226,7 +223,7 @@ class TableCompactor {
                     val hash = this.connector.getKeyHasher().hash(e.getKey());
                     CandidateSet candidates = entries.computeIfAbsent(hash, h -> new CandidateSet());
                     candidates.add(new Candidate(nextOffset,
-                            TableEntry.versioned(new ByteArraySegment(e.getKey()), new ByteArraySegment(e.getValue()), e.getVersion())));
+                            TableEntry.versioned(e.getKey(), e.getValue(), e.getVersion())));
                 }
 
                 // Every entry, even if deleted or duplicated, must be counted, as we will need to adjust the Segment's
@@ -240,7 +237,6 @@ class TableCompactor {
             // We chose an arbitrary compact length, so it is quite possible we stopped reading in the middle of an entry.
             // As such, EOFException is the only way to know when to stop. When this happens, we will have collected the
             // total compact length in segmentOffset.
-            input.close();
         }
 
         return new CompactionArgs(startOffset, nextOffset, count, entries);

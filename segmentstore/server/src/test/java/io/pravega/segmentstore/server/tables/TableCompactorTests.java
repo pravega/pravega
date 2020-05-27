@@ -22,7 +22,6 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -462,8 +461,8 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
     private TableEntry readEntryAt(long offset, int length, TestContext context) throws Exception {
         byte[] copiedData = new byte[length];
         context.segment.read(offset, length, TIMEOUT).readRemaining(copiedData, TIMEOUT);
-        val c = AsyncTableEntryReader.readEntryComponents(new ByteArrayInputStream(copiedData), offset, context.serializer);
-        return TableEntry.versioned(new ByteArraySegment(c.getKey()), new ByteArraySegment(c.getValue()), c.getVersion());
+        val c = AsyncTableEntryReader.readEntryComponents(new ByteArraySegment(copiedData).getBufferViewReader(), offset, context.serializer);
+        return TableEntry.versioned(c.getKey(), c.getValue(), c.getVersion());
     }
 
     @RequiredArgsConstructor

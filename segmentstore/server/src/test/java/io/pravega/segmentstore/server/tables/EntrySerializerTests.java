@@ -13,7 +13,6 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.test.common.AssertExtensions;
-import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -78,21 +77,19 @@ public class EntrySerializerTests {
 
         int offset = 0;
         for (val key : keys) {
-            val headerStream = s.readHeader(new ByteArrayInputStream(serialization, offset, serialization.length - offset));
-            val headerArray = s.readHeader(new ByteArraySegment(serialization, offset, serialization.length - offset));
-            Assert.assertEquals("Unexpected key length (stream).", key.getKey().getLength(), headerStream.getKeyLength());
-            Assert.assertEquals("Unexpected key length (array).", key.getKey().getLength(), headerArray.getKeyLength());
-            Assert.assertTrue("Unexpected value from isDeletion().", headerStream.isDeletion() && headerArray.isDeletion());
+            val header = s.readHeader(new ByteArraySegment(serialization, offset, serialization.length - offset).getBufferViewReader());
+            Assert.assertEquals("Unexpected key length.", key.getKey().getLength(), header.getKeyLength());
+            Assert.assertTrue("Unexpected value from isDeletion().", header.isDeletion());
 
             Assert.assertEquals("Unexpected serialized key.",
-                    new ByteArraySegment(serialization, offset + headerStream.getKeyOffset(), headerStream.getKeyLength()),
+                    new ByteArraySegment(serialization, offset + header.getKeyOffset(), header.getKeyLength()),
                     key.getKey());
 
             AssertExtensions.assertThrows(
                     "Able to retrieve value for deletion header.",
-                    headerStream::getValueOffset,
+                    header::getValueOffset,
                     ex -> ex instanceof IllegalStateException);
-            offset += headerArray.getTotalLength();
+            offset += header.getTotalLength();
         }
 
         Assert.assertEquals("Did not read the entire serialization.", serialization.length, offset);
@@ -128,29 +125,25 @@ public class EntrySerializerTests {
     }
 
     private int checkEntry(TableEntry e, byte[] serialization, int offset, EntrySerializer s, boolean explicitVersion) throws Exception {
-        val headerStream = s.readHeader(new ByteArrayInputStream(serialization, offset, serialization.length - offset));
-        val headerArray = s.readHeader(new ByteArraySegment(serialization, offset, serialization.length - offset));
-        Assert.assertEquals("Mismatch getEntryVersion", headerStream.getEntryVersion(), headerArray.getEntryVersion());
+        val header = s.readHeader(new ByteArraySegment(serialization, offset, serialization.length - offset).getBufferViewReader());
         if (explicitVersion) {
-            Assert.assertEquals("Unexpected explicit version serialized.", e.getKey().getVersion(), headerStream.getEntryVersion());
+            Assert.assertEquals("Unexpected explicit version serialized.", e.getKey().getVersion(), header.getEntryVersion());
         } else {
-            Assert.assertEquals("Not expecting an explicit version to be serialized.", TableKey.NO_VERSION, headerStream.getEntryVersion());
+            Assert.assertEquals("Not expecting an explicit version to be serialized.", TableKey.NO_VERSION, header.getEntryVersion());
         }
-        Assert.assertEquals("Unexpected key length (stream).", e.getKey().getKey().getLength(), headerStream.getKeyLength());
-        Assert.assertEquals("Unexpected key length (array).", e.getKey().getKey().getLength(), headerArray.getKeyLength());
+        Assert.assertEquals("Unexpected key length.", e.getKey().getKey().getLength(), header.getKeyLength());
 
-        Assert.assertEquals("Unexpected value length (stream).", e.getValue().getLength(), headerStream.getValueLength());
-        Assert.assertEquals("Unexpected value length (array).", e.getValue().getLength(), headerArray.getValueLength());
-        Assert.assertFalse("Unexpected value from isDeletion().", headerStream.isDeletion() || headerArray.isDeletion());
+        Assert.assertEquals("Unexpected value length.", e.getValue().getLength(), header.getValueLength());
+        Assert.assertFalse("Unexpected value from isDeletion().", header.isDeletion());
 
         Assert.assertEquals("Unexpected serialized key.",
-                new ByteArraySegment(serialization, offset + headerStream.getKeyOffset(), headerStream.getKeyLength()),
+                new ByteArraySegment(serialization, offset + header.getKeyOffset(), header.getKeyLength()),
                 e.getKey().getKey());
 
         Assert.assertEquals("Unexpected serialized value.",
-                new ByteArraySegment(serialization, offset + headerStream.getValueOffset(), headerStream.getValueLength()),
+                new ByteArraySegment(serialization, offset + header.getValueOffset(), header.getValueLength()),
                 e.getValue());
 
-        return headerArray.getTotalLength();
+        return header.getTotalLength();
     }
 }
