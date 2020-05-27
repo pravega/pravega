@@ -25,9 +25,9 @@ import io.pravega.client.stream.TxnFailedException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import io.pravega.common.concurrent.Futures;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
@@ -126,9 +126,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.close();
             }
-            final CompletableFuture<Void> future = controller.commitTransaction(stream, writerId, timestamp, txId);
-            getAndHandleExceptions(future, TxnFailedException::new);
-            pinger.stopPing(txId);
+            Futures.getThrowingException(controller.commitTransaction(stream, writerId, timestamp, txId));
             closed.set(true);
         }
 
