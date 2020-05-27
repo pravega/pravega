@@ -9,8 +9,7 @@
  */
 package io.pravega.test.common;
 
-import com.google.gson.Gson;
-
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 
@@ -26,8 +25,8 @@ public class JwtTestUtils {
      * @return a Base64 encoded JSON representing the specified {@code jwtBodyPart}
      */
     public static String toCompact(JwtBody jwtBodyPart) {
-        String json = new Gson().toJson(jwtBodyPart);
-        return Base64.getEncoder().encodeToString(json.getBytes());
+        String json = jwtBodyPart.toString();
+        return Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
