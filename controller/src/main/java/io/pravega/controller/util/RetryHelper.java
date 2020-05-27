@@ -10,13 +10,17 @@
 package io.pravega.controller.util;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -56,5 +60,19 @@ public class RetryHelper {
     public static CompletableFuture<Void> loopWithDelay(Supplier<Boolean> condition, Supplier<CompletableFuture<Void>> loopBody, long delay,
                                                          ScheduledExecutorService executor) {
         return Futures.loop(condition, () -> Futures.delayedFuture(loopBody, delay, executor), executor);
+    }
+
+    public static CompletableFuture<Void> loopWithTimeout(Supplier<Boolean> condition, Supplier<CompletableFuture<Void>> loopBody, 
+                                                        long initialDelayMillis, long maxDelayMillis, long timeoutMillis, ScheduledExecutorService executor) {
+        Timer timer = new Timer();
+        AtomicInteger i = new AtomicInteger(0);
+        return Futures.loop(() -> {
+            boolean continueLoop = condition.get();
+            if (continueLoop && timer.getElapsedMillis() > timeoutMillis) {
+                throw new CompletionException(new TimeoutException());
+            }
+            return continueLoop;
+        }, () -> Futures.delayedFuture(
+                loopBody, Math.min(maxDelayMillis, initialDelayMillis * (int) Math.pow(2, i.getAndIncrement())), executor), executor);
     }
 }
