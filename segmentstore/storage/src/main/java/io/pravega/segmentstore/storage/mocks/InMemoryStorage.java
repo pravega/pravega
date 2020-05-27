@@ -25,7 +25,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -193,6 +195,15 @@ public class InMemoryStorage implements SyncStorage {
     @Override
     public boolean supportsTruncation() {
         return false;
+    }
+
+    @Override
+    public Iterator<SegmentProperties> listSegments() {
+        Collection<StreamSegmentData> copyValues;
+        synchronized (this) {
+            copyValues = new ArrayList<>(this.streamSegments.values());
+        }
+        return copyValues.stream().map(s -> s.getInfo()).iterator();
     }
 
     /**
