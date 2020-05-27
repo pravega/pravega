@@ -22,7 +22,6 @@ import io.pravega.common.Timer;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -49,6 +48,7 @@ import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifi
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -231,7 +231,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         if (!cachedEntries.isEmpty() || endOfSegment) {
             // We managed to collect some data. Send it.
-            ByteBuf data = getData(cachedEntries);
+            ByteBuf data = toByteBuf(cachedEntries);
             SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data, request.getRequestId());
             connection.send(reply);
             this.statsRecorder.read(segment, reply.getData().readableBytes());
@@ -249,7 +249,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             nonCachedEntry.requestContent(TIMEOUT);
             nonCachedEntry.getContent()
                     .thenAccept(contents -> {
-                        ByteBuf data = getData(Collections.singletonList(contents));
+                        ByteBuf data = toByteBuf(Collections.singletonList(contents));
                         SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(),
                                 false, endOfSegment,
                                 data, request.getRequestId());
@@ -313,7 +313,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     /**
      * Collect all the data from the given contents into a {@link ByteBuf}.
      */
-    private ByteBuf getData(List<BufferView> contents) {
+    private ByteBuf toByteBuf(List<BufferView> contents) {
         val buffers = contents.stream()
                 .flatMap(bv -> bv.getContents().stream())
                 .map(Unpooled::wrappedBuffer)
@@ -321,11 +321,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         return Unpooled.wrappedUnmodifiableBuffer(buffers);
     }
 
-    private ByteBuf getData(ArrayView arrayView) {
-        return Unpooled.wrappedBuffer(arrayView.array(), arrayView.arrayOffset(), arrayView.getLength());
-    }
-
-    private ByteBuf getData(BufferView bufferView) {
+    private ByteBuf toByteBuf(BufferView bufferView) {
         val buffers = bufferView.getContents().stream().map(Unpooled::wrappedBuffer).toArray(ByteBuf[]::new);
         return Unpooled.wrappedUnmodifiableBuffer(buffers);
     }
@@ -638,6 +634,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final String operation = "updateTableEntries";
 
         if (!verifyToken(segment, updateTableEntries.getRequestId(), updateTableEntries.getDelegationToken(), operation)) {
+            updateTableEntries.release();
             return;
         }
 
@@ -646,7 +643,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         val entries = new ArrayList<TableEntry>(updateTableEntries.getTableEntries().getEntries().size());
         val conditional = new AtomicBoolean(false);
         for (val e : updateTableEntries.getTableEntries().getEntries()) {
-            val v = TableEntry.versioned(getArrayView(e.getKey().getData()), getArrayView(e.getValue().getData()), e.getKey().getKeyVersion());
+            val v = TableEntry.versioned(new ByteBufWrapper(e.getKey().getData()), new ByteBufWrapper(e.getValue().getData()), e.getKey().getKeyVersion());
             entries.add(v);
             if (v.getKey().hasVersion()) {
                 conditional.set(true);
@@ -659,7 +656,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions));
                     this.tableStatsRecorder.updateEntries(updateTableEntries.getSegment(), entries.size(), conditional.get(), timer.getElapsed());
                 })
-                .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, operation, e));
+                .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, operation, e))
+                .whenComplete((r, ex) -> updateTableEntries.release());
     }
 
     @Override
@@ -668,6 +666,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final String operation = "removeTableKeys";
 
         if (!verifyToken(segment, removeTableKeys.getRequestId(), removeTableKeys.getDelegationToken(), operation)) {
+            removeTableKeys.release();
             return;
         }
 
@@ -676,7 +675,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         val keys = new ArrayList<TableKey>(removeTableKeys.getKeys().size());
         val conditional = new AtomicBoolean(false);
         for (val k : removeTableKeys.getKeys()) {
-            val v = TableKey.versioned(getArrayView(k.getData()), k.getKeyVersion());
+            val v = TableKey.versioned(new ByteBufWrapper(k.getData()), k.getKeyVersion());
             keys.add(v);
             if (v.hasVersion()) {
                 conditional.set(true);
@@ -689,7 +688,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment));
                     this.tableStatsRecorder.removeKeys(removeTableKeys.getSegment(), keys.size(), conditional.get(), timer.getElapsed());
                 })
-                .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e));
+                .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e))
+                .whenComplete((r, ex) -> removeTableKeys.release());
     }
 
     @Override
@@ -698,6 +698,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final String operation = "readTable";
 
         if (!verifyToken(segment, readTable.getRequestId(), readTable.getDelegationToken(), operation)) {
+            readTable.release();
             return;
         }
 
@@ -705,7 +706,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 readTable.getSegment(), readTable.getKeys());
 
         final List<BufferView> keys = readTable.getKeys().stream()
-                .map(k -> getArrayView(k.getData()))
+                .map(k -> new ByteBufWrapper(k.getData()))
                 .collect(Collectors.toList());
         val timer = new Timer();
         tableStore.get(segment, keys, TIMEOUT)
@@ -713,7 +714,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment, getTableEntriesCommand(keys, values)));
                     this.tableStatsRecorder.getKeys(readTable.getSegment(), keys.size(), timer.getElapsed());
                 })
-                .exceptionally(e -> handleException(readTable.getRequestId(), segment, operation, e));
+                .exceptionally(e -> handleException(readTable.getRequestId(), segment, operation, e))
+                .whenComplete((r, ex) -> readTable.release());
     }
 
     @Override
@@ -751,7 +753,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
                             // Store all TableKeys.
                             for (val key : e.getEntries()) {
-                                val k = new WireCommands.TableKey(getData(key.getKey()), key.getVersion());
+                                val k = new WireCommands.TableKey(toByteBuf(key.getKey()), key.getVersion());
                                 keys.add(k);
                                 msgSize.addAndGet(k.size());
                             }
@@ -803,8 +805,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
                             // Store all TableEntries.
                             for (val entry : e.getEntries()) {
-                                val k = new WireCommands.TableKey(getData(entry.getKey().getKey()), entry.getKey().getVersion());
-                                val v = new WireCommands.TableValue(getData(entry.getValue()));
+                                val k = new WireCommands.TableKey(toByteBuf(entry.getKey().getKey()), entry.getKey().getVersion());
+                                val v = new WireCommands.TableValue(toByteBuf(entry.getValue()));
                                 entries.add(new AbstractMap.SimpleImmutableEntry<>(k, v));
                                 msgSize.addAndGet(k.size() + v.size());
                             }
@@ -813,7 +815,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             msgSize.addAndGet(-continuationToken.get().readableBytes() + e.getState().getLength());
 
                             // Update the continuation token.
-                            continuationToken.set(getData(e.getState()));
+                            continuationToken.set(toByteBuf(e.getState()));
                             return true;
                         }))
                 .thenAccept(v -> {
@@ -825,19 +827,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
     }
 
-    private ArrayView getArrayView(ByteBuf buf) {
-        // TODO: eliminate the copy here.
-        final int length = buf.readableBytes();
-        if (buf.hasArray()) {
-            return new ByteArraySegment(buf.array(), buf.readerIndex(), length);
-        } else {
-            byte[] bytes;
-            bytes = new byte[length];
-            buf.getBytes(buf.readerIndex(), bytes);
-            return new ByteArraySegment(bytes, 0, length);
-        }
-    }
-
     private WireCommands.TableEntries getTableEntriesCommand(final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {
         Preconditions.checkArgument(resultEntries.size() == inputKeys.size(), "Number of input keys should match result entry count.");
         final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries =
@@ -846,13 +835,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                              TableEntry resultTableEntry = resultEntries.get(i);
                              if (resultTableEntry == null) { // no entry for key at index i.
                                  BufferView k = inputKeys.get(i); // key for which the read result was null.
-                                 val keyWireCommand = new WireCommands.TableKey(getData(k), TableKey.NOT_EXISTS);
+                                 val keyWireCommand = new WireCommands.TableKey(toByteBuf(k), TableKey.NOT_EXISTS);
                                  return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, WireCommands.TableValue.EMPTY);
                              } else {
                                  TableEntry te = resultEntries.get(i);
                                  TableKey k = te.getKey();
-                                 val keyWireCommand = new WireCommands.TableKey(getData(k.getKey()), k.getVersion());
-                                 val valueWireCommand = new WireCommands.TableValue(getData(te.getValue()));
+                                 val keyWireCommand = new WireCommands.TableKey(toByteBuf(k.getKey()), k.getVersion());
+                                 val valueWireCommand = new WireCommands.TableValue(toByteBuf(te.getValue()));
                                  return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, valueWireCommand);
 
                              }
