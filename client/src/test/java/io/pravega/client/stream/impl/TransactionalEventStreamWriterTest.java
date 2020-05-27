@@ -246,7 +246,7 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
             txn.commit();
         } catch (Exception e) {
             assertTrue(e instanceof RetriesExhaustedException && e.getCause() instanceof StatusRuntimeException);
-            // the user retries the commit.
+            // the user retries the commit since the TxnFailedException is not thrown.
             txn.commit();
         }
 
