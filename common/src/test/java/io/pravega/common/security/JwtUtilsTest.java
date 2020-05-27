@@ -13,11 +13,17 @@ import io.pravega.test.common.JwtBody;
 import org.junit.Test;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 =======
 >>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692)
+=======
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
+>>>>>>> Issue 4811: Replace JWT object-JSON mapping library (#4812)
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -36,6 +42,7 @@ public class JwtUtilsTest {
         //        "iat": 1516239022
         //     }
 <<<<<<< HEAD
+<<<<<<< HEAD
         JwtBody jwtBody = JwtBody.builder().subject("1234567890").audience("segmentstore").issuedAtTime(1516239022L).build();
         String token = String.format("%s.%s.%s", "base64-encoded-header",
                 Base64.getEncoder().encodeToString(jwtBody.toString().getBytes(StandardCharsets.US_ASCII)),
@@ -43,6 +50,11 @@ public class JwtUtilsTest {
         String token = String.format("%s.%s.%s", "base64-encoded-header",
                 JwtBody.builder().subject("1234567890").audience("segmentstore").issuedAtTime(1516239022L).build(),
 >>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692)
+=======
+        JwtBody jwtBody = JwtBody.builder().subject("1234567890").audience("segmentstore").issuedAtTime(1516239022L).build();
+        String token = String.format("%s.%s.%s", "base64-encoded-header",
+                Base64.getEncoder().encodeToString(jwtBody.toString().getBytes(StandardCharsets.US_ASCII)),
+>>>>>>> Issue 4811: Replace JWT object-JSON mapping library (#4812)
                 "base64-encoded-signature");
 
         assertNull(JwtUtils.extractExpirationTime(token));

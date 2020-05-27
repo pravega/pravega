@@ -25,14 +25,20 @@ import java.nio.charset.StandardCharsets;
 @Builder
 @Getter
 @Setter
+<<<<<<< HEAD
 <<<<<<< HEAD:test/testcommon/src/main/java/io/pravega/test/common/JwtBody.java
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class JwtBody {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 =======
+=======
+@JsonInclude(JsonInclude.Include.NON_NULL)
+>>>>>>> Issue 4811: Replace JWT object-JSON mapping library (#4812)
 public class JwtBody {
 >>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692):test/testcommon/src/main/java/io/pravega/test/common/JwtBody.java
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     // See https://tools.ietf.org/html/rfc7519#page-9 for additional details about these fields.
 

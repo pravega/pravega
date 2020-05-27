@@ -10,11 +10,15 @@
 package io.pravega.test.common;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 import java.nio.charset.StandardCharsets;
 =======
 import com.google.gson.Gson;
 
 >>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692)
+=======
+import java.nio.charset.StandardCharsets;
+>>>>>>> Issue 4811: Replace JWT object-JSON mapping library (#4812)
 import java.time.Instant;
 import java.util.Base64;
 
@@ -31,12 +35,17 @@ public class JwtTestUtils {
      */
     public static String toCompact(JwtBody jwtBodyPart) {
 <<<<<<< HEAD
+<<<<<<< HEAD
         String json = jwtBodyPart.toString();
         return Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
 =======
         String json = new Gson().toJson(jwtBodyPart);
         return Base64.getEncoder().encodeToString(json.getBytes());
 >>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692)
+=======
+        String json = jwtBodyPart.toString();
+        return Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+>>>>>>> Issue 4811: Replace JWT object-JSON mapping library (#4812)
     }
 
     /**
