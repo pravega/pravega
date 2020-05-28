@@ -210,7 +210,6 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         DelegationTokenProvider tokenProvider = null;
         for (Segment s : segments.getSegments()) {
-            //TODO: the segment should correspond to the segment.
             if (tokenProvider == null) {
                 tokenProvider = DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, s);
             }
