@@ -22,6 +22,7 @@ import lombok.Getter;
  */
 @Beta
 @Data
+@Builder
 public class KeyValueTableConfiguration implements Serializable {
     private static final long serialVersionUID = 1L;
     /**
