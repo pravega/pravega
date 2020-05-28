@@ -12,8 +12,11 @@ package io.pravega.controller.store.kvtable;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.store.ArtifactStore;
 import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.controller.store.OperationContext;
+
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -22,11 +25,24 @@ import java.util.concurrent.Executor;
  */
 public interface TableMetadataStore extends AutoCloseable, ArtifactStore {
 
+    CompletableFuture<Boolean> checkScopeExists(String scope);
     /**
      * Creates a new stream with the given name and configuration.
      *
      * @param scopeName       scope name
-     * @param streamName      stream name
+     * @param kvtName         KeyValueTable name
+     * @param executor        callers executor
+     * @return boolean indicating whether the stream was created
+     */
+    CompletableFuture<UUID> createEntryForKVTable(final String scopeName,
+                                                  final String kvtName,
+                                                  final Executor executor);
+
+    /**
+     * Creates a new stream with the given name and configuration.
+     *
+     * @param scopeName       scope name
+     * @param kvtName      stream name
      * @param configuration   stream configuration
      * @param createTimestamp stream creation timestamp
      * @param context         operation context
@@ -34,7 +50,7 @@ public interface TableMetadataStore extends AutoCloseable, ArtifactStore {
      * @return boolean indicating whether the stream was created
      */
     CompletableFuture<CreateKVTableResponse> createKeyValueTable(final String scopeName,
-                                            final String streamName,
+                                            final String kvtName,
                                             final KeyValueTableConfiguration configuration,
                                             final long createTimestamp,
                                             final OperationContext context,

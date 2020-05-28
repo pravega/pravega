@@ -20,6 +20,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.io.IOException;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 @Builder
@@ -32,6 +33,7 @@ public class CreateTableEvent implements ControllerEvent {
     private final int partitionCount;
     private final long timestamp;
     private final long requestId;
+    private final UUID tableId;
 
     @Override
     public String getKey() {
@@ -70,6 +72,7 @@ public class CreateTableEvent implements ControllerEvent {
             target.writeInt(e.partitionCount);
             target.writeLong(e.timestamp);
             target.writeLong(e.requestId);
+            target.writeUUID(e.tableId);
         }
 
         private void read00(RevisionDataInput source, CreateTableEventBuilder eb) throws IOException {
@@ -78,6 +81,7 @@ public class CreateTableEvent implements ControllerEvent {
             eb.partitionCount(source.readInt());
             eb.timestamp(source.readLong());
             eb.requestId(source.readLong());
+            eb.tableId(source.readUUID());
         }
     }
     //endregion

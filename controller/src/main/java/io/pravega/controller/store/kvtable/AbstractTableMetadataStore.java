@@ -8,12 +8,14 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.*;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -103,6 +105,7 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
         return kvt;
     }
 
+
     @Override
     public CompletableFuture<CreateKVTableResponse> createKeyValueTable(final String scope,
                                                                 final String name,
@@ -115,7 +118,7 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
                         Futures.withCompletion(checkScopeExists(scope)
                                 .thenCompose(exists -> {
                                     if (exists) {
-                                        // Create stream may fail if scope is deleted as we attempt to create the stream under scope.
+                                        // Create kvtable may fail if scope is deleted as we attempt to create the table under scope.
                                         return getKVTable(scope, name, context)
                                                 .create(configuration, createTimestamp, startingSegmentNumber);
                                     } else {
@@ -187,5 +190,9 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
      */
     abstract CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String kvtName);
 
-    abstract CompletableFuture<Boolean> checkScopeExists(String scope);
+    public abstract CompletableFuture<Boolean> checkScopeExists(String scope);
+
+    public abstract CompletableFuture<UUID> createEntryForKVTable(final String scopeName,
+                                                                  final String kvtName,
+                                                                  final Executor executor);
 }

@@ -96,8 +96,6 @@ public abstract class PersistentKVTableBase implements KeyValueTable {
                         .thenCompose((Void v) -> createStateIfAbsent(KVTStateRecord.builder().state(KVTableState.CREATING).build()))
                         .thenCompose((Void v) -> createHistoryRecords(startingSegmentNumber, createKVTResponse))
                         .thenApply((Void v) -> createKVTResponse));
-
-
     }
 
     private CompletionStage<Void> createHistoryRecords(int startingSegmentNumber, CreateKVTableResponse createKvtResponse) {
@@ -144,6 +142,7 @@ public abstract class PersistentKVTableBase implements KeyValueTable {
     }
 
     // region state
+    abstract public CompletableFuture<String> getId();
     abstract CompletableFuture<Void> createStateIfAbsent(final KVTStateRecord state);
 
     abstract CompletableFuture<Version> setStateData(final VersionedMetadata<KVTStateRecord> state);

@@ -13,9 +13,8 @@ import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
-import io.pravega.controller.store.PravegaTablesStoreHelper;
-import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -185,9 +184,11 @@ public class PravegaTablesScope implements Scope {
                         storeHelper.getEntry(tableName, kvt, x -> x).thenApply(v -> true), false));
     }
 
-    public CompletableFuture<Void> addKVTableToScope(String kvt) {
+    public CompletableFuture<UUID> addKVTableToScope(String kvt) {
+        byte[] kvTableId = newId();
         return getKVTablesInScopeTableName()
-                .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, kvt, newId())));
+                .thenCompose(tableName -> storeHelper.addNewEntry(tableName, kvt, kvTableId))
+                .thenCompose(x -> CompletableFuture.completedFuture(BitConverter.readUUID(kvTableId, 0)));
     }
 
     public CompletableFuture<Void> removeKVTableFromScope(String kvt) {

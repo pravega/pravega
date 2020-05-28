@@ -68,4 +68,5 @@ public interface ArtifactStore {
                                                                      OperationContext context, ScheduledExecutorService executor) {
         return Futures.withCompletion(getArtifact(scope, stream, context).deleteWaitingRequestConditionally(processorName), executor);
     }
+
 }

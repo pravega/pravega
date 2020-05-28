@@ -20,7 +20,7 @@ import java.util.concurrent.CompletableFuture;
  * Properties of a stream and operations that can be performed on it.
  * Identifier for a stream is its name.
  */
-interface KeyValueTable extends Artifact {
+public interface KeyValueTable extends Artifact {
 
     /**
      * Create the stream, by creating/modifying underlying data structures.
@@ -96,6 +96,12 @@ interface KeyValueTable extends Artifact {
     CompletableFuture<KVTableState> getState(boolean ignoreCached);
 
     /**
+     * Get the UUID of the kvtable.
+     * @return UUID of the given ktable.
+     */
+    CompletableFuture<String> getId();
+
+    /**
      * Fetches details of specified segment.
      *
      * @param segmentId segment number.
@@ -126,12 +132,6 @@ interface KeyValueTable extends Artifact {
      */
     //CompletableFuture<List<StreamSegmentRecord>> getSegmentsInEpoch(int epoch);
 
-    /**
-     * Method to get versioned Epoch Transition Record from store.
-     * 
-     * @return Future which when completed contains existing epoch transition record with version
-     */
-    //CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransition();
 
     /**
      * Returns the currently active stream epoch.
@@ -149,38 +149,5 @@ interface KeyValueTable extends Artifact {
      */
     //CompletableFuture<EpochRecord> getEpochRecord(int epoch);
     
-    /**
-     * This method attempts to create a new Waiting Request node and set the processor's name in the node.
-     * If a node already exists, this attempt is ignored.
-     *
-     * @param processorName name of the request processor that is waiting to get an opportunity for processing.
-     * @return CompletableFuture which indicates that a node was either created successfully or records the failure.
-     */
-    //CompletableFuture<Void> createWaitingRequestIfAbsent(String processorName);
 
-    /**
-     * This method fetches existing waiting request processor's name if any. It returns null if no processor is waiting.
-     *
-     * @return CompletableFuture which has the name of the processor that had requested for a wait, or null if there was no
-     * such request.
-     */
-    //CompletableFuture<String> getWaitingRequestProcessor();
-
-    /**
-     * Delete existing waiting request processor if the name of the existing matches suppied processor name.
-     *
-     * @param processorName processor whose record is to be deleted.
-     * @return CompletableFuture which indicates completion of processing.
-     */
-    //CompletableFuture<Void> deleteWaitingRequestConditionally(String processorName);
-
-
-
-    /**
-     * Method to get the requested chunk of the HistoryTimeSeries.
-     *
-     * @param chunkNumber chunk number.
-     * @return Completable future that, upon completion, holds the requested HistoryTimeSeries chunk.
-     */
-    //CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunk(int chunkNumber);
 }

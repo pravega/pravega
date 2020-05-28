@@ -67,7 +67,7 @@ class PravegaTablesKVTable extends PersistentKVTableBase {
         this.executor = executor;
     }
 
-    private CompletableFuture<String> getId() {
+    public CompletableFuture<String> getId() {
         String id = idRef.get();
 
         if (!Strings.isNullOrEmpty(id)) {

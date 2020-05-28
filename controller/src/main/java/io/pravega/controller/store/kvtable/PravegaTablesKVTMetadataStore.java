@@ -15,6 +15,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.PravegaTablesScope;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.SegmentHelper;
@@ -29,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -74,25 +76,18 @@ public class PravegaTablesKVTMetadataStore extends AbstractTableMetadataStore {
     }
 
     @Override
-    CompletableFuture<Boolean> checkScopeExists(String scope) {
+    public CompletableFuture<Boolean> checkScopeExists(String scope) {
         return Futures.withCompletion(storeHelper.expectingDataNotFound(
                 storeHelper.getEntry(SCOPES_TABLE, scope, x -> x).thenApply(v -> true),
                 false), executor);
     }
 
-    @Override
-    public CompletableFuture<CreateKVTableResponse> createKeyValueTable(final String scope,
-                                                                final String name,
-                                                                final KeyValueTableConfiguration configuration,
-                                                                final long createTimestamp,
-                                                                final OperationContext context,
-                                                                final Executor executor) {
-        return Futures.withCompletion(
-                ((PravegaTablesScope) getScope(scope))
-                        .addKVTableToScope(name)
-                        .thenCompose(id -> super.createKeyValueTable(scope, name, configuration, createTimestamp, context, executor)),
-                executor);
+    public CompletableFuture<UUID> createEntryForKVTable(final String scopeName,
+                                                         final String kvtName,
+                                                         final Executor executor) {
+        return Futures.withCompletion((((PravegaTablesScope)getScope(scopeName)).addKVTableToScope(kvtName)), executor);
     }
+
 
     @Override
     public CompletableFuture<Boolean> checkKeyValueTableExists(final String scopeName,

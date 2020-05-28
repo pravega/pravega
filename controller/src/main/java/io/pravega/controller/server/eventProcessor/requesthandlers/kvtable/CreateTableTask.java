@@ -10,8 +10,9 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers.kvtable;
 
 import com.google.common.base.Preconditions;
+import io.pravega.controller.store.kvtable.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.controller.server.eventProcessor.requesthandlers.StreamTask;
+
 import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.kvtable.CreateKVTableResponse;
 import io.pravega.controller.store.kvtable.TableMetadataStore;
@@ -60,40 +61,48 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
         int partitionCount = request.getPartitionCount();
         long creationTime = request.getTimestamp();
         long requestId = request.getRequestId();
+        String kvtableId = request.getTableId().toString();
         KeyValueTableConfiguration config = new KeyValueTableConfiguration(partitionCount);
 
-        this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, null, executor)
-                .thenComposeAsync(response -> {
-                    //log.info(requestId, "{}/{} created in metadata store", scope, kvt);
-                    Controller.CreateKeyValueTableStatus.Status status = translate(response.getStatus());
-                    // only if its a new kvtable or an already existing non-active kvtable then we will create
-                    // segments and change the state of the kvtable to active.
-                    if (response.getStatus().equals(CreateKVTableResponse.CreateStatus.NEW) ||
-                            response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
-                        final int startingSegmentNumber = response.getStartingSegmentNumber();
-                        final int minNumSegments = response.getConfiguration().getPartitionCount();
-                        List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
-                                .boxed()
-                                .map(x -> NameUtils.computeSegmentId(x, 0))
-                                .collect(Collectors.toList());
-                        return kvtMetadataTasks.notifyNewSegments(scope, kvt, newSegments, requestId)
-                                .thenCompose(y -> {
-                                    final OperationContext context = kvtMetadataStore.createContext(scope, kvt);
-                                    //TODO: add withRetries
-                                    kvtMetadataStore.getVersionedState(scope, kvt, context, executor)
-                                            .thenCompose(state -> {
-                                                if (state.getObject().equals(State.CREATING)) {
-                                                    kvtMetadataStore.updateVersionedState(scope, kvt, KVTableState.ACTIVE,
-                                                            state, context, executor);
-                                                }
-                                                return CompletableFuture.completedFuture(null);
-                                            });
-                                    return CompletableFuture.completedFuture(null);
-                                });
-                    }
-                    return CompletableFuture.completedFuture(null);
-                });
-        return CompletableFuture.completedFuture(null);
+        return ((KeyValueTable)kvtMetadataStore.getArtifact(scope, kvt, null)).getId()
+        .thenCompose(id -> {
+            if(!id.equals(kvtableId)) {
+                // we don;t execute the request if IDs do not match
+                return CompletableFuture.completedFuture(null);
+            } else {
+                this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, null, executor)
+                        .thenComposeAsync(response -> {
+                            //log.info(requestId, "{}/{} created in metadata store", scope, kvt);
+                            Controller.CreateKeyValueTableStatus.Status status = translate(response.getStatus());
+                            // only if its a new kvtable or an already existing non-active kvtable then we will create
+                            // segments and change the state of the kvtable to active.
+                            if (response.getStatus().equals(CreateKVTableResponse.CreateStatus.NEW) ||
+                                    response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
+                                final int startingSegmentNumber = response.getStartingSegmentNumber();
+                                final int minNumSegments = response.getConfiguration().getPartitionCount();
+                                List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
+                                        .boxed()
+                                        .map(x -> NameUtils.computeSegmentId(x, 0))
+                                        .collect(Collectors.toList());
+                                return kvtMetadataTasks.notifyNewSegments(scope, kvt, newSegments, requestId)
+                                        .thenCompose(y -> {
+                                            final OperationContext context = kvtMetadataStore.createContext(scope, kvt);
+                                            //TODO: add withRetries
+                                            kvtMetadataStore.getVersionedState(scope, kvt, context, executor)
+                                                    .thenCompose(state -> {
+                                                        if (state.getObject().equals(State.CREATING)) {
+                                                            kvtMetadataStore.updateVersionedState(scope, kvt, KVTableState.ACTIVE,
+                                                                    state, context, executor);
+                                                        }
+                                                        return CompletableFuture.completedFuture(null);
+                                                    });
+                                            return CompletableFuture.completedFuture(null);
+                                        });
+                            }
+                            return CompletableFuture.completedFuture(null);
+                        });
+                return CompletableFuture.completedFuture(null);
+            }});
     }
 
     private Controller.CreateKeyValueTableStatus.Status translate(CreateKVTableResponse.CreateStatus status) {

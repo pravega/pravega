@@ -22,11 +22,15 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.store.OperationContext;
+import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.controller.store.kvtable.KVTableState;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.store.kvtable.TableMetadataStore;
+import io.pravega.controller.task.TaskBase;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
@@ -34,7 +38,9 @@ import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -72,6 +78,7 @@ public class TableMetadataTasks {
                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
                               final ScheduledExecutorService eventExecutor, final String hostId,
                               GrpcAuthHelper authHelper, RequestTracker requestTracker) {
+        super();
         this.kvtMetadataStore = kvtMetadataStore;
         this.segmentHelper = segmentHelper;
         this.executor = executor;
@@ -104,28 +111,56 @@ public class TableMetadataTasks {
                                                                                    KeyValueTableConfiguration kvtConfig,
                                                                                    final long createTimestamp) {
         final long requestId = requestTracker.getRequestIdFor("createKVTable", scope, kvtName);
-        Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
+        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                 .thenCompose(state -> {
                     if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
                         // 1. post event for CreateKVTable.
-                        CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(), createTimestamp, requestId);
-                        return addIndexAndSubmitTask(event, () -> CompletableFuture.completedFuture(Boolean.TRUE))
-                                .handle( (result,ex) -> { if (result) {
-                                    return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SUCCESS);
-                                }
-                                else {
-                                    log.warn(requestId, "Exception thrown while creating KeyValueTable {}", ex.getMessage());
-                                    return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.FAILURE);
-                                }
-                                });
+                        return  Futures.withCompletion(kvtMetadataStore.checkScopeExists(scope)
+                                .thenCompose(exists -> {
+                                    if (exists) {
+                                        return Futures.exceptionallyExpecting(kvtMetadataStore.createEntryForKVTable(scope, kvtName, executor)
+                                                        .thenCompose(uuid -> {
+                                                            CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(), createTimestamp, requestId, uuid);
+                                                            return addIndexAndSubmitTask(event,
+                                                                    () -> CompletableFuture.completedFuture(null))
+                                                                    .thenCompose(x -> checkDone(() -> isCreated(scope, kvtName))
+                                                                            .thenApply(y -> CreateKeyValueTableStatus.Status.SUCCESS));
+                                                        }),
+                                                e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException,
+                                                CreateKeyValueTableStatus.Status.TABLE_EXISTS);
+                                    } else {
+                                        return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND);
+                                    }
+                                }), executor);
                     } else {
                        return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.TABLE_EXISTS);
                     }
                 });
-        return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SUCCESS);
     }
 
+    private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition) {
+        return checkDone(condition, 100L);
+    }
+
+    private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition, long delay) {
+        AtomicBoolean isDone = new AtomicBoolean(false);
+        return Futures.loop(() -> !isDone.get(),
+                () -> Futures.delayedFuture(condition, delay, executor)
+                        .thenAccept(isDone::set), executor);
+    }
+
+    private CompletableFuture<Boolean> isCreated(String scope, String kvtName) {
+       return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
+                .thenCompose(state -> {
+                    if (state.equals(KVTableState.ACTIVE)) {
+                        return CompletableFuture.completedFuture(true);
+                    } else {
+                        return CompletableFuture.completedFuture(false);
+                    }
+                });
+    }
     /**
      * This method takes an event and a future supplier and guarantees that if future supplier has been executed then event will 
      * be posted in request stream. It does it by following approach:
