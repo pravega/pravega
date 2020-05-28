@@ -46,6 +46,7 @@ import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -66,9 +67,16 @@ import io.pravega.test.common.TestUtils;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.AbstractMap;
+import java.util.Map.Entry;
+import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -86,7 +94,7 @@ import static org.junit.Assert.assertTrue;
 
 public class ReadTest extends LeakDetectorTestSuite {
 
-    private static final int TIMEOUT_MILLIS = 30000;
+    private static final int TIMEOUT_MILLIS = 60000;
     private ServiceBuilder serviceBuilder;
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
     @Rule
@@ -335,8 +343,8 @@ public class ReadTest extends LeakDetectorTestSuite {
     }
 
     /**
-     * This test performs concurrent reads and writes on a Stream. In particular, readers are exercising the lazy
-     * construction of PositionImpl object while the internal segmentOffsetUpdates list in EventStreamReaderImpl is
+     * This test performs concurrent writes, reads and position checks on a Stream. Readers are checkers exercising the
+     * lazy construction of PositionImpl objects while the internal segmentOffsetUpdates list in EventStreamReaderImpl is
      * being updated due to new read events. This test generates enough events to make segmentOffsetUpdates list in
      * EventStreamReaderImpl to be filled and cleaned at least once. This test verifies the thread safety of the new
      * optimization in EventStreamReaderImpl to prevent generating segmentOffset maps on every event read, as well as
@@ -351,7 +359,9 @@ public class ReadTest extends LeakDetectorTestSuite {
         // Generate enough events to make the internal segment offset update buffer in EventStreamReaderImpl to be
         // emptied and filled again.
         int eventsToWrite = 2000;
-        AtomicInteger finishedReaders = new AtomicInteger(0);
+        BlockingQueue<Entry<Integer, PositionImpl>> readEventsPositions = new ArrayBlockingQueue<>(eventsToWrite);
+        ScheduledExecutorService readersWritersAndCheckers = new ScheduledThreadPoolExecutor(4);
+        AtomicInteger finishedProcesses = new AtomicInteger(0);
         int port = TestUtils.getAvailableListenPort();
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
@@ -379,44 +389,62 @@ public class ReadTest extends LeakDetectorTestSuite {
         Exceptions.handleInterrupted(() -> Thread.sleep(2000));
 
         // Start writers and readers in parallel.
+        CompletableFuture reader1Future =  CompletableFuture.runAsync(() -> {
+            readAndQueueEvents(reader1, eventsToWrite, readEventsPositions);
+            finishedProcesses.incrementAndGet();
+        }, readersWritersAndCheckers);
+
+        CompletableFuture reader2Future = CompletableFuture.runAsync(() -> {
+            readAndQueueEvents(reader2, eventsToWrite, readEventsPositions);
+            finishedProcesses.incrementAndGet();
+        }, readersWritersAndCheckers);
+
         CompletableFuture writerFuture = CompletableFuture.runAsync(() -> {
             for (int i = 0; i < eventsToWrite; i++) {
                 producer.writeEvent("segment1", "a");
                 producer.writeEvent("segment2", "b");
                 Exceptions.handleInterrupted(() -> Thread.sleep(1));
             }
-        });
+            finishedProcesses.incrementAndGet();
+        }, readersWritersAndCheckers);
 
-        CompletableFuture reader1Future =  CompletableFuture.runAsync(() -> {
-            readEvent(reader1, eventsToWrite);
-            finishedReaders.incrementAndGet();
-        });
+        // This process access the positions read by the reader threads, which means that this thread is concurrently
+        // accessing the shared segmentOffsetUpdates list, whereas readers are appending data to it.
+        CompletableFuture checkOffsets = CompletableFuture.runAsync(() -> {
+            int sizeOfEvent = 16; // 1-char string is assumed to be the payload of events
+            while (finishedProcesses.get() < 2) {
+                Entry<Integer, PositionImpl> element;
+                try {
+                    element = readEventsPositions.poll(1, TimeUnit.MINUTES);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                int numberOfSegments = element.getValue().getOwnedSegmentsWithOffsets().size();
+                assertEquals("Reader owning too many segments.", 1, numberOfSegments);
+                // The segment position should increase by sizeOfEvent every event.
+                long segmentPositionOffset = element.getValue().getOwnedSegmentsWithOffsets().values().iterator().next();
+                assertEquals("Wrong event position", sizeOfEvent * element.getKey(), segmentPositionOffset);
+            }
+            finishedProcesses.incrementAndGet();
+        }, readersWritersAndCheckers);
 
-        CompletableFuture reader2Future = CompletableFuture.runAsync(() -> {
-            readEvent(reader2, eventsToWrite);
-            finishedReaders.incrementAndGet();
-        });
-
-        CompletableFuture.allOf(writerFuture, reader1Future, reader2Future).join();
-        assertEquals(finishedReaders.get(), 2);
+        // Wait for all futures to complete.
+        CompletableFuture.allOf(writerFuture, reader1Future, reader2Future, checkOffsets).join();
+        // Any failure reading, writing or checking positions will make this assertion to fail.
+        assertEquals(finishedProcesses.get(), 4);
+        ExecutorServiceHelpers.shutdown(readersWritersAndCheckers);
     }
 
     /**
-     * Verifies that a reader has exactly 1 segment and that the offsets from the PositionImpl object in the event are
-     * correct for that segment.
+     * Reads events and puts them in a queue for later checking (potentially by another thread).
      */
-    private void readEvent(EventStreamReader<String> reader, int eventsToWrite) {
-        int sizeOfEvent = 16; // 1-char string is assumed to be the payload of events
+    private void readAndQueueEvents(EventStreamReader<String> reader, int eventsToWrite, Queue<Entry<Integer, PositionImpl>> readEventsPositions) {
         int eventCount = 1;
         for (int i = 0; i < eventsToWrite; i++) {
             final EventRead<String> event = reader.readNextEvent(1000);
             if (event.getEvent() != null && !event.isCheckpoint()) {
                 // The reader should own only 1 segment.
-                int numberOfSegments = ((PositionImpl) event.getPosition()).getOwnedSegmentsWithOffsets().size();
-                assertEquals("Reader owning too many segments.", 1, numberOfSegments);
-                // The event position should increase by sizeOfEvent every event.
-                long eventPositionOffset = ((PositionImpl) event.getPosition()).getOwnedSegmentsWithOffsets().values().iterator().next();
-                assertEquals("Wrong event position", sizeOfEvent * eventCount, eventPositionOffset);
+                readEventsPositions.add(new AbstractMap.SimpleEntry<>(eventCount, (PositionImpl) event.getPosition()));
                 eventCount++;
             }
         }
