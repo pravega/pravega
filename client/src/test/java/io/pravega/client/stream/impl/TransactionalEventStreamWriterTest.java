@@ -11,7 +11,10 @@ package io.pravega.client.stream.impl;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+<<<<<<< HEAD
 import io.pravega.client.control.impl.Controller;
+=======
+>>>>>>> Issue 4815: (Bugfix) Ensure TxnFailedException is thrown only if Transaction is not in an open state (#4814)
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
@@ -22,7 +25,10 @@ import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.EventStreamWriterTest.FakeSegmentOutputStream;
 import io.pravega.common.util.RetriesExhaustedException;
+<<<<<<< HEAD
 import io.pravega.shared.NameUtils;
+=======
+>>>>>>> Issue 4815: (Bugfix) Ensure TxnFailedException is thrown only if Transaction is not in an open state (#4814)
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.NavigableMap;
 import java.util.TreeMap;
