@@ -268,13 +268,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
         logRequest("keyIterator", segmentName);
         return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::key);
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
         logRequest("entryIterator", segmentName);
         return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::entry);
     }
@@ -312,7 +312,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return segment.append(s, null, timeout);
     }
 
-    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, byte[] serializedState,
+    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, BufferView serializedState,
                                                                               @NonNull Duration fetchTimeout,
                                                                               @NonNull GetBucketReader<T> createBucketReader) {
         UUID fromHash;

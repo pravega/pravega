@@ -37,8 +37,7 @@ public class CompositeBufferViewTests {
     @Test
     public void testWrap() throws IOException {
         val empty = BufferView.wrap(Collections.emptyList());
-        Assert.assertTrue(empty instanceof ByteArraySegment);
-        Assert.assertEquals(0, empty.getLength());
+        Assert.assertSame(BufferView.empty(), empty);
 
         val b1 = new ByteArraySegment(new byte[]{1});
         val b2 = new ByteArraySegment(new byte[]{2});

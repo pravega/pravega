@@ -32,7 +32,7 @@ public class AbstractBufferViewTests {
     public void testEqualsHashCode() {
         val data1 = generate();
         val data2 = copy(data1);
-        ByteArraySegment prev = null;
+        BufferView prev = null;
         for (int i = 0; i < data1.size(); i++) {
             val a1 = data1.get(i);
             val a2 = data2.get(i);
@@ -60,17 +60,17 @@ public class AbstractBufferViewTests {
        Assert.assertEquals(b, cb);
     }
 
-    private List<ByteArraySegment> copy(List<ByteArraySegment> source) {
+    private List<BufferView> copy(List<BufferView> source) {
         return source.stream()
-                .map(a -> new ByteArraySegment(Arrays.copyOf(a.array(), a.array().length), a.arrayOffset(), a.getLength()))
+                .map(b -> new ByteArraySegment(b.getCopy()))
                 .collect(Collectors.toList());
     }
 
-    private List<ByteArraySegment> generate() {
+    private List<BufferView> generate() {
         final int padding = 10;
         val rnd = new Random(0);
-        val result = new ArrayList<ByteArraySegment>();
-        result.add(new ByteArraySegment(new byte[0])); // Throw in an empty one too.
+        val result = new ArrayList<BufferView>();
+        result.add(BufferView.empty()); // Throw in an empty one too.
         int lastLength = 0;
         for (int i = 0; i < COUNT; i++) {
             int length = (i % 2 == 0 && lastLength > 0) ? lastLength : rnd.nextInt(MAX_LENGTH);

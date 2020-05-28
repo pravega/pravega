@@ -11,10 +11,9 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.BufferViewBuilder;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
@@ -45,7 +44,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     //region Members
 
     private final TimeoutTimer timer;
-    private final EnhancedByteArrayOutputStream readData;
+    private final BufferViewBuilder readData;
     @Getter
     private final CompletableFuture<ResultT> result;
     private final EntrySerializer serializer;
@@ -68,7 +67,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         this.keyVersion = keyVersion;
         this.serializer = serializer;
         this.timer = timer;
-        this.readData = new EnhancedByteArrayOutputStream();
+        this.readData = BufferView.builder();
         this.result = new CompletableFuture<>();
     }
 
@@ -119,7 +118,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         long version = getKeyVersion(h, segmentOffset);
         BufferView key = input.readSlice(h.getKeyLength());
         BufferView value = h.isDeletion() ? null :
-                (h.getValueLength() == 0 ? new ByteArraySegment(new byte[0]) : input.readSlice(h.getValueLength()));
+                (h.getValueLength() == 0 ? BufferView.empty() : input.readSlice(h.getValueLength()));
         return new DeserializedEntry(h, version, key, value);
     }
 
@@ -130,11 +129,11 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     /**
      * When implemented in a derived class, this will process the data read so far.
      *
-     * @param readData A {@link ByteArraySegment} representing the generated result data so far
+     * @param readData A {@link BufferView} representing the generated result data so far
      * @return True if the data read so far are enough to generate a result (in which case the read processing will abort),
      * or false if more data are needed (in which case the processing will attempt to resume).
      */
-    protected abstract boolean processReadData(ByteArraySegment readData);
+    protected abstract boolean processReadData(BufferView readData);
 
     /**
      * Completes the result with the given value.
@@ -172,15 +171,14 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
         try {
             Preconditions.checkArgument(entry.getContent().isDone(), "Entry Contents is not yet fetched.");
-            BufferView contents = entry.getContent().join();
-            contents.copyTo(this.readData); // TODO: there's a copy going on right here.
-            if (this.header == null && this.readData.size() >= EntrySerializer.HEADER_LENGTH) {
+            this.readData.add(entry.getContent().join());
+            if (this.header == null && this.readData.getLength() >= EntrySerializer.HEADER_LENGTH) {
                 // We now have enough to read the header.
-                this.header = this.serializer.readHeader(this.readData.getData().getBufferViewReader());
+                this.header = this.serializer.readHeader(this.readData.build().getBufferViewReader());
             }
 
             if (this.header != null) {
-                return !processReadData(this.readData.getData());
+                return !processReadData(this.readData.build());
             }
 
             return true; // Not done yet.
@@ -221,7 +219,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         }
 
         @Override
-        protected boolean processReadData(ByteArraySegment readData) {
+        protected boolean processReadData(BufferView readData) {
             val header = getHeader();
             assert header != null : "acceptResult called with no header loaded.";
 
@@ -260,7 +258,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
         @Override
         @SuppressWarnings("ReturnCount")
-        protected boolean processReadData(ByteArraySegment readData) {
+        protected boolean processReadData(BufferView readData) {
             val header = getHeader();
             assert header != null : "acceptResult called with no header loaded.";
 
@@ -278,7 +276,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
             if (!this.keyValidated) {
                 // Compare the sought key and the data we read, byte-by-byte.
-                ByteArraySegment keyData = readData.slice(header.getKeyOffset(), header.getKeyLength());
+                BufferView keyData = readData.slice(header.getKeyOffset(), header.getKeyLength());
                 if (!this.soughtKey.equals(keyData)) {
                     // Key mismatch.
                     complete(null);
@@ -302,7 +300,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             // Fetch the value and finish up.
             BufferView valueData;
             if (header.getValueLength() == 0) {
-                valueData = new ByteArraySegment(new byte[0]);
+                valueData = BufferView.empty();
             } else {
                 valueData = readData.slice(header.getValueOffset(), header.getValueLength());
             }
@@ -311,7 +309,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             return true; // Now we are truly done.
         }
 
-        private BufferView getKeyData(BufferView soughtKey, ByteArraySegment readData, EntrySerializer.Header header) {
+        private BufferView getKeyData(BufferView soughtKey, BufferView readData, EntrySerializer.Header header) {
             if (soughtKey == null) {
                 soughtKey = readData.slice(header.getKeyOffset(), header.getKeyLength());
             }

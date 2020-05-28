@@ -88,7 +88,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         // Mismatched segment ids.
         AssertExtensions.assertThrows(
                 "add() worked with wrong segment id.",
-                () -> context.processor.add(new StreamSegmentAppendOperation(SEGMENT_ID + 1, new ByteArraySegment(new byte[0]), null)),
+                () -> context.processor.add(new StreamSegmentAppendOperation(SEGMENT_ID + 1, BufferView.empty(), null)),
                 ex -> ex instanceof IllegalArgumentException);
 
         // Pre-last indexed offset.

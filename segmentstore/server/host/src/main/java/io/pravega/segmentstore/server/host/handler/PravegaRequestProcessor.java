@@ -733,9 +733,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
         ByteBuf token = readTableKeys.getContinuationToken();
 
-        byte[] state = null;
+        BufferView state = null;
         if (!token.equals(EMPTY_BUFFER)) {
-            state = token.array();
+            state = new ByteBufWrapper(token);
         }
 
         val msgSize = new AtomicInteger(segment.getBytes().length + WireCommands.TableKeysRead.HEADER_BYTES);
@@ -787,9 +787,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         int suggestedEntryCount = readTableEntries.getSuggestedEntryCount();
         ByteBuf token = readTableEntries.getContinuationToken();
 
-        byte[] state = null;
+        BufferView state = null;
         if (!token.equals(EMPTY_BUFFER)) {
-            state = token.array();
+            state = new ByteBufWrapper(token);
         }
 
         val msgSize = new AtomicInteger(segment.getBytes().length + WireCommands.TableEntriesRead.HEADER_BYTES);

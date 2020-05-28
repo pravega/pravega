@@ -154,12 +154,41 @@ public interface BufferView {
      */
     static BufferView wrap(List<BufferView> components) {
         if (components.size() == 0) {
-            return new ByteArraySegment(new byte[0]);
+            return empty();
         } else if (components.size() == 1) {
             return components.get(0).slice();
         } else {
             return new CompositeBufferView(components);
         }
+    }
+
+    /**
+     * Creates a new {@link BufferViewBuilder} that can be used to construct composite {@link BufferView} instances.
+     *
+     * @return A new {@link BufferViewBuilder} with default initial component count.
+     */
+    static BufferViewBuilder builder() {
+        return builder(10);
+    }
+
+    /**
+     * Creates a new {@link BufferViewBuilder} that can be used to construct composite {@link BufferView} instances.
+     *
+     * @param expectedComponentCount The initial component count. Knowing this value beforehand will avoid any list copies
+     *                               that are done as the builder component list grows.
+     * @return A new {@link BufferViewBuilder} with specified initial component count.
+     */
+    static BufferViewBuilder builder(int expectedComponentCount) {
+        return new BufferViewBuilder(expectedComponentCount);
+    }
+
+    /**
+     * Returns the empty {@link BufferView}.
+     *
+     * @return The empty {@link BufferView}.
+     */
+    static BufferView empty() {
+        return AbstractBufferView.EMPTY;
     }
 
     /**

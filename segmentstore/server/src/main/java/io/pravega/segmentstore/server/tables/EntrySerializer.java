@@ -17,9 +17,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import lombok.AccessLevel;
@@ -75,15 +73,10 @@ class EntrySerializer {
     }
 
     private BufferView serializeUpdate(@NonNull Collection<TableEntry> entries, Function<TableKey, Long> getVersion) {
-        val size = new AtomicInteger(0);
-        val components = new ArrayList<BufferView>(entries.size() * 3);
-        Consumer<BufferView> acceptBuffer = b -> {
-            components.add(b);
-            size.addAndGet(b.getLength());
-        };
-        entries.forEach(e -> serializeUpdate(e, getVersion, acceptBuffer));
-        Preconditions.checkArgument(size.get() <= MAX_BATCH_SIZE, "Update batch size cannot exceed %s. Given %s.", MAX_BATCH_SIZE, size);
-        return BufferView.wrap(components);
+        val builder = BufferView.builder(entries.size() * 3);
+        entries.forEach(e -> serializeUpdate(e, getVersion, builder::add));
+        Preconditions.checkArgument(builder.getLength() <= MAX_BATCH_SIZE, "Update batch size cannot exceed %s. Given %s.", MAX_BATCH_SIZE, builder.getLength());
+        return builder.build();
     }
 
     private void serializeUpdate(@NonNull TableEntry entry, Function<TableKey, Long> getVersion, Consumer<BufferView> acceptBuffer) {
@@ -132,14 +125,9 @@ class EntrySerializer {
      * @return A {@link BufferView} representing the serialization of the given keys.
      */
     BufferView serializeRemoval(@NonNull Collection<TableKey> keys) {
-        val size = new AtomicInteger(0);
-        val components = new ArrayList<BufferView>(keys.size() * 2);
-        Consumer<BufferView> acceptBuffer = b -> {
-            components.add(b);
-            size.addAndGet(b.getLength());
-        };
-        keys.forEach(k -> serializeRemoval(k, acceptBuffer));
-        return BufferView.wrap(components);
+        val builder = BufferView.builder(keys.size() * 2);
+        keys.forEach(k -> serializeRemoval(k, builder::add));
+        return builder.build();
     }
 
     private void serializeRemoval(@NonNull TableKey tableKey, Consumer<BufferView> acceptBuffer) {

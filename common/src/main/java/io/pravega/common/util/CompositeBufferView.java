@@ -18,6 +18,7 @@ import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import lombok.AccessLevel;
@@ -28,7 +29,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * Provides a unified view of multiple wrapped {@link BufferView} instances.
  */
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class CompositeBufferView extends AbstractBufferView implements BufferView {
     //region Members
 
@@ -164,6 +165,10 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
         this.components.forEach(BufferView::release);
     }
 
+    List<BufferView> getComponents() {
+        return Collections.unmodifiableList(this.components);
+    }
+
     //endregion
 
     //region Reader
@@ -216,7 +221,7 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
             }
 
             if (length == 0) {
-                return new ByteArraySegment(new byte[0]);
+                return BufferView.empty();
             }
 
             ArrayList<BufferView> components = new ArrayList<>();
