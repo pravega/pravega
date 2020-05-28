@@ -66,7 +66,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     // As an optimization to do not generate Position objects on every event read, we define a base map of segments and
     // then a batch of updates to the offsets of these segments, one per event read. Internally, the Position object can
     // derive the right offsets at which the event was read by lazily replying such updates up to the point it was read.
-    private static final int MAX_BUFFERED_SEGMENT_OFFSET_UPDATES = 500;
+    private static final int MAX_BUFFERED_SEGMENT_OFFSET_UPDATES = 1000;
 
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
@@ -424,8 +424,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         // Read event
         try {
             ByteBuffer buffer = inputStream.read();
-            Type result = deserializer.deserialize(buffer);
-            return result;
+            return deserializer.deserialize(buffer);
         } catch (EndOfSegmentException e) {
             throw new NoSuchEventException(e.getMessage());
         } catch (NoSuchSegmentException | SegmentTruncatedException e) {

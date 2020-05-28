@@ -60,11 +60,25 @@ public class PositionImpl extends PositionInternal {
             this.segmentRanges.put(s.getSegment(), s.getRange());
         }
     }
-    
+
+    /**
+     * Builder to lazily construct a PositionImpl object. This builder allows as input both copies or references to
+     * (structurally immutable) external collections to build its internal state. In the case of using references to
+     * existing collections as input, the implementation of this class ensures that their contents will not be changed.
+     * By using this builder, we are making the internal state of this object to be lazily constructed (i.e., only if
+     * any method on the object is invoked, the internal state is built first based on the collections used as input).
+     *
+     * @param ownedSegments             Map of Segments and their current read offset.
+     * @param segmentRanges             Map that relates Segments with their assigned keyspace ranges.
+     * @param updatesToSegmentOffsets   Optional list of Segment offset updates. If this list is not null or empty,
+     *                                   this class will replay the input list and update a copy of ownedSegments with
+     *                                   the offsets in the list. This will happen before any other method invocation to
+     *                                   build the internal state of the object.
+     */
     @Builder(builderClassName = "PositionBuilder")
     PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges, List<Entry<Segment, Long>> updatesToSegmentOffsets) {
         this.ownedSegments = Collections.unmodifiableMap(ownedSegments);
-        this.updatesToSegmentOffsets = Collections.unmodifiableList((updatesToSegmentOffsets == null) ? Collections.emptyList() : updatesToSegmentOffsets);
+        this.updatesToSegmentOffsets = (updatesToSegmentOffsets != null) ? Collections.unmodifiableList(updatesToSegmentOffsets) : null;
         this.version = (updatesToSegmentOffsets != null) ? updatesToSegmentOffsets.size() : 0;
         if (segmentRanges == null) {
             this.segmentRanges = Collections.emptyMap();
