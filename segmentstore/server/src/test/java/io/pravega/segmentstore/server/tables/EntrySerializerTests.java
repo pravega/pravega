@@ -36,9 +36,9 @@ public class EntrySerializerTests {
     public void testUpdate() throws Exception {
         val entries = generateEntries();
         val s = new EntrySerializer();
-        val length = entries.stream().map(s::getUpdateLength).mapToInt(i -> i).sum();
-        byte[] serialization = new byte[length];
-        s.serializeUpdate(entries, serialization);
+        val expectedLength = entries.stream().map(s::getUpdateLength).mapToInt(i -> i).sum();
+        val serialization = s.serializeUpdate(entries).getCopy();
+        Assert.assertEquals(expectedLength, serialization.length);
 
         int offset = 0;
         for (val e : entries) {
@@ -55,9 +55,9 @@ public class EntrySerializerTests {
     public void testUpdateWithExplicitVersion() throws Exception {
         val entries = generateEntries();
         val s = new EntrySerializer();
-        val length = entries.stream().map(s::getUpdateLength).mapToInt(i -> i).sum();
-        byte[] serialization = new byte[length];
-        s.serializeUpdateWithExplicitVersion(entries, serialization);
+        val expectedLength = entries.stream().map(s::getUpdateLength).mapToInt(i -> i).sum();
+        val serialization = s.serializeUpdateWithExplicitVersion(entries).getCopy();
+        Assert.assertEquals(expectedLength, serialization.length);
 
         int offset = 0;
         for (val e : entries) {
@@ -71,9 +71,9 @@ public class EntrySerializerTests {
     public void testRemoval() throws Exception {
         val keys = generateKeys();
         val s = new EntrySerializer();
-        val length = keys.stream().map(s::getRemovalLength).mapToInt(i -> i).sum();
-        byte[] serialization = new byte[length];
-        s.serializeRemoval(keys, serialization);
+        val expectedLength = keys.stream().map(s::getRemovalLength).mapToInt(i -> i).sum();
+        val serialization = s.serializeRemoval(keys).getCopy();
+        Assert.assertEquals(expectedLength, serialization.length);
 
         int offset = 0;
         for (val key : keys) {

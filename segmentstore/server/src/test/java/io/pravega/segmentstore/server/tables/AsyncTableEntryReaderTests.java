@@ -256,17 +256,15 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
         byte[] serialization;
         if (removal) {
             val keyData = TableKey.unversioned(new ByteArraySegment(key));
-            serialization = new byte[SERIALIZER.getRemovalLength(keyData)];
-            SERIALIZER.serializeRemoval(Collections.singletonList(keyData), serialization);
+            serialization = SERIALIZER.serializeRemoval(Collections.singletonList(keyData)).getCopy();
             return new TestItem(key, value, removal, TableKey.NO_VERSION, serialization);
         } else {
             val entry = TableEntry.versioned(new ByteArraySegment(key), new ByteArraySegment(value), key.length);
-            serialization = new byte[SERIALIZER.getUpdateLength(entry)];
             if (explicitVersion) {
-                SERIALIZER.serializeUpdateWithExplicitVersion(Collections.singletonList(entry), serialization);
+                serialization = SERIALIZER.serializeUpdateWithExplicitVersion(Collections.singletonList(entry)).getCopy();
                 return new TestItem(key, value, removal, entry.getKey().getVersion(), serialization);
             } else {
-                SERIALIZER.serializeUpdate(Collections.singletonList(entry), serialization);
+                serialization = SERIALIZER.serializeUpdate(Collections.singletonList(entry)).getCopy();
                 return new TestItem(key, value, removal, TableKey.NO_VERSION, serialization);
             }
         }

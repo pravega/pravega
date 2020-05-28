@@ -459,18 +459,16 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     }
 
     private StreamSegmentAppendOperation generateRawAppend(TableEntry entry, long offset, TestContext context) {
-        byte[] data = new byte[context.serializer.getUpdateLength(entry)];
-        context.serializer.serializeUpdate(Collections.singletonList(entry), data);
-        val append = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(data), null);
+        val data = context.serializer.serializeUpdate(Collections.singletonList(entry));
+        val append = new StreamSegmentAppendOperation(SEGMENT_ID, data, null);
         append.setSequenceNumber(context.nextSequenceNumber());
         append.setStreamSegmentOffset(offset);
         return append;
     }
 
     private StreamSegmentAppendOperation generateRawRemove(TableKey key, long offset, TestContext context) {
-        byte[] data = new byte[context.serializer.getRemovalLength(key)];
-        context.serializer.serializeRemoval(Collections.singletonList(key), data);
-        val append = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(data), null);
+        val data = context.serializer.serializeRemoval(Collections.singletonList(key));
+        val append = new StreamSegmentAppendOperation(SEGMENT_ID, data, null);
         append.setSequenceNumber(context.nextSequenceNumber());
         append.setStreamSegmentOffset(offset);
         return append;

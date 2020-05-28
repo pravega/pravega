@@ -306,15 +306,14 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
                 // Serialize removal and append it to the segment.
                 val keyData = keys.get(minIndex);
                 val key = TableKey.unversioned(keyData.key);
-                val serialization = new byte[context.serializer.getRemovalLength(key)];
-                context.serializer.serializeRemoval(Collections.singleton(key), serialization);
-                val offset = context.segment.append(new ByteArraySegment(serialization), null, TIMEOUT).join();
+                val serialization = context.serializer.serializeRemoval(Collections.singleton(key));
+                val offset = context.segment.append(serialization, null, TIMEOUT).join();
 
                 // Index it.
                 val previousOffset = keyData.values.isEmpty() ? -1 : (long) keyData.values.lastKey();
                 minIndex++;
                 val keyUpdate = new BucketUpdate.KeyUpdate(keyData.key, offset, offset, true);
-                index(keyUpdate, offset, previousOffset, serialization.length, context);
+                index(keyUpdate, offset, previousOffset, serialization.getLength(), context);
 
                 // Store it as a deletion.
                 keyData.values.put(offset, null);
@@ -330,14 +329,13 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
 
                 // Serialize and append it to the segment.
                 val entry = TableEntry.unversioned(keyData.key, value);
-                val serialization = new byte[context.serializer.getUpdateLength(entry)];
-                context.serializer.serializeUpdate(Collections.singleton(entry), serialization);
-                val offset = context.segment.append(new ByteArraySegment(serialization), null, TIMEOUT).join();
+                val serialization = context.serializer.serializeUpdate(Collections.singleton(entry));
+                val offset = context.segment.append(serialization, null, TIMEOUT).join();
 
                 // Index it.
                 val previousOffset = keyData.values.isEmpty() ? -1 : (long) keyData.values.lastKey();
                 val keyUpdate = new BucketUpdate.KeyUpdate(keyData.key, offset, offset, false);
-                index(keyUpdate, offset, previousOffset, serialization.length, context);
+                index(keyUpdate, offset, previousOffset, serialization.getLength(), context);
 
                 // Store it, but also encode its version within.
                 keyData.values.put(offset, TableEntry.versioned(entry.getKey().getKey(), entry.getValue(), offset));

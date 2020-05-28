@@ -139,11 +139,16 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
         ByteBuf source = this.buf.duplicate();
         int length = byteBuffer.remaining();
         if (length > getLength()) {
+            // ByteBuffer has more capacity than we need to write. We need to adjust its limit() to exactly what we need,
+            // otherwise ByteBuf.readBytes() won't copy what we need to.
+
+            // Remember the original limit, then adjust it to what we need to copy. Since we copy less than its remaining
+            // capacity, we are guaranteed not to overflow it when setting the new limit.
             int origLimit = byteBuffer.limit();
             length = getLength();
-            byteBuffer.limit(length);
+            byteBuffer.limit(byteBuffer.position() + length);
             source.readBytes(byteBuffer);
-            byteBuffer.limit(origLimit);
+            byteBuffer.limit(origLimit); // Restore original ByteBuffer limit.
         } else {
             source.readBytes(byteBuffer);
         }

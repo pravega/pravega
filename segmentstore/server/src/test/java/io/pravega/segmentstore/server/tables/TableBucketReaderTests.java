@@ -119,9 +119,8 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
 
         // Deleted key (that was previously indexed).
         val deletedKey = entries.get(0).getKey();
-        byte[] data = new byte[es.getRemovalLength(deletedKey)];
-        es.serializeRemoval(Collections.singleton(deletedKey), data);
-        segment.append(new ByteArraySegment(data), null, TIMEOUT).join();
+        val data = es.serializeRemoval(Collections.singleton(deletedKey));
+        segment.append(data, null, TIMEOUT).join();
         val reader = TableBucketReader.entry(segment,
                 (s, offset, timeout) -> CompletableFuture.completedFuture(-1L), // No backpointers.
                 executorService());
@@ -162,9 +161,8 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         // Generate a deleted key and append it to the segment.
         val deletedKey = data.entries.get(0).getKey();
         val es = new EntrySerializer();
-        byte[] deletedData = new byte[es.getRemovalLength(deletedKey)];
-        es.serializeRemoval(Collections.singleton(deletedKey), deletedData);
-        long newBucketOffset = segment.append(new ByteArraySegment(deletedData), null, TIMEOUT).join();
+        val deletedData = es.serializeRemoval(Collections.singleton(deletedKey));
+        long newBucketOffset = segment.append(deletedData, null, TIMEOUT).join();
         data.backpointers.put(newBucketOffset, data.getBucketOffset());
 
         // Create a new TableBucketReader and get all the requested items for this bucket. We pass the offset of the
@@ -186,8 +184,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         val s = new EntrySerializer();
         val entries = generateEntries(s);
         val length = entries.stream().mapToInt(s::getUpdateLength).sum();
-        byte[] serialization = new byte[length];
-        s.serializeUpdate(entries, serialization);
+        val serialization = s.serializeUpdate(entries).getCopy();
         val backpointers = new HashMap<Long, Long>();
 
         // The first entry is not linked; we use that to search for inexistent keys.

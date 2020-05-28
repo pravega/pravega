@@ -18,7 +18,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -44,7 +43,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.Getter;
@@ -192,7 +190,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenComposeAsync(segment -> this.keyIndex.update(segment, updateBatch,
-                        () -> commit(entries, updateBatch.getLength(), this.serializer::serializeUpdate, segment, timer.getRemaining()), timer),
+                        () -> commit(entries, this.serializer::serializeUpdate, segment, timer.getRemaining()), timer),
                         this.executor);
     }
 
@@ -208,7 +206,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenComposeAsync(segment -> this.keyIndex.update(segment, removeBatch,
-                        () -> commit(keys, removeBatch.getLength(), this.serializer::serializeRemoval, segment, timer.getRemaining()), timer),
+                        () -> commit(keys, this.serializer::serializeRemoval, segment, timer.getRemaining()), timer),
                         this.executor)
                 .thenRun(Runnables.doNothing());
     }
@@ -308,12 +306,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return batch;
     }
 
-    private <T> CompletableFuture<Long> commit(Collection<T> toCommit, int serializationLength, BiConsumer<Collection<T>, byte[]> serializer,
+    private <T> CompletableFuture<Long> commit(Collection<T> toCommit, Function<Collection<T>, BufferView> serializer,
                                                DirectSegmentAccess segment, Duration timeout) {
-        assert serializationLength <= MAX_BATCH_SIZE;
-        byte[] s = new byte[serializationLength];
-        serializer.accept(toCommit, s);
-        return segment.append(new ByteArraySegment(s), null, timeout);
+        BufferView s = serializer.apply(toCommit);
+        return segment.append(s, null, timeout);
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, byte[] serializedState,

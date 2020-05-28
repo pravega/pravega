@@ -197,11 +197,10 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // calls to validate the key.
         val s = new EntrySerializer();
         val toUpdate = TableEntry.versioned(keyData, new ByteArraySegment(new byte[100]), TableKey.NOT_EXISTS);
-        byte[] toWrite = new byte[s.getUpdateLength(toUpdate)];
-        s.serializeUpdate(Collections.singleton(toUpdate), toWrite);
+        val toWrite = s.serializeUpdate(Collections.singleton(toUpdate));
         context.index.update(context.segment,
                 toUpdateBatch(toUpdate.getKey()),
-                () -> context.segment.append(new ByteArraySegment(toWrite), null, TIMEOUT),
+                () -> context.segment.append(toWrite, null, TIMEOUT),
                 context.timer).join();
 
         // Key exists, but we conditioned on it not existing.
@@ -236,11 +235,10 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         for (val key : keys) {
             val s = new EntrySerializer();
             val toUpdate = TableEntry.unversioned(key.getKey(), new ByteArraySegment(new byte[100]));
-            byte[] toWrite = new byte[s.getUpdateLength(toUpdate)];
-            s.serializeUpdate(Collections.singleton(toUpdate), toWrite);
+            val toWrite = s.serializeUpdate(Collections.singleton(toUpdate));
             val r = context.index.update(context.segment,
                     toUpdateBatch(hasher, Collections.singletonList(toUpdate.getKey())),
-                    () -> context.segment.append(new ByteArraySegment(toWrite), null, TIMEOUT),
+                    () -> context.segment.append(toWrite, null, TIMEOUT),
                     context.timer).join();
             versions.put(key.getKey(), r.get(0));
         }
@@ -429,9 +427,9 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             keysWithOffsets.put(hash, new KeyWithOffset(k.getKey(), offset.getAndAdd(s.getUpdateLength(entry))));
             entries1.add(entry);
         }
-        val update1 = new byte[(int) offset.get()];
-        s.serializeUpdate(entries1, update1);
-        context.segment.append(new ByteArraySegment(update1), null, TIMEOUT).join();
+        val update1 = s.serializeUpdate(entries1);
+        Assert.assertEquals(offset.get(), update1.getLength());
+        context.segment.append(update1, null, TIMEOUT).join();
 
         // 2. Initiate a recovery and verify pre-caching is triggered and requests are auto-unblocked.
         val get1 = context.index.getBucketOffsets(context.segment, hashes, context.timer);

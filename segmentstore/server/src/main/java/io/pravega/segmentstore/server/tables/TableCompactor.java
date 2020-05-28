@@ -13,7 +13,6 @@ import io.pravega.common.MathHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
@@ -308,9 +307,8 @@ class TableCompactor {
             // Perform a Segment Append with re-serialized entries (Explicit versions), and atomically update the necessary
             // segment attributes.
             toWrite.sort(Comparator.comparingLong(c -> c.getKey().getVersion()));
-            byte[] appendData = new byte[totalLength];
-            this.connector.getSerializer().serializeUpdateWithExplicitVersion(toWrite, appendData);
-            result = segment.append(new ByteArraySegment(appendData), attributes, timer.getRemaining());
+            BufferView appendData = this.connector.getSerializer().serializeUpdateWithExplicitVersion(toWrite);
+            result = segment.append(appendData, attributes, timer.getRemaining());
             log.debug("TableCompactor[{}]: Compacting {}, CopyCount={}, CopyLength={}.", segment.getSegmentId(), args, toWrite.size(), totalLength);
         }
 

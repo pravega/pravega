@@ -203,13 +203,17 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
 
         int arrayOffset = getArrayOffset(targetOffset);
         int arrayId = getArrayId(targetOffset);
+        final int ol = length;
         while (length > 0) {
             byte[] array = getArray(arrayId, true); // Need to allocate if not already allocated.
             int copyLength = Math.min(array.length - arrayOffset, length);
             copyLength = source.readBytes(new ByteArraySegment(array, arrayOffset, copyLength));
             length -= copyLength;
-            arrayId++;
-            arrayOffset = 0;
+            arrayOffset += copyLength;
+            if (arrayOffset >= array.length) {
+                arrayId++;
+                arrayOffset = 0;
+            }
         }
     }
 
