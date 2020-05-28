@@ -60,7 +60,7 @@ class PravegaTablesKVTable extends PersistentKVTableBase {
     PravegaTablesKVTable(final String scopeName, final String kvtName, PravegaTablesStoreHelper storeHelper,
                          Supplier<CompletableFuture<String>> tableName,
                          ScheduledExecutorService executor) {
-        super(scopeName,kvtName);
+        super(scopeName, kvtName);
         this.storeHelper = storeHelper;
         this.metadataTableName = tableName;
         this.idRef = new AtomicReference<>(null);
@@ -134,17 +134,6 @@ class PravegaTablesKVTable extends PersistentKVTableBase {
                     }
                     return storeHelper.getCachedData(metadataTable, STATE_KEY, KVTStateRecord::fromBytes);
                 });
-    }
-
-    @Override
-    CompletableFuture<Version> setConfigurationData(final VersionedMetadata<KVTConfigurationRecord> configuration) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, CONFIGURATION_KEY,
-                        configuration.getObject().toBytes(), configuration.getVersion())
-                        .thenApply(r -> {
-                            storeHelper.invalidateCache(metadataTable, CONFIGURATION_KEY);
-                            return r;
-                        }));
     }
 
     @Override
@@ -249,6 +238,7 @@ class PravegaTablesKVTable extends PersistentKVTableBase {
                             });
                 });
     }
+
     @Override
     public CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String waitingRequestProcessor) {
         return getMetadataTable()
@@ -269,15 +259,5 @@ class PravegaTablesKVTable extends PersistentKVTableBase {
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.removeEntry(metadataTable, WAITING_REQUEST_PROCESSOR_PATH));
     }
-/*
 
-    @Override
-    public CompletableFuture<Long> getCreationTime() {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.getCachedData(metadataTable, CREATION_TIME_KEY,
-                        data -> BitConverter.readLong(data, 0))).thenApply(VersionedMetadata::getObject);
-    }
-
-
-*/
 }

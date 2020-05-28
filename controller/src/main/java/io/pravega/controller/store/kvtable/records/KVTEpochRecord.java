@@ -14,7 +14,12 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import lombok.*;
+import lombok.Data;
+import lombok.Getter;
+import lombok.Builder;
+import lombok.AccessLevel;
+import lombok.NonNull;
+import lombok.SneakyThrows;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.client.StoreClient;
-import io.pravega.controller.store.stream.*;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -39,12 +38,12 @@ public class KVTableStoreFactory {
     }
     
     @VisibleForTesting
-    public static StreamMetadataStore createZKStore(final CuratorFramework client, final ScheduledExecutorService executor) {
+    public static TableMetadataStore createZKStore(final CuratorFramework client, final ScheduledExecutorService executor) {
         throw new UnsupportedOperationException("ZKStore not supported for KeyValueTables");
     }
     
     @VisibleForTesting
-    public static StreamMetadataStore createInMemoryStore(final Executor executor) {
+    public static TableMetadataStore createInMemoryStore(final Executor executor) {
         throw new UnsupportedOperationException("InMemoryStore not supported for KeyValueTables");
     }
 }

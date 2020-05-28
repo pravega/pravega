@@ -12,7 +12,6 @@ package io.pravega.client.tables;
 import com.google.common.annotations.Beta;
 import java.io.Serializable;
 
-import io.pravega.client.stream.ScalingPolicy;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -32,7 +31,7 @@ public class KeyValueTableConfiguration implements Serializable {
     @Getter
     private final int partitionCount;
 
-    public KeyValueTableConfiguration(int partitionCount){
+    public KeyValueTableConfiguration(int partitionCount) {
         this.partitionCount = partitionCount;
     }
 

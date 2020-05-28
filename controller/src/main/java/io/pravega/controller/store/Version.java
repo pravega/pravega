@@ -128,7 +128,7 @@ public interface Version {
 
         }
 
-        public LongVersion(long version){
+        public LongVersion(long version) {
             this.longValue = version;
         }
 

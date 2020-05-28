@@ -22,15 +22,12 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
-import io.pravega.controller.store.OperationContext;
-import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.controller.store.kvtable.KVTableState;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
+
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.store.kvtable.TableMetadataStore;
-import io.pravega.controller.task.TaskBase;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
@@ -38,7 +35,6 @@ import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -98,13 +94,13 @@ public class TableMetadataTasks {
         writerInitFuture.complete(null);
     }
 
-
     /**
-     *  Create a Key-Value Table
+     *  Create a Key-Value Table.
      *
      * @param scope      scope name.
      * @param kvtName    KVTable name.
      * @param kvtConfig  KVTable configuration.
+     * @param createTimestamp  KVTable creation timestamp.
      * @return update status.
      */
     public CompletableFuture<CreateKeyValueTableStatus.Status> createKeyValueTable(String scope, String kvtName,
@@ -161,6 +157,7 @@ public class TableMetadataTasks {
                     }
                 });
     }
+
     /**
      * This method takes an event and a future supplier and guarantees that if future supplier has been executed then event will 
      * be posted in request stream. It does it by following approach:

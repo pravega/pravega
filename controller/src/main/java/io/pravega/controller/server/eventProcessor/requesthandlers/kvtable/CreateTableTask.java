@@ -64,9 +64,9 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
         String kvtableId = request.getTableId().toString();
         KeyValueTableConfiguration config = new KeyValueTableConfiguration(partitionCount);
 
-        return ((KeyValueTable)kvtMetadataStore.getArtifact(scope, kvt, null)).getId()
+        return ((KeyValueTable) kvtMetadataStore.getArtifact(scope, kvt, null)).getId()
         .thenCompose(id -> {
-            if(!id.equals(kvtableId)) {
+            if (!id.equals(kvtableId)) {
                 // we don;t execute the request if IDs do not match
                 return CompletableFuture.completedFuture(null);
             } else {
@@ -102,7 +102,8 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                             return CompletableFuture.completedFuture(null);
                         });
                 return CompletableFuture.completedFuture(null);
-            }});
+             }
+        });
     }
 
     private Controller.CreateKeyValueTableStatus.Status translate(CreateKVTableResponse.CreateStatus status) {

@@ -19,7 +19,7 @@ class StreamOperationContext implements OperationContext<Stream> {
         this.stream = stream;
     }
 
-    public Stream getObject(){
+    public Stream getObject() {
         return this.stream;
     }
 }

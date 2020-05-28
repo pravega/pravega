@@ -22,6 +22,7 @@ public class CreateKVTableResponse {
         EXISTS_ACTIVE,
         FAILED
     }
+
     private final CreateStatus status;
     private final KeyValueTableConfiguration configuration;
     private final long timestamp;

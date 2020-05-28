@@ -143,13 +143,4 @@ public interface ControllerEventProcessorConfig {
      * @return Name of the reader group processing events from request stream.
      */
     String getKvtReaderGroupName();
-    /**
-     * Fetches request stream scaling policy.
-     *
-     * @return Request stream scaling policy.
-     */
-    ScalingPolicy getKvtStreamScalingPolicy();
-
-
-
 }

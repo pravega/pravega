@@ -20,7 +20,11 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
-import io.pravega.controller.store.*;
+import io.pravega.controller.store.Scope;
+import io.pravega.controller.store.OperationContext;
+import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.Artifact;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
@@ -805,14 +809,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return Futures.withCompletion(getStream(scope, streamName, context).getSegmentSealedEpoch(segmentId), executor);
     }
 
-    public Artifact getArtifact(String scope, String stream, OperationContext context){
+    public Artifact getArtifact(String scope, String stream, OperationContext context) {
         return getStream(scope, stream, context);
     }
 
     protected Stream getStream(String scope, final String name, OperationContext context) {
         Stream stream;
         if (context != null) {
-            stream = (Stream)context.getObject();
+            stream = (Stream) context.getObject();
             assert stream.getScope().equals(scope);
             assert stream.getName().equals(name);
         } else {

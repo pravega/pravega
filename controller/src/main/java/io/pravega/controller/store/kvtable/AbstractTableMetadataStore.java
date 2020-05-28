@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.controller.store.kvtable;
 
 import com.google.common.cache.CacheBuilder;
@@ -5,10 +14,12 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.store.*;
+import io.pravega.controller.store.Scope;
+import io.pravega.controller.store.OperationContext;
+import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.Artifact;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -25,7 +36,6 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
     private final LoadingCache<Pair<String, String>, KeyValueTable> cache;
     private final HostIndex hostTaskIndex;
     private final ControllerEventSerializer controllerEventSerializer;
-
 
     protected AbstractTableMetadataStore(HostIndex hostTaskIndex) {
         cache = CacheBuilder.newBuilder()
@@ -61,8 +71,6 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
                                 }
                             }
                         });
-
-
         this.hostTaskIndex = hostTaskIndex;
         this.controllerEventSerializer = new ControllerEventSerializer();
     }
@@ -88,7 +96,7 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
         return new KVTOperationContext(getKVTable(scope, name, null));
     }
 
-    public Artifact getArtifact(String scope, String stream, OperationContext context){
+    public Artifact getArtifact(String scope, String stream, OperationContext context) {
         return getKVTable(scope, stream, context);
     }
 
@@ -104,7 +112,6 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
         }
         return kvt;
     }
-
 
     @Override
     public CompletableFuture<CreateKVTableResponse> createKeyValueTable(final String scope,
@@ -173,10 +180,12 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
     public CompletableFuture<Void> addRequestToIndex(String hostId, String id, ControllerEvent task) {
         return hostTaskIndex.addEntity(hostId, id, controllerEventSerializer.toByteBuffer(task).array());
     }
+
     @Override
     public CompletableFuture<Void> removeTaskFromIndex(String hostId, String id) {
         return hostTaskIndex.removeEntity(hostId, id, true);
     }
+
     /**
      * This method retrieves a safe base segment number from which a stream's segment ids may start. In the case of a
      * new stream, this method will return 0 as a starting segment number (default). In the case that a stream with the

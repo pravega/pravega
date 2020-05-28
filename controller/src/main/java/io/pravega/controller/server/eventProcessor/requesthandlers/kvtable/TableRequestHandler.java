@@ -11,11 +11,10 @@ package io.pravega.controller.server.eventProcessor.requesthandlers.kvtable;
 
 
 import io.pravega.controller.store.kvtable.TableMetadataStore;
-import io.pravega.shared.controller.event.*;
+import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 

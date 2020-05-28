@@ -10,18 +10,16 @@
 package io.pravega.controller.store.kvtable;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.PravegaTablesScope;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.index.ZKHostIndex;
-import io.pravega.controller.store.stream.*;
+import io.pravega.controller.store.stream.StoreException;
+import static io.pravega.shared.NameUtils.getQualifiedTableName;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
 import lombok.AccessLevel;
@@ -36,7 +34,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 /**
  * Pravega Tables stream metadata store.
@@ -85,14 +82,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractTableMetadataStore {
     public CompletableFuture<UUID> createEntryForKVTable(final String scopeName,
                                                          final String kvtName,
                                                          final Executor executor) {
-        return Futures.withCompletion((((PravegaTablesScope)getScope(scopeName)).addKVTableToScope(kvtName)), executor);
-    }
-
-
-    @Override
-    public CompletableFuture<Boolean> checkKeyValueTableExists(final String scopeName,
-                                                               final String streamName) {
-        return Futures.withCompletion(((PravegaTablesScope) getScope(scopeName)).checkKVTableExistsInScope(streamName), executor);
+        return Futures.withCompletion(((PravegaTablesScope) getScope(scopeName)).addKVTableToScope(kvtName), executor);
     }
 
     @Override

@@ -10,18 +10,12 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers.kvtable;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.RequestUnsupportedException;
-import io.pravega.controller.server.eventProcessor.requesthandlers.StreamTask;
-import io.pravega.controller.store.ArtifactStore;
-import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.kvtable.TableMetadataStore;
-import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.shared.controller.event.*;
+
+import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 import io.pravega.shared.controller.event.kvtable.TableRequestProcessor;
 import lombok.Getter;
@@ -29,10 +23,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
-
-import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.withRetries;
 
 /**
  * Abstract common class for all request processing done over SerializedRequestHandler.
@@ -57,7 +47,7 @@ public abstract class AbstractTableRequestProcessor<T extends ControllerEvent> e
     @Getter
     protected final TableMetadataStore metadataStore;
 
-    public AbstractTableRequestProcessor(TableMetadataStore store, ScheduledExecutorService executor){
+    public AbstractTableRequestProcessor(TableMetadataStore store, ScheduledExecutorService executor) {
         super(executor);
         Preconditions.checkNotNull(store);
         this.metadataStore = store;

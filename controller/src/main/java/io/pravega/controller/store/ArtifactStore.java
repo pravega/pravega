@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.controller.store;
 
 import io.pravega.common.concurrent.Futures;
@@ -31,7 +40,6 @@ public interface ArtifactStore {
      * @return CompletableFuture which has the name of the processor that had requested for a wait, or null if there was no
      * such request.
      */
-
     default CompletableFuture<String> getWaitingRequestProcessor(String scope, String name, OperationContext context, ScheduledExecutorService executor) {
         return Futures.withCompletion(getArtifact(scope, name, context).getWaitingRequestProcessor(), executor);
     }
@@ -51,8 +59,6 @@ public interface ArtifactStore {
                                                                 OperationContext context, ScheduledExecutorService executor) {
         return Futures.withCompletion(getArtifact(scope, stream, context).createWaitingRequestIfAbsent(processorName), executor);
     }
-
-
 
     /**
      * Delete existing waiting request processor if the name of the existing matches suppied processor name.

@@ -1048,43 +1048,6 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      */
     CompletableFuture<Void> recordCommitOffsets(final String scope, final String stream, final UUID txnId, final Map<Long, Long> commitOffsets,
                                                 final OperationContext context, final ScheduledExecutorService executor);
-    
-    /**
-     * This method attempts to create a new Waiting Request node and set the processor's name in the node.
-     * If a node already exists, this attempt is ignored.
-     *
-     * @param scope scope
-     * @param stream stream
-     * @param processorName name of the request processor that is waiting to get an opportunity for processing.
-     * @param context operation context
-     * @param executor executor
-     * @return CompletableFuture which indicates that a node was either created successfully or records the failure.
-     */
-    //CompletableFuture<Void> createWaitingRequestIfAbsent(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
-
-    /**
-     * This method fetches existing waiting request processor's name if any. It returns null if no processor is waiting.
-     *
-     * @param scope scope
-     * @param stream stream
-     * @param context operation context
-     * @param executor executor
-     * @return CompletableFuture which has the name of the processor that had requested for a wait, or null if there was no
-     * such request.
-     */
-    //CompletableFuture<String> getWaitingRequestProcessor(String scope, String stream, OperationContext context, ScheduledExecutorService executor);
-
-    /**
-     * Delete existing waiting request processor if the name of the existing matches suppied processor name.
-     *
-     * @param scope scope
-     * @param stream stream
-     * @param processorName processor name which is to be deleted if it matches the name in waiting record in the store.
-     * @param context operation context
-     * @param executor executor
-     * @return CompletableFuture which indicates completion of processing.
-     */
-    //CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
 
     /**
      * Method to record writer's mark in the metadata store. If this is a known writer, its mark is updated if it advances 

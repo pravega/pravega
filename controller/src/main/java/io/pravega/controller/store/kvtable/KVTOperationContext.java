@@ -19,7 +19,7 @@ class KVTOperationContext implements OperationContext<KeyValueTable> {
         this.kvTable = kvt;
     }
 
-    public KeyValueTable getObject(){
+    public KeyValueTable getObject() {
         return kvTable;
     }
 }

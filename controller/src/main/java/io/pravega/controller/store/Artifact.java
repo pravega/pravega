@@ -1,8 +1,16 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.controller.store;
 
 import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.StoreException;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -16,6 +24,7 @@ public interface Artifact {
      * @return Name of stream.
      */
     String getName();
+
     /**
      * Get Scope Name.
      *
@@ -73,6 +82,8 @@ public interface Artifact {
     }
 
     CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String waitingRequestProcessor);
+
     CompletableFuture<String> getWaitingRequestNode();
+
     CompletableFuture<Void> deleteWaitingRequestNode();
 }
