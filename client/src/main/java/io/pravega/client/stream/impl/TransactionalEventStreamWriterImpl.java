@@ -199,16 +199,18 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
 
     @Override
     public Transaction<Type> getTxn(UUID txId) {
-        StreamSegments segments = getAndHandleExceptions(
-                controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);
         Status status = getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
         if (status != Status.OPEN) {
             return new TransactionImpl<>(writerId, txId, controller, stream);
         }
-        
+
+        StreamSegments segments = getAndHandleExceptions(
+                controller.getEpochSegments(stream.getScope(), stream.getStreamName(), getTransactionEpoch(txId)), RuntimeException::new);
+
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         DelegationTokenProvider tokenProvider = null;
         for (Segment s : segments.getSegments()) {
+            //TODO: the segment should correspond to the segment.
             if (tokenProvider == null) {
                 tokenProvider = DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, s);
             }
@@ -218,6 +220,11 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
             transactions.put(s, impl);
         }
         return new TransactionImpl<Type>(writerId, txId, transactions, segments, controller, stream, pinger);
+    }
+
+    public static int getTransactionEpoch(UUID txId) {
+        // epoch == UUID.msb >> 32
+        return (int) (txId.getMostSignificantBits() >> 32);
     }
 
     @Override
