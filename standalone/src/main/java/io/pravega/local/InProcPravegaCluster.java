@@ -127,39 +127,75 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String keyPasswordFile;
     private String jksKeyFile;
 
-    public static final class InProcPravegaClusterBuilder {
-        public InProcPravegaCluster build() {
-            //Check for valid combinations of flags
-            //For ZK
-            Preconditions.checkState(isInProcZK || zkUrl != null, "ZkUrl must be specified");
+    private InProcPravegaCluster(boolean isInMemStorage, boolean enableMetrics, boolean enableAuth, boolean enableTls, boolean enableTlsReload,
+            boolean isInProcController, int controllerCount, int[] controllerPorts, String controllerURI,
+            int restServerPort, boolean isInProcSegmentStore, int segmentStoreCount, int[] segmentStorePorts, boolean isInProcZK, int zkPort, String zkHost,
+            ZooKeeperServiceRunner zkService, boolean isInProcHDFS, String hdfsUrl, int containerCount, ServiceStarter[] nodeServiceStarter,
+            LocalHDFSEmulator localHdfs, ControllerServiceMain[] controllerServers,
+            String zkUrl,
+            boolean enableRestServer, String userName, String passwd, String certFile, String keyFile,
+            String jksTrustFile, String passwdFile, boolean secureZK, String keyPasswordFile, String jksKeyFile) {
 
-            //For controller
-            Preconditions.checkState(isInProcController || controllerURI != null,
-                    "ControllerURI should be defined for external controller");
-            Preconditions.checkState(isInProcController || this.controllerPorts != null,
-                    "Controller ports not present");
+        //Check for valid combinations of flags
+        //For ZK
+        Preconditions.checkState(isInProcZK || zkUrl != null, "ZkUrl must be specified");
 
-            //For SegmentStore
-            Preconditions.checkState(isInProcSegmentStore || this.segmentStorePorts != null, "SegmentStore ports not declared");
+        //For controller
+        Preconditions.checkState(isInProcController || controllerURI != null,
+                "ControllerURI should be defined for external controller");
+        Preconditions.checkState(isInProcController || controllerPorts != null,
+                "Controller ports not present");
 
-            //Check TLS related parameters
-            Preconditions.checkState(!enableTls ||
-                            (!Strings.isNullOrEmpty(this.keyFile)
-                            && !Strings.isNullOrEmpty(this.certFile)
-                            && !Strings.isNullOrEmpty(this.jksKeyFile)
-                            && !Strings.isNullOrEmpty(this.jksTrustFile)
-                            && !Strings.isNullOrEmpty(this.keyPasswordFile)),
-                    "TLS enabled, but not all parameters set");
+        //For SegmentStore
+        Preconditions.checkState(isInProcSegmentStore || segmentStorePorts != null, "SegmentStore ports not declared");
 
-            if (this.isInMemStorage) {
-                this.isInProcHDFS = false;
-            }
-            return new InProcPravegaCluster(isInMemStorage, enableMetrics, enableAuth, enableTls, enableTlsReload,
-                    isInProcController, controllerCount, controllerPorts, controllerURI,
-                    restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
-                    zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
-                    enableRestServer, userName, passwd, certFile, keyFile, jksTrustFile, passwdFile, secureZK, keyPasswordFile, jksKeyFile);
+        //Check TLS related parameters
+        Preconditions.checkState(!enableTls
+                || (!Strings.isNullOrEmpty(keyFile)
+                && !Strings.isNullOrEmpty(certFile)
+                && !Strings.isNullOrEmpty(jksKeyFile)
+                && !Strings.isNullOrEmpty(jksTrustFile)
+                && !Strings.isNullOrEmpty(keyPasswordFile)),
+                "TLS enabled, but not all parameters set");
+
+        if (isInMemStorage) {
+            isInProcHDFS = false;
         }
+
+        this.isInMemStorage = isInMemStorage;
+        this.enableMetrics = enableMetrics;
+        this.enableAuth = enableAuth;
+        this.enableTls = enableTls;
+        this.enableTlsReload = enableTlsReload;
+        this.isInProcController = isInProcController;
+        this.controllerCount = controllerCount;
+        this.controllerPorts = controllerPorts;
+        this.controllerURI = controllerURI;
+        this.restServerPort = restServerPort;
+        this.isInProcSegmentStore = isInProcSegmentStore;
+        this.segmentStoreCount = segmentStoreCount;
+        this.segmentStorePorts = segmentStorePorts;
+        this.isInProcZK = isInProcZK;
+        this.zkPort = zkPort;
+        this.zkHost = zkHost;
+        this.zkService = zkService;
+        this.isInProcHDFS = isInProcHDFS;
+        this.hdfsUrl = hdfsUrl;
+        this.containerCount = containerCount;
+        this.nodeServiceStarter = nodeServiceStarter;
+        this.localHdfs = localHdfs;
+        this.controllerServers = controllerServers;
+        this.zkUrl = zkUrl;
+        this.enableRestServer = enableRestServer;
+        this.userName = userName;
+        this.passwd = passwd;
+        this.certFile = certFile;
+        this.keyFile = keyFile;
+        this.jksTrustFile = jksTrustFile;
+        this.passwdFile = passwdFile;
+        this.secureZK = secureZK;
+        this.keyPasswordFile = keyPasswordFile;
+        this.jksKeyFile = jksKeyFile;
     }
 
     @Synchronized
