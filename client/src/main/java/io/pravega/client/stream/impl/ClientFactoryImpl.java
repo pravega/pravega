@@ -170,7 +170,7 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
 
     @VisibleForTesting
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config,
-                                          Supplier<Long> nanoTime, Supplier<Long> milliTime) {
+                                                 Supplier<Long> nanoTime, Supplier<Long> milliTime) {
         NameUtils.validateReaderId(readerId);
         log.info("Creating reader: {} under readerGroup: {} with configuration: {}", readerId, readerGroup, config);
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
@@ -186,15 +186,15 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
             for (Stream stream : stateManager.getStreams()) {
                 String streamName = NameUtils.getMarkStreamForStream(stream.getStreamName());
                 val client = createRevisionedStreamClient(getSegmentForRevisionedClient(stream.getScope(), streamName),
-                                                          new WatermarkSerializer(),
-                                                          SynchronizerConfig.builder().readBufferSize(4096).build());
+                        new WatermarkSerializer(),
+                        SynchronizerConfig.builder().readBufferSize(4096).build());
                 watermarkReaders.put(stream, new WatermarkReaderImpl(stream, client, watermarkReaderThreads));
             }
         }
         return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(),
                 milliTime, config, watermarkReaders.build(), controller);
     }
-    
+
     @Override
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
@@ -207,7 +207,7 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
 
-                                                                                                          segment.getStreamName()), RuntimeException::new);
+                segment.getStreamName()), RuntimeException::new);
         DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(
                 delegationToken, controller, segment);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
@@ -217,10 +217,10 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
 
     @Override
     public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT>
-        createStateSynchronizer(String streamName,
-                                Serializer<UpdateT> updateSerializer,
-                                Serializer<InitT> initialSerializer,
-                                SynchronizerConfig config) {
+    createStateSynchronizer(String streamName,
+                            Serializer<UpdateT> updateSerializer,
+                            Serializer<InitT> initialSerializer,
+                            SynchronizerConfig config) {
         log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
         val segment = getSegmentForRevisionedClient(scope, streamName);
