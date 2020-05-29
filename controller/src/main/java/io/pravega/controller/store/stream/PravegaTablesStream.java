@@ -10,14 +10,14 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.controller.store.PravegaTablesStoreHelper;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
-import io.pravega.controller.store.PravegaTablesStoreHelper;
-import io.pravega.controller.store.Version;
-import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
@@ -99,7 +99,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_KEY_PREFIX + "/%s";
     
     // non existent records
-    private static final VersionedMetadata<ActiveTxnRecord> NON_EXISTENT_TXN =
+    private static final VersionedMetadata<ActiveTxnRecord> NON_EXISTENT_TXN = 
             new VersionedMetadata<>(ActiveTxnRecord.EMPTY, new Version.LongVersion(Long.MIN_VALUE));
 
     private final PravegaTablesStoreHelper storeHelper;
@@ -898,14 +898,14 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String waitingRequestProcessor) {
+    CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String waitingRequestProcessor) {
         return getMetadataTable()
                 .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(
                         metadataTable, WAITING_REQUEST_PROCESSOR_PATH, waitingRequestProcessor.getBytes(StandardCharsets.UTF_8))));
     }
 
     @Override
-    public CompletableFuture<String> getWaitingRequestNode() {
+    CompletableFuture<String> getWaitingRequestNode() {
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.getEntry(metadataTable, WAITING_REQUEST_PROCESSOR_PATH,
                         x -> StandardCharsets.UTF_8.decode(ByteBuffer.wrap(x)).toString()))
@@ -913,7 +913,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> deleteWaitingRequestNode() {
+    CompletableFuture<Void> deleteWaitingRequestNode() {
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.removeEntry(metadataTable, WAITING_REQUEST_PROCESSOR_PATH));
     }
