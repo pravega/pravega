@@ -189,6 +189,7 @@ public class ControllerService {
     public CompletableFuture<List<SegmentRange>> getEpochSegments(final String scope, final String stream, int epoch) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
+        Exceptions.checkArgument(epoch >= 0, "epoch", "Epoch cannot be less than 0");
         OperationContext context = streamStore.createContext(scope, stream);
         return streamStore.getEpoch(scope, stream, epoch, context, executor)
                           .thenApplyAsync(epochRecord -> getSegmentRanges(epochRecord.getSegments(), scope, stream), executor);
