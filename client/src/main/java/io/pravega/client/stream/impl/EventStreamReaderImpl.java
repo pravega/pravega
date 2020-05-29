@@ -63,7 +63,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     // Base waiting time for a reader on an idle segment waiting for new data to be read.
     private static final long BASE_READER_WAITING_TIME_MS = ReaderGroupStateManager.TIME_UNIT.toMillis();
-    // As an optimization to do not generate Position objects on every event read, we define a base map of segments and
+    // As an optimization to avoid creating a new ownedSegments map per event read, we define a base map of segments and
     // then a batch of updates to the offsets of these segments, one per event read. Internally, the Position object can
     // derive the right offsets at which the event was read by lazily replying such updates up to the point it was read.
     private static final int MAX_BUFFERED_SEGMENT_OFFSET_UPDATES = 1000;
@@ -172,7 +172,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         lastRead = Sequence.create(segment.getSegmentId(), offset);
         int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
         addSegmentOffsetUpdateIfNeeded(segment, offset + length);
-        return new EventReadImpl<>(deserializer.deserialize(buffer), getPosition(), new EventPointerImpl(segment, offset, length), null);
+        return new EventReadImpl<>(deserializer.deserialize(buffer), getCurrentPosition(), new EventPointerImpl(segment, offset, length), null);
     }
 
     private void addSegmentOffsetUpdateIfNeeded(Segment segment, long offset) {
@@ -210,10 +210,16 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         for (EventSegmentReader entry : readers) {
             ownedSegments.put(entry.getSegmentId(), entry.getOffset());
         }
-        return getPosition();
+        return getCurrentPosition();
     }
 
-    private PositionInternal getPosition() {
+    /**
+     * Creates a new {@link PositionInternal} object based on the current state of the reader. The object is created
+     * using a builder that enables the lazy computation of its internal state.
+     *
+     * @return New {@link PositionInternal} object with current state of the reader.
+     */
+    private PositionInternal getCurrentPosition() {
         return PositionImpl.builder().ownedSegments(ownedSegments)
                                      .segmentRanges(ranges)
                                      .updatesToSegmentOffsets(segmentOffsetUpdates.subList(0, segmentOffsetUpdatesIndex))
