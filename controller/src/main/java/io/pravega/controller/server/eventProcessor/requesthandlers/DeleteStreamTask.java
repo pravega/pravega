@@ -42,7 +42,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
 
     public DeleteStreamTask(final StreamMetadataTasks streamMetadataTasks,
                             final StreamMetadataStore streamMetadataStore,
-                            final BucketStore bucketStore,
+                            final BucketStore bucketStore, 
                             final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);

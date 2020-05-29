@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
+import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.shared.controller.event.AutoScaleEvent;
@@ -20,6 +21,7 @@ import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -49,13 +51,11 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         this.truncateStreamTask = truncateStreamTask;
     }
 
-    public String getProcessorName() {
-        return this.getClass().getSimpleName();
-    }
-
     @Override
-    public CompletableFuture<Void> processEvent(ControllerEvent controllerEvent) {
-        return controllerEvent.process(this);
+    public boolean toPostpone(ControllerEvent event, long pickupTime, Throwable exception) {
+        // We will let the event be postponed for 2 minutes before declaring failure.
+        return Exceptions.unwrap(exception) instanceof TaskExceptions.StartException &&
+                (System.currentTimeMillis() - pickupTime) < Duration.ofMinutes(2).toMillis();
     }
 
     @Override
