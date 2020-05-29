@@ -15,11 +15,13 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.EventStreamWriterTest.FakeSegmentOutputStream;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -85,6 +87,83 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         txn.flush();
         assertTrue(bad.unacked.isEmpty());
         assertTrue(outputStream.unacked.isEmpty());
+    }
+
+    @Test
+    public void testGetTxn() throws TxnFailedException {
+        String scope = "scope";
+        String streamName = "stream";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment = new Segment(scope, streamName, 0);
+        UUID txnId = UUID.randomUUID();
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+
+        // Setup mocks
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
+        Mockito.when(controller.getEpochSegments(scope, streamName, NameUtils.getEpoch(txnId))).thenReturn(getSegmentsFuture(segment));
+        Mockito.when(controller.checkTransactionStatus(Stream.of(scope, streamName),txnId)).thenReturn(CompletableFuture.completedFuture(Transaction.Status.OPEN));
+        Mockito.when(controller.pingTransaction(eq(Stream.of(scope, streamName)),eq(txnId), anyLong())).thenReturn(CompletableFuture.completedFuture(Transaction.PingStatus.OPEN));
+        FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
+        FakeSegmentOutputStream bad = new FakeSegmentOutputStream(segment);
+        Mockito.when(controller.createTransaction(eq(stream), anyLong()))
+               .thenReturn(CompletableFuture.completedFuture(new TxnSegments(getSegments(segment), txnId)));
+        Mockito.when(streamFactory.createOutputStreamForTransaction(eq(segment), eq(txnId), any(), any()))
+               .thenReturn(outputStream);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(bad);
+
+       // Create a transactional event Writer
+        @Cleanup
+        TransactionalEventStreamWriter<String> writer = new TransactionalEventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
+                config, executorService());
+        writer.beginTxn();
+
+        Transaction<String> txn = writer.getTxn(txnId);
+        txn.writeEvent("Foo");
+        assertTrue(bad.unacked.isEmpty());
+        assertEquals(1, outputStream.unacked.size());
+        outputStream.unacked.get(0).getAckFuture().complete(null);
+        txn.flush();
+        assertTrue(bad.unacked.isEmpty());
+        assertTrue(outputStream.unacked.isEmpty());
+    }
+
+    @Test(expected = TxnFailedException.class)
+    public void testGetTxnAborted() throws TxnFailedException {
+        String scope = "scope";
+        String streamName = "stream";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment = new Segment(scope, streamName, 0);
+        UUID txnId = UUID.randomUUID();
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+
+        // Setup mocks
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
+        Mockito.when(controller.getEpochSegments(scope, streamName, NameUtils.getEpoch(txnId))).thenReturn(getSegmentsFuture(segment));
+        Mockito.when(controller.checkTransactionStatus(Stream.of(scope, streamName),txnId)).thenReturn(CompletableFuture.completedFuture(Transaction.Status.ABORTED));
+        Mockito.when(controller.pingTransaction(eq(Stream.of(scope, streamName)),eq(txnId), anyLong())).thenReturn(CompletableFuture.completedFuture(Transaction.PingStatus.OPEN));
+        FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
+        FakeSegmentOutputStream bad = new FakeSegmentOutputStream(segment);
+        Mockito.when(controller.createTransaction(eq(stream), anyLong()))
+               .thenReturn(CompletableFuture.completedFuture(new TxnSegments(getSegments(segment), txnId)));
+        Mockito.when(streamFactory.createOutputStreamForTransaction(eq(segment), eq(txnId), any(), any()))
+               .thenReturn(outputStream);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(bad);
+
+        // Create a transactional event Writer
+        @Cleanup
+        TransactionalEventStreamWriter<String> writer = new TransactionalEventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
+                config, executorService());
+        writer.beginTxn();
+
+        // fetch the txn when it is already aborted
+        Transaction<String> txn = writer.getTxn(txnId);
+        txn.writeEvent("Foo");
     }
 
     @Test
