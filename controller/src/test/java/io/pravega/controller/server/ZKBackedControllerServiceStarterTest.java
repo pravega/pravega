@@ -29,6 +29,7 @@ import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.kvtable.TableMetadataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
@@ -287,7 +288,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         }).when(store).createScope(anyString());
         
         ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfigWithEventProcessors(), storeClient,
-                SegmentHelperMock.getSegmentHelperMockForTables(executor), new MockConnectionFactory(), store);
+                SegmentHelperMock.getSegmentHelperMockForTables(executor), new MockConnectionFactory(), store, null);
         starter.startAsync();
         
         // this will block until createScope is called from event processors. 

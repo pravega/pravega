@@ -14,7 +14,7 @@ import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.admin.KeyValueTableInfo;
-import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;

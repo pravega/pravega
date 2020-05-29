@@ -24,7 +24,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.impl.Credentials;
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.client.control.impl.PravegaCredentialsWrapper;
+import io.pravega.client.stream.impl.PravegaCredentialsWrapper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
@@ -38,11 +38,11 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.*;
-import io.pravega.controller.server.eventProcessor.requesthandlers.stream.UpdateEventTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.kvtable.TableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -60,6 +60,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceBlockingStub;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.AssertExtensions;
@@ -122,6 +123,8 @@ public class ControllerGrpcAuthFocusedTest {
 
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private TableMetadataTasks kvtMetadataTasks;
+    private TableMetadataTasks kvtMetadataStore;
     private Server grpcServer;
     private ManagedChannel inProcessChannel;
 
@@ -139,6 +142,7 @@ public class ControllerGrpcAuthFocusedTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(EXECUTOR);
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
+        TableMetadataStore kvtMetadataStore = mock(TableMetadataStore.class);
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         RequestTracker requestTracker = new RequestTracker(true);
         StreamMetrics.initialize();
@@ -158,9 +162,12 @@ public class ControllerGrpcAuthFocusedTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 EXECUTOR, "host", authHelper);
 
+        kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore,  segmentHelper,
+                EXECUTOR, EXECUTOR, "host", authHelper, requestTracker);
+
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, EXECUTOR),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, EXECUTOR),
-                new UpdateEventTask(streamMetadataTasks, streamStore, bucketStore, EXECUTOR),
+                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, EXECUTOR),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, EXECUTOR),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, EXECUTOR),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, EXECUTOR),

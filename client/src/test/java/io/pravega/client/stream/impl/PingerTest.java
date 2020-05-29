@@ -11,7 +11,6 @@ package io.pravega.client.stream.impl;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;

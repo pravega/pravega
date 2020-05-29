@@ -40,9 +40,9 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 @Slf4j
 public class PravegaTablesKVTMetadataStore extends AbstractTableMetadataStore {
-    static final String SEPARATOR = ".#.";
+    //static final String SEPARATOR = ".#.";
     static final String SCOPES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "scopes");
-    static final String DELETED_STREAMS_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "deletedStreams");
+    static final String DELETED_KVTABLES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "deletedKVTables");
 
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
@@ -87,7 +87,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractTableMetadataStore {
 
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String kvtName) {
-        return Futures.withCompletion(storeHelper.getEntry(DELETED_STREAMS_TABLE, getScopedKVTName(scopeName, kvtName),
+        return Futures.withCompletion(storeHelper.getEntry(DELETED_KVTABLES_TABLE, getScopedKVTName(scopeName, kvtName),
                 x -> BitConverter.readInt(x, 0))
                 .handle((data, ex) -> {
                     if (ex == null) {
@@ -102,11 +102,8 @@ public class PravegaTablesKVTMetadataStore extends AbstractTableMetadataStore {
                 }), executor);
     }
 
-
-
     @Override
     public void close() {
         // do nothing
     }
-
 }

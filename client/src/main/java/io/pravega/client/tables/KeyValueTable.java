@@ -280,6 +280,4 @@ public interface KeyValueTable<KeyT, ValueT> extends AutoCloseable {
      */
     @Override
     void close();
-
-
 }

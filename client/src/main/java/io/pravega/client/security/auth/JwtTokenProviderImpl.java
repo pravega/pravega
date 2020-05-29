@@ -11,7 +11,7 @@ package io.pravega.client.security.auth;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.util.ConfigurationOptionsExtractor;

@@ -13,7 +13,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
@@ -27,7 +27,6 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperatio
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.stream.UpdateEventTask;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;

@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.SynchronizerClientFactory;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;

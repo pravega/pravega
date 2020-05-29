@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.control.impl;
+package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
 import io.grpc.Status;
@@ -118,10 +118,10 @@ public final class ModelHelper {
     }
 
     /**
-     * Helper to convert StreamConfig into Stream Configuration Impl.
+     * Helper to convert KeyValueTableConfig object into Stream Configuration Impl.
      *
      * @param config The StreamConfig
-     * @return New instance of StreamConfiguration Impl.
+     * @return New instance of KeyValueTableConfiguration Impl.
      */
     public static final KeyValueTableConfiguration encode(final KeyValueTableConfig config) {
         Preconditions.checkNotNull(config, "config");

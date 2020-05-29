@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.task;
+package io.pravega.controller.task.Stream;
 
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;

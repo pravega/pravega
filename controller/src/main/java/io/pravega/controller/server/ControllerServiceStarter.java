@@ -149,6 +149,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
         this.storeClientFailureFuture = new CompletableFuture<>();
     }
 
+
     @Override
     protected void startUp() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
@@ -298,7 +299,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
-                eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks)
+                eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventExecutor);
             }
 

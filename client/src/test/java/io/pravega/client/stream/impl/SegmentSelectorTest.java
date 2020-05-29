@@ -12,8 +12,6 @@ package io.pravega.client.stream.impl;
 import com.google.common.collect.ImmutableList;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.pravega.client.control.impl.Controller;
-import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.NoSuchSegmentException;

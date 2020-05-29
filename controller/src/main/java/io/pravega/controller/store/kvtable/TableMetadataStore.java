@@ -10,19 +10,29 @@
 package io.pravega.controller.store.kvtable;
 
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.controller.store.ArtifactStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.controller.store.OperationContext;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * Stream Metadata.
+ * KeyValueTable Metadata Store.
  */
-public interface TableMetadataStore extends AutoCloseable, ArtifactStore {
+public interface TableMetadataStore extends AutoCloseable {
+
+    /**
+     * Method to create an operation context. A context ensures that multiple calls to store for the same data are avoided
+     * within the same operation. All api signatures are changed to accept context. If context is supplied, the data will be
+     * looked up within the context and, upon a cache miss, will be fetched from the external store and cached within the context.
+     * Once an operation completes, the context is discarded.
+     *
+     * @param scope Stream scope.
+     * @param name  Stream name.
+     * @return Return a streamContext
+     */
+    KVTOperationContext createContext(final String scope, final String name);
 
     CompletableFuture<Boolean> checkScopeExists(String scope);
 
@@ -53,7 +63,7 @@ public interface TableMetadataStore extends AutoCloseable, ArtifactStore {
                                             final String kvtName,
                                             final KeyValueTableConfiguration configuration,
                                             final long createTimestamp,
-                                            final OperationContext context,
+                                            final KVTOperationContext context,
                                             final Executor executor);
 
     /**
@@ -67,7 +77,7 @@ public interface TableMetadataStore extends AutoCloseable, ArtifactStore {
      */
     CompletableFuture<Long> getCreationTime(final String scopeName,
                                             final String streamName,
-                                            final OperationContext context,
+                                            final KVTOperationContext context,
                                             final Executor executor);
 
     /**
@@ -81,7 +91,7 @@ public interface TableMetadataStore extends AutoCloseable, ArtifactStore {
      */
 
     CompletableFuture<Void> setState(String scope, String name,
-                                     KVTableState state, OperationContext context,
+                                     KVTableState state, KVTOperationContext context,
                                         Executor executor);
 
 
@@ -95,7 +105,7 @@ public interface TableMetadataStore extends AutoCloseable, ArtifactStore {
      * @param executor callers executor
      * @return Future of boolean if state update succeeded.
      */
-    CompletableFuture<KVTableState> getState(final String scope, final String name, final boolean ignoreCached, final OperationContext context, final Executor executor);
+    CompletableFuture<KVTableState> getState(final String scope, final String name, final boolean ignoreCached, final KVTOperationContext context, final Executor executor);
 
     /**
      * Api to get the current state with its current version.
@@ -108,7 +118,7 @@ public interface TableMetadataStore extends AutoCloseable, ArtifactStore {
      */
 
     CompletableFuture<VersionedMetadata<KVTableState>> getVersionedState(final String scope, final String name,
-                                                                         final OperationContext context, final Executor executor);
+                                                                         final KVTOperationContext context, final Executor executor);
 
     /**
      * Api to update versioned state as a CAS operation.
@@ -124,7 +134,7 @@ public interface TableMetadataStore extends AutoCloseable, ArtifactStore {
 
     CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final String scope, final String name,
                                                     final KVTableState state, final VersionedMetadata<KVTableState> previous,
-                                                    final OperationContext context,
+                                                    final KVTOperationContext context,
                                                     final Executor executor);
 
     /**
@@ -147,4 +157,6 @@ public interface TableMetadataStore extends AutoCloseable, ArtifactStore {
      * @return Future which when completed will indicate that the task has been removed from index.
      */
     CompletableFuture<Void> removeTaskFromIndex(final String hostId, final String id);
+
+    KeyValueTable getKVTable(String scope, final String name, KVTOperationContext context);
 }

@@ -12,7 +12,7 @@ package io.pravega.client.tables.impl;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.admin.KeyValueTableInfo;
-import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;

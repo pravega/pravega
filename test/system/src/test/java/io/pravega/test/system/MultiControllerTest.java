@@ -10,8 +10,8 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.control.impl.ControllerImpl;
-import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.RetriesExhaustedException;

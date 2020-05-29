@@ -10,7 +10,6 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;

@@ -10,16 +10,30 @@
 package io.pravega.controller.store.kvtable;
 
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.controller.store.Artifact;
 import io.pravega.controller.store.VersionedMetadata;
 
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Properties of a stream and operations that can be performed on it.
- * Identifier for a stream is its name.
+ * Properties of a KeyValueTable and operations that can be performed on it.
+ * Identifier for a KeyValueTable is its name.
  */
-public interface KeyValueTable extends Artifact {
+public interface KeyValueTable {
+
+    /**
+     * Get Scope Name.
+     *
+     * @return Name of scope.
+     */
+    String getScope();
+
+    /**
+     * Get name of stream.
+     *
+     * @return Name of stream.
+     */
+    String getName();
+
 
     /**
      * Create the stream, by creating/modifying underlying data structures.

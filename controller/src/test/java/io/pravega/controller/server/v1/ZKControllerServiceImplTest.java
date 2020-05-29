@@ -10,7 +10,7 @@
 package io.pravega.controller.server.v1;
 
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
@@ -25,7 +25,6 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.*;
-import io.pravega.controller.server.eventProcessor.requesthandlers.stream.UpdateEventTask;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.client.StoreClient;

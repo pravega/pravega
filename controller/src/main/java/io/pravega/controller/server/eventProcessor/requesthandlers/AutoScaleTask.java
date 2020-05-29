@@ -15,7 +15,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.store.OperationContext;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;

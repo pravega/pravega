@@ -13,6 +13,8 @@ import io.grpc.Server;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;

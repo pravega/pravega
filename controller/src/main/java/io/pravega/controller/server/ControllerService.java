@@ -11,7 +11,7 @@ package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.cluster.Cluster;
@@ -21,7 +21,7 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
-import io.pravega.controller.store.OperationContext;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.State;
@@ -113,8 +113,6 @@ public class ControllerService {
             return CompletableFuture.completedFuture(
                     CreateKeyValueTableStatus.newBuilder().setStatus(CreateKeyValueTableStatus.Status.INVALID_TABLE_NAME).build());
         }
-        // check if stream with same name exists...
-        // alternatively for KVTables have segment names suffixed with _table
         return kvtMetadataTasks.createKeyValueTable(scope, kvtName, kvtConfig, createTimestamp)
                 .thenApplyAsync(status -> {
                     reportCreateKVTableMetrics(scope, kvtName, kvtConfig.getPartitionCount(), status, timer.getElapsed());
@@ -511,13 +509,11 @@ public class ControllerService {
     }
 
     // Metrics reporting region
-
-
     private void reportCreateKVTableMetrics(String scope, String kvtName, int initialSegments, CreateKeyValueTableStatus.Status status,
                                            Duration latency) {
-        if (status.equals(CreateStreamStatus.Status.SUCCESS)) {
+        if (status.equals(CreateKeyValueTableStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().createStream(scope, kvtName, initialSegments, latency);
-        } else if (status.equals(CreateStreamStatus.Status.FAILURE)) {
+        } else if (status.equals(CreateKeyValueTableStatus.Status.FAILURE)) {
             StreamMetrics.getInstance().createStreamFailed(scope, kvtName);
         }
     }

@@ -23,7 +23,7 @@ import io.pravega.client.stream.ReaderSegmentDistribution;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.concurrent.Futures;
@@ -49,7 +49,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
-import io.pravega.shared.controller.event.StreamRequestProcessor;
+import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -137,7 +137,7 @@ public class EventProcessorTest {
         }
 
         @Override
-        public CompletableFuture<Void> process(StreamRequestProcessor processor) {
+        public CompletableFuture<Void> process(RequestProcessor processor) {
             return Futures.failedFuture(new RuntimeException("This should not be called"));
         }
 

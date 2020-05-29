@@ -10,8 +10,6 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.controller.store.ArtifactStore;
-import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
@@ -46,7 +44,19 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Stream Metadata.
  */
-public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
+public interface StreamMetadataStore extends AutoCloseable {
+
+    /**
+     * Method to create an operation context. A context ensures that multiple calls to store for the same data are avoided
+     * within the same operation. All api signatures are changed to accept context. If context is supplied, the data will be
+     * looked up within the context and, upon a cache miss, will be fetched from the external store and cached within the context.
+     * Once an operation completes, the context is discarded.
+     *
+     * @param scope Stream scope.
+     * @param name  Stream name.
+     * @return Return a streamContext
+     */
+    OperationContext createContext(final String scope, final String name);
 
     /**
      * Creates a new stream with the given name and configuration.
@@ -60,11 +70,11 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return boolean indicating whether the stream was created
      */
     CompletableFuture<CreateStreamResponse> createStream(final String scopeName,
-                                            final String streamName,
-                                            final StreamConfiguration configuration,
-                                            final long createTimestamp,
-                                            final OperationContext<Stream> context,
-                                            final Executor executor);
+                                                         final String streamName,
+                                                         final StreamConfiguration configuration,
+                                                         final long createTimestamp,
+                                                         final OperationContext context,
+                                                         final Executor executor);
 
     /**
      * Api to check if a stream exists in the store or not.
@@ -77,19 +87,19 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
 
 
     /**
-     * Api to get creation time for the stream. 
-     * 
+     * Api to get creation time for the stream.
+     *
      * @param scopeName       scope name
      * @param streamName      stream name
      * @param context         operation context
      * @param executor        callers executor
-     * @return CompletableFuture, which when completed, will contain the creation time of the stream. 
+     * @return CompletableFuture, which when completed, will contain the creation time of the stream.
      */
     CompletableFuture<Long> getCreationTime(final String scopeName,
                                             final String streamName,
                                             final OperationContext context,
                                             final Executor executor);
-    
+
     /**
      * Api to Delete the stream related metadata.
      *
@@ -114,8 +124,8 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return Future of boolean if state update succeeded.
      */
     CompletableFuture<Void> setState(String scope, String name,
-                                        State state, OperationContext context,
-                                        Executor executor);
+                                     State state, OperationContext context,
+                                     Executor executor);
 
     /**
      * Api to get the state for stream from metadata.
@@ -152,8 +162,8 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return Future which when completed contains the updated state and version if successful or exception otherwise.
      */
     CompletableFuture<VersionedMetadata<State>> updateVersionedState(final String scope, final String name,
-                                                    final State state, final VersionedMetadata<State> previous, final OperationContext context,
-                                                    final Executor executor);
+                                                                     final State state, final VersionedMetadata<State> previous, final OperationContext context,
+                                                                     final Executor executor);
 
     /**
      * Creates a new scope with the given name.
@@ -194,8 +204,8 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @param scopeName Name of the scope
      * @param continuationToken continuation token
      * @param limit limit on number of streams to return.
-     * @param executor 
-     * @return A pair of list of streams in scope with the continuation token. 
+     * @param executor executor
+     * @return A pair of list of streams in scope with the continuation token.
      */
     CompletableFuture<Pair<List<String>, String>> listStream(final String scopeName, final String continuationToken,
                                                              final int limit, final Executor executor);
@@ -345,17 +355,17 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
     CompletableFuture<StreamSegmentRecord> getSegment(final String scope, final String name, final long number, final OperationContext context, final Executor executor);
 
     /**
-     * Api to get all segments in the stream. 
+     * Api to get all segments in the stream.
      *
      * @param scope    stream scope
      * @param name     stream name.
      * @param context  operation context
      * @param executor callers executor
-     *                 
-     * @return Future, which when complete will contain a list of all segments in the stream. 
+     *
+     * @return Future, which when complete will contain a list of all segments in the stream.
      */
-    CompletableFuture<Set<Long>> getAllSegmentIds(final String scope, final String name, final OperationContext context, 
-                                                   final Executor executor);
+    CompletableFuture<Set<Long>> getAllSegmentIds(final String scope, final String name, final OperationContext context,
+                                                  final Executor executor);
 
     /**
      * Get active segments.
@@ -367,7 +377,7 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return currently active segments
      */
     CompletableFuture<List<StreamSegmentRecord>> getActiveSegments(final String scope, final String name, final OperationContext context, final Executor executor);
-    
+
     /**
      * Returns the segments at the head of the stream.
      *
@@ -378,9 +388,9 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return         list of active segments in specified epoch.
      */
     CompletableFuture<Map<StreamSegmentRecord, Long>> getSegmentsAtHead(final String scope,
-                                                            final String stream,
-                                                            final OperationContext context,
-                                                            final Executor executor);
+                                                                        final String stream,
+                                                                        final OperationContext context,
+                                                                        final Executor executor);
 
     /**
      * Returns the segments in the specified epoch of the specified stream.
@@ -393,10 +403,10 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return         list of active segments in specified epoch.
      */
     CompletableFuture<List<StreamSegmentRecord>> getSegmentsInEpoch(final String scope,
-                                                       final String stream,
-                                                       final int epoch,
-                                                       final OperationContext context,
-                                                       final Executor executor);
+                                                                    final String stream,
+                                                                    final int epoch,
+                                                                    final OperationContext context,
+                                                                    final Executor executor);
 
     /**
      * Given a segment return a map containing the numbers of the segments immediately succeeding it
@@ -409,12 +419,11 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @param executor      callers executor
      * @return segments that immediately follow the specified segment and the segments they follow.
      */
-
     CompletableFuture<Map<StreamSegmentRecord, List<Long>>> getSuccessors(final String scope,
-                                                                                     final String streamName,
-                                                                                     final long segmentId,
-                                                                                     final OperationContext context,
-                                                                                     final Executor executor);
+                                                                          final String streamName,
+                                                                          final long segmentId,
+                                                                          final OperationContext context,
+                                                                          final Executor executor);
 
     /**
      * Given two stream cuts, this method return a list of segments that lie between given stream cuts.
@@ -428,11 +437,11 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return Future which when completed contains list of segments between given stream cuts.
      */
     CompletableFuture<List<StreamSegmentRecord>> getSegmentsBetweenStreamCuts(final String scope,
-                                                           final String streamName,
-                                                           final Map<Long, Long> from,
-                                                           final Map<Long, Long> to,
-                                                           final OperationContext context,
-                                                           final Executor executor);
+                                                                              final String streamName,
+                                                                              final Map<Long, Long> from,
+                                                                              final Map<Long, Long> to,
+                                                                              final OperationContext context,
+                                                                              final Executor executor);
 
     /**
      * Method to validate stream cut based on its definition - disjoint sets that cover the entire range of keyspace.
@@ -463,19 +472,19 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransition(String scope, String stream,
                                                                                    OperationContext context,
                                                                                    ScheduledExecutorService executor);
-    
+
     /**
      * Called to start metadata updates to stream store with respect to new scale request. This method should only update
-     * the epochTransition record to reflect current request. It should not initiate the scale workflow. 
+     * the epochTransition record to reflect current request. It should not initiate the scale workflow.
      * In case of rolling transactions, this record may become invalid and can be discarded during the startScale phase
-     * of scale workflow. 
+     * of scale workflow.
      *
      * @param scope          stream scope
      * @param name           stream name.
      * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the stream
      * @param sealedSegments segments to be sealed
      * @param scaleTimestamp timestamp at which scale was requested
-     * @param record         optionally supply existing epoch transition record. if null is supplied, it will be fetched from the store. 
+     * @param record         optionally supply existing epoch transition record. if null is supplied, it will be fetched from the store.
      * @param context        operation context
      * @param executor       callers executor
      * @return the list of newly created segments
@@ -484,7 +493,7 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
                                                                             final List<Long> sealedSegments,
                                                                             final List<Map.Entry<Double, Double>> newRanges,
                                                                             final long scaleTimestamp,
-                                                                            final VersionedMetadata<EpochTransitionRecord> record, 
+                                                                            final VersionedMetadata<EpochTransitionRecord> record,
                                                                             final OperationContext context,
                                                                             final Executor executor);
 
@@ -504,15 +513,15 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return future Future which when completed contains updated epoch transition record with version or exception otherwise.
      */
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> startScale(final String scope,
-                                       final String name,
-                                       final boolean isManualScale,
-                                       final VersionedMetadata<EpochTransitionRecord> record,
-                                       final VersionedMetadata<State> state,
-                                       final OperationContext context,
-                                       final Executor executor);
+                                                                           final String name,
+                                                                           final boolean isManualScale,
+                                                                           final VersionedMetadata<EpochTransitionRecord> record,
+                                                                           final VersionedMetadata<State> state,
+                                                                           final OperationContext context,
+                                                                           final Executor executor);
 
     /**
-     * Called after we have successfully verified epoch transition record and started the scale workflow. 
+     * Called after we have successfully verified epoch transition record and started the scale workflow.
      * Implementation of this method should create new segments that are specified in epochTransition in stream metadata records.
      *
      * @param scope          stream scope
@@ -524,15 +533,15 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * have failed with appropriate exception.
      */
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> scaleCreateNewEpochs(final String scope,
-                                                   final String name,
-                                                   final VersionedMetadata<EpochTransitionRecord> record,
-                                                   final OperationContext context,
-                                                   final Executor executor);
-    
+                                                                                     final String name,
+                                                                                     final VersionedMetadata<EpochTransitionRecord> record,
+                                                                                     final OperationContext context,
+                                                                                     final Executor executor);
+
     /**
-     * Called after sealing old segments is complete in segment store. 
+     * Called after sealing old segments is complete in segment store.
      * The implementation of this method should update epoch metadata for the given scale input in an idempotent fashion
-     * such that active epoch at least reflects the new epoch updated by this method's call. 
+     * such that active epoch at least reflects the new epoch updated by this method's call.
      *
      * @param scope          stream scope
      * @param name           stream name.
@@ -541,7 +550,7 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @param context        operation context
      * @param executor       callers executor
      * @return Future, which when completed will indicate successful and idempotent metadata update corresponding to
-     * sealing of old segments in the store. 
+     * sealing of old segments in the store.
      */
     CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
                                                 final Map<Long, Long> sealedSegmentSizes,
@@ -551,15 +560,15 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
 
     /**
      * Called at the end of scale workflow to let the store know to complete the scale. This should reset the epoch transition
-     * record to signal completion of scale workflow. 
-     * Note: the state management is outside the purview of this method and should be done explicitly by the caller. 
+     * record to signal completion of scale workflow.
+     * Note: the state management is outside the purview of this method and should be done explicitly by the caller.
      *
      * @param scope          stream scope
      * @param name           stream name.
      * @param record         versioned record
      * @param context        operation context
      * @param executor       callers executor
-     * @return A future which when completed indicates the completion current scale workflow.                 
+     * @return A future which when completed indicates the completion current scale workflow.
      */
     CompletableFuture<Void> completeScale(final String scope, final String name,
                                           final VersionedMetadata<EpochTransitionRecord> record,
@@ -567,9 +576,9 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
                                           final Executor executor);
 
     /**
-     * Api to indicate to store to start rolling transaction. 
-     * The store attempts to update CommittingTransactionsRecord with details about rolling transaction information, 
-     * specifically updating active epoch in the aforesaid record. 
+     * Api to indicate to store to start rolling transaction.
+     * The store attempts to update CommittingTransactionsRecord with details about rolling transaction information,
+     * specifically updating active epoch in the aforesaid record.
      *
      * @param scope scope
      * @param stream stream
@@ -577,7 +586,7 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @param existing versioned committing transactions record that has to be updated
      * @param context operation context
      * @param executor executor
-     * @return A future which when completed will capture updated versioned committing transactions record that represents 
+     * @return A future which when completed will capture updated versioned committing transactions record that represents
      * an ongoing rolling transaction.
      */
     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(String scope, String stream,
@@ -600,9 +609,9 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return CompletableFuture which upon completion will indicate that we have successfully created new epoch entries.
      */
     CompletableFuture<Void> rollingTxnCreateDuplicateEpochs(final String scope,
-                                           final String name, Map<Long, Long> sealedTxnEpochSegments,
-                                           final long time, final VersionedMetadata<CommittingTransactionsRecord> record,
-                                           final OperationContext context, final Executor executor);
+                                                            final String name, Map<Long, Long> sealedTxnEpochSegments,
+                                                            final long time, final VersionedMetadata<CommittingTransactionsRecord> record,
+                                                            final OperationContext context, final Executor executor);
 
     /**
      * This is final step of rolling transaction and is called after old segments are sealed in segment store.
@@ -617,9 +626,9 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return CompletableFuture which upon successful completion will indicate that rolling transaction is complete.
      */
     CompletableFuture<Void> completeRollingTxn(final String scope, final String name,
-                                                                    final Map<Long, Long> sealedActiveEpochSegments, 
-                                                                    final VersionedMetadata<CommittingTransactionsRecord> record,
-                                                                    final OperationContext context, final Executor executor);
+                                               final Map<Long, Long> sealedActiveEpochSegments,
+                                               final VersionedMetadata<CommittingTransactionsRecord> record,
+                                               final OperationContext context, final Executor executor);
 
     /**
      * Method to create a new unique transaction id on the stream.
@@ -702,7 +711,7 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @param txId     transaction id
      * @param commit   Boolean indicating whether to change txn state to committing or aborting.
      * @param version  Expected version of the transaction record in the store.
-     * @param writerId writer id. Used only if commit is set to true. 
+     * @param writerId writer id. Used only if commit is set to true.
      * @param timestamp commit timestamp. Valid only when commit flag is true.
      * @param context  operation context
      * @param executor callers executor
@@ -798,7 +807,7 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
     CompletableFuture<Set<String>> listHostsOwningTxn();
 
     /**
-     * Adds specified request in the host's task index. 
+     * Adds specified request in the host's task index.
      * This is idempotent operation.
      *
      * @param hostId      Host identifier.
@@ -869,10 +878,10 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return         Completable future that, upon completion, holds epoch history record corresponding to request epoch.
      */
     CompletableFuture<EpochRecord> getEpoch(final String scope,
-                                              final String stream,
-                                              final int epoch,
-                                              final OperationContext context,
-                                              final Executor executor);
+                                            final String stream,
+                                            final int epoch,
+                                            final OperationContext context,
+                                            final Executor executor);
 
     /**
      * Api to mark a segment as cold.
@@ -922,9 +931,9 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @param context  operation context
      * @return currently active segments
      */
-    CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name, final long from, 
+    CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name, final long from,
                                                             final long to, final OperationContext context, final Executor executor);
-    
+
     /**
      * Add stream cut to retention set of the given stream.
      *
@@ -960,7 +969,7 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @param executor executor
      * @return future which when completed will contain the stream cut record corresponding to reference record
      */
-    CompletableFuture<StreamCutRecord> getStreamCutRecord(final String scope, final String stream, 
+    CompletableFuture<StreamCutRecord> getStreamCutRecord(final String scope, final String stream,
                                                           final StreamCutReferenceRecord reference,
                                                           final OperationContext context, final Executor executor);
 
@@ -989,13 +998,13 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return A CompletableFuture which, when completed, will contain size of stream till given streamCut.
      */
     CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String stream, final Map<Long, Long> streamCut,
-                                                 final Optional<StreamCutRecord> reference, 
+                                                 final Optional<StreamCutRecord> reference,
                                                  final OperationContext context, final ScheduledExecutorService executor);
 
     /**
      * Method to create committing transaction record in the store for a given stream.
-     * This method may throw data exists exception if the committing transaction node already exists and the epoch in 
-     * the request does not match the epoch present in the record. 
+     * This method may throw data exists exception if the committing transaction node already exists and the epoch in
+     * the request does not match the epoch present in the record.
      *
      * @param scope scope name
      * @param stream stream name
@@ -1036,8 +1045,8 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
 
 
     /**
-     * Method to record commit offset for a transaction. This method stores the commit offset in ActiveTransaction record. 
-     * Its behaviour is idempotent and if a transaction already has commitOffsets set earlier, they are not overwritten. 
+     * Method to record commit offset for a transaction. This method stores the commit offset in ActiveTransaction record.
+     * Its behaviour is idempotent and if a transaction already has commitOffsets set earlier, they are not overwritten.
      * @param scope scope name
      * @param stream stream name
      * @param txnId transaction id
@@ -1048,6 +1057,43 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      */
     CompletableFuture<Void> recordCommitOffsets(final String scope, final String stream, final UUID txnId, final Map<Long, Long> commitOffsets,
                                                 final OperationContext context, final ScheduledExecutorService executor);
+
+    /**
+     * This method attempts to create a new Waiting Request node and set the processor's name in the node.
+     * If a node already exists, this attempt is ignored.
+     *
+     * @param scope scope
+     * @param stream stream
+     * @param processorName name of the request processor that is waiting to get an opportunity for processing.
+     * @param context operation context
+     * @param executor executor
+     * @return CompletableFuture which indicates that a node was either created successfully or records the failure.
+     */
+    CompletableFuture<Void> createWaitingRequestIfAbsent(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
+
+    /**
+     * This method fetches existing waiting request processor's name if any. It returns null if no processor is waiting.
+     *
+     * @param scope scope
+     * @param stream stream
+     * @param context operation context
+     * @param executor executor
+     * @return CompletableFuture which has the name of the processor that had requested for a wait, or null if there was no
+     * such request.
+     */
+    CompletableFuture<String> getWaitingRequestProcessor(String scope, String stream, OperationContext context, ScheduledExecutorService executor);
+
+    /**
+     * Delete existing waiting request processor if the name of the existing matches suppied processor name.
+     *
+     * @param scope scope
+     * @param stream stream
+     * @param processorName processor name which is to be deleted if it matches the name in waiting record in the store.
+     * @param context operation context
+     * @param executor executor
+     * @return CompletableFuture which indicates completion of processing.
+     */
+    CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
 
     /**
      * Method to record writer's mark in the metadata store. If this is a known writer, its mark is updated if it advances 
@@ -1069,7 +1115,7 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * Method to mark a writer for shutdown. A shutdown writer can be revived if newer marks are reported for it.
      * A writer which is marked for shutdown is removed asynchronously after its latest reported mark is included for 
      * a watermarking computation. 
-     * 
+     *
      * @param scope scope name
      * @param stream stream name
      * @param writer writer id
@@ -1113,7 +1159,7 @@ public interface StreamMetadataStore extends AutoCloseable, ArtifactStore {
      * @return A completableFuture, which when completed, will contain map of writer to respective marks.  
      */
     CompletableFuture<Map<String, WriterMark>> getAllWriterMarks(String scope, String stream, OperationContext context, Executor executor);
-    
+
     /**
      * Method to get the requested chunk of the HistoryTimeSeries.
      *

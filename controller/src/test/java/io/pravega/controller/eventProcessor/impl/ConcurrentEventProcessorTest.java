@@ -16,6 +16,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.RequestHandler;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.shared.controller.event.StreamRequestProcessor;
 import io.pravega.test.common.AssertExtensions;
 import lombok.AllArgsConstructor;
@@ -52,7 +53,7 @@ public class ConcurrentEventProcessorTest {
         }
 
         @Override
-        public CompletableFuture<Void> process(StreamRequestProcessor processor) {
+        public CompletableFuture<Void> process(RequestProcessor processor) {
             return null;
         }
     }

@@ -11,7 +11,7 @@ package io.pravega.test.integration;
 
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;

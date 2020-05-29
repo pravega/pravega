@@ -28,7 +28,6 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperatio
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.stream.UpdateEventTask;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.client.StoreClient;

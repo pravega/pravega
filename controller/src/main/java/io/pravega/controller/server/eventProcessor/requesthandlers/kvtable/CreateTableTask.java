@@ -10,14 +10,12 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers.kvtable;
 
 import com.google.common.base.Preconditions;
-import io.pravega.controller.store.kvtable.KeyValueTable;
-import io.pravega.client.tables.KeyValueTableConfiguration;
-
-import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.kvtable.CreateKVTableResponse;
-import io.pravega.controller.store.kvtable.TableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableState;
+import io.pravega.controller.store.kvtable.TableMetadataStore;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.store.stream.CreateStreamResponse;
+import io.pravega.controller.store.kvtable.KVTOperationContext;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
@@ -30,7 +28,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
 
 /**
  * Request handler for performing scale operations received from requeststream.
@@ -55,25 +52,22 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final CreateTableEvent request) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
         String scope = request.getScopeName();
         String kvt = request.getKvtName();
         int partitionCount = request.getPartitionCount();
         long creationTime = request.getTimestamp();
         long requestId = request.getRequestId();
-        String kvtableId = request.getTableId().toString();
+        String kvTableId = request.getTableId().toString();
         KeyValueTableConfiguration config = new KeyValueTableConfiguration(partitionCount);
 
-        return ((KeyValueTable) kvtMetadataStore.getArtifact(scope, kvt, null)).getId()
+        return kvtMetadataStore.getKVTable(scope, kvt, null).getId()
         .thenCompose(id -> {
-            if (!id.equals(kvtableId)) {
-                // we don;t execute the request if IDs do not match
+            if (!id.equals(kvTableId)) {
+                // we don;t execute the request if Table IDs do not match
                 return CompletableFuture.completedFuture(null);
             } else {
                 this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, null, executor)
                         .thenComposeAsync(response -> {
-                            //log.info(requestId, "{}/{} created in metadata store", scope, kvt);
-                            Controller.CreateKeyValueTableStatus.Status status = translate(response.getStatus());
                             // only if its a new kvtable or an already existing non-active kvtable then we will create
                             // segments and change the state of the kvtable to active.
                             if (response.getStatus().equals(CreateKVTableResponse.CreateStatus.NEW) ||
@@ -86,7 +80,7 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                                         .collect(Collectors.toList());
                                 return kvtMetadataTasks.notifyNewSegments(scope, kvt, newSegments, requestId)
                                         .thenCompose(y -> {
-                                            final OperationContext context = kvtMetadataStore.createContext(scope, kvt);
+                                            final KVTOperationContext context = kvtMetadataStore.createContext(scope, kvt);
                                             //TODO: add withRetries
                                             kvtMetadataStore.getVersionedState(scope, kvt, context, executor)
                                                     .thenCompose(state -> {

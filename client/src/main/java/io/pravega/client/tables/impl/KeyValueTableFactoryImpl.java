@@ -11,7 +11,7 @@ package io.pravega.client.tables.impl;
 
 import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableInfo;
-import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.Serializer;

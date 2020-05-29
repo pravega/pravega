@@ -15,7 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
-import io.pravega.controller.store.OperationContext;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;

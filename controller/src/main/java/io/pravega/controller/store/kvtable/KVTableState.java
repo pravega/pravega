@@ -15,7 +15,7 @@ import java.util.Arrays;
 import java.util.Set;
 
 /**
- * This is used to represent the state of the Stream.
+ * This is used to represent the state of the KeyValueTable.
  */
 public enum KVTableState {
     UNKNOWN,

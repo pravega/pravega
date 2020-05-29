@@ -15,9 +15,7 @@ import com.google.common.cache.LoadingCache;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Scope;
-import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.Artifact;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -92,18 +90,14 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
     abstract KeyValueTable newKeyValueTable(final String scope, final String kvTableName);
 
     @Override
-    public OperationContext createContext(String scope, String name) {
+    public KVTOperationContext createContext(String scope, String name) {
         return new KVTOperationContext(getKVTable(scope, name, null));
     }
 
-    public Artifact getArtifact(String scope, String stream, OperationContext context) {
-        return getKVTable(scope, stream, context);
-    }
-
-    protected KeyValueTable getKVTable(String scope, final String name, OperationContext context) {
+    public KeyValueTable getKVTable(String scope, final String name, KVTOperationContext context) {
         KeyValueTable kvt;
         if (context != null) {
-            kvt = (KeyValueTable) context.getObject();
+            kvt = context.getKvTable();
             assert kvt.getScope().equals(scope);
             assert kvt.getName().equals(name);
         } else {
@@ -118,7 +112,7 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
                                                                 final String name,
                                                                 final KeyValueTableConfiguration configuration,
                                                                 final long createTimestamp,
-                                                                final OperationContext context,
+                                                                final KVTOperationContext context,
                                                                 final Executor executor) {
         return getSafeStartingSegmentNumberFor(scope, name)
                 .thenCompose(startingSegmentNumber ->
@@ -141,14 +135,14 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
     @Override
     public CompletableFuture<Long> getCreationTime(final String scope,
                                                    final String name,
-                                                   final OperationContext context,
+                                                   final KVTOperationContext context,
                                                    final Executor executor) {
         return Futures.withCompletion(getKVTable(scope, name, context).getCreationTime(), executor);
     }
 
     @Override
     public CompletableFuture<Void> setState(final String scope, final String name,
-                                            final KVTableState state, final OperationContext context,
+                                            final KVTableState state, final KVTOperationContext context,
                                             final Executor executor) {
         return Futures.withCompletion(getKVTable(scope, name, context).updateState(state), executor);
     }
@@ -156,7 +150,7 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
     @Override
     public CompletableFuture<KVTableState> getState(final String scope, final String name,
                                              final boolean ignoreCached,
-                                             final OperationContext context,
+                                             final KVTOperationContext context,
                                              final Executor executor) {
         return Futures.withCompletion(getKVTable(scope, name, context).getState(ignoreCached), executor);
     }
@@ -164,14 +158,14 @@ public abstract class AbstractTableMetadataStore implements TableMetadataStore {
     @Override
     public CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final String scope, final String name,
                                                                             final KVTableState state, final VersionedMetadata<KVTableState> previous,
-                                                                            final OperationContext context,
+                                                                            final KVTOperationContext context,
                                                                             final Executor executor) {
         return Futures.withCompletion(getKVTable(scope, name, context).updateVersionedState(previous, state), executor);
     }
 
     @Override
     public CompletableFuture<VersionedMetadata<KVTableState>> getVersionedState(final String scope, final String name,
-                                                                         final OperationContext context,
+                                                                         final KVTOperationContext context,
                                                                          final Executor executor) {
         return Futures.withCompletion(getKVTable(scope, name, context).getVersionedState(), executor);
     }

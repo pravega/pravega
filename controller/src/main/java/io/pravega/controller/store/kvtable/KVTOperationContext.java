@@ -9,17 +9,11 @@
  */
 package io.pravega.controller.store.kvtable;
 
-import io.pravega.controller.store.OperationContext;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
-class KVTOperationContext implements OperationContext<KeyValueTable> {
-
+@AllArgsConstructor
+@Getter
+public class KVTOperationContext {
     private final KeyValueTable kvTable;
-
-    KVTOperationContext(KeyValueTable kvt) {
-        this.kvTable = kvt;
-    }
-
-    public KeyValueTable getObject() {
-        return kvTable;
-    }
 }

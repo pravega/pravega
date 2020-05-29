@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import io.pravega.client.control.impl.ControllerFailureException;
+import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.control.impl;
+package io.pravega.client.stream.impl;
 
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
@@ -18,11 +18,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
-import io.pravega.client.stream.impl.StreamSegmentSuccessors;
-import io.pravega.client.stream.impl.StreamSegments;
-import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
-import io.pravega.client.stream.impl.TxnSegments;
-import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.util.AsyncIterator;

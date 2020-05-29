@@ -10,7 +10,6 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.control.impl.SegmentCollection;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.hash.HashHelper;
 import java.util.Comparator;

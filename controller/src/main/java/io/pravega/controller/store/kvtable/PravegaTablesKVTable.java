@@ -22,8 +22,6 @@ import io.pravega.controller.store.kvtable.records.KVTConfigurationRecord;
 import io.pravega.controller.store.kvtable.records.KVTStateRecord;
 import lombok.extern.slf4j.Slf4j;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,7 +47,6 @@ class PravegaTablesKVTable extends PersistentKVTableBase {
     private static final String STATE_KEY = "state";
     private static final String CURRENT_EPOCH_KEY = "currentEpochRecord";
     private static final String EPOCH_RECORD_KEY_FORMAT = "epochRecord-%d";
-    private static final String WAITING_REQUEST_PROCESSOR_PATH = "waitingRequestProcessor";
 
     private final PravegaTablesStoreHelper storeHelper;
     private final Supplier<CompletableFuture<String>> metadataTableName;
@@ -237,27 +234,6 @@ class PravegaTablesKVTable extends PersistentKVTableBase {
                                 storeHelper.invalidateCache(metadataTable, CURRENT_EPOCH_KEY);
                             });
                 });
-    }
-
-    @Override
-    public CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String waitingRequestProcessor) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(
-                        metadataTable, WAITING_REQUEST_PROCESSOR_PATH, waitingRequestProcessor.getBytes(StandardCharsets.UTF_8))));
-    }
-
-    @Override
-    public CompletableFuture<String> getWaitingRequestNode() {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.getEntry(metadataTable, WAITING_REQUEST_PROCESSOR_PATH,
-                        x -> StandardCharsets.UTF_8.decode(ByteBuffer.wrap(x)).toString()))
-                .thenApply(VersionedMetadata::getObject);
-    }
-
-    @Override
-    public CompletableFuture<Void> deleteWaitingRequestNode() {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.removeEntry(metadataTable, WAITING_REQUEST_PROCESSOR_PATH));
     }
 
 }

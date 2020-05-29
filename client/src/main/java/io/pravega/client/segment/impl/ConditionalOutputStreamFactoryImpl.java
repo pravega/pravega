@@ -12,7 +12,7 @@ package io.pravega.client.segment.impl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import java.util.UUID;

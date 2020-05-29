@@ -292,6 +292,8 @@ public final class NameUtils {
 
     /**
      * Method to generate Fully Qualified  TableSegmentName using scope, stream and segment id.
+     * Table segments for KVTables have segment names suffixed with _table,
+     * so we can have a stream and KeyValueTable with the same name.
      *
      * @param scope scope to be used in the ScopedTableSegment name
      * @param kvTableName kvTable name to be used in ScopedTableSegment name.

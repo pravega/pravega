@@ -20,8 +20,8 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.ControllerImpl;
-import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import lombok.val;
 
 /**

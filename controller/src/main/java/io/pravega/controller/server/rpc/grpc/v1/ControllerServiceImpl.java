@@ -16,7 +16,7 @@ import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.AuthorizationException;
-import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTag;

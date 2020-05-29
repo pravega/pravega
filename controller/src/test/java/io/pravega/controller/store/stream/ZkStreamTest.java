@@ -13,7 +13,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
-import io.pravega.controller.store.OperationContext;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;

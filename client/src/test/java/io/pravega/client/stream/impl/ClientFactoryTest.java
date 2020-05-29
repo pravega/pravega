@@ -10,7 +10,6 @@
 package io.pravega.client.stream.impl;
 
 
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;

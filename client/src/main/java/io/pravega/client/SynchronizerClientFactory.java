@@ -18,8 +18,8 @@ import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.ControllerImpl;
-import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import lombok.val;
 
 /**

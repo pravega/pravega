@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.control.impl;
+package io.pravega.client.stream.impl;
 
 import io.pravega.auth.AuthConstants;
 import io.pravega.client.stream.impl.Credentials;

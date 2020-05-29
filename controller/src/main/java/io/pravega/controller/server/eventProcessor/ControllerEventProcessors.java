@@ -15,7 +15,7 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -274,11 +274,13 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         executor));
     }
 
-    public CompletableFuture<Void> bootstrap(final StreamTransactionMetadataTasks streamTransactionMetadataTasks, StreamMetadataTasks streamMetadataTasks) {
+    public CompletableFuture<Void> bootstrap(final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                                             StreamMetadataTasks streamMetadataTasks, TableMetadataTasks tableMetadataTasks) {
         log.info("Bootstrapping controller event processors");
         return createStreams().thenAcceptAsync(x -> {
             streamMetadataTasks.initializeStreamWriters(clientFactory, config.getRequestStreamName());
             streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config);
+            tableMetadataTasks.initializeStreamWriters(clientFactory, config.getRequestStreamName());
         }, executor);
     }
 

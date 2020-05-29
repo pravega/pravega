@@ -21,7 +21,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 
-import io.pravega.client.control.impl.Controller;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;

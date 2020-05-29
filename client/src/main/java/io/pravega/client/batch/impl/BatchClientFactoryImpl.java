@@ -30,7 +30,7 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import java.util.Iterator;
 import java.util.Optional;

@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.OperationContext;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;

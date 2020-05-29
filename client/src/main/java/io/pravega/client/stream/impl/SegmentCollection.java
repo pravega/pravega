@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.control.impl;
+package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;

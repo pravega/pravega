@@ -47,11 +47,6 @@ public abstract class PersistentKVTableBase implements KeyValueTable {
     }
 
     @Override
-    public String getScopeName() {
-        return this.scope;
-    }
-
-    @Override
     public CompletableFuture<Void> updateState(final KVTableState state) {
         return getStateData(true)
                 .thenCompose(currState -> {
@@ -87,7 +82,6 @@ public abstract class PersistentKVTableBase implements KeyValueTable {
 
     @Override
     public CompletableFuture<CreateKVTableResponse> create(final KeyValueTableConfiguration configuration, long createTimestamp, int startingSegmentNumber) {
-
         return checkKeyValueTableExists(configuration, createTimestamp, startingSegmentNumber)
                 .thenCompose(createKVTResponse -> createKVTableMetadata()
                         .thenCompose((Void v) -> storeCreationTimeIfAbsent(createKVTResponse.getTimestamp()))

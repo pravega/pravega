@@ -14,6 +14,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.shared.controller.event.StreamRequestProcessor;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -52,7 +53,7 @@ public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> process(StreamRequestProcessor processor) {
+        public CompletableFuture<Void> process(RequestProcessor processor) {
             return ((TestRequestProcessor1) processor).testProcess(this);
         }
     }
@@ -69,7 +70,7 @@ public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> process(StreamRequestProcessor processor) {
+        public CompletableFuture<Void> process(RequestProcessor processor) {
             return ((TestRequestProcessor2) processor).testProcess(this);
         }
     }
@@ -87,7 +88,7 @@ public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> process(StreamRequestProcessor processor) {
+        public CompletableFuture<Void> process(RequestProcessor processor) {
             return ((FailingRequestProcessor) processor).testProcess(this);
         }
     }

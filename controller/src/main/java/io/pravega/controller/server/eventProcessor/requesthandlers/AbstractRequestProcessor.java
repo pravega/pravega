@@ -14,7 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
-import io.pravega.controller.store.OperationContext;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.shared.controller.event.AbortEvent;
@@ -27,7 +27,6 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -39,7 +38,7 @@ import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.wit
 
 /**
  * Abstract common class for all request processing done over SerializedRequestHandler.
- * This implements StreamRequestProcessor interface and implements failing request processing for all ControllerEvent types with
+ * This implements RequestProcessor interface and implements failing request processing for all ControllerEvent types with
  * RequestUnsupported.
  * Its derived classes should implement specific processing that they wish to handle.
  *
@@ -58,13 +57,12 @@ import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.wit
 public abstract class AbstractRequestProcessor<T extends ControllerEvent> extends SerializedRequestHandler<T> implements StreamRequestProcessor {
     protected static final Predicate<Throwable> OPERATION_NOT_ALLOWED_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException;
 
-    @Getter
-    protected final StreamMetadataStore metadataStore;
+    protected final StreamMetadataStore streamMetadataStore;
 
     public AbstractRequestProcessor(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor) {
         super(executor);
         Preconditions.checkNotNull(streamMetadataStore);
-        this.metadataStore = streamMetadataStore;
+        this.streamMetadataStore = streamMetadataStore;
     }
 
     public String getProcessorName() {
@@ -125,11 +123,11 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
         Preconditions.checkNotNull(writeBackPredicate);
         CompletableFuture<Void> resultFuture = new CompletableFuture<>();
 
-        OperationContext context = metadataStore.createContext(scope, stream);
-        CompletableFuture<String> waitingProcFuture = suppressException(metadataStore.getWaitingRequestProcessor(scope, stream, context, executor), null,
+        OperationContext context = streamMetadataStore.createContext(scope, stream);
+        CompletableFuture<String> waitingProcFuture = suppressException(streamMetadataStore.getWaitingRequestProcessor(scope, stream, context, executor), null,
                 "Exception while trying to fetch waiting request. Logged and ignored.");
         CompletableFuture<Boolean> hasTaskStarted = task.hasTaskStarted(event);
-        
+
         CompletableFuture.allOf(waitingProcFuture, hasTaskStarted)
                 .thenAccept(v -> {
                     boolean hasStarted = hasTaskStarted.join();
@@ -138,7 +136,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                         withRetries(() -> task.execute(event), executor)
                                 .whenComplete((r, ex) -> {
                                     if (ex != null && writeBackPredicate.test(ex)) {
-                                        suppressException(metadataStore.createWaitingRequestIfAbsent(scope, stream, getProcessorName(), context, executor),
+                                        suppressException(streamMetadataStore.createWaitingRequestIfAbsent(scope, stream, getProcessorName(), context, executor),
                                                 null, "Exception while trying to create waiting request. Logged and ignored.")
                                                 .thenCompose(ignore ->  retryIndefinitelyThenComplete(() -> task.writeBack(event), resultFuture, ex));
                                     } else {
@@ -146,7 +144,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                         // the waiting request if it matches the current processor.
                                         // If we don't delete it then some other processor will never be able to do the work.
                                         // So we need to retry indefinitely until deleted.
-                                        retryIndefinitelyThenComplete(() -> metadataStore.deleteWaitingRequestConditionally(scope,
+                                        retryIndefinitelyThenComplete(() -> streamMetadataStore.deleteWaitingRequestConditionally(scope,
                                                 stream, getProcessorName(), context, executor), resultFuture, ex);
                                     }
                                 });
@@ -159,9 +157,9 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                         + event + " so that waiting processor" + waitingRequestProcessor + " can work. "));
                     }
                 }).exceptionally(e -> {
-                    resultFuture.completeExceptionally(e);
-                    return null;
-                });
+            resultFuture.completeExceptionally(e);
+            return null;
+        });
 
         return resultFuture;
     }
