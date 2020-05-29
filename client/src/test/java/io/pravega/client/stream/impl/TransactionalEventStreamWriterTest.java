@@ -103,9 +103,12 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
-        Mockito.when(controller.getEpochSegments(scope, streamName, NameUtils.getEpoch(txnId))).thenReturn(getSegmentsFuture(segment));
-        Mockito.when(controller.checkTransactionStatus(Stream.of(scope, streamName),txnId)).thenReturn(CompletableFuture.completedFuture(Transaction.Status.OPEN));
-        Mockito.when(controller.pingTransaction(eq(Stream.of(scope, streamName)),eq(txnId), anyLong())).thenReturn(CompletableFuture.completedFuture(Transaction.PingStatus.OPEN));
+        Mockito.when(controller.getEpochSegments(scope, streamName, NameUtils.getEpoch(txnId)))
+               .thenReturn(getSegmentsFuture(segment));
+        Mockito.when(controller.checkTransactionStatus(Stream.of(scope, streamName), txnId))
+               .thenReturn(CompletableFuture.completedFuture(Transaction.Status.OPEN));
+        Mockito.when(controller.pingTransaction(eq(Stream.of(scope, streamName)), eq(txnId), anyLong()))
+               .thenReturn(CompletableFuture.completedFuture(Transaction.PingStatus.OPEN));
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
         FakeSegmentOutputStream bad = new FakeSegmentOutputStream(segment);
         Mockito.when(controller.createTransaction(eq(stream), anyLong()))
@@ -114,7 +117,7 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
                .thenReturn(outputStream);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(bad);
 
-       // Create a transactional event Writer
+        // Create a transactional event Writer
         @Cleanup
         TransactionalEventStreamWriter<String> writer = new TransactionalEventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService());
@@ -144,9 +147,12 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
-        Mockito.when(controller.getEpochSegments(scope, streamName, NameUtils.getEpoch(txnId))).thenReturn(getSegmentsFuture(segment));
-        Mockito.when(controller.checkTransactionStatus(Stream.of(scope, streamName),txnId)).thenReturn(CompletableFuture.completedFuture(Transaction.Status.ABORTED));
-        Mockito.when(controller.pingTransaction(eq(Stream.of(scope, streamName)),eq(txnId), anyLong())).thenReturn(CompletableFuture.completedFuture(Transaction.PingStatus.OPEN));
+        Mockito.when(controller.getEpochSegments(scope, streamName, NameUtils.getEpoch(txnId)))
+               .thenReturn(getSegmentsFuture(segment));
+        Mockito.when(controller.checkTransactionStatus(Stream.of(scope, streamName), txnId))
+               .thenReturn(CompletableFuture.completedFuture(Transaction.Status.ABORTED));
+        Mockito.when(controller.pingTransaction(eq(Stream.of(scope, streamName)), eq(txnId), anyLong()))
+               .thenReturn(CompletableFuture.completedFuture(Transaction.PingStatus.OPEN));
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
         FakeSegmentOutputStream bad = new FakeSegmentOutputStream(segment);
         Mockito.when(controller.createTransaction(eq(stream), anyLong()))

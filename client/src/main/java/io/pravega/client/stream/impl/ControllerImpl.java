@@ -858,7 +858,7 @@ public class ControllerImpl implements Controller {
         return result.thenApply(this::getStreamSegments)
                      .whenComplete((x, e) -> {
                          if (e != null) {
-                             log.warn("getEpochSegments for {}/{} failed: ", scope, stream, e);
+                             log.warn("getEpochSegments for {}/{} with for epoch {} failed: ", scope, stream, epoch, e);
                          }
                          LoggerHelpers.traceLeave(log, "getEpochSegments", traceId);
                      });
