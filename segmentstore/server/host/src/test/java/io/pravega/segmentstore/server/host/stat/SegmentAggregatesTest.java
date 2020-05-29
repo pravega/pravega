@@ -15,6 +15,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class SegmentAggregatesTest {
@@ -71,6 +72,39 @@ public class SegmentAggregatesTest {
         assertTrue(aggregates.getFiveMinuteRate() > 4.5 && aggregates.getFiveMinuteRate() < 5.5);
         assertTrue(aggregates.getTenMinuteRate() > 4.5 && aggregates.getTenMinuteRate() < 5.5);
         assertTrue(aggregates.getTwentyMinuteRate() > 4.5 && aggregates.getTwentyMinuteRate() < 5.5);
+    }
+
+    @Test
+    public void aggregateWithSilentPeriods() {
+        long time = 0L;
+        setClock(time);
+        // test events per second
+        TestSegmentAggregatesEvents aggregates = new TestSegmentAggregatesEvents(1);
+        
+        // generate a traffic of 5 events per second for 1 minute
+        for (int i = 0; i < 60; i++) {
+            aggregates.update(0, 5);
+            time += 1000;
+            setClock(time);
+        }
+        // verify that the rate is close to 5 events per second
+        assertEquals(5.0, aggregates.getTwoMinuteRate(), 1.0);
+        time += 10 * 60 * 1000;
+        // advance clock by 10 minutes
+        setClock(time);
+        aggregates.update(0, 100);
+
+        // the computed rates should be greater than 1 kbps
+        assertTrue(aggregates.getTwoMinuteRate() < 1.0);
+        
+        // verify that sustained traffic resumption gets the rate back up
+        for (int i = 0; i < 2 * 60; i++) {
+            aggregates.update(0, 5);
+            time += 1000;
+            setClock(time);
+        }
+        assertEquals(aggregates.getTwoMinuteRate(), 5.0, 2.0);
+
     }
 
     @Test
