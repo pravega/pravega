@@ -10,7 +10,7 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers.kvtable;
 
 
-import io.pravega.controller.store.kvtable.TableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +23,7 @@ public class TableRequestHandler extends AbstractTableRequestProcessor<Controlle
 
     private final CreateTableTask createTask;
 
-    public TableRequestHandler(CreateTableTask createTask, TableMetadataStore store, ScheduledExecutorService executor) {
+    public TableRequestHandler(CreateTableTask createTask, KVTableMetadataStore store, ScheduledExecutorService executor) {
         super(store, executor);
         this.createTask = createTask;
     }

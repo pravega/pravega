@@ -10,7 +10,7 @@
 package io.pravega.controller.server.v1;
 
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;

@@ -39,7 +39,7 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
  * Each kvTable is protected against recreation of another kvTable/stream with same name by attaching a UUID to the name.
  */
 @Slf4j
-class PravegaTablesKVTable extends PersistentKVTableBase {
+class PravegaTablesKVTable extends AbstractKVTableBase {
     private static final String METADATA_TABLE = "metadata" + SEPARATOR + "%s";
     // metadata keys
     private static final String CREATION_TIME_KEY = "creationTime";

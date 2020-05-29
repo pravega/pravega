@@ -11,7 +11,7 @@ package io.pravega.client.admin.impl;
 
 import com.google.common.collect.Streams;
 import io.pravega.client.admin.KeyValueTableInfo;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;

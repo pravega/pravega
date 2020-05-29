@@ -29,13 +29,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-public abstract class AbstractTableMetadataStore implements TableMetadataStore {
+public abstract class AbstractKVTableMetadataStore implements KVTableMetadataStore {
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, KeyValueTable> cache;
     private final HostIndex hostTaskIndex;
     private final ControllerEventSerializer controllerEventSerializer;
 
-    protected AbstractTableMetadataStore(HostIndex hostTaskIndex) {
+    protected AbstractKVTableMetadataStore(HostIndex hostTaskIndex) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(10000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)

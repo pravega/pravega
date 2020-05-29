@@ -11,7 +11,7 @@ package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.cluster.Cluster;
@@ -28,7 +28,7 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.kvtable.TableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
@@ -73,7 +73,7 @@ import org.apache.commons.lang3.tuple.Pair;
 @AllArgsConstructor
 @Slf4j
 public class ControllerService {
-    private final TableMetadataStore kvtMetadataStore;
+    private final KVTableMetadataStore kvtMetadataStore;
     private final TableMetadataTasks kvtMetadataTasks;
     private final StreamMetadataStore streamStore;
     private final BucketStore bucketStore;

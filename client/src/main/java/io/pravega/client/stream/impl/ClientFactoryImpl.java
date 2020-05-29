@@ -17,6 +17,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.security.auth.DelegationTokenProvider;
@@ -112,8 +113,8 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
 
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
-            SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory,
-            ConditionalOutputStreamFactory condFactory, SegmentMetadataClientFactory metaFactory) {
+                             SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory,
+                             ConditionalOutputStreamFactory condFactory, SegmentMetadataClientFactory metaFactory) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(inFactory);

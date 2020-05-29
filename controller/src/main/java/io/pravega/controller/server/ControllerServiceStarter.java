@@ -44,7 +44,7 @@ import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.kvtable.TableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -95,7 +95,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private StreamMetadataStore streamStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private TableMetadataStore kvtMetadataStore;
+    private KVTableMetadataStore kvtMetadataStore;
     private TableMetadataTasks kvtMetadataTasks;
     private BucketManager retentionService;
     private BucketManager watermarkingService;
@@ -120,7 +120,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private final Optional<SegmentHelper> segmentHelperRef;
     private final Optional<ConnectionFactory> connectionFactoryRef;
     private final Optional<StreamMetadataStore> streamMetadataStoreRef;
-    private final Optional<TableMetadataStore> kvtMetaStoreRef;
+    private final Optional<KVTableMetadataStore> kvtMetaStoreRef;
     
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
@@ -137,7 +137,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     @VisibleForTesting
     ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient, SegmentHelper segmentHelper,
-                             ConnectionFactory connectionFactory, StreamMetadataStore streamStore, TableMetadataStore kvtStore) {
+                             ConnectionFactory connectionFactory, StreamMetadataStore streamStore, KVTableMetadataStore kvtStore) {
         this.serviceConfig = serviceConfig;
         this.storeClient = storeClient;
         this.objectId = "ControllerServiceStarter";

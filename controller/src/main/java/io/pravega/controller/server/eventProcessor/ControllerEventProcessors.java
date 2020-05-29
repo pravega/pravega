@@ -15,7 +15,7 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -45,7 +45,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.Creat
 
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
-import io.pravega.controller.store.kvtable.TableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
@@ -110,7 +110,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
-                                     final TableMetadataStore kvtMetadataStore,
+                                     final KVTableMetadataStore kvtMetadataStore,
                                      final TableMetadataTasks kvtMetadataTasks,
                                      final ScheduledExecutorService executor) {
         this(host, config, controller, checkpointStore, streamMetadataStore, bucketStore, connectionFactory,
@@ -127,7 +127,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
-                                     final TableMetadataStore kvtMetadataStore,
+                                     final KVTableMetadataStore kvtMetadataStore,
                                      final TableMetadataTasks kvtMetadataTasks,
                                      final EventProcessorSystem system,
                                      final ScheduledExecutorService executor) {

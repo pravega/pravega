@@ -13,7 +13,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
@@ -26,7 +26,7 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
-import io.pravega.controller.store.kvtable.TableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
@@ -77,7 +77,7 @@ public class ControllerServiceTest {
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore = spy(StreamStoreFactory.createInMemoryStore(executor));
-    private final TableMetadataStore kvtStore = spy(KVTableStoreFactory.createInMemoryStore(executor));
+    private final KVTableMetadataStore kvtStore = spy(KVTableStoreFactory.createInMemoryStore(executor));
 
     private StreamMetadataTasks streamMetadataTasks;
     private TableMetadataTasks kvtMetadataTasks;

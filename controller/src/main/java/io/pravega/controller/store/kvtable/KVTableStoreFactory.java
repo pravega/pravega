@@ -21,8 +21,8 @@ import java.util.concurrent.ScheduledExecutorService;
 
 public class KVTableStoreFactory {
 
-    public static TableMetadataStore createStore(final StoreClient storeClient, final SegmentHelper segmentHelper,
-                                                 final GrpcAuthHelper authHelper, final ScheduledExecutorService executor) {
+    public static KVTableMetadataStore createStore(final StoreClient storeClient, final SegmentHelper segmentHelper,
+                                                   final GrpcAuthHelper authHelper, final ScheduledExecutorService executor) {
         switch (storeClient.getType()) {
             case PravegaTable:
                 return new PravegaTablesKVTMetadataStore(segmentHelper, (CuratorFramework) storeClient.getClient(), executor, authHelper);
@@ -32,18 +32,18 @@ public class KVTableStoreFactory {
     }
 
     @VisibleForTesting
-    public static TableMetadataStore createPravegaTablesStore(final SegmentHelper segmentHelper, final GrpcAuthHelper authHelper,
-                                                              final CuratorFramework client, final ScheduledExecutorService executor) {
+    public static KVTableMetadataStore createPravegaTablesStore(final SegmentHelper segmentHelper, final GrpcAuthHelper authHelper,
+                                                                final CuratorFramework client, final ScheduledExecutorService executor) {
         return new PravegaTablesKVTMetadataStore(segmentHelper, client, executor, authHelper);
     }
     
     @VisibleForTesting
-    public static TableMetadataStore createZKStore(final CuratorFramework client, final ScheduledExecutorService executor) {
+    public static KVTableMetadataStore createZKStore(final CuratorFramework client, final ScheduledExecutorService executor) {
         throw new UnsupportedOperationException("ZKStore not supported for KeyValueTables");
     }
     
     @VisibleForTesting
-    public static TableMetadataStore createInMemoryStore(final Executor executor) {
+    public static KVTableMetadataStore createInMemoryStore(final Executor executor) {
         throw new UnsupportedOperationException("InMemoryStore not supported for KeyValueTables");
     }
 }

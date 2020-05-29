@@ -10,7 +10,7 @@
 package io.pravega.client.tables.impl;
 
 import io.netty.buffer.ByteBuf;
-import io.pravega.client.stream.impl.SegmentCollection;
+import io.pravega.client.control.impl.SegmentCollection;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.common.hash.HashHelper;

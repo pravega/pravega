@@ -12,7 +12,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers.kvtable;
 import com.google.common.base.Preconditions;
 import io.pravega.controller.store.kvtable.CreateKVTableResponse;
 import io.pravega.controller.store.kvtable.KVTableState;
-import io.pravega.controller.store.kvtable.TableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.kvtable.KVTOperationContext;
@@ -35,11 +35,11 @@ import java.util.stream.IntStream;
 @Slf4j
 public class CreateTableTask implements TableTask<CreateTableEvent> {
 
-    private final TableMetadataStore kvtMetadataStore;
+    private final KVTableMetadataStore kvtMetadataStore;
     private final TableMetadataTasks kvtMetadataTasks;
     private final ScheduledExecutorService executor;
 
-    public CreateTableTask(final TableMetadataStore kvtMetaStore,
+    public CreateTableTask(final KVTableMetadataStore kvtMetaStore,
                            final TableMetadataTasks kvtMetaTasks,
                            final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(kvtMetaStore);

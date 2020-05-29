@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.RequestUnsupportedException;
-import io.pravega.controller.store.kvtable.TableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
@@ -45,9 +45,9 @@ import java.util.concurrent.ScheduledExecutorService;
 public abstract class AbstractTableRequestProcessor<T extends ControllerEvent> extends SerializedRequestHandler<T> implements TableRequestProcessor {
 
     @Getter
-    protected final TableMetadataStore metadataStore;
+    protected final KVTableMetadataStore metadataStore;
 
-    public AbstractTableRequestProcessor(TableMetadataStore store, ScheduledExecutorService executor) {
+    public AbstractTableRequestProcessor(KVTableMetadataStore store, ScheduledExecutorService executor) {
         super(executor);
         Preconditions.checkNotNull(store);
         this.metadataStore = store;

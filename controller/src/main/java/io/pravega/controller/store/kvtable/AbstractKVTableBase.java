@@ -27,11 +27,11 @@ import java.util.stream.IntStream;
 
 
 @Slf4j
-public abstract class PersistentKVTableBase implements KeyValueTable {
+public abstract class AbstractKVTableBase implements KeyValueTable {
     private final String scope;
     private final String name;
 
-    PersistentKVTableBase(final String scope, final String name) {
+    AbstractKVTableBase(final String scope, final String name) {
         this.scope = scope;
         this.name = name;
     }

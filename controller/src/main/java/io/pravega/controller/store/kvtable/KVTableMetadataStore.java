@@ -20,7 +20,7 @@ import java.util.concurrent.Executor;
 /**
  * KeyValueTable Metadata Store.
  */
-public interface TableMetadataStore extends AutoCloseable {
+public interface KVTableMetadataStore extends AutoCloseable {
 
     /**
      * Method to create an operation context. A context ensures that multiple calls to store for the same data are avoided

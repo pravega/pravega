@@ -27,7 +27,7 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
-import io.pravega.controller.store.kvtable.TableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
@@ -57,7 +57,7 @@ import static io.pravega.shared.NameUtils.getQualifiedTableSegmentName;
  */
 public class TableMetadataTasks implements AutoCloseable {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TableMetadataTasks.class));
-    private final TableMetadataStore kvtMetadataStore;
+    private final KVTableMetadataStore kvtMetadataStore;
     private final SegmentHelper segmentHelper;
     private final ScheduledExecutorService executor;
     private final ScheduledExecutorService eventExecutor;
@@ -69,7 +69,7 @@ public class TableMetadataTasks implements AutoCloseable {
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
 
 
-    public TableMetadataTasks(final TableMetadataStore kvtMetadataStore,
+    public TableMetadataTasks(final KVTableMetadataStore kvtMetadataStore,
                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
                               final ScheduledExecutorService eventExecutor, final String hostId,
                               GrpcAuthHelper authHelper, RequestTracker requestTracker) {
