@@ -11,6 +11,7 @@ package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
@@ -21,15 +22,15 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
-import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -45,10 +46,9 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -512,9 +512,9 @@ public class ControllerService {
     private void reportCreateKVTableMetrics(String scope, String kvtName, int initialSegments, CreateKeyValueTableStatus.Status status,
                                            Duration latency) {
         if (status.equals(CreateKeyValueTableStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().createStream(scope, kvtName, initialSegments, latency);
+            StreamMetrics.getInstance().createKeyValueTable(scope, kvtName, initialSegments, latency);
         } else if (status.equals(CreateKeyValueTableStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().createStreamFailed(scope, kvtName);
+            StreamMetrics.getInstance().createKeyValueTableFailed(scope, kvtName);
         }
     }
 
