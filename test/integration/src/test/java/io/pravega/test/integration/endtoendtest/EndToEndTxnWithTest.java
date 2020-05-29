@@ -15,7 +15,19 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.EventRead;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -32,7 +44,6 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -268,20 +279,20 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         assertNull(reader.readNextEvent(100).getEvent());
         groupManager.getReaderGroup("reader").initiateCheckpoint("cp1", executorService());
         event = reader.readNextEvent(5000);
-        assertEquals("Checkpoint event expected","cp1", event.getCheckpointName());
+        assertEquals("Checkpoint event expected", "cp1", event.getCheckpointName());
 
         event = reader.readNextEvent(5000);
-        assertEquals("second event post scale up","e", event.getEvent());
+        assertEquals("second event post scale up", "e", event.getEvent());
 
         assertNull(reader.readNextEvent(100).getEvent());
         groupManager.getReaderGroup("reader").initiateCheckpoint("cp2", executorService());
         event = reader.readNextEvent(5000);
-        assertEquals("Checkpoint event expected","cp2", event.getCheckpointName());
+        assertEquals("Checkpoint event expected", "cp2", event.getCheckpointName());
 
         event = reader.readNextEvent(5000);
-        assertEquals("txn events","1", event.getEvent());
+        assertEquals("txn events", "1", event.getEvent());
         event = reader.readNextEvent(5000);
-        assertEquals("txn events","2", event.getEvent());
+        assertEquals("txn events", "2", event.getEvent());
 
     }
 
