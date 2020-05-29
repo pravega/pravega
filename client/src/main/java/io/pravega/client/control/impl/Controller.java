@@ -56,7 +56,7 @@ public interface Controller extends AutoCloseable {
      * Gets an async iterator on streams in scope.
      *
      * @param scopeName The name of the scope for which to list streams in.
-     * @return An AsyncIterator which can be used to iterate over all Streams in the scope.
+     * @return An AsyncIterator which can be used to iterate over all Streams in the scope. 
      */
     AsyncIterator<Stream> listStreams(final String scopeName);
 
@@ -262,7 +262,7 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(final Segment segment);
 
     /**
-     * Returns all the segments that come after the provided cutpoint.
+     * Returns all the segments that come after the provided cutpoint. 
      *
      * @param from The position from which to find the remaining bytes.
      * @return The segments beyond a given cut position.
@@ -320,7 +320,7 @@ public interface Controller extends AutoCloseable {
     /**
      * Notifies the controller that the specified writer is shutting down gracefully and no longer
      * needs to be considered for calculating entries for the marks segment. This may not be called
-     * in the event that writer crashes.
+     * in the event that writer crashes. 
      *
      * @param writerId The name of the writer. (User defined)
      * @param stream The stream the writer was on.
