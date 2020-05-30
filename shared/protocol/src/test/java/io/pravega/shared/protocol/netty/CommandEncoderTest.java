@@ -69,10 +69,14 @@ public class CommandEncoderTest {
         allocator = new UnpooledByteBufAllocator(false, false);
         commandEncoder = new CommandEncoder(s -> new TestBatchSizeTracker(1000), new TestMetricNotifier());
 <<<<<<< HEAD
+<<<<<<< HEAD
         verifyFlush(commandEncoder, allocator, new Hello(1, 2));
 =======
         verifyNoFlush(commandEncoder, allocator, new Hello(1, 2));
 >>>>>>> Issue 4784: Release throttle in the event an unhandled exception comes from netty. (#4785)
+=======
+        verifyFlush(commandEncoder, allocator, new Hello(1, 2));
+>>>>>>> Issue 4820: Hello Reply doesn't flush to the Channel immediately (#4821)
         verifyFlush(commandEncoder, allocator, new KeepAlive());
         verifyFlush(commandEncoder, allocator, new SetupAppend(1, uuid, "segment", ""));
         ByteBuf buffer = allocator.buffer();
