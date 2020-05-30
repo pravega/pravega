@@ -253,6 +253,7 @@ public class CommandEncoder extends FlushingMessageToByteEncoder<Object> {
             Preconditions.checkState(isChannelFree());
             Preconditions.checkState(pendingWrites.isEmpty());
             writeMessage((WireCommand) msg, out);
+            flushRequired();
         } else if (msg instanceof WireCommand) {
             breakCurrentAppend(out);
             flushAll(out);
