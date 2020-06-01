@@ -330,8 +330,7 @@ project ('bindings') {
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         // Adding JAXB API and the reference implementation as dependencies here, since they are not available
-        // in newer Java SE versions (11 and newer). In the absence of these, some of transitive dependencies of 
-        // `hadoop-common` will not be found un Java SE 11 and above. 
+        // in newer Java SE versions (11 and newer).
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
         compile group: 'javax.activation', name: 'javax.activation-api', version: activationVersion
