@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -449,6 +450,10 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         public void initialize(long containerEpoch) {
         }
 
+        @Override
+        public Iterator<SegmentProperties> listSegments() {
+            return null;
+        }
         //endregion
     }
 
