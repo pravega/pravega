@@ -73,7 +73,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
 
     @Override
     public CompletableFuture<Boolean> checkScopeExists(String scope) {
-        return Futures.withCompletion(storeHelper.expectingDataNotFound(
+        return Futures.completeOn(storeHelper.expectingDataNotFound(
                 storeHelper.getEntry(SCOPES_TABLE, scope, x -> x).thenApply(v -> true),
                 false), executor);
     }
@@ -81,12 +81,12 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     public CompletableFuture<UUID> createEntryForKVTable(final String scopeName,
                                                          final String kvtName,
                                                          final Executor executor) {
-        return Futures.withCompletion(((PravegaTablesScope) getScope(scopeName)).addKVTableToScope(kvtName), executor);
+        return Futures.completeOn(((PravegaTablesScope) getScope(scopeName)).addKVTableToScope(kvtName), executor);
     }
 
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String kvtName) {
-        return Futures.withCompletion(storeHelper.getEntry(DELETED_KVTABLES_TABLE, getScopedKVTName(scopeName, kvtName),
+        return Futures.completeOn(storeHelper.getEntry(DELETED_KVTABLES_TABLE, getScopedKVTName(scopeName, kvtName),
                 x -> BitConverter.readInt(x, 0))
                 .handle((data, ex) -> {
                     if (ex == null) {

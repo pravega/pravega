@@ -110,7 +110,7 @@ public class TableMetadataTasks implements AutoCloseable {
                 .thenCompose(state -> {
                     if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
                         // 1. post event for CreateKVTable.
-                        return  Futures.withCompletion(kvtMetadataStore.checkScopeExists(scope)
+                        return  Futures.completeOn(kvtMetadataStore.checkScopeExists(scope)
                                 .thenCompose(exists -> {
                                     if (exists) {
                                         return Futures.exceptionallyExpecting(kvtMetadataStore.createEntryForKVTable(scope, kvtName, executor)

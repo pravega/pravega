@@ -118,7 +118,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                                                 final Executor executor) {
         return getSafeStartingSegmentNumberFor(scope, name)
                 .thenCompose(startingSegmentNumber ->
-                        Futures.withCompletion(checkScopeExists(scope)
+                        Futures.completeOn(checkScopeExists(scope)
                                 .thenCompose(exists -> {
                                     if (exists) {
                                         // Create kvtable may fail if scope is deleted as we attempt to create the table under scope.
@@ -139,14 +139,14 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                                    final String name,
                                                    final KVTOperationContext context,
                                                    final Executor executor) {
-        return Futures.withCompletion(getKVTable(scope, name, context).getCreationTime(), executor);
+        return Futures.completeOn(getKVTable(scope, name, context).getCreationTime(), executor);
     }
 
     @Override
     public CompletableFuture<Void> setState(final String scope, final String name,
                                             final KVTableState state, final KVTOperationContext context,
                                             final Executor executor) {
-        return Futures.withCompletion(getKVTable(scope, name, context).updateState(state), executor);
+        return Futures.completeOn(getKVTable(scope, name, context).updateState(state), executor);
     }
 
     @Override
@@ -154,7 +154,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                              final boolean ignoreCached,
                                              final KVTOperationContext context,
                                              final Executor executor) {
-        return Futures.withCompletion(getKVTable(scope, name, context).getState(ignoreCached), executor);
+        return Futures.completeOn(getKVTable(scope, name, context).getState(ignoreCached), executor);
     }
 
     @Override
@@ -162,14 +162,14 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                                                             final KVTableState state, final VersionedMetadata<KVTableState> previous,
                                                                             final KVTOperationContext context,
                                                                             final Executor executor) {
-        return Futures.withCompletion(getKVTable(scope, name, context).updateVersionedState(previous, state), executor);
+        return Futures.completeOn(getKVTable(scope, name, context).updateVersionedState(previous, state), executor);
     }
 
     @Override
     public CompletableFuture<VersionedMetadata<KVTableState>> getVersionedState(final String scope, final String name,
                                                                          final KVTOperationContext context,
                                                                          final Executor executor) {
-        return Futures.withCompletion(getKVTable(scope, name, context).getVersionedState(), executor);
+        return Futures.completeOn(getKVTable(scope, name, context).getVersionedState(), executor);
     }
 
     @Override
@@ -184,7 +184,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
 
     @Override
     public CompletableFuture<List<KVTSegmentRecord>> getActiveSegments(final String scope, final String name, final KVTOperationContext context, final Executor executor) {
-        return Futures.withCompletion(getKVTable(scope, name, context).getActiveSegments(), executor);
+        return Futures.completeOn(getKVTable(scope, name, context).getActiveSegments(), executor);
     }
 
     /**

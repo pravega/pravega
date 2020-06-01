@@ -14,10 +14,8 @@ import io.pravega.controller.store.kvtable.CreateKVTableResponse;
 import io.pravega.controller.store.kvtable.KVTableState;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.kvtable.KVTOperationContext;
 import io.pravega.controller.store.stream.State;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
@@ -63,7 +61,6 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
         return kvtMetadataStore.getKVTable(scope, kvt, null).getId()
         .thenCompose(id -> {
             if (!id.equals(kvTableId)) {
-                // we don;t execute the request if Table IDs do not match
                 return CompletableFuture.completedFuture(null);
             } else {
                 this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, null, executor)
@@ -71,7 +68,7 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                             // only if its a new kvtable or an already existing non-active kvtable then we will create
                             // segments and change the state of the kvtable to active.
                             if (response.getStatus().equals(CreateKVTableResponse.CreateStatus.NEW) ||
-                                    response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
+                                    response.getStatus().equals(CreateKVTableResponse.CreateStatus.EXISTS_CREATING)) {
                                 final int startingSegmentNumber = response.getStartingSegmentNumber();
                                 final int minNumSegments = response.getConfiguration().getPartitionCount();
                                 List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
@@ -99,24 +96,4 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
              }
         });
     }
-
-    private Controller.CreateKeyValueTableStatus.Status translate(CreateKVTableResponse.CreateStatus status) {
-        Controller.CreateKeyValueTableStatus.Status retVal;
-        switch (status) {
-            case NEW:
-                retVal = Controller.CreateKeyValueTableStatus.Status.SUCCESS;
-                break;
-            case EXISTS_ACTIVE:
-            case EXISTS_CREATING:
-                retVal = Controller.CreateKeyValueTableStatus.Status.TABLE_EXISTS;
-                break;
-            case FAILED:
-            default:
-                retVal = Controller.CreateKeyValueTableStatus.Status.FAILURE;
-                break;
-        }
-        return retVal;
-    }
-
-
 }

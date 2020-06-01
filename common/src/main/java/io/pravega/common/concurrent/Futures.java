@@ -56,7 +56,7 @@ public final class Futures {
      * @param executor The executor for executing the future.
      * @return <T>CompletableFuture<T> Result of execution, successful or exceptional.
      */
-    public static <T> CompletableFuture<T> withCompletion(CompletableFuture<T> future, final Executor executor) {
+    public static <T> CompletableFuture<T> completeOn(CompletableFuture<T> future, final Executor executor) {
 
         CompletableFuture<T> result = new CompletableFuture<>();
 

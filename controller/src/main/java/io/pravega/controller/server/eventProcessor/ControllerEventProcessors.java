@@ -279,7 +279,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         return createStreams().thenAcceptAsync(x -> {
             streamMetadataTasks.initializeStreamWriters(clientFactory, config.getRequestStreamName());
             streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config);
-            tableMetadataTasks.initializeStreamWriters(clientFactory, config.getRequestStreamName());
+            tableMetadataTasks.initializeStreamWriters(clientFactory, config.getKvtStreamName());
         }, executor);
     }
 
