@@ -9,14 +9,9 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.io.StreamHelpers;
 import io.pravega.test.common.AssertExtensions;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import lombok.val;
 import org.junit.Assert;
@@ -25,7 +20,7 @@ import org.junit.Test;
 /**
  * Unit tests for ByteArraySegment class.
  */
-public class ByteArraySegmentTests {
+public class ByteArraySegmentTests extends BufferViewTestBase {
 
     /**
      * Tests the basic functionality of get() and set() methods.
@@ -111,95 +106,6 @@ public class ByteArraySegmentTests {
     }
 
     /**
-     * Tests the functionality of copyTo(array).
-     */
-    @Test
-    public void testCopyToByteBuffer() {
-        final byte[] sourceBuffer = createFormattedBuffer();
-        final int targetOffset = 10;
-        final byte[] targetBuffer = new byte[sourceBuffer.length + targetOffset];
-        final int copyLength = sourceBuffer.length - 7;
-
-        ByteArraySegment source = new ByteArraySegment(sourceBuffer);
-
-        // Copy second part.
-        source.copyTo(ByteBuffer.wrap(targetBuffer, targetOffset, copyLength));
-        for (int i = 0; i < targetBuffer.length; i++) {
-            int expectedValue = i < targetOffset || i >= targetOffset + copyLength ? 0 : i - targetOffset;
-            Assert.assertEquals("Unexpected value after copyFrom (second half) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
-        }
-    }
-
-    /**
-     * Tests the functionality of copyTo(OutputStream).
-     */
-    @Test
-    public void testCopyToStream() throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        int count = 10;
-        ArrayList<ByteArraySegment> sourceSegments = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            ByteArraySegment s = new ByteArraySegment(createFormattedBuffer());
-            sourceSegments.add(s);
-            s.copyTo(outputStream);
-        }
-
-        for (int i = 0; i < count; i++) {
-            ByteArraySegment s = sourceSegments.get(i);
-            ByteArraySegment t = new ByteArraySegment(new byte[s.getLength()]);
-            t.copyFrom(s, 0, t.getLength());
-
-            Assert.assertEquals("Source and target lengths differ.", s.getLength(), t.getLength());
-            for (int j = 0; j < s.getLength(); j++) {
-                if (t.get(j) != s.get(j)) {
-                    Assert.fail(String.format("Source at target differ at index %d.", j));
-                }
-            }
-        }
-    }
-
-    /**
-     * Tests the functionality of getBufferViewReader.
-     */
-    @Test
-    public void testGetBufferViewReader() {
-        final byte[] buffer = createFormattedBuffer();
-        ByteArraySegment segment = new ByteArraySegment(buffer);
-
-        for (int offset = 0; offset < buffer.length / 2; offset++) {
-            int length = buffer.length - offset * 2;
-            BufferView.Reader reader = segment.slice(offset, length).getBufferViewReader();
-            ArrayView readBuffer = reader.readFully(2);
-            for (int i = 0; i < length; i++) {
-                Assert.assertEquals("Unexpected value at index " + i + " after reading from offset " + offset, segment.get(i + offset), readBuffer.get(i));
-            }
-            Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
-        }
-    }
-
-    /**
-     * Tests the functionality of getReader (the ability to return an InputStream from a sub-segment of the main buffer).
-     */
-    @Test
-    public void testGetReader() throws IOException {
-        final byte[] buffer = createFormattedBuffer();
-        ByteArraySegment segment = new ByteArraySegment(buffer);
-
-        for (int offset = 0; offset < buffer.length / 2; offset++) {
-            int length = buffer.length - offset * 2;
-            byte[] readBuffer = new byte[length];
-            try (InputStream stream = segment.getReader(offset, length)) {
-                int readBytes = StreamHelpers.readAll(stream, readBuffer, 0, readBuffer.length);
-                Assert.assertEquals("Unexpected number of bytes read from the InputStream at offset " + offset, length, readBytes);
-            }
-
-            for (int i = 0; i < length; i++) {
-                Assert.assertEquals("Unexpected value at index " + i + " after reading from offset " + offset, segment.get(i + offset), readBuffer[i]);
-            }
-        }
-    }
-
-    /**
      * Tests the functionality of getWriter (the ability to return an OutputStream that can be used to write to the main buffer).
      */
     @Test
@@ -218,42 +124,10 @@ public class ByteArraySegmentTests {
     }
 
     /**
-     * Tests the ability for the ByteArraySegment to create sub-segments.
-     */
-    @Test
-    public void testSlice() {
-        final byte[] buffer = createFormattedBuffer();
-        ByteArraySegment segment = new ByteArraySegment(buffer);
-
-        // As long as the size of the segment > 1, choose a segment half the length of the current one.
-        // If current iteration is odd, choose the upper segment. If it is even, choose the lower one.
-        int iteration = 0;
-        int startOffset = 0;
-        while (segment.getLength() > 1) {
-            iteration++;
-
-            // Check correctness.
-            for (int i = 0; i < segment.getLength(); i++) {
-                Assert.assertEquals(String.format("Unexpected value at offset %d for slice (O=%d, L=%d), iteration %d.", i, startOffset, segment.getLength(), iteration), buffer[i + startOffset], segment.get(i));
-            }
-
-            // Pick a new size and create a new slice.
-            if (iteration % 2 == 0) {
-                // Upper half for even iterations.
-                startOffset = startOffset + segment.getLength() / 2;
-                segment = segment.slice(segment.getLength() / 2, segment.getLength() - segment.getLength() / 2);
-            } else {
-                // Lower half for odd iterations.
-                segment = segment.slice(0, segment.getLength() / 2);
-            }
-        }
-    }
-
-    /**
      * Tests the behavior of the ByteArraySegment in read-only mode.
      */
     @Test
-    public void testReadOnly() throws Exception {
+    public void testReadOnly() {
         final byte[] buffer = createFormattedBuffer();
         ByteArraySegment segment = new ByteArraySegment(buffer, 0, buffer.length, true);
 
@@ -278,6 +152,7 @@ public class ByteArraySegmentTests {
     }
 
     @Test
+    @Override
     public void testGetContents() {
         final byte[] buffer = createFormattedBuffer();
         val segment = new ByteArraySegment(buffer, 1, buffer.length - 3, true);
@@ -291,6 +166,11 @@ public class ByteArraySegmentTests {
 
     private void checkReadOnlyException(String methodName, AssertExtensions.RunnableWithException code) {
         AssertExtensions.assertThrows(IllegalStateException.class, code);
+    }
+
+    @Override
+    protected BufferView toBufferView(ArrayView data) {
+        return new ByteArraySegment(data.array(), data.arrayOffset(), data.getLength());
     }
 
     private byte[] createFormattedBuffer() {

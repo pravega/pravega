@@ -233,6 +233,7 @@ project('shared:protocol') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(path: ':common', configuration: 'testRuntime')
     }
 }
 
