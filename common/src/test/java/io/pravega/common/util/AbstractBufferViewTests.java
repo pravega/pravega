@@ -9,11 +9,15 @@
  */
 package io.pravega.common.util;
 
+import io.pravega.test.common.AssertExtensions;
+import java.io.EOFException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -57,7 +61,77 @@ public class AbstractBufferViewTests {
         val s2 = b.slice(b.getLength() / 2, b.getLength() / 2);
         val cb = BufferView.wrap(Arrays.asList(s1, s2));
         Assert.assertEquals(b.hashCode(), cb.hashCode());
-       Assert.assertEquals(b, cb);
+        Assert.assertEquals(b, cb);
+        Assert.assertEquals(cb, b);
+
+        val b2Data = b.getCopy();
+        b2Data[1] = (byte) (b2Data[1] + 1);
+        val b2 = new ByteArraySegment(b2Data);
+        Assert.assertNotEquals(b2.hashCode(), cb.hashCode());
+        Assert.assertNotEquals(cb, b2);
+        Assert.assertNotEquals(b2, cb);
+    }
+
+    /**
+     * Tests the behavior of the object returned by {@link BufferView#empty()}.
+     */
+    @Test
+    public void testEmptyBufferView() throws Exception {
+        val e = BufferView.empty();
+        Assert.assertSame("Expecting same instance.", e, BufferView.empty());
+        Assert.assertEquals(0, e.getLength());
+        Assert.assertEquals(0, e.getCopy().length);
+        Assert.assertSame(e, e.slice(0, 0));
+        AssertExtensions.assertThrows("", () -> e.slice(0, 1), ex -> ex instanceof IndexOutOfBoundsException);
+        AssertExtensions.assertThrows("", () -> e.getReader(0, 1), ex -> ex instanceof IndexOutOfBoundsException);
+        Assert.assertEquals(0, e.copyTo(ByteBuffer.allocate(1)));
+        Assert.assertTrue(e.getContents().isEmpty());
+
+        val reader = e.getBufferViewReader();
+        Assert.assertEquals(0, reader.available());
+        Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
+        AssertExtensions.assertThrows("", reader::readByte, ex -> ex instanceof EOFException);
+        Assert.assertSame(e, reader.readSlice(0));
+        AssertExtensions.assertThrows("", () -> reader.readSlice(1), ex -> ex instanceof EOFException);
+        @Cleanup
+        val inputStream = e.getReader();
+        Assert.assertEquals(-1, inputStream.read());
+    }
+
+    /**
+     * Tests {@link AbstractBufferView.AbstractReader#readInt()}, {@link AbstractBufferView.AbstractReader#readLong()}
+     * and {@link AbstractBufferView.AbstractReader#readFully}.
+     */
+    @Test
+    public void testAbstractReader() throws Exception {
+        val intValue = 1234;
+        val longValue = -123456789L;
+        // ReadInt, ReadLong, ReadFully
+        val buffer = new ByteArraySegment(new byte[100], 5, 79);
+        val rnd = new Random(0);
+
+        // Write some data. Fill with garbage, then put some readable values at the beginning.
+        rnd.nextBytes(buffer.array());
+        BitConverter.writeInt(buffer, 0, intValue);
+        BitConverter.writeLong(buffer, Integer.BYTES, longValue);
+
+        // Now read them back.
+        BufferView.Reader reader = buffer.getBufferViewReader();
+        Assert.assertEquals(buffer.getLength(), reader.available());
+
+        val readInt = reader.readInt();
+        Assert.assertEquals("readInt", intValue, readInt);
+        Assert.assertEquals(buffer.getLength() - Integer.BYTES, reader.available());
+
+        val readLong = reader.readLong();
+        Assert.assertEquals("readLong", longValue, readLong);
+        val remainingDataPos = Integer.BYTES + Long.BYTES;
+        val remainingDataLength = buffer.getLength() - remainingDataPos;
+        Assert.assertEquals(remainingDataLength, reader.available());
+
+        val remainingData = reader.readFully(3);
+        Assert.assertEquals(remainingDataLength, remainingData.getLength());
+        Assert.assertEquals("readFully", remainingData, buffer.slice(remainingDataPos, remainingDataLength));
     }
 
     private List<BufferView> copy(List<BufferView> source) {

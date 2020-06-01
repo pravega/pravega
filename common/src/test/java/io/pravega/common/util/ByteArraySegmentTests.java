@@ -169,7 +169,7 @@ public class ByteArraySegmentTests {
         for (int offset = 0; offset < buffer.length / 2; offset++) {
             int length = buffer.length - offset * 2;
             BufferView.Reader reader = segment.slice(offset, length).getBufferViewReader();
-            ByteArraySegment readBuffer = reader.readFully(2);
+            ArrayView readBuffer = reader.readFully(2);
             for (int i = 0; i < length; i++) {
                 Assert.assertEquals("Unexpected value at index " + i + " after reading from offset " + offset, segment.get(i + offset), readBuffer.get(i));
             }

@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.hash.HashHelper;
 import java.io.EOFException;
 import java.io.IOException;
@@ -27,16 +28,12 @@ import lombok.SneakyThrows;
 public abstract class AbstractBufferView implements BufferView {
     static final BufferView EMPTY = new EmptyBufferView();
     private static final HashHelper HASH = HashHelper.seededWith(AbstractBufferView.class.getName());
-    private Integer hashCode = null;
 
     @Override
     public int hashCode() {
-        if (this.hashCode == null) {
-            HashHelper.HashBuilder builder = HASH.newBuilder();
-            collect(builder::put);
-            this.hashCode = builder.getAsInt();
-        }
-        return this.hashCode;
+        HashHelper.HashBuilder builder = HASH.newBuilder();
+        collect(builder::put);
+        return builder.getAsInt();
     }
 
     @Override
@@ -76,13 +73,6 @@ public abstract class AbstractBufferView implements BufferView {
         return true;
     }
 
-    @Override
-    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT {
-        for (ByteBuffer bb : getContents()) {
-            collectBuffer.accept(bb);
-        }
-    }
-
     //region AbstractReader
 
     /**
@@ -98,6 +88,20 @@ public abstract class AbstractBufferView implements BufferView {
         @Override
         public long readLong() throws EOFException {
             return BitConverter.makeLong(readByte(), readByte(), readByte(), readByte(), readByte(), readByte(), readByte(), readByte());
+        }
+
+        @Override
+        public ArrayView readFully(int bufferSize) {
+            Preconditions.checkArgument(bufferSize > 0, "bufferSize must be a positive integer.");
+            ByteArraySegment readBuffer = new ByteArraySegment(new byte[available()]);
+            int readOffset = 0;
+            while (readOffset < readBuffer.getLength()) {
+                int readLength = Math.min(available(), readBuffer.getLength() - readOffset);
+                int readBytes = readBytes(readBuffer.slice(readOffset, Math.min(bufferSize, readLength)));
+                readOffset += readBytes;
+            }
+            assert available() == 0;
+            return readBuffer;
         }
     }
 
