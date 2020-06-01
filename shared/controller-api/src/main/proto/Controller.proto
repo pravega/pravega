@@ -45,6 +45,7 @@ service ControllerService {
     rpc removeWriter(RemoveWriterRequest) returns (RemoveWriterResponse);
     rpc noteTimestampFromWriter(TimestampFromWriter) returns (TimestampResponse);
     rpc createKeyValueTable(KeyValueTableConfig) returns (CreateKeyValueTableStatus);
+    rpc getCurrentSegmentsKeyValueTable(KeyValueTableInfo) returns (SegmentRanges);
 }
 
 message ServerRequest {
@@ -69,6 +70,11 @@ message KeyValueTableConfig {
     string scope = 1;
     string kvtName = 2;
     int32 partitionCount = 3;
+}
+
+message KeyValueTableInfo {
+    string scope = 1;
+    string kvtName = 2;
 }
 
 message CreateStreamStatus {

@@ -118,9 +118,9 @@ public final class ModelHelper {
     }
 
     /**
-     * Helper to convert KeyValueTableConfig object into Stream Configuration Impl.
+     * Helper to convert KeyValueTableConfig object into KeyValueTableConfiguration Impl.
      *
-     * @param config The StreamConfig
+     * @param config The KeyValueTable Config
      * @return New instance of KeyValueTableConfiguration Impl.
      */
     public static final KeyValueTableConfiguration encode(final KeyValueTableConfig config) {

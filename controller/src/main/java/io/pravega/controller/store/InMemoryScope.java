@@ -7,12 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.store.Scope;
 import lombok.Synchronized;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -25,6 +24,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
+import io.pravega.controller.store.stream.StoreException;
 
 /**
  * InMemory implementation of Scope.
@@ -37,7 +37,12 @@ public class InMemoryScope implements Scope {
     private TreeMap<Integer, String> sortedStreamsInScope;
     private HashMap<String, Integer> streamsPositionMap;
 
-    InMemoryScope(String scopeName) {
+    @GuardedBy("$lock")
+    private TreeMap<Integer, String> sortedKVTablesInScope;
+    private HashMap<String, Integer> kvTablesPositionMap;
+
+
+    public InMemoryScope(String scopeName) {
         this.scopeName = scopeName;
     }
 
@@ -118,6 +123,16 @@ public class InMemoryScope implements Scope {
         List<String> result = limited.stream().map(Map.Entry::getValue).collect(Collectors.toList());
 
         return CompletableFuture.completedFuture(new ImmutablePair<>(result, newContinuationToken));
+    }
+
+
+    public CompletableFuture<Void> addKVTableToScope(String kvt) {
+        int next = kvTablesPositionMap.size();
+        kvTablesPositionMap.putIfAbsent(kvt, next);
+        Integer position = kvTablesPositionMap.get(kvt);
+        sortedKVTablesInScope.put(position, kvt);
+
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

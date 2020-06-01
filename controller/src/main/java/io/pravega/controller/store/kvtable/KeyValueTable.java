@@ -11,7 +11,10 @@ package io.pravega.controller.store.kvtable;
 
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
+import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -102,4 +105,20 @@ public interface KeyValueTable {
      * @return UUID of the given kvtable.
      */
     CompletableFuture<String> getId();
+
+    /**
+     * Method to get current active segments of the kvtable.
+     *
+     * @return Future which when completed will contain currently active segments
+     */
+    CompletableFuture<List<KVTSegmentRecord>> getActiveSegments();
+
+    /**
+     * Returns the epoch record corresponding to supplied epoch.
+     *
+     * @param epoch epoch to retrieve record for
+     * @return CompletableFuture which on completion will have the epoch record corresponding to the given epoch
+     */
+    CompletableFuture<KVTEpochRecord> getEpochRecord(int epoch);
+
 }

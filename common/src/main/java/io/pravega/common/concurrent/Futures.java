@@ -47,11 +47,16 @@ import lombok.val;
  */
 public final class Futures {
 
+    /**
+     * Makes sure that the result future given out to caller is actually completed on caller's executor.
+     * So any chaining, if done without specifying an executor, will either happen on
+     * caller's executor or fork join pool but never on someone else's executor.
+     *
+     * @param future   The future to execute.
+     * @param executor The executor for executing the future.
+     * @return <T>CompletableFuture<T> Result of execution, successful or exceptional.
+     */
     public static <T> CompletableFuture<T> withCompletion(CompletableFuture<T> future, final Executor executor) {
-
-        // Following makes sure that the result future given out to caller is actually completed on
-        // caller's executor. So any chaining, if done without specifying an executor, will either happen on
-        // caller's executor or fork join pool but never on someone else's executor.
 
         CompletableFuture<T> result = new CompletableFuture<>();
 

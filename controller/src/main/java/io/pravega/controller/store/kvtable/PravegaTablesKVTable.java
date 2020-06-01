@@ -27,7 +27,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.*;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
@@ -40,7 +39,8 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
  */
 @Slf4j
 class PravegaTablesKVTable extends AbstractKVTableBase {
-    private static final String METADATA_TABLE = "metadata" + SEPARATOR + "%s";
+    public static final String PATH_SEPARATOR = ".#.";
+    private static final String METADATA_TABLE = "metadata" + PATH_SEPARATOR + "%s";
     // metadata keys
     private static final String CREATION_TIME_KEY = "creationTime";
     private static final String CONFIGURATION_KEY = "configuration";
@@ -236,4 +236,27 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
                 });
     }
 
+    @Override
+    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getCurrentEpochRecordData(boolean ignoreCached) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> {
+                    CompletableFuture<VersionedMetadata<Integer>> future;
+                    if (ignoreCached) {
+                        future = storeHelper.getEntry(metadataTable, CURRENT_EPOCH_KEY, x -> BitConverter.readInt(x, 0));
+                    } else {
+                        future = storeHelper.getCachedData(metadataTable, CURRENT_EPOCH_KEY, x -> BitConverter.readInt(x, 0));
+                    }
+                    return future.thenCompose(versionedEpochNumber -> getEpochRecord(versionedEpochNumber.getObject())
+                            .thenApply(epochRecord -> new VersionedMetadata<>(epochRecord, versionedEpochNumber.getVersion())));
+                });
+    }
+
+    @Override
+    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getEpochRecordData(int epoch) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> {
+                    String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);
+                    return storeHelper.getCachedData(metadataTable, key, KVTEpochRecord::fromBytes);
+                });
+    }
 }

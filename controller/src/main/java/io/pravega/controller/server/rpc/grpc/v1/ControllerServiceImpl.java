@@ -60,6 +60,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 
 import java.util.List;
@@ -123,6 +124,23 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         ModelHelper.encode(request),
                         System.currentTimeMillis()),
                 responseObserver, requestTag);
+    }
+
+    @Override
+    public void getCurrentSegmentsKeyValueTable(KeyValueTableInfo request, StreamObserver<SegmentRanges> responseObserver) {
+        log.info("getCurrentSegmentsKeyValueTable called for kvtable {}/{}.", request.getScope(), request.getKvtName());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                AuthResourceRepresentation.ofKeyValueTableInScope(request.getScope(), request.getKvtName()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getCurrentSegmentsKeyValueTable", request.getScope(), request.getKvtName());
+                    return controllerService.getCurrentSegments(request.getScope(), request.getKvtName())
+                            .thenApply(segmentRanges -> SegmentRanges.newBuilder()
+                                    .addAllSegmentRanges(segmentRanges)
+                                    .setDelegationToken(delegationToken)
+                                    .build());
+                },
+                responseObserver);
     }
 
     @Override
@@ -550,10 +568,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
     // endregion
     
-    private void logIfEmpty(String delegationToken, String requestName, String scopeName, String streamName) {
+    private void logIfEmpty(String delegationToken, String requestName, String scopeName, String name) {
         if (isAuthEnabled() && Strings.isNullOrEmpty(delegationToken)) {
-            log.warn("Delegation token for request [{}] with scope [{}] and stream [{}], is: [{}]",
-                    requestName, scopeName, streamName, delegationToken);
+            log.warn("Delegation token for request [{}] for artifact [{}]/[{}], is: [{}]",
+                    requestName, scopeName, name, delegationToken);
         }
     }
 

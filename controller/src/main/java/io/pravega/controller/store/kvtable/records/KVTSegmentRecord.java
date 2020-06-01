@@ -14,13 +14,13 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.controller.store.SegmentRecord;
 import io.pravega.shared.NameUtils;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Data class for KVTable segment record.
@@ -28,7 +28,7 @@ import java.util.Map;
 @Data
 @Builder
 @AllArgsConstructor
-public class KVTSegmentRecord {
+public class KVTSegmentRecord implements SegmentRecord {
     public static final KVTSegmentRecordSerializer SERIALIZER = new KVTSegmentRecordSerializer();
 
     private final int segmentNumber;
@@ -38,41 +38,10 @@ public class KVTSegmentRecord {
     private final double keyEnd;
 
     public static class KVTSegmentRecordBuilder implements ObjectBuilder<KVTSegmentRecord> {
-
     }
 
     public long segmentId() {
         return NameUtils.computeSegmentId(segmentNumber, creationEpoch);
-    }
-
-    /**
-     * Method to check if given segment overlaps with this segment.
-     * @param segment segment to check overlap for
-     * @return true if they overlap, false otherwise
-     */
-    public boolean overlaps(final KVTSegmentRecord segment) {
-        return segment.getKeyStart() < keyEnd && segment.getKeyEnd() > keyStart;
-    }
-
-    /**
-     * Method to check if this segment overlaps with given range.
-     * @param keyStart key start
-     * @param keyEnd key end
-     * @return true if they overlap, false otherwise
-     */
-    public boolean overlaps(final double keyStart, final double keyEnd) {
-        return keyEnd > this.keyStart && keyStart < this.keyEnd;
-    }
-
-    /**
-     * Method to check if two  segment overlaps.
-     * @param first first segment
-     * @param second second segment
-     * @return true if they overlap, false otherwise
-     */
-    public static boolean overlaps(final Map.Entry<Double, Double> first,
-                                   final Map.Entry<Double, Double> second) {
-        return second.getValue() > first.getKey() && second.getKey() < first.getValue();
     }
 
     @VisibleForTesting

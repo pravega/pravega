@@ -21,6 +21,7 @@ import io.pravega.controller.store.kvtable.records.KVTStateRecord;
 import io.pravega.controller.store.stream.StoreException;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.IntStream;
@@ -107,7 +108,6 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
         KVTEpochRecord epoch0 = new KVTEpochRecord(0, builder.build(), creationTime);
 
         return createEpochRecord(epoch0).thenCompose(r -> createCurrentEpochRecordDataIfAbsent(epoch0));
-
     }
 
     private KVTSegmentRecord newSegmentRecord(int epoch, int segmentNumber, long time, Double low, Double high) {
@@ -117,6 +117,32 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
 
     private CompletableFuture<Void> createEpochRecord(KVTEpochRecord epoch) {
         return createEpochRecordDataIfAbsent(epoch.getEpoch(), epoch);
+    }
+
+    @Override
+    public CompletableFuture<List<KVTSegmentRecord>> getActiveSegments() {
+        // read current epoch record
+        return verifyLegalState()
+                .thenCompose(v -> getActiveEpochRecord(true).thenApply(epochRecord -> epochRecord.getSegments()));
+    }
+
+    private CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached) {
+        return getCurrentEpochRecordData(ignoreCached).thenApply(VersionedMetadata::getObject);
+    }
+
+    private CompletableFuture<Void> verifyLegalState() {
+        return getState(false).thenApply(state -> {
+            if (state == null || state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
+                throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                        "KeyValueTable: " + getName() + " State: " + state.name());
+            }
+            return null;
+        });
+    }
+
+    @Override
+    public CompletableFuture<KVTEpochRecord> getEpochRecord(int epoch) {
+        return getEpochRecordData(epoch).thenApply(VersionedMetadata::getObject);
     }
 
     /**
@@ -153,4 +179,8 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
     abstract CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data);
 
     abstract CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data);
+
+    abstract CompletableFuture<VersionedMetadata<KVTEpochRecord>> getCurrentEpochRecordData(boolean ignoreCached);
+
+    abstract CompletableFuture<VersionedMetadata<KVTEpochRecord>> getEpochRecordData(int epoch);
 }

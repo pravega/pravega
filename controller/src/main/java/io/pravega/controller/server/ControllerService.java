@@ -22,6 +22,7 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
+import io.pravega.controller.store.SegmentRecord;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
@@ -59,6 +60,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -119,6 +121,15 @@ public class ControllerService {
                     return CreateKeyValueTableStatus.newBuilder().setStatus(status).build();
                 }, executor);
 
+    }
+
+    public CompletableFuture<List<SegmentRange>> getCurrentSegmentsKeyValueTable(final String scope, final String kvtName) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTable");
+
+        // Fetch active segments from segment store.
+        return kvtMetadataStore.getActiveSegments(scope, kvtName, null, executor)
+                .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, kvtName), executor);
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
@@ -301,7 +312,7 @@ public class ControllerService {
 
     private SegmentRange convert(final String scope,
                                  final String stream,
-                                 final StreamSegmentRecord segment) {
+                                 final SegmentRecord segment) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(segment, "segment");
@@ -347,7 +358,7 @@ public class ControllerService {
                 });
     }
 
-    private List<SegmentRange> getSegmentRanges(List<StreamSegmentRecord> activeSegments, String scope, String stream) {
+    private List<SegmentRange> getSegmentRanges(List<? extends SegmentRecord> activeSegments, String scope, String stream) {
         List<SegmentRange> listOfSegment = activeSegments
                 .stream()
                 .map(segment -> convert(scope, stream, segment))
@@ -355,6 +366,8 @@ public class ControllerService {
         listOfSegment.sort(Comparator.comparingDouble(SegmentRange::getMinKey));
         return listOfSegment;
     }
+
+
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId,
                                                           final String writerId, final long timestamp) {

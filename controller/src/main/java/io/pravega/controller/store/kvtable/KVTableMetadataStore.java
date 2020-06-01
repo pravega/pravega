@@ -11,8 +11,10 @@ package io.pravega.controller.store.kvtable;
 
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 import io.pravega.shared.controller.event.ControllerEvent;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -159,4 +161,16 @@ public interface KVTableMetadataStore extends AutoCloseable {
     CompletableFuture<Void> removeTaskFromIndex(final String hostId, final String id);
 
     KeyValueTable getKVTable(String scope, final String name, KVTOperationContext context);
+
+    /**
+     * Get active segments.
+     *
+     * @param scope    kvtable scope
+     * @param name     kvtable name.
+     * @param executor callers executor
+     * @param context  operation context
+     * @return currently active segments
+     */
+    CompletableFuture<List<KVTSegmentRecord>> getActiveSegments(final String scope, final String name, final KVTOperationContext context, final Executor executor);
+
 }

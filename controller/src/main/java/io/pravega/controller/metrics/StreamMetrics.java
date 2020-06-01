@@ -14,7 +14,31 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.pravega.shared.MetricsNames.*;
+import static io.pravega.shared.MetricsNames.CREATE_STREAM;
+import static io.pravega.shared.MetricsNames.CREATE_STREAM_FAILED;
+import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.DELETE_STREAM;
+import static io.pravega.shared.MetricsNames.DELETE_STREAM_FAILED;
+import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
+import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
+import static io.pravega.shared.MetricsNames.SEAL_STREAM;
+import static io.pravega.shared.MetricsNames.SEAL_STREAM_FAILED;
+import static io.pravega.shared.MetricsNames.SEAL_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.SEGMENTS_COUNT;
+import static io.pravega.shared.MetricsNames.SEGMENTS_MERGES;
+import static io.pravega.shared.MetricsNames.SEGMENTS_SPLITS;
+import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM;
+import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_FAILED;
+import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.UPDATE_STREAM;
+import static io.pravega.shared.MetricsNames.UPDATE_STREAM_FAILED;
+import static io.pravega.shared.MetricsNames.UPDATE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_LATENCY;
+import static io.pravega.shared.MetricsNames.CREATE_KVTABLE;
+import static io.pravega.shared.MetricsNames.KVTABLE_SEGMENTS_COUNT;
+import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_FAILED;
+import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
 
 /**

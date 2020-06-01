@@ -17,6 +17,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.index.HostIndex;
+import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
@@ -24,6 +25,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -178,6 +180,11 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
     @Override
     public CompletableFuture<Void> removeTaskFromIndex(String hostId, String id) {
         return hostTaskIndex.removeEntity(hostId, id, true);
+    }
+
+    @Override
+    public CompletableFuture<List<KVTSegmentRecord>> getActiveSegments(final String scope, final String name, final KVTOperationContext context, final Executor executor) {
+        return Futures.withCompletion(getKVTable(scope, name, context).getActiveSegments(), executor);
     }
 
     /**

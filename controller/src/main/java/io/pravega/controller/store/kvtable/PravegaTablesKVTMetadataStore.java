@@ -40,7 +40,6 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 @Slf4j
 public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore {
-    //static final String SEPARATOR = ".#.";
     static final String SCOPES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "scopes");
     static final String DELETED_KVTABLES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "deletedKVTables");
 
