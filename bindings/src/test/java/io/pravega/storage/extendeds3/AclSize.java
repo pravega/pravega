@@ -12,7 +12,7 @@ package io.pravega.storage.extendeds3;
 import com.emc.object.s3.bean.AccessControlList;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.experimental.Wither;
+import lombok.With;
 
 /**
  * ACL and size representation for the extended S3 simulator wrappers.
@@ -20,8 +20,8 @@ import lombok.experimental.Wither;
 @Getter
 @AllArgsConstructor
 public class AclSize {
-    @Wither
+    @With
     private final AccessControlList acl;
-    @Wither
+    @With
     private final long size;
 }
