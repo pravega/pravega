@@ -131,7 +131,6 @@ public class InMemoryScope implements Scope {
         kvTablesPositionMap.putIfAbsent(kvt, next);
         Integer position = kvTablesPositionMap.get(kvt);
         sortedKVTablesInScope.put(position, kvt);
-
         return CompletableFuture.completedFuture(null);
     }
 

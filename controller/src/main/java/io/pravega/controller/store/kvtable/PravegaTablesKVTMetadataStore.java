@@ -28,7 +28,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.time.Duration;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -78,7 +77,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
                 false), executor);
     }
 
-    public CompletableFuture<UUID> createEntryForKVTable(final String scopeName,
+    public CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                          final String kvtName,
                                                          final Executor executor) {
         return Futures.completeOn(((PravegaTablesScope) getScope(scopeName)).addKVTableToScope(kvtName), executor);

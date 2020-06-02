@@ -26,7 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
+import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 /**
  * Request handler for performing scale operations received from requeststream.
  */
@@ -63,7 +63,7 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
             if (!id.equals(kvTableId)) {
                 return CompletableFuture.completedFuture(null);
             } else {
-                this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, null, executor)
+                withRetries(() -> this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, null, executor)
                         .thenComposeAsync(response -> {
                             // only if its a new kvtable or an already existing non-active kvtable then we will create
                             // segments and change the state of the kvtable to active.
@@ -75,10 +75,9 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                                         .boxed()
                                         .map(x -> NameUtils.computeSegmentId(x, 0))
                                         .collect(Collectors.toList());
-                                return kvtMetadataTasks.notifyNewSegments(scope, kvt, newSegments, requestId)
+                                return kvtMetadataTasks.createNewSegments(scope, kvt, newSegments, requestId)
                                         .thenCompose(y -> {
                                             final KVTOperationContext context = kvtMetadataStore.createContext(scope, kvt);
-                                            //TODO: add withRetries
                                             kvtMetadataStore.getVersionedState(scope, kvt, context, executor)
                                                     .thenCompose(state -> {
                                                         if (state.getObject().equals(State.CREATING)) {
@@ -91,7 +90,7 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                                         });
                             }
                             return CompletableFuture.completedFuture(null);
-                        });
+                        }), executor);
                 return CompletableFuture.completedFuture(null);
              }
         });

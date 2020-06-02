@@ -149,7 +149,8 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
                                                                              final long creationTime,
                                                                              final int startingSegmentNumber) {
         // If kvtable exists, but is in a partially complete state, then fetch its creation time and configuration and any
-        // metadata that is available from a previous run. If the existing kvtable has already been created successfully earlier,
+        // metadata that is available from a previous run.
+        // If the existing kvtable has already been created successfully earlier,
         return storeHelper.expectingDataNotFound(getCreationTime(), null)
                 .thenCompose(storedCreationTime -> {
                     if (storedCreationTime == null) {

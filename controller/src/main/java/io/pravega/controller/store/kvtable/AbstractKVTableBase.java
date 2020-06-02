@@ -26,7 +26,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.IntStream;
 
-
 @Slf4j
 public abstract class AbstractKVTableBase implements KeyValueTable {
     private final String scope;
@@ -87,7 +86,7 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
                 .thenCompose(createKVTResponse -> createKVTableMetadata()
                         .thenCompose((Void v) -> storeCreationTimeIfAbsent(createKVTResponse.getTimestamp()))
                         .thenCompose((Void v) -> createConfigurationIfAbsent(KVTConfigurationRecord.builder()
-                                .scope(scope).kvtName(name).kvtConfiguration(configuration).build()))
+                                                .scope(scope).kvtName(name).kvtConfiguration(configuration).build()))
                         .thenCompose((Void v) -> createStateIfAbsent(KVTStateRecord.builder().state(KVTableState.CREATING).build()))
                         .thenCompose((Void v) -> createHistoryRecords(startingSegmentNumber, createKVTResponse))
                         .thenApply((Void v) -> createKVTResponse));
@@ -176,9 +175,9 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
 
     abstract CompletableFuture<Void> createConfigurationIfAbsent(final KVTConfigurationRecord data);
 
-    abstract CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data);
-
     abstract CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data);
+
+    abstract CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data);
 
     abstract CompletableFuture<VersionedMetadata<KVTEpochRecord>> getCurrentEpochRecordData(boolean ignoreCached);
 

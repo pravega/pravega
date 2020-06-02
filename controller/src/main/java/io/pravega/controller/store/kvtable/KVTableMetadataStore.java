@@ -15,7 +15,6 @@ import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 import io.pravega.shared.controller.event.ControllerEvent;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -46,7 +45,7 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * @param executor        callers executor
      * @return boolean indicating whether the stream was created
      */
-    CompletableFuture<UUID> createEntryForKVTable(final String scopeName,
+    CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                   final String kvtName,
                                                   final Executor executor);
 
@@ -173,4 +172,16 @@ public interface KVTableMetadataStore extends AutoCloseable {
      */
     CompletableFuture<List<KVTSegmentRecord>> getActiveSegments(final String scope, final String name, final KVTOperationContext context, final Executor executor);
 
+    /**
+     * Fetches the current stream configuration.
+     *
+     * @param scope    stream scope
+     * @param name     stream name.
+     * @param context  operation context
+     * @param executor callers executor
+     * @return current stream configuration.
+     */
+    CompletableFuture<KeyValueTableConfiguration> getConfiguration(final String scope, final String name,
+                                                            final KVTOperationContext context,
+                                                            final Executor executor);
 }

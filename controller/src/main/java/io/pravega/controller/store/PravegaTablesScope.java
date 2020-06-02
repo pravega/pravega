@@ -183,11 +183,9 @@ public class PravegaTablesScope implements Scope {
                         storeHelper.getEntry(tableName, kvt, x -> x).thenApply(v -> true), false));
     }
 
-    public CompletableFuture<UUID> addKVTableToScope(String kvt) {
-        byte[] kvTableId = newId();
+    public CompletableFuture<Void> addKVTableToScope(String kvt) {
         return getKVTablesInScopeTableName()
-                .thenCompose(tableName -> storeHelper.addNewEntry(tableName, kvt, kvTableId))
-                .thenCompose(x -> CompletableFuture.completedFuture(BitConverter.readUUID(kvTableId, 0)));
+                .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntry(tableName, kvt, newId())));
     }
 
     public CompletableFuture<Void> removeKVTableFromScope(String kvt) {

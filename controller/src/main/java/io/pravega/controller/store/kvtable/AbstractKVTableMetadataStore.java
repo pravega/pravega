@@ -26,7 +26,6 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -116,18 +115,17 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                                                 final long createTimestamp,
                                                                 final KVTOperationContext context,
                                                                 final Executor executor) {
-        return getSafeStartingSegmentNumberFor(scope, name)
-                .thenCompose(startingSegmentNumber ->
-                        Futures.completeOn(checkScopeExists(scope)
-                                .thenCompose(exists -> {
-                                    if (exists) {
-                                        // Create kvtable may fail if scope is deleted as we attempt to create the table under scope.
-                                        return getKVTable(scope, name, context)
-                                                .create(configuration, createTimestamp, startingSegmentNumber);
-                                    } else {
-                                        return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope does not exist"));
-                                    }
-                                }), executor));
+        return Futures.completeOn(checkScopeExists(scope)
+                .thenCompose(exists -> {
+                    if (exists) {
+                        // Create kvtable may fail if scope is deleted as we attempt to create the table under scope.
+                        return getSafeStartingSegmentNumberFor(scope, name)
+                                .thenCompose(startingSegmentNumber -> getKVTable(scope, name, context)
+                                                .create(configuration, createTimestamp, startingSegmentNumber));
+                    } else {
+                        return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope does not exist"));
+                    }
+                }), executor);
     }
 
     String getScopedKVTName(String scope, String name) {
@@ -187,6 +185,13 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
         return Futures.completeOn(getKVTable(scope, name, context).getActiveSegments(), executor);
     }
 
+    @Override
+    public CompletableFuture<KeyValueTableConfiguration> getConfiguration(final String scope,
+                                                                   final String name,
+                                                                   final KVTOperationContext context, final Executor executor) {
+        return Futures.completeOn(getKVTable(scope, name, context).getConfiguration(), executor);
+    }
+
     /**
      * This method retrieves a safe base segment number from which a stream's segment ids may start. In the case of a
      * new stream, this method will return 0 as a starting segment number (default). In the case that a stream with the
@@ -202,7 +207,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
 
     public abstract CompletableFuture<Boolean> checkScopeExists(String scope);
 
-    public abstract CompletableFuture<UUID> createEntryForKVTable(final String scopeName,
+    public abstract CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                                   final String kvtName,
                                                                   final Executor executor);
 }
