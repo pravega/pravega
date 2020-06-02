@@ -152,7 +152,6 @@ public class ByteArraySegmentTests extends BufferViewTestBase {
     }
 
     @Test
-    @Override
     public void testGetContents() {
         final byte[] buffer = createFormattedBuffer();
         val segment = new ByteArraySegment(buffer, 1, buffer.length - 3, true);

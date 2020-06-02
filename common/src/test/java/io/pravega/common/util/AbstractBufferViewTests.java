@@ -9,8 +9,10 @@
  */
 package io.pravega.common.util;
 
+import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.test.common.AssertExtensions;
 import java.io.EOFException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -132,6 +134,48 @@ public class AbstractBufferViewTests {
         val remainingData = reader.readFully(3);
         Assert.assertEquals(remainingDataLength, remainingData.getLength());
         Assert.assertEquals("readFully", remainingData, buffer.slice(remainingDataPos, remainingDataLength));
+    }
+
+    /**
+     * Tests {@link BufferView#builder()}.
+     */
+    @Test
+    public void testBuilder() throws IOException {
+        val components = new ArrayList<BufferView>();
+        val builder = BufferView.builder();
+
+        // Empty buffer.
+        builder.add(BufferView.empty());
+        Assert.assertEquals(0, builder.getLength());
+        Assert.assertSame("Expected empty buffer view if no components added.", BufferView.empty(), builder.build());
+
+        // One-component buffer.
+        val c1 = new ByteArraySegment("component1".getBytes());
+        components.add(c1);
+        builder.add(c1);
+        Assert.assertEquals("Unexpected length with one component.", c1.getLength(), builder.getLength());
+        Assert.assertSame("Unexpected result with one component.", c1, builder.build());
+
+        // Multi-component buffer.
+        val c2 = new ByteArraySegment("component2".getBytes());
+        val c3 = new ByteArraySegment("component3".getBytes());
+        val c4 = new ByteArraySegment("component4".getBytes());
+        val compositeComponents = Arrays.asList(new BufferView[]{c1, c2, c3, c4}); // Adding same buffer multiple times is OK.
+        builder.add(BufferView.wrap(compositeComponents));
+        components.addAll(compositeComponents);
+
+        val expectedLength = c1.getLength() * 2 + c2.getLength() + c3.getLength() + c4.getLength();
+        Assert.assertEquals(expectedLength, builder.getLength());
+        val finalBuffer = builder.build();
+
+        val expectedData = new byte[expectedLength];
+        val expectedDataWriter = new FixedByteArrayOutputStream(expectedData, 0, expectedLength);
+        for (val c : components) {
+            c.copyTo(expectedDataWriter);
+        }
+
+        val actualData = finalBuffer.getCopy();
+        Assert.assertArrayEquals(expectedData, actualData);
     }
 
     private List<BufferView> copy(List<BufferView> source) {

@@ -85,7 +85,7 @@ public class ByteBufWrapperTests extends BufferViewTestBase {
         Assert.assertArrayEquals("ByteBufWrapper was modified when the underlying ByteBuf was modified.", expectedData, copy);
     }
 
-    @Override
+    @Test
     public void testGetContents() {
         val data = newData();
         @Cleanup("release")

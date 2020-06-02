@@ -14,13 +14,11 @@ import java.util.List;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.ToString;
 
 /**
  * Builder for {@link BufferView} instances..
  */
 @NotThreadSafe
-@ToString
 public class BufferViewBuilder {
     /**
      * The length, in bytes, of the accumulated {@link BufferView}.

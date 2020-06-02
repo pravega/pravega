@@ -165,11 +165,6 @@ public class CompositeByteArraySegmentTests extends BufferViewTestBase {
         });
     }
 
-    @Override
-    public void testGetContents() {
-        // This is tested in testGetSet().
-    }
-
     /**
      * Tests the {@link CompositeByteArraySegment#slice} method while writing (verifies that changes in a slice reflect
      * in the parent segment).

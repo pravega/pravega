@@ -145,11 +145,6 @@ public class CompositeBufferViewTests extends BufferViewTestBase {
     }
 
     @Override
-    public void testGetContents() {
-
-    }
-
-    @Override
     protected BufferView toBufferView(ArrayView data) {
         int sliceSize = data.getLength() / COMPONENT_COUNT;
         if (data.getLength() % COMPONENT_COUNT != 0) {
