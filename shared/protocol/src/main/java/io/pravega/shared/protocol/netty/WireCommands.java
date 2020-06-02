@@ -1663,7 +1663,7 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());
-            long tableSegmentOffset = (in.available() > 0) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
+            long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
             return new UpdateTableEntries(requestId, segment, delegationToken, entries, tableSegmentOffset).requireRelease();
         }
@@ -1743,7 +1743,7 @@ public final class WireCommands {
             for (int i = 0; i < numberOfKeys; i++) {
                 keys.add(TableKey.readFrom(in, in.available()));
             }
-            long tableSegmentOffset = (in.available() > 0) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
+            long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
             return new RemoveTableKeys(requestId, segment, delegationToken, keys, tableSegmentOffset).requireRelease();
         }
@@ -1825,7 +1825,8 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class TableRead implements Reply, WireCommand {
+    @EqualsAndHashCode(callSuper = false)
+    public static final class TableRead extends ReleasableCommand implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.TABLE_READ;
         final long requestId;
         final String segment;
@@ -1847,7 +1848,12 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());
-            return new TableRead(requestId, segment, entries);
+            return new TableRead(requestId, segment, entries).requireRelease();
+        }
+
+        @Override
+        void releaseInternal() {
+            this.entries.release();
         }
     }
 
@@ -2064,7 +2070,7 @@ public final class WireCommands {
             List<Map.Entry<TableKey, TableValue>> entries = new ArrayList<>();
             for (int i = 0; i < numberOfEntries; i++) {
                 entries.add(new AbstractMap.SimpleImmutableEntry<>(TableKey.readFrom(in, in.available()),
-                        TableValue.readFrom(in, in.available())));
+                                                                   TableValue.readFrom(in, in.available())));
             }
 
             return new TableEntries(entries);
