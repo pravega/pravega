@@ -12,8 +12,10 @@ package io.pravega.shared.protocol.netty;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.AbstractBufferView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -28,7 +30,7 @@ import lombok.RequiredArgsConstructor;
  * {@link BufferView} wrapper for {@link ByteBuf} instances.
  */
 @NotThreadSafe
-public class ByteBufWrapper implements BufferView {
+public class ByteBufWrapper extends AbstractBufferView implements BufferView {
     //region Members
 
     private final ByteBuf buf;
@@ -81,6 +83,13 @@ public class ByteBufWrapper implements BufferView {
     }
 
     @Override
+    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT {
+        for (ByteBuffer bb : this.buf.duplicate().nioBuffers()) {
+            collectBuffer.accept(bb);
+        }
+    }
+
+    @Override
     public int getLength() {
         return this.buf.readableBytes();
     }
@@ -130,11 +139,16 @@ public class ByteBufWrapper implements BufferView {
         ByteBuf source = this.buf.duplicate();
         int length = byteBuffer.remaining();
         if (length > getLength()) {
+            // ByteBuffer has more capacity than we need to write. We need to adjust its limit() to exactly what we need,
+            // otherwise ByteBuf.readBytes() won't copy what we need to.
+
+            // Remember the original limit, then adjust it to what we need to copy. Since we copy less than its remaining
+            // capacity, we are guaranteed not to overflow it when setting the new limit.
             int origLimit = byteBuffer.limit();
             length = getLength();
-            byteBuffer.limit(length);
+            byteBuffer.limit(byteBuffer.position() + length);
             source.readBytes(byteBuffer);
-            byteBuffer.limit(origLimit);
+            byteBuffer.limit(origLimit); // Restore original ByteBuffer limit.
         } else {
             source.readBytes(byteBuffer);
         }
@@ -154,7 +168,7 @@ public class ByteBufWrapper implements BufferView {
      * {@link BufferView.Reader} implementation.
      */
     @RequiredArgsConstructor
-    private static class ByteBufReader implements Reader {
+    private static class ByteBufReader extends AbstractReader implements Reader {
         private final ByteBuf buf;
 
         @Override
@@ -169,6 +183,24 @@ public class ByteBufWrapper implements BufferView {
                 this.buf.readBytes(segment.array(), segment.arrayOffset(), len);
             }
             return len;
+        }
+
+        @Override
+        public int readByte() throws EOFException {
+            try {
+                return this.buf.readByte();
+            } catch (IndexOutOfBoundsException ex) {
+                throw new EOFException();
+            }
+        }
+
+        @Override
+        public BufferView readSlice(int length) throws EOFException {
+            try {
+                return new ByteBufWrapper(this.buf.readSlice(length));
+            } catch (IndexOutOfBoundsException ex) {
+                throw new EOFException();
+            }
         }
     }
 

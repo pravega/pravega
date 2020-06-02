@@ -13,8 +13,6 @@ import io.pravega.common.MathHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
@@ -28,7 +26,6 @@ import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -39,7 +36,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
-import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -214,8 +210,7 @@ class TableCompactor {
         int count = 0;
         long nextOffset = startOffset;
         final long maxOffset = startOffset + maxLength;
-        @Cleanup
-        InputStream input = inputData.getReader();
+        val input = inputData.getBufferViewReader();
         try {
             while (nextOffset < maxOffset) {
                 // TODO: Handle error when compaction offset is not on Entry boundary (https://github.com/pravega/pravega/issues/3560).
@@ -227,7 +222,7 @@ class TableCompactor {
                     val hash = this.connector.getKeyHasher().hash(e.getKey());
                     CandidateSet candidates = entries.computeIfAbsent(hash, h -> new CandidateSet());
                     candidates.add(new Candidate(nextOffset,
-                            TableEntry.versioned(new ByteArraySegment(e.getKey()), new ByteArraySegment(e.getValue()), e.getVersion())));
+                            TableEntry.versioned(e.getKey(), e.getValue(), e.getVersion())));
                 }
 
                 // Every entry, even if deleted or duplicated, must be counted, as we will need to adjust the Segment's
@@ -241,7 +236,6 @@ class TableCompactor {
             // We chose an arbitrary compact length, so it is quite possible we stopped reading in the middle of an entry.
             // As such, EOFException is the only way to know when to stop. When this happens, we will have collected the
             // total compact length in segmentOffset.
-            input.close();
         }
 
         return new CompactionArgs(startOffset, nextOffset, count, entries);
@@ -313,10 +307,9 @@ class TableCompactor {
             // Perform a Segment Append with re-serialized entries (Explicit versions), and atomically update the necessary
             // segment attributes.
             toWrite.sort(Comparator.comparingLong(c -> c.getKey().getVersion()));
-            byte[] appendData = new byte[totalLength];
-            this.connector.getSerializer().serializeUpdateWithExplicitVersion(toWrite, appendData);
-            result = segment.append(new ByteArraySegment(appendData), attributes, timer.getRemaining());
-            log.debug("TableCompactor[{}]: Compacting {}, CopyCount={}, CopyLength={}.", segment.getSegmentId(), args, toWrite, totalLength);
+            BufferView appendData = this.connector.getSerializer().serializeUpdateWithExplicitVersion(toWrite);
+            result = segment.append(appendData, attributes, timer.getRemaining());
+            log.debug("TableCompactor[{}]: Compacting {}, CopyCount={}, CopyLength={}.", segment.getSegmentId(), args, toWrite.size(), totalLength);
         }
 
         return Futures.toVoid(result);
@@ -390,7 +383,7 @@ class TableCompactor {
         /**
          * Candidates, indexed by their TableKey.
          */
-        final Map<HashedArray, Candidate> byKey = new HashMap<>();
+        final Map<BufferView, Candidate> byKey = new HashMap<>();
 
         /**
          * Adds the given {@link Candidate}, but only if its Key does not exist or exists with a lower version.
@@ -398,7 +391,7 @@ class TableCompactor {
          * @param c The {@link Candidate} to add.
          */
         void add(Candidate c) {
-            val key = new HashedArray(c.entry.getKey().getKey());
+            val key = c.entry.getKey().getKey();
             val existing = this.byKey.get(key);
             if (existing == null || existing.entry.getKey().getVersion() < c.entry.getKey().getVersion()) {
                 // Either first time seeing this key or we saw it before with a smaller version - use this one.
@@ -413,7 +406,7 @@ class TableCompactor {
          * @param existingKeyOffset The existing Key's offset.
          */
         void handleExistingKey(TableKey existingKey, long existingKeyOffset) {
-            val key = new HashedArray(existingKey.getKey());
+            val key = existingKey.getKey();
             val c = this.byKey.get(key);
             if (c != null && c.segmentOffset < existingKeyOffset) {
                 this.byKey.remove(key);
