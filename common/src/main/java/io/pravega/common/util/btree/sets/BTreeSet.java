@@ -293,7 +293,7 @@ public class BTreeSet {
      *
      * @param firstItem          An {@link ArrayView} indicating the first Item to iterate from. If null, the iteration
      *                           will begin with the first item in the index.
-     * @param firstItemInclusive If true, firstIem will be included in the iteration (provided it exists), otherwise it
+     * @param firstItemInclusive If true, firstItem will be included in the iteration (provided it exists), otherwise it
      *                           will be excluded. This argument is ignored if firstItem is null.
      * @param lastItem           An {@link ArrayView} indicating the last Item to iterate to. If null, the iteration will
      *                           end with the last item in the index.

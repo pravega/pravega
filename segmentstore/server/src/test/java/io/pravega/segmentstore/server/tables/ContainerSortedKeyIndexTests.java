@@ -40,7 +40,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tess for {@link ContainerSortedKeyIndex} and {@link SegmentSortedKeyIndexImpl}.
+ * Unit tests for {@link ContainerSortedKeyIndex} and {@link SegmentSortedKeyIndexImpl}.
  */
 public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
     private static final long SEGMENT_ID = 1L;

@@ -46,7 +46,8 @@ import java.util.concurrent.CompletableFuture;
  * * Sorted Table Segments store additional information about the Keys and will return results for {@link #keyIterator}
  * or {@link #entryIterator} in lexicographic bitwise order. All other contracts are identical to the Non-Sorted variant.
  * * Sorted Table Segments will require additional storage space to store the ordered Keys and may require additional
- * processing time to maintain the said data structure.
+ * processing time to maintain the said data structure. This extra storage space is proportional to the number and length
+ * of Keys, but not the size of the values.
  * * Sorted Table Segments do not support conditional Table Segment Deletion {@link #deleteSegment(String, boolean, Duration)}
  * with `true` passed as the second argument.
  * * Sorted Table Segments Key Iterators ({@link #keyIterator}) will not return Key Versions. Versions can still be
