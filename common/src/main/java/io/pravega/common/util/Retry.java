@@ -23,7 +23,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.Getter;
-import lombok.experimental.Wither;
+import lombok.With;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -102,16 +102,16 @@ public final class Retry {
      */
     public static final class RetryWithBackoff {
         @Getter
-        @Wither
+        @With
         private final long initialMillis;
         @Getter
-        @Wither
+        @With
         private final int multiplier;
         @Getter
-        @Wither
+        @With
         private final int attempts;
         @Getter
-        @Wither
+        @With
         private final long maxDelay;
 
         private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
