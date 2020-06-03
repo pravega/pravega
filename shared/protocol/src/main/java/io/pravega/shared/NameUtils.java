@@ -274,6 +274,16 @@ public final class NameUtils {
     }
 
     /**
+     * Method to extract epoch from given transaction id.
+     *
+     * @param txnId Unique id of the transaction.
+     * @return epoch by extracting it the transaction id.
+     */
+    public static int getEpoch(UUID txnId) {
+        return (int) (txnId.getMostSignificantBits() >> 32);
+    }
+
+    /**
      * Compose and return scoped stream name.
      *
      * @param scope scope to be used in ScopedStream name.

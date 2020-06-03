@@ -34,6 +34,7 @@ import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static io.pravega.shared.NameUtils.getEpoch;
 
 /**
  * This class creates transactions, and manages their lifecycle.
@@ -169,7 +170,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         
         private void throwIfClosed() throws TxnFailedException {
             if (closed.get()) {
-                throw new TxnFailedException();
+                throw new TxnFailedException(getTxnId().toString());
             }
         }
     }
@@ -198,13 +199,19 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
 
     @Override
     public Transaction<Type> getTxn(UUID txId) {
-        StreamSegments segments = getAndHandleExceptions(
-                controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);
+        // check if the transaction is open.
         Status status = getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
         if (status != Status.OPEN) {
             return new TransactionImpl<>(writerId, txId, controller, stream);
         }
-        
+
+        // get the segments corresponding to the transaction.
+        StreamSegments segments = getAndHandleExceptions(
+                controller.getEpochSegments(stream.getScope(), stream.getStreamName(), getEpoch(txId)), RuntimeException::new);
+        assert segments != null : "Epoch segments returned is null";
+        Preconditions.checkState(segments.getSegments().size() > 0, "There should be at least 1 epoch segment");
+
+        //Create OutputStream for every segment.
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         DelegationTokenProvider tokenProvider = null;
         for (Segment s : segments.getSegments()) {
