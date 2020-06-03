@@ -10,6 +10,7 @@
 package io.pravega.client.tables.impl;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -21,39 +22,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 =======
 import io.netty.buffer.ByteBuf;
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
 import io.pravega.client.admin.KeyValueTableInfo;
-import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
-import io.pravega.client.tables.BadKeyVersionException;
-import io.pravega.client.tables.ConditionalTableUpdateException;
-import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.client.tables.NoSuchKeyException;
 import io.pravega.client.tables.TableEntry;
-import io.pravega.common.Exceptions;
-import io.pravega.common.util.AsyncIterator;
-import io.pravega.test.common.AssertExtensions;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import javax.annotation.concurrent.GuardedBy;
 import lombok.Cleanup;
+<<<<<<< HEAD
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
 import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
@@ -96,8 +82,12 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
         this.controller.createScope(KVT.getScope());
         this.controller.createKeyValueTable(KVT.getScope(), KVT.getKeyValueTableName(),
                 KeyValueTableConfiguration.builder().partitionCount(getSegmentCount()).build());
+<<<<<<< HEAD
         this.segmentFactory = new MockTableSegmentFactory(getSegmentCount());
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+        this.segmentFactory = new MockTableSegmentFactory(getSegmentCount(), executorService());
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
         this.keyValueTable = new KeyValueTableImpl<>(KVT, this.segmentFactory, this.controller, KEY_SERIALIZER, VALUE_SERIALIZER);
     }
 
@@ -125,6 +115,7 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
         kvt.close();
         Assert.assertEquals("Not expecting any open segments after closing.", 0, this.segmentFactory.getOpenSegmentCount());
     }
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
 
@@ -328,4 +319,6 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
         T apply(ByteBuf key, ByteBuf value, Long version);
     }
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
 }

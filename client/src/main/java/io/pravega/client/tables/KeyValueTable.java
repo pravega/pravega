@@ -289,6 +289,9 @@ public interface KeyValueTable<KeyT, ValueT> extends AutoCloseable {
     @Override
     void close();
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
 
     /**
      * Exposes this {@link KeyValueTable} instance as a {@link Map}. Please refer to the {@link KeyValueTableMap}
@@ -304,6 +307,9 @@ public interface KeyValueTable<KeyT, ValueT> extends AutoCloseable {
      * @return A new {@link KeyValueTableMap} instance bound to this {@link KeyValueTable} and Key Family.
      */
     KeyValueTableMap<KeyT, ValueT> getMapFor(@Nullable String keyFamily);
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
 }

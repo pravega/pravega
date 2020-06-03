@@ -102,10 +102,14 @@ public interface AsyncIterator<T> {
 
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
      * Returns a new {@link AsyncIterator} that wraps this instance and converts all items from this one into items of a
 =======
      * Returns a new {@link AsyncIterator} that wraps this instane and converts all items from this one into items of a
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+     * Returns a new {@link AsyncIterator} that wraps this instance and converts all items from this one into items of a
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
      * new type.
      *
      * @param converter A {@link Function} that will convert {@link T} to {@link U}.
@@ -115,6 +119,7 @@ public interface AsyncIterator<T> {
     default <U> AsyncIterator<U> thenApply(@NonNull Function<? super T, ? extends U> converter) {
         return () -> AsyncIterator.this.getNext().thenApply(item -> item == null ? null : converter.apply(item));
     }
+<<<<<<< HEAD
 <<<<<<< HEAD
 
     /**
@@ -129,6 +134,8 @@ public interface AsyncIterator<T> {
         return () -> AsyncIterator.this.getNext()
                 .thenCompose(item -> item == null ? CompletableFuture.completedFuture(null) : converter.apply(item));
     }
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
 
     /**
      * Returns an {@link Iterator} that wraps this instance.
@@ -138,6 +145,9 @@ public interface AsyncIterator<T> {
     default Iterator<T> asIterator() {
         return new BlockingAsyncIterator<>(this);
     }
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
 }

@@ -10,10 +10,13 @@
 package io.pravega.client.tables.impl;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
@@ -23,6 +26,7 @@ import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.test.common.AssertExtensions;
+<<<<<<< HEAD
 <<<<<<< HEAD
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -36,23 +40,22 @@ import org.junit.Assert;
 =======
 import io.pravega.test.common.LeakDetectorTestSuite;
 import java.nio.ByteBuffer;
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import lombok.AccessLevel;
 import lombok.Cleanup;
-import lombok.Getter;
 import lombok.val;
 import org.junit.Assert;
+<<<<<<< HEAD
 import org.junit.Before;
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
 import org.junit.Test;
 
 /**
@@ -60,6 +63,7 @@ import org.junit.Test;
  * and currently applies both to {@link KeyValueTableImplTests} (using mocked Controller and Segment Store) and
  * `io.pravega.test.integration.KeyValueTableImplTests` (using real Segment Store and Wire Protocol).
  */
+<<<<<<< HEAD
 <<<<<<< HEAD
 public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
     protected boolean isScopeCreated;
@@ -117,6 +121,9 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
 
     //endregion
 
+=======
+public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
     //region Tests
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
 
@@ -373,12 +380,17 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
                     .collect(Collectors.toList());
             kvt.removeAll(keyFamily, keysToRemove).join();
 <<<<<<< HEAD
+<<<<<<< HEAD
             for (val key : keys) {
                 versions.remove(keyFamily, key);
 =======
             for (int i = 0; i < keys.size(); i++) {
                 versions.remove(keyFamily, keys.get(i));
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+            for (val key : keys) {
+                versions.remove(keyFamily, key);
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
             }
         });
         Assert.assertTrue("Expected all keys to have been removed.", versions.isEmpty());
@@ -473,6 +485,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
     //region Helpers
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     private void checkSegmentDistributions(Versions v) {
         v.getVersions().forEach((keyFamily, versions) -> {
 =======
@@ -518,6 +531,10 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
     private void checkSegmentDistributions(Versions v) {
         v.versions.forEach((keyFamily, versions) -> {
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+    private void checkSegmentDistributions(Versions v) {
+        v.getVersions().forEach((keyFamily, versions) -> {
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
             val segments = versions.values().stream().map(VersionImpl::getSegmentId).distinct().collect(Collectors.toList());
             if (keyFamily.equals(NULL_KEY_FAMILY)) {
                 AssertExtensions.assertGreaterThan("Keys without families were not distributed to multiple segments.",
@@ -530,6 +547,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         });
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
     private void forEveryKey(BiConsumer<String, Integer> handler) {
@@ -560,6 +578,8 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
     }
 
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
     private Version alterVersion(Version original, boolean changeSegmentId, boolean changeVersion) {
         VersionImpl impl = original.asImpl();
         long newSegmentId = changeSegmentId ? impl.getSegmentId() + 1 : impl.getSegmentId();
@@ -567,6 +587,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         return new VersionImpl(newSegmentId, newVersion);
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
     protected int getKey(int keyId) {
@@ -578,6 +599,8 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
     }
 
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
     private boolean areEqualExcludingVersion(TableKey<Integer> k1, TableKey<Integer> k2) {
         return k1.getKey().equals(k2.getKey());
     }
@@ -594,6 +617,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
 
     //region Helper classes
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
     private static class Versions {
@@ -635,11 +659,14 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
     }
 
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
     @FunctionalInterface
     private interface InvokeIterator<T> {
         AsyncIterator<IteratorItem<T>> apply(KeyValueTable<Integer, String> kvt, String keyFamily, int itemsAtOnce, IteratorState state);
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
     private static class IntegerSerializer implements Serializer<Integer> {
@@ -655,5 +682,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
     }
 
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
     //endregion
 }
