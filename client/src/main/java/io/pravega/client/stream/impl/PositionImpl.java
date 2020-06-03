@@ -248,13 +248,24 @@ public class PositionImpl extends PositionInternal {
         if (this.updatesToSegmentOffsets == null || this.updatesToSegmentOffsets.isEmpty()) {
             return;
         }
-        // We are going to modify ownedSegments to match the segment offsets at the time this event was read, so copying
-        // the map of ownedSegments to do not impact to the map referenced by other PositionImpl objects.
-        this.ownedSegments = new HashMap<>(ownedSegments);
-        // Apply all the Segment offset updates up to the point in which this event was read.
-        for (int i = 0; i < this.version; i++) {
-            this.ownedSegments.put(this.updatesToSegmentOffsets.get(i).getKey(), this.updatesToSegmentOffsets.get(i).getValue());
+        // We create the new ownedSegments map based on the updatesToSegmentOffsets list and existing ownedSegments map.
+        Map<Segment, Long> newOwnedSegments = new HashMap<>();
+        // Apply only the most recent Segment offset updates starting at the point this event was read.
+        for (int i = (int) this.version - 1; i >= 0; i--) {
+            newOwnedSegments.putIfAbsent(this.updatesToSegmentOffsets.get(i).getKey(), this.updatesToSegmentOffsets.get(i).getValue());
+            // We have the most recent updates on all the segments, no need to continue the loop.
+            if (newOwnedSegments.size() == this.ownedSegments.size()) {
+                break;
+            }
         }
+        // In case that there are segments without updates in updatesToSegmentOffsets, we apply the existing values in ownedSegments.
+        if (newOwnedSegments.size() < this.ownedSegments.size()) {
+            for (Segment s : this.ownedSegments.keySet()) {
+                newOwnedSegments.putIfAbsent(s, this.ownedSegments.get(s));
+            }
+        }
+        // Build the final state of this PositionImpl object.
+        this.ownedSegments = Collections.unmodifiableMap(newOwnedSegments);
         this.updatesToSegmentOffsets = null;
         this.version = 0;
     }
