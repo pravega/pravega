@@ -260,8 +260,8 @@ public class PositionImpl extends PositionInternal {
         }
         // In case that there are segments without updates in updatesToSegmentOffsets, we apply the existing values in ownedSegments.
         if (newOwnedSegments.size() < this.ownedSegments.size()) {
-            for (Segment s : this.ownedSegments.keySet()) {
-                newOwnedSegments.putIfAbsent(s, this.ownedSegments.get(s));
+            for (Entry<Segment, Long> s : this.ownedSegments.entrySet()) {
+                newOwnedSegments.putIfAbsent(s.getKey(), s.getValue());
             }
         }
         // Build the final state of this PositionImpl object.
