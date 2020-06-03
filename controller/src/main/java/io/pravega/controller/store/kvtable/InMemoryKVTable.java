@@ -39,7 +39,7 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     @GuardedBy("lock")
     private Map<Integer, VersionedMetadata<KVTEpochRecord>> epochRecords = new HashMap<>();
 
-    InMemoryKVTable(String scope, String name) {
+    public InMemoryKVTable(String scope, String name) {
         super(scope, name);
     }
 

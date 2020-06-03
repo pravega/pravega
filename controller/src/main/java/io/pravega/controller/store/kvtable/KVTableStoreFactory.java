@@ -26,6 +26,10 @@ public class KVTableStoreFactory {
         switch (storeClient.getType()) {
             case PravegaTable:
                 return new PravegaTablesKVTMetadataStore(segmentHelper, (CuratorFramework) storeClient.getClient(), executor, authHelper);
+            case InMemory:
+                return new InMemoryKVTMetadataStore(executor);
+            case Zookeeper:
+                return new ZookeeperKVTMetadataStore((CuratorFramework) storeClient.getClient(), executor);
             default:
                 throw new NotImplementedException(storeClient.getType().toString());
         }
@@ -39,11 +43,11 @@ public class KVTableStoreFactory {
     
     @VisibleForTesting
     public static KVTableMetadataStore createZKStore(final CuratorFramework client, final ScheduledExecutorService executor) {
-        throw new UnsupportedOperationException("ZKStore not supported for KeyValueTables");
+        return new ZookeeperKVTMetadataStore(client, executor);
     }
     
     @VisibleForTesting
     public static KVTableMetadataStore createInMemoryStore(final Executor executor) {
-        throw new UnsupportedOperationException("InMemoryStore not supported for KeyValueTables");
+        return new InMemoryKVTMetadataStore(executor);
     }
 }

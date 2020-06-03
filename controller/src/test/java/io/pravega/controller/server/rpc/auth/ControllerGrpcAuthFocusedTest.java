@@ -37,12 +37,19 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.eventProcessor.requesthandlers.*;
+import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -141,6 +148,7 @@ public class ControllerGrpcAuthFocusedTest {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(EXECUTOR);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(EXECUTOR);
+        KVTableMetadataStore kvtStore = KVTableStoreFactory.createInMemoryStore(EXECUTOR);
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         KVTableMetadataStore kvtMetadataStore = mock(KVTableMetadataStore.class);
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
@@ -181,7 +189,7 @@ public class ControllerGrpcAuthFocusedTest {
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
 
         ControllerServiceGrpc.ControllerServiceImplBase controllerServiceImplBase = new ControllerServiceImpl(
-                new ControllerService(streamStore, bucketStore, 
+                new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore,
                                       streamMetadataTasks,
                                       streamTransactionMetadataTasks,
                                       segmentHelper,

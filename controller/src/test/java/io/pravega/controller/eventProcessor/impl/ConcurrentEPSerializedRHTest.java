@@ -15,7 +15,6 @@ import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
-import io.pravega.shared.controller.event.StreamRequestProcessor;
 import lombok.Data;
 import lombok.Getter;
 import org.junit.Test;

@@ -15,7 +15,6 @@ import io.pravega.controller.store.kvtable.KVTableState;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.store.kvtable.KVTOperationContext;
-import io.pravega.controller.store.stream.State;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
@@ -80,7 +79,7 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                                             final KVTOperationContext context = kvtMetadataStore.createContext(scope, kvt);
                                             kvtMetadataStore.getVersionedState(scope, kvt, context, executor)
                                                     .thenCompose(state -> {
-                                                        if (state.getObject().equals(State.CREATING)) {
+                                                        if (state.getObject().equals(KVTableState.CREATING)) {
                                                             kvtMetadataStore.updateVersionedState(scope, kvt, KVTableState.ACTIVE,
                                                                     state, context, executor);
                                                         }

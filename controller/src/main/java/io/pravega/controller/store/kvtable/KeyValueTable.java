@@ -28,7 +28,7 @@ public interface KeyValueTable {
      *
      * @return Name of scope.
      */
-    String getScope();
+    String getScopeName();
 
     /**
      * Get name of stream.
@@ -36,7 +36,6 @@ public interface KeyValueTable {
      * @return Name of stream.
      */
     String getName();
-
 
     /**
      * Create the stream, by creating/modifying underlying data structures.

@@ -56,6 +56,8 @@ public class InMemoryScope implements Scope {
     public CompletableFuture<Void> createScope() {
         this.sortedStreamsInScope = new TreeMap<>(Integer::compare);
         this.streamsPositionMap = new HashMap<>();
+        this.sortedKVTablesInScope = new TreeMap<>(Integer::compare);
+        this.kvTablesPositionMap =  new HashMap<>();
         return CompletableFuture.completedFuture(null);
     }
 
@@ -66,6 +68,12 @@ public class InMemoryScope implements Scope {
         this.sortedStreamsInScope = null;
         this.streamsPositionMap.clear();
         this.streamsPositionMap = null;
+
+        this.sortedKVTablesInScope.clear();
+        this.sortedKVTablesInScope = null;
+        this.kvTablesPositionMap.clear();
+        this.kvTablesPositionMap = null;
+
         return CompletableFuture.completedFuture(null);
     }
 
@@ -75,6 +83,16 @@ public class InMemoryScope implements Scope {
         streamsPositionMap.putIfAbsent(stream, next);
         Integer position = streamsPositionMap.get(stream);
         sortedStreamsInScope.put(position, stream);
+
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Synchronized
+    public CompletableFuture<Void> addKVTableToScope(String kvt) {
+        int next = kvTablesPositionMap.size();
+        kvTablesPositionMap.putIfAbsent(kvt, next);
+        Integer position = kvTablesPositionMap.get(kvt);
+        sortedKVTablesInScope.put(position, kvt);
 
         return CompletableFuture.completedFuture(null);
     }
@@ -125,17 +143,7 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(new ImmutablePair<>(result, newContinuationToken));
     }
 
-
-    public CompletableFuture<Void> addKVTableToScope(String kvt) {
-        int next = kvTablesPositionMap.size();
-        kvTablesPositionMap.putIfAbsent(kvt, next);
-        Integer position = kvTablesPositionMap.get(kvt);
-        sortedKVTablesInScope.put(position, kvt);
-        return CompletableFuture.completedFuture(null);
-    }
-
     @Override
     public void refresh() {
-
     }
 }

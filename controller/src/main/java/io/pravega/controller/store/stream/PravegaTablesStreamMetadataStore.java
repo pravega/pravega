@@ -21,6 +21,7 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.Version;
+import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;

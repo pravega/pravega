@@ -18,6 +18,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;

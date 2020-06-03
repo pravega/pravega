@@ -367,8 +367,6 @@ public class ControllerService {
         return listOfSegment;
     }
 
-
-
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId,
                                                           final String writerId, final long timestamp) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");

@@ -21,6 +21,7 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;

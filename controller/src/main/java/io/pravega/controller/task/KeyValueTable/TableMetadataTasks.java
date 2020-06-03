@@ -23,11 +23,11 @@ import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.KVTableState;
-import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.task.Stream.RequestSweeper;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
@@ -109,7 +109,7 @@ public class TableMetadataTasks implements AutoCloseable {
         return withRetries(() -> Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                 .thenCompose(state -> {
-                    if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                    if (state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
                         // 1. post event for CreateKVTable.
                         return  Futures.completeOn(kvtMetadataStore.checkScopeExists(scope)
                                 .thenCompose(exists -> {

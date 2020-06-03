@@ -87,8 +87,8 @@ public class ControllerEventProcessorsTest {
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
-        KVTableMetadataStore kvtMetadataStore = mock(KVTableMetadataStore.class);
-        TableMetadataTasks kvtMetadataTasks = mock(TableMetadataTasks.class);
+        KVTableMetadataStore kvtStore = mock(KVTableMetadataStore.class);
+        TableMetadataTasks kvtTasks = mock(TableMetadataTasks.class);
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
         EventProcessorGroup<ControllerEvent> processor = new EventProcessorGroup<ControllerEvent>() {
@@ -171,7 +171,7 @@ public class ControllerEventProcessorsTest {
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
-                connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,kvtMetadataStore, kvtMetadataTasks,
+                connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks, kvtStore, kvtTasks,
                 system, executor);
         processors.startAsync();
         processors.awaitRunning();
@@ -189,8 +189,8 @@ public class ControllerEventProcessorsTest {
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
-        KVTableMetadataStore kvtMetadataStore = mock(KVTableMetadataStore.class);
-        TableMetadataTasks kvtMetadataTasks = mock(TableMetadataTasks.class);
+        KVTableMetadataStore kvtStore = mock(KVTableMetadataStore.class);
+        TableMetadataTasks kvtTasks = mock(TableMetadataTasks.class);
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
 
@@ -238,11 +238,11 @@ public class ControllerEventProcessorsTest {
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
-                connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,kvtMetadataStore, kvtMetadataTasks,
+                connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks, kvtStore, kvtTasks,
                 system, executor);
 
         // call bootstrap on ControllerEventProcessors
-        processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtMetadataTasks);
+        processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
         
         // wait on create scope being called.
         createScopeSignalsList.get(0).join();

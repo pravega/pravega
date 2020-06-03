@@ -30,7 +30,7 @@ import java.util.concurrent.Executor;
  * In-memory stream store.
  */
 @Slf4j
-class InMemoryKVTableMetadataStore extends AbstractKVTableMetadataStore {
+public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
 
     @GuardedBy("$lock")
     private final Map<String, InMemoryKVTable> kvTables = new HashMap<>();
@@ -45,7 +45,7 @@ class InMemoryKVTableMetadataStore extends AbstractKVTableMetadataStore {
 
     private final Executor executor;
 
-    public InMemoryKVTableMetadataStore(Executor executor) {
+    public InMemoryKVTMetadataStore(Executor executor) {
         super(new InMemoryHostIndex());
         this.executor = executor;
         this.counter = new AtomicInt96();

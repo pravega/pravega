@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -17,7 +17,8 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.controller.store.Scope;
+import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.stream.StoreException;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
@@ -30,6 +31,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,12 +42,15 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class ZKScope implements Scope {
-    static final String STREAMS_IN_SCOPE = "_streamsinscope";
+    public static final String STREAMS_IN_SCOPE = "_streamsinscope";
     private static final String SCOPE_PATH = "/store/%s";
     private static final String STREAMS_IN_SCOPE_ROOT_PATH = "/store/" + STREAMS_IN_SCOPE + "/%s";
     private static final String STREAMS_IN_SCOPE_ROOT_PATH_FORMAT = STREAMS_IN_SCOPE_ROOT_PATH + "/streams";
     private static final String COUNTER_PATH = STREAMS_IN_SCOPE_ROOT_PATH + "/counter";
     private static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
+    private static final String KVTABLES_IN_SCOPE = "_kvtablesinscope";
+    private static final String KVTABLES_IN_SCOPE_ROOT_PATH = "/store/" + KVTABLES_IN_SCOPE + "/%s";
+    private static final String KVTABLE_METADATA_ROOT_PATH = KVTABLES_IN_SCOPE_ROOT_PATH + "/%s";
 
     private final String scopePath;
     private final String counterPath;
@@ -53,7 +58,7 @@ public class ZKScope implements Scope {
     private final String scopeName;
     private final ZKStoreHelper store;
 
-    ZKScope(final String scopeName, ZKStoreHelper store) {
+    public ZKScope(final String scopeName, ZKStoreHelper store) {
         this.scopeName = scopeName;
         this.store = store;
         this.scopePath = String.format(SCOPE_PATH, scopeName);
@@ -98,13 +103,13 @@ public class ZKScope implements Scope {
      * @param streamPosition position of stream
      * @return CompletableFuture which when completed has the stream reference stored under the aforesaid hierarchy.  
      */
-    CompletableFuture<Void> addStreamToScope(String name, int streamPosition) {
+    public CompletableFuture<Void> addStreamToScope(String name, int streamPosition) {
         // break the path from stream position into three parts --> 2, 4, 4
         String path = getPathForStreamPosition(name, streamPosition);
         return Futures.toVoid(store.createZNodeIfNotExist(path));
     }
 
-    CompletableFuture<Void> removeStreamFromScope(String name, int streamPosition) {
+    public CompletableFuture<Void> removeStreamFromScope(String name, int streamPosition) {
         String path = getPathForStreamPosition(name, streamPosition);
 
         return Futures.toVoid(store.deletePath(path, true));
@@ -219,7 +224,7 @@ public class ZKScope implements Scope {
      * a counter node. this is a 10 digit integer which the store passes to the zkscope object as position.
      * @return A future which when completed has the next stream position represented by an integer. 
      */
-    CompletableFuture<Integer> getNextStreamPosition() {
+    public CompletableFuture<Integer> getNextStreamPosition() {
         return store.createEphemeralSequentialZNode(counterPath)
                     .thenApply(counterStr -> Integer.parseInt(counterStr.replace(counterPath, "")));
     }
@@ -314,5 +319,21 @@ public class ZKScope implements Scope {
                 return Token.builder();
             }
         }
+    }
+
+    public CompletableFuture<Void> addKVTableToScope(String kvt) {
+        return Futures.toVoid(getKVTableInScopeZNodePath(kvt)
+                .thenCompose(path -> store.createZNodeIfNotExist(path)
+                .thenCompose(x -> store.setData(path, newId(), new Version.IntVersion(0)))));
+    }
+
+    public static CompletableFuture<String> getKVTableInScopeZNodePath(String kvtName) {
+        return CompletableFuture.completedFuture(String.format(KVTABLE_METADATA_ROOT_PATH, kvtName));
+    }
+
+    private byte[] newId() {
+        byte[] b = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(b, 0, UUID.randomUUID());
+        return b;
     }
 }

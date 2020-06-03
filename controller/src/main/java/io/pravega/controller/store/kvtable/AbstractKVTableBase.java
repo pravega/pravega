@@ -28,17 +28,17 @@ import java.util.stream.IntStream;
 
 @Slf4j
 public abstract class AbstractKVTableBase implements KeyValueTable {
-    private final String scope;
-    private final String name;
+    protected final String scopeName;
+    protected final String name;
 
     AbstractKVTableBase(final String scope, final String name) {
-        this.scope = scope;
+        this.scopeName = scope;
         this.name = name;
     }
 
     @Override
-    public String getScope() {
-        return this.scope;
+    public String getScopeName() {
+        return this.scopeName;
     }
 
     @Override
@@ -86,7 +86,7 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
                 .thenCompose(createKVTResponse -> createKVTableMetadata()
                         .thenCompose((Void v) -> storeCreationTimeIfAbsent(createKVTResponse.getTimestamp()))
                         .thenCompose((Void v) -> createConfigurationIfAbsent(KVTConfigurationRecord.builder()
-                                                .scope(scope).kvtName(name).kvtConfiguration(configuration).build()))
+                                                .scope(scopeName).kvtName(name).kvtConfiguration(configuration).build()))
                         .thenCompose((Void v) -> createStateIfAbsent(KVTStateRecord.builder().state(KVTableState.CREATING).build()))
                         .thenCompose((Void v) -> createHistoryRecords(startingSegmentNumber, createKVTResponse))
                         .thenApply((Void v) -> createKVTResponse));

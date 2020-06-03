@@ -102,7 +102,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
     }
 
     private String getMetadataTableName(String id) {
-        return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(METADATA_TABLE, id));
+        return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScopeName(), getName(), String.format(METADATA_TABLE, id));
     }
 
     @Override
@@ -194,7 +194,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
         return getId().thenCompose(id -> {
             String metadataTable = getMetadataTableName(id);
             return CompletableFuture.allOf(storeHelper.createTable(metadataTable))
-                    .thenAccept(v -> log.debug("stream {}/{} metadata table {} created", getScope(), getName(), metadataTable));
+                    .thenAccept(v -> log.debug("stream {}/{} metadata table {} created", getScopeName(), getName(), metadataTable));
         });
     }
 

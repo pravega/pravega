@@ -14,6 +14,7 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
+import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;

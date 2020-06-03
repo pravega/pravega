@@ -99,7 +99,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
         KeyValueTable kvt;
         if (context != null) {
             kvt = context.getKvTable();
-            assert kvt.getScope().equals(scope);
+            assert kvt.getScopeName().equals(scope);
             assert kvt.getName().equals(name);
         } else {
             kvt = cache.getUnchecked(new ImmutablePair<>(scope, name));

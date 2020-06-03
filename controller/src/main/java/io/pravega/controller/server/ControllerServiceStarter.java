@@ -149,7 +149,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
         this.storeClientFailureFuture = new CompletableFuture<>();
     }
 
-
     @Override
     protected void startUp() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");

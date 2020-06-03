@@ -15,7 +15,6 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
-import io.pravega.shared.controller.event.StreamRequestProcessor;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Data;
