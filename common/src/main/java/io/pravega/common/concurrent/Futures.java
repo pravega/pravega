@@ -36,8 +36,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import io.pravega.common.util.Retry;
-
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -52,7 +50,8 @@ public final class Futures {
      * So any chaining, if done without specifying an executor, will either happen on
      * caller's executor or fork join pool but never on someone else's executor.
      *
-     * @param future   The future to execute.
+     * @param future The future to execute.
+     * @param <T> The Type of the future's result.
      * @param executor The executor for executing the future.
      * @return <T>CompletableFuture<T> Result of execution, successful or exceptional.
      */

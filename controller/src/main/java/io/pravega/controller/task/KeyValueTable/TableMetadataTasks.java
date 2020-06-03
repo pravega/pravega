@@ -110,7 +110,6 @@ public class TableMetadataTasks implements AutoCloseable {
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                 .thenCompose(state -> {
                     if (state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
-                        // 1. post event for CreateKVTable.
                         return  Futures.completeOn(kvtMetadataStore.checkScopeExists(scope)
                                 .thenCompose(exists -> {
                                     if (exists) {
