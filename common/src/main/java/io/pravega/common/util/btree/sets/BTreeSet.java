@@ -106,6 +106,7 @@ public class BTreeSet {
      * @param timeout       Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate that the updates have been applied
      * successfully. If the operation failed, the Future will be completed with the appropriate exception.
+     * @throws IllegalArgumentException If an item appears more than once across the union of toInsert and toDelete.
      */
     public CompletableFuture<Void> update(@Nullable Collection<? extends ArrayView> toInsert, @Nullable Collection<? extends ArrayView> toRemove,
                                           @NonNull Supplier<Long> getNextPageId, @NonNull Duration timeout) {
