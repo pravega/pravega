@@ -11,6 +11,7 @@ package io.pravega.common.util;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.SequentialProcessor;
+import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -122,5 +123,14 @@ public interface AsyncIterator<T> {
     default <U> AsyncIterator<U> thenCompose(@NonNull Function<? super T, CompletableFuture<U>> converter) {
         return () -> AsyncIterator.this.getNext()
                 .thenCompose(item -> item == null ? CompletableFuture.completedFuture(null) : converter.apply(item));
+    }
+
+    /**
+     * Returns an {@link Iterator} that wraps this instance.
+     *
+     * @return A new {@link BlockingAsyncIterator} wrapping this instance.
+     */
+    default Iterator<T> asIterator() {
+        return new BlockingAsyncIterator<>(this);
     }
 }
