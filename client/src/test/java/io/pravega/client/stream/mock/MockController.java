@@ -318,10 +318,15 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<StreamSegments> getEpochSegments(String scope, String stream, int epoch) {
+        return CompletableFuture.completedFuture(getCurrentSegments(new StreamImpl(scope, stream)));
+    }
+
+    @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
         return CompletableFuture.completedFuture(getCurrentSegments(new StreamImpl(scope, stream)));
     }
-    
+
     private StreamSegments getCurrentSegments(Stream stream) {
         List<Segment> segmentsInStream = getSegmentsForStream(stream);
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();

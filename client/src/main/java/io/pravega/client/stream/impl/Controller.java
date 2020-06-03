@@ -167,6 +167,16 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName);
 
     /**
+     * API to get list of segments for given epoch.
+     *
+     * @param scope Scope
+     * @param streamName Stream name
+     * @param epoch Epoch number.
+     * @return Stream segments for a given Epoch.
+     */
+    CompletableFuture<StreamSegments> getEpochSegments(final String scope, final String streamName, int epoch);
+
+    /**
      * API to create a new transaction. The transaction timeout is relative to the creation time.
      * 
      * @param stream           Stream name
