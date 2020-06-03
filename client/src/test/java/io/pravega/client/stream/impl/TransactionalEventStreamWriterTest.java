@@ -26,9 +26,13 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.EventStreamWriterTest.FakeSegmentOutputStream;
 import io.pravega.common.util.RetriesExhaustedException;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.shared.NameUtils;
 =======
 >>>>>>> Issue 4815: (Bugfix) Ensure TxnFailedException is thrown only if Transaction is not in an open state (#4814)
+=======
+import io.pravega.shared.NameUtils;
+>>>>>>> Issue 4791: Add a new controller API to fetch segments for a given epoch. (#4829)
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.NavigableMap;
 import java.util.TreeMap;

@@ -18,6 +18,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+<<<<<<< HEAD
+=======
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+>>>>>>> Issue 4791: Add a new controller API to fetch segments for a given epoch. (#4829)
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 

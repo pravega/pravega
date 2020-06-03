@@ -433,6 +433,27 @@ public class ControllerImplTest {
             }
 
             @Override
+            public void getEpochSegments(GetEpochSegmentsRequest request, StreamObserver<io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges> responseObserver) {
+                if (request.getStreamInfo().getStream().equals("stream1")) {
+                    responseObserver.onNext(SegmentRanges.newBuilder()
+                                                         .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
+                                                                 "stream1",
+                                                                 6,
+                                                                 0.0,
+                                                                 0.4))
+                                                         .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
+                                                                 "stream1",
+                                                                 7,
+                                                                 0.4,
+                                                                 1.0))
+                                                         .build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
             public void getSegments(GetSegmentsRequest request, StreamObserver<SegmentsAtTime> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     SegmentId segment1 = ModelHelper.createSegmentId("scope1", "stream1", 0);
@@ -1318,6 +1339,18 @@ public class ControllerImplTest {
 
         streamSegments = controllerClient.getCurrentSegments("scope1", "sealedStream");
         assertTrue(streamSegments.get().getNumberOfSegments() == 0);
+    }
+
+    @Test
+    public void testGetEpochSegments() throws Exception {
+        CompletableFuture<StreamSegments> streamSegments;
+        streamSegments = controllerClient.getEpochSegments("scope1", "stream1", 0);
+        assertTrue(streamSegments.get().getSegments().size() == 2);
+        assertEquals(new Segment("scope1", "stream1", 6), streamSegments.get().getSegmentForKey(0.2));
+        assertEquals(new Segment("scope1", "stream1", 7), streamSegments.get().getSegmentForKey(0.6));
+
+        streamSegments = controllerClient.getEpochSegments("scope1", "stream2", 0);
+        AssertExtensions.assertFutureThrows("Should throw Exception", streamSegments, throwable -> true);
     }
 
     @Test
