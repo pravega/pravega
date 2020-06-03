@@ -20,6 +20,7 @@ import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTable;
+import io.pravega.client.tables.KeyValueTableMap;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
@@ -106,6 +107,11 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     //region KeyValueTable Implementation
 
     @Override
+    public KeyValueTableMap<KeyT, ValueT> getMapFor(String keyFamily) {
+        return new KeyValueTableMapImpl<>(this, keyFamily);
+    }
+
+    @Override
     public CompletableFuture<Version> put(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value) {
         ByteBuf keySerialization = serializeKey(keyFamily, key);
         TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
@@ -125,9 +131,23 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
         return updateToSegment(s, toTableSegmentEntries(s, keyFamily, entries, e -> TableEntry.unversioned(e.getKey(), e.getValue())));
     }
 
+    /**
+     * Same as {@link #putAll(String, Iterable)}, but accepts an iterator.
+     *
+     * @param keyFamily The Key Family for the all provided Table Entries.
+     * @param entries   An {@link Iterable} of {@link Map.Entry} instances to insert or update.
+     * @return A CompletableFuture that, when completed, will contain a List of {@link Version} instances which
+     * represent the versions for the inserted/updated keys. The size of this list will be the same as the number of
+     * items in entries and the versions will be in the same order as the entries.
+     */
+    public CompletableFuture<List<Version>> putAll(@NonNull String keyFamily, @NonNull Iterator<Map.Entry<KeyT, ValueT>> entries) {
+        TableSegment s = this.selector.getTableSegment(keyFamily);
+        return updateToSegment(s, toTableSegmentEntries(s, keyFamily, entries, e -> TableEntry.unversioned(e.getKey(), e.getValue())));
+    }
+
     @Override
     public CompletableFuture<Version> replace(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value,
-                                                 @NonNull Version version) {
+                                              @NonNull Version version) {
         ByteBuf keySerialization = serializeKey(keyFamily, key);
         TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
         validateKeyVersionSegment(s, version);
@@ -303,16 +323,24 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
         return new TableSegmentKey(key, toTableSegmentVersion(keyVersion));
     }
 
+    private <T> Iterator<TableSegmentEntry> toTableSegmentEntries(TableSegment tableSegment, String keyFamily, Iterator<T> entries,
+                                                                  Function<T, TableEntry<KeyT, ValueT>> getEntry) {
+        return Iterators.transform(entries, e -> toTableSegmentEntry(tableSegment, keyFamily, e, getEntry));
+    }
+
     private <T> Iterator<TableSegmentEntry> toTableSegmentEntries(TableSegment tableSegment, String keyFamily, Iterable<T> entries,
                                                                   Function<T, TableEntry<KeyT, ValueT>> getEntry) {
         return StreamSupport.stream(entries.spliterator(), false)
-                .map(e -> {
-                    TableEntry<KeyT, ValueT> entry = getEntry.apply(e);
-                    TableKey<KeyT> key = entry.getKey();
-                    validateKeyVersionSegment(tableSegment, key.getVersion());
-                    return toTableSegmentEntry(serializeKey(keyFamily, key.getKey()), serializeValue(entry.getValue()), key.getVersion());
-                })
+                .map(e -> toTableSegmentEntry(tableSegment, keyFamily, e, getEntry))
                 .iterator();
+    }
+
+    private <T> TableSegmentEntry toTableSegmentEntry(TableSegment tableSegment, String keyFamily, T fromEntry,
+                                                      Function<T, TableEntry<KeyT, ValueT>> getEntry) {
+        TableEntry<KeyT, ValueT> entry = getEntry.apply(fromEntry);
+        TableKey<KeyT> key = entry.getKey();
+        validateKeyVersionSegment(tableSegment, key.getVersion());
+        return toTableSegmentEntry(serializeKey(keyFamily, key.getKey()), serializeValue(entry.getValue()), key.getVersion());
     }
 
     private TableSegmentEntry toTableSegmentEntry(ByteBuf keySerialization, ByteBuf valueSerialization, Version keyVersion) {
