@@ -20,7 +20,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.net.CommonConfigurationKeys;
@@ -140,6 +140,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 .setAddEntryTimeout(writeTimeout)
                 .setReadEntryTimeout(readTimeout)
                 .setGetBookieInfoTimeout(readTimeout)
+                .setEnableDigestTypeAutodetection(true)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
 
@@ -164,7 +165,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
             config.setProperty(CommonConfigurationKeys.NET_TOPOLOGY_SCRIPT_FILE_NAME_KEY, this.config.getNetworkTopologyFileName());
         }
 
-        return new BookKeeper(config);
+        return BookKeeper.newBuilder(config)
+                         .build();
     }
 
     //endregion
