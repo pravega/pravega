@@ -17,10 +17,11 @@ import lombok.Data;
  * This class is used to represent Stream information. It currently includes:
  *
  *  <ul>
- *  <li> scope of stream. </li>
- *  <li> name of stream. </li>
+ *  <li> Scope of stream. </li>
+ *  <li> Name of stream. </li>
  *  <li> {@link StreamCut} which represents the current TAIL of the stream. </li>
  *  <li> {@link StreamCut} which represents the current HEAD of the stream. </li>
+ *  <li> Flag which is set to True if the stream is Sealed. </li>
  *  </ul>
  */
 @Beta
@@ -46,5 +47,8 @@ public class StreamInfo {
      */
     private final StreamCut headStreamCut;
 
+    /**
+     * Represents the stream state. It is set to True if the stream is Sealed.
+     */
     private final boolean sealed;
 }
