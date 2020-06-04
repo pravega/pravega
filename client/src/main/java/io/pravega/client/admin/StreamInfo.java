@@ -45,4 +45,6 @@ public class StreamInfo {
      * {@link StreamCut} representing the current HEAD of the stream.
      */
     private final StreamCut headStreamCut;
+
+    private final boolean sealed;
 }

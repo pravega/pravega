@@ -12,6 +12,7 @@ package io.pravega.test.integration;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -157,6 +158,8 @@ public class StreamRecreationTest {
 
             // Delete the stream.
             assertTrue("Unable to seal re-created stream.", streamManager.sealStream(myScope, myStream));
+            StreamInfo streamInfo = streamManager.getStreamInfo(myScope, myStream);
+            assertTrue(streamInfo.isSealed());
             assertTrue("Unable to delete re-created stream.", streamManager.deleteStream(myScope, myStream));
         }
     }
