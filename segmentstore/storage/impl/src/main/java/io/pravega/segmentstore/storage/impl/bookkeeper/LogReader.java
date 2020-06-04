@@ -10,27 +10,29 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BufferedIterator;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
-import lombok.NonNull;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.bookkeeper.client.BKException;
-import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.LedgerEntry;
-import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.client.api.BKException;
+import org.apache.bookkeeper.client.api.BookKeeper;
+import org.apache.bookkeeper.client.api.LedgerEntry;
+import org.apache.bookkeeper.client.api.LedgerEntries;
+import org.apache.bookkeeper.client.api.ReadHandle;
+import lombok.NonNull;
+import lombok.SneakyThrows;
+import org.apache.bookkeeper.client.api.Handle;
 
 /**
  * Performs read from BookKeeper Logs.
@@ -75,12 +77,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
     public void close() {
         if (!this.closed.getAndSet(true)) {
             if (this.currentLedger != null) {
-                try {
-                    Ledgers.close(this.currentLedger.handle);
-                } catch (DurableDataLogException bkEx) {
-                    log.error("Unable to close LedgerHandle for Ledger {}.", this.currentLedger.handle.getId(), bkEx);
-                }
-
+                this.currentLedger.close();
                 this.currentLedger = null;
             }
         }
@@ -103,16 +100,16 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         while (this.currentLedger != null && (!this.currentLedger.canRead())) {
             // We have reached the end of the current ledger. Find next one, and skip over empty ledgers).
             val lastAddress = new LedgerAddress(this.currentLedger.metadata, this.currentLedger.handle.getLastAddConfirmed());
-            Ledgers.close(this.currentLedger.handle);
+            this.currentLedger.close();
             openNextLedger(this.metadata.getNextAddress(lastAddress, this.currentLedger.handle.getLastAddConfirmed()));
         }
 
         // Try to read from the current reader.
-        if (this.currentLedger == null || this.currentLedger.reader == null) {
+        if (this.currentLedger == null || this.currentLedger.isEmpty()) {
             return null;
         }
 
-        return new LogReader.ReadItem(this.currentLedger.reader.next(), this.currentLedger.metadata);
+        return wrapItem(this.currentLedger.reader.next(), this.currentLedger.metadata);
     }
 
     private void openNextLedger(LedgerAddress address) throws DurableDataLogException {
@@ -127,7 +124,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         val allMetadatas = this.metadata.getLedgers();
 
         // Open the ledger.
-        LedgerHandle ledger;
+        ReadHandle ledger;
         if (allMetadatas.size() == 0 || metadata == allMetadatas.get(allMetadatas.size() - 1)) {
             // This is our last ledger (the active one); we need to make sure open it without recovery since otherwise we
             // we would fence ourselves out.
@@ -153,7 +150,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             this.currentLedger = new ReadLedger(metadata, ledger, address.getEntryId(), lastEntryId, this.config.getBkReadBatchSize());
             if (previousLedger != null) {
                 // Close previous ledger handle.
-                Ledgers.close(previousLedger.handle);
+                previousLedger.close();
             }
         } catch (Exception ex) {
             Ledgers.close(ledger);
@@ -162,7 +159,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         }
     }
 
-    private void checkLogIdProperty(LedgerHandle handle) throws DataLogCorruptedException {
+    private void checkLogIdProperty(Handle handle) throws DataLogCorruptedException {
         int actualLogId = Ledgers.getBookKeeperLogId(handle);
         if (actualLogId != Ledgers.NO_LOG_ID && actualLogId != this.logId) {
             throw new DataLogCorruptedException(String.format("BookKeeperLog %s contains ledger %s which belongs to BookKeeperLog %s.",
@@ -182,11 +179,10 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         @Getter
         private final LedgerAddress address;
 
-        @SneakyThrows(IOException.class)
-        ReadItem(LedgerEntry entry, LedgerMetadata ledgerMetadata) {
-            this.address = new LedgerAddress(ledgerMetadata, entry.getEntryId());
-            this.payload = entry.getEntryInputStream();
-            this.length = this.payload.available();
+        ReadItem(long entryId, InputStream payload, int length, LedgerMetadata ledgerMetadata) {
+            this.address = new LedgerAddress(ledgerMetadata, entryId);
+            this.payload = payload;
+            this.length = length;
         }
 
         @Override
@@ -195,16 +191,26 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         }
     }
 
+    private static DurableDataLog.ReadItem wrapItem(LedgerEntry entry, LedgerMetadata metadata) {
+        ByteBuf content = entry.getEntryBuffer();
+        return new LogReader.ReadItem(entry.getEntryId(),
+               new ByteBufInputStream(content, false /*relaseOnClose*/),
+               content.readableBytes(), metadata);
+    }
+
     //endregion
 
     //region ReadLedger
 
     private static class ReadLedger {
         final LedgerMetadata metadata;
-        final LedgerHandle handle;
+        final ReadHandle handle;
         final BufferedIterator<LedgerEntry> reader;
+        final AtomicBoolean closed = new AtomicBoolean(false);
+        volatile LedgerEntries currentLedgerEntries;
 
-        ReadLedger(@NonNull LedgerMetadata metadata, @NonNull LedgerHandle handle, long firstEntryId, long lastEntryId, int batchSize) {
+        public ReadLedger(LedgerMetadata metadata, ReadHandle handle, long firstEntryId, long lastEntryId,
+                int batchSize) {
             this.metadata = metadata;
             this.handle = handle;
             if (lastEntryId >= firstEntryId) {
@@ -213,15 +219,39 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
                 // Empty ledger;
                 this.reader = null;
             }
+        }
 
+        boolean isEmpty() {
+            return this.reader == null;
+        }
+
+        private void close() {
+            // Release memory held by BookKeeper internals.
+            // we have to prevent a double free
+            if (closed.compareAndSet(false, true)) {
+                if (currentLedgerEntries != null) {
+                    currentLedgerEntries.close();
+                }
+                // closing a ReadHandle is mostly a no-op, it is not expected
+                // to really fail
+                try {
+                    Ledgers.close(handle);
+                } catch (DurableDataLogException bkEx) {
+                    log.error("Unable to close ReadHandle for Ledger {}.", handle.getId(), bkEx);
+                }
+            }
         }
 
         @SneakyThrows(BKException.class)
         private Iterator<LedgerEntry> readRange(long fromEntryId, long toEntryId) {
-            return Iterators.forEnumeration(Exceptions.handleInterruptedCall(() -> this.handle.readEntries(fromEntryId, toEntryId)));
+            if (currentLedgerEntries != null) {
+                currentLedgerEntries.close();
+            }
+            currentLedgerEntries = Exceptions.handleInterruptedCall(() -> this.handle.read(fromEntryId, toEntryId));
+            return currentLedgerEntries.iterator();
         }
 
-        static ReadLedger empty(@NonNull LedgerMetadata metadata, @NonNull LedgerHandle handle) {
+        static ReadLedger empty(@NonNull LedgerMetadata metadata, @NonNull ReadHandle handle) {
             return new ReadLedger(metadata, handle, Long.MAX_VALUE, Long.MIN_VALUE, 1);
         }
 
