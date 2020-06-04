@@ -81,7 +81,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     private static final int WRITE_COUNT = 500;
     private static final int BOOKIE_COUNT = 1;
     private static final int THREAD_POOL_SIZE = 3;
-    private static final int MAX_WRITE_ATTEMPTS = 3;
+    private static final int MAX_WRITE_ATTEMPTS = 5;
     private static final int MAX_LEDGER_SIZE = WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 20);
 
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
@@ -161,7 +161,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_TLS_ENABLED, isSecure())
-                .with(BookKeeperConfig.BK_WRITE_TIMEOUT, 1000) // This is the minimum we can set anyway.
+                .with(BookKeeperConfig.BK_WRITE_TIMEOUT, 5000)
                 .build());
 
         // Create default factory.
