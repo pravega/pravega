@@ -143,4 +143,11 @@ public interface ControllerEventProcessorConfig {
      * @return Name of the reader group processing events from request stream.
      */
     String getKvtReaderGroupName();
+
+    /**
+     * Fetches scaling policy for stream used to store kvtable requests.
+     *
+     * @return Request kvtable scaling policy.
+     */
+    ScalingPolicy getKvtStreamScalingPolicy();
 }

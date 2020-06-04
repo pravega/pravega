@@ -246,6 +246,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         StreamConfiguration requestStreamConfig = StreamConfiguration.builder()
                                                                      .scalingPolicy(config.getRequestStreamScalingPolicy())
                                                                      .build();
+        StreamConfiguration kvTableStreamConfig = StreamConfiguration.builder()
+                                                                            .scalingPolicy(config.getKvtStreamScalingPolicy())
+                                                                            .build();
 
         String scope = config.getScopeName();
         CompletableFuture<Void> future = createScope(scope);
@@ -254,7 +257,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                                                     createStream(scope, config.getAbortStreamName(),
                                                                                  abortStreamConfig),
                                                                     createStream(scope, Config.SCALE_STREAM_NAME,
-                                                                                 requestStreamConfig)));
+                                                                                 requestStreamConfig),
+                                                                    createStream(scope, config.getKvtStreamName(),
+                                                                                 kvTableStreamConfig)));
     }
 
     private CompletableFuture<Void> createScope(final String scopeName) {
