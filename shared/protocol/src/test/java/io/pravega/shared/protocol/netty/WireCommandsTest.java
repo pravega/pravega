@@ -719,7 +719,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
                 new SimpleImmutableEntry<>(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY),
                 new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), WireCommands.TableValue.EMPTY));
-        testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries)));
+        testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries), 0L));
     }
 
     @Test
@@ -730,7 +730,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testRemoveTableKeys() throws IOException {
         testCommand(new WireCommands.RemoveTableKeys(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buf, 1L),
-                                                                                       new WireCommands.TableKey(buf, 2L))));
+                                                                                       new WireCommands.TableKey(buf, 2L)), 0L));
     }
 
     @Test
@@ -804,6 +804,24 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         WireCommands.TableEntriesRead cmd = new WireCommands.TableEntriesRead(l, testString1, tableEntries, buf);
         testCommand(cmd);
         cmd = new WireCommands.TableEntriesRead(l, testString1, tableEntries, wrappedBuffer(new byte[0]));
+        testCommand(cmd);
+    }
+
+    @Test
+    public void testReadTableEntriesDelta() throws IOException {
+        WireCommands.ReadTableEntriesDelta cmd = new WireCommands.ReadTableEntriesDelta(l, testString1, "", 1L, 100);
+        testCommand(cmd);
+    }
+
+    @Test
+    public void testtableEntriesDeltaRead() throws IOException {
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l + 1), new WireCommands.TableValue(buf)));
+        WireCommands.TableEntries tableEntries = new WireCommands.TableEntries(entries);
+
+        WireCommands.TableEntriesDeltaRead cmd = new WireCommands.TableEntriesDeltaRead(
+                l, testString1, tableEntries, false, false,  WireCommands.TableKey.NO_VERSION);
         testCommand(cmd);
     }
 

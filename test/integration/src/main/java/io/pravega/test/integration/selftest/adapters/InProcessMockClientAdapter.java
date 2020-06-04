@@ -29,6 +29,7 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.test.common.NoOpScheduledExecutor;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
 import java.util.Collection;
@@ -76,7 +77,8 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
     @Override
     protected void startUp() throws Exception {
         int segmentStorePort = this.testConfig.getSegmentStorePort(0);
-        this.listener = new PravegaConnectionListener(false, segmentStorePort, getStreamSegmentStore(), getTableStore());
+        this.listener = new PravegaConnectionListener(false, segmentStorePort, getStreamSegmentStore(),
+                getTableStore(), NoOpScheduledExecutor.get());
         this.listener.startListening();
 
         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);

@@ -66,6 +66,17 @@ public final class ExecutorServiceHelpers {
      * @return a thread factory
      */
     public static ThreadFactory getThreadFactory(String groupName) {
+        return getThreadFactory(groupName, Thread.NORM_PRIORITY);
+    }
+
+    /**
+     * Creates and returns a thread factory that will create threads with the given name prefix and thread priority.
+     *
+     * @param groupName the name of the threads
+     * @param priority the priority to be assigned to the thread.
+     * @return a thread factory
+     */
+    public static ThreadFactory getThreadFactory(String groupName, int priority) {
         return new ThreadFactory() {
             final AtomicInteger threadCount = new AtomicInteger();
 
@@ -74,6 +85,7 @@ public final class ExecutorServiceHelpers {
                 Thread thread = new Thread(r, groupName + "-" + threadCount.incrementAndGet());
                 thread.setUncaughtExceptionHandler(new LogUncaughtExceptions());
                 thread.setDaemon(true);
+                thread.setPriority(priority);
                 return thread;
             }
         };
@@ -86,8 +98,23 @@ public final class ExecutorServiceHelpers {
      * @return A new executor service.
      */
     public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName) {
+        return newScheduledThreadPool(size, poolName, Thread.NORM_PRIORITY);
+    }
+
+    /**
+     * Creates a new ScheduledExecutorService that will use daemon threads with specified priority and names.
+     *
+     * @param size The number of threads in the threadpool
+     * @param poolName The name of the pool (this will be printed in logs)
+     * @param threadPriority The priority to be assigned to the threads
+     * @return A new executor service.
+     */
+    public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName, int threadPriority) {
+
+        ThreadFactory threadFactory = getThreadFactory(poolName, threadPriority);
+
         // Caller runs only occurs after shutdown, as queue size is unbounded.
-        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, getThreadFactory(poolName), new CallerRuns(poolName));
+        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, threadFactory, new CallerRuns(poolName));
 
         // Do not execute any periodic tasks after shutdown.
         result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
