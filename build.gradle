@@ -268,7 +268,7 @@ project('test:testcommon') {
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
-        compile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
+        compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
     }
     javadoc {
         dependsOn delombok
@@ -313,6 +313,7 @@ project('segmentstore:storage:impl') {
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion    
     }
     javadoc {
         dependsOn delombok
@@ -322,17 +323,6 @@ project('segmentstore:storage:impl') {
 }
 
 project ('bindings') {
-    configurations.all {
-        resolutionStrategy {
-            // We need to force this version as dependency, since ':test:testcommon' brings in a newer version of 
-            // this library which conflicts with the older version of this transitive dependency brought in by some 
-            // of the other dependences (HDFS and S3). 
-            // 
-            // Once HDFS and S3 are upgraded to a version that works with Gson version used by the ':test:testcommon' 
-            // sub-project, this configuration should be removed. 
-            force 'com.google.code.gson:gson:2.5'
-        }
-    }
     dependencies {
         // For HDFS
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
@@ -349,6 +339,7 @@ project ('bindings') {
         compile project(':common')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
+        testCompile project(':test:testcommon')
         testCompile project(path: ':segmentstore:storage', configuration: 'testRuntime')
     }
     javadoc {
@@ -1014,7 +1005,6 @@ task javadocs(type: Javadoc) {
 
     // Include names of any project that is to be included in the javadoc distribution
     ext.projects = [':client']
-    options.links("http://docs.oracle.com/javase/10/docs/api/");
     title = "Pravega API"
     destinationDir = file("${buildDir}/javadocs")
     source = files(projects.collect {
