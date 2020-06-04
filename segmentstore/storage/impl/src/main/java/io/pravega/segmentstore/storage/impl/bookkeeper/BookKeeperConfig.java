@@ -245,7 +245,7 @@ public class BookKeeperConfig {
         return new ConfigBuilder<>(COMPONENT_CODE, BookKeeperConfig::new);
     }
 
-    private DigestType getDigestType(String digestType) {
+    static DigestType getDigestType(String digestType) {
         if (digestType.equals(DigestType.MAC.name())) {
             return DigestType.MAC;
         } else if (digestType.equals(DigestType.CRC32.name())) {

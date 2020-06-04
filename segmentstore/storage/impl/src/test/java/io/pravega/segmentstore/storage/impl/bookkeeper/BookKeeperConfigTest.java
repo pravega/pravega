@@ -108,4 +108,13 @@ public class BookKeeperConfigTest {
                         .build(),
                 ex -> ex instanceof InvalidPropertyValueException);
     }
+
+    @Test
+    public void testDigestTypeConversion() {
+        Assert.assertEquals(DigestType.CRC32, BookKeeperConfig.getDigestType("CRC32"));
+        Assert.assertEquals(DigestType.CRC32C, BookKeeperConfig.getDigestType("CRC32C"));
+        Assert.assertEquals(DigestType.DUMMY, BookKeeperConfig.getDigestType("DUMMY"));
+        Assert.assertEquals(DigestType.MAC, BookKeeperConfig.getDigestType("MAC"));
+        Assert.assertEquals(DigestType.CRC32C, BookKeeperConfig.getDigestType("any-other-value"));
+    }
 }
