@@ -332,7 +332,11 @@ project('segmentstore:storage:impl') {
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+<<<<<<< HEAD
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+=======
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion    
+>>>>>>> Issue 4531: Use new BookKeeper API and Upgrade to BookKeeper 4.9.2 (#4798)
     }
     javadoc {
         dependsOn delombok

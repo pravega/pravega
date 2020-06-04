@@ -26,6 +26,7 @@ import org.apache.bookkeeper.client.api.DigestType;
 public class BookKeeperConfig {
     //region Config Names
 
+<<<<<<< HEAD
     public static final Property<String> ZK_ADDRESS = Property.named("zk.connect.uri", "localhost:2181", "zkAddress");
     public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zk.connect.sessionTimeout.milliseconds", 10000, "zkSessionTimeoutMillis");
     public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zk.connect.sessionTimeout.milliseconds", 10000, "zkConnectionTimeoutMillis");
@@ -50,6 +51,32 @@ public class BookKeeperConfig {
     public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopology.script.location",
             "/opt/pravega/scripts/sample-bookkeeper-topology.sh", "networkTopologyScriptFileName");
     public static final Property<String> BK_DIGEST_TYPE = Property.named("digest.type.name", DigestType.CRC32C.name(), "digestType");
+=======
+    public static final Property<String> ZK_ADDRESS = Property.named("zkAddress", "localhost:2181");
+    public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zkSessionTimeoutMillis", 10000);
+    public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zkConnectionTimeoutMillis", 10000);
+    public static final Property<String> ZK_METADATA_PATH = Property.named("zkMetadataPath", "/segmentstore/containers");
+    public static final Property<Integer> ZK_HIERARCHY_DEPTH = Property.named("zkHierarchyDepth", 2);
+    public static final Property<Integer> MAX_WRITE_ATTEMPTS = Property.named("maxWriteAttempts", 5);
+    public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("bkEnsembleSize", 3);
+    public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 2);
+    public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("bkWriteQuorumSize", 3);
+    public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("bkWriteTimeoutMillis", 60000);
+    public static final Property<Integer> BK_READ_TIMEOUT = Property.named("readTimeoutMillis", 30000);
+    public static final Property<Integer> BK_READ_BATCH_SIZE = Property.named("readBatchSize", 64);
+    public static final Property<Integer> MAX_OUTSTANDING_BYTES = Property.named("maxOutstandingBytes", 256 * 1024 * 1024);
+    public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("bkLedgerMaxSize", 1024 * 1024 * 1024);
+    public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
+    public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
+    public static final Property<Boolean> BK_TLS_ENABLED = Property.named("tlsEnabled", false);
+    public static final Property<String> TLS_TRUST_STORE_PATH = Property.named("tlsTrustStorePath", "config/client.truststore.jks");
+    public static final Property<String> TLS_TRUST_STORE_PASSWORD_PATH = Property.named("tlsTrustStorePasswordPath", "");
+    public static final Property<Boolean> BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE = Property.named("enforceMinNumRacksPerWriteQuorum", false);
+    public static final Property<Integer> BK_MIN_NUM_RACKS_PER_WRITE_QUORUM = Property.named("minNumRacksPerWriteQuorum", 2);
+    public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopologyScriptFileName",
+            "/opt/pravega/scripts/sample-bookkeeper-topology.sh");
+    public static final Property<String> BK_DIGEST_TYPE = Property.named("digestType", DigestType.CRC32C.name());
+>>>>>>> Issue 4531: Use new BookKeeper API and Upgrade to BookKeeper 4.9.2 (#4798)
 
     public static final String COMPONENT_CODE = "bookkeeper";
     /**
