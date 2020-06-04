@@ -18,6 +18,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
@@ -106,11 +107,11 @@ public class TableMetadataTasks implements AutoCloseable {
                                                                                    KeyValueTableConfiguration kvtConfig,
                                                                                    final long createTimestamp) {
         final long requestId = requestTracker.getRequestIdFor("createKVTable", scope, kvtName);
-        return withRetries(() -> Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
+        return RetryHelper.withRetriesAsync(() -> Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                 .thenCompose(state -> {
                     if (state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
-                        return  Futures.completeOn(kvtMetadataStore.checkScopeExists(scope)
+                        return Futures.completeOn(kvtMetadataStore.checkScopeExists(scope)
                                 .thenCompose(exists -> {
                                     if (exists) {
                                         return Futures.exceptionallyExpecting(kvtMetadataStore.createEntryForKVTable(scope, kvtName, executor)
@@ -121,7 +122,14 @@ public class TableMetadataTasks implements AutoCloseable {
                                                             return addIndexAndSubmitTask(event,
                                                                     () -> CompletableFuture.completedFuture(null))
                                                                     .thenCompose(x -> checkDone(() -> isCreated(scope, kvtName, kvtConfig, executor))
-                                                                            .thenApply(y -> CreateKeyValueTableStatus.Status.SUCCESS));
+                                                                            .thenCompose(y -> kvtMetadataStore.getConfiguration(scope, kvtName, null, executor)
+                                                                            .thenCompose(cfg -> {
+                                                                                if (cfg.getPartitionCount() == kvtConfig.getPartitionCount()) {
+                                                                                   return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SUCCESS);
+                                                                                } else {
+                                                                                   return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.TABLE_EXISTS);
+                                                                                }
+                                                                            })));
                                                         })),
                                                 e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException,
                                                 CreateKeyValueTableStatus.Status.TABLE_EXISTS);
@@ -132,7 +140,7 @@ public class TableMetadataTasks implements AutoCloseable {
                     } else {
                        return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.TABLE_EXISTS);
                     }
-                }), executor);
+                }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
     }
 
     private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition) {
@@ -149,14 +157,7 @@ public class TableMetadataTasks implements AutoCloseable {
     private CompletableFuture<Boolean> isCreated(String scope, String kvtName, KeyValueTableConfiguration kvtConfig, Executor executor) {
        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
-                .thenCompose(state -> {
-                    if (state.equals(KVTableState.ACTIVE)) {
-                        return kvtMetadataStore.getConfiguration(scope, kvtName, null, executor)
-                                .thenCompose(cfg -> CompletableFuture.completedFuture(cfg.getPartitionCount() == kvtConfig.getPartitionCount()));
-                    } else {
-                        return CompletableFuture.completedFuture(false);
-                    }
-                });
+                .thenCompose(state -> CompletableFuture.completedFuture(state.equals(KVTableState.ACTIVE)));
     }
 
     @VisibleForTesting
