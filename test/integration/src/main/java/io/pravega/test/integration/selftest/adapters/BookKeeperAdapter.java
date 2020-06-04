@@ -35,10 +35,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.val;
-import org.apache.bookkeeper.client.AsyncCallback;
-import org.apache.bookkeeper.client.BKException;
-import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.client.api.BookKeeper;
+import org.apache.bookkeeper.client.api.DigestType;
+import org.apache.bookkeeper.client.api.WriteHandle;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -52,7 +51,7 @@ class BookKeeperAdapter extends StoreAdapter {
     private final TestConfig testConfig;
     private final BookKeeperConfig bkConfig;
     private final ScheduledExecutorService executor;
-    private final ConcurrentHashMap<String, LedgerHandle> ledgers;
+    private final ConcurrentHashMap<String, WriteHandle> ledgers;
     private final Thread stopBookKeeperProcess;
     private Process bookKeeperService;
     private CuratorFramework zkClient;
@@ -113,7 +112,7 @@ class BookKeeperAdapter extends StoreAdapter {
     @Override
 
     protected void shutDown() {
-        for (LedgerHandle lh : this.ledgers.values()) {
+        for (WriteHandle lh : this.ledgers.values()) {
             try {
                 lh.close();
             } catch (Exception ex) {
@@ -143,11 +142,18 @@ class BookKeeperAdapter extends StoreAdapter {
         ensureRunning();
 
         return CompletableFuture.runAsync(() -> {
-            LedgerHandle ledger = null;
+            WriteHandle ledger = null;
             boolean success = false;
             try {
-                ledger = getBookKeeper().createLedger(this.bkConfig.getBkEnsembleSize(), this.bkConfig.getBkWriteQuorumSize(), this.bkConfig.getBkAckQuorumSize(),
-                        BookKeeper.DigestType.CRC32C, new byte[0]);
+                ledger = getBookKeeper()
+                        .newCreateLedgerOp()
+                        .withEnsembleSize(this.bkConfig.getBkEnsembleSize())
+                        .withWriteQuorumSize(this.bkConfig.getBkWriteQuorumSize())
+                        .withAckQuorumSize(this.bkConfig.getBkAckQuorumSize())
+                        .withDigestType(DigestType.CRC32C)
+                        .withPassword(new byte[0])
+                        .execute()
+                        .get();
                 this.ledgers.put(logName, ledger);
                 success = true;
             } catch (Exception ex) {
@@ -170,22 +176,14 @@ class BookKeeperAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> append(String logName, Event event, Duration timeout) {
         ensureRunning();
-        LedgerHandle lh = this.ledgers.getOrDefault(logName, null);
+        WriteHandle lh = this.ledgers.getOrDefault(logName, null);
         if (lh == null) {
             return Futures.failedFuture(new StreamSegmentNotExistsException(logName));
         }
 
         ArrayView s = event.getSerialization();
-        val result = new CompletableFuture<Void>();
-        AsyncCallback.AddCallback addCallback = (rc, handle, entryId, ctx) -> {
-            if (rc == BKException.Code.OK) {
-                result.complete(null);
-            } else {
-                result.completeExceptionally(BKException.create(rc));
-            }
-        };
-        lh.asyncAddEntry(s.array(), s.arrayOffset(), s.getLength(), addCallback, null);
-        return result;
+        return Futures.toVoid(lh
+                .appendAsync(s.array(), s.arrayOffset(), s.getLength()));
     }
 
     @Override
