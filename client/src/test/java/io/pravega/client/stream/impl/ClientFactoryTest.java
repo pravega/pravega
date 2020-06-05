@@ -103,7 +103,7 @@ public class ClientFactoryTest {
         EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<String>(), writerConfig);
         assertEquals(writerConfig, writer.getConfig());
     }
-    
+
     @Test
     public void testTxnWriter() {
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("scope", controllerClient, connectionFactory);

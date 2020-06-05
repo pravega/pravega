@@ -328,46 +328,45 @@ public class EndToEndTruncationTest {
     public void testWriteOnSealedStream() throws Exception {
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventWriterConfig writerConfig = EventWriterConfig.builder().build();
+        String scope = "testSeal";
+        String streamName = "test";
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                                         .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        // Create scope and stream.
-        controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream("test", "test", config).get();
+        controllerWrapper.getControllerService().createScope(scope).get();
+        controller.createStream(scope, streamName, config).get();
+
+        config = StreamConfiguration.builder()
+                                    .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                    .build();
+        controller.updateStream(scope, streamName, config).get();
 
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter("test", serializer,
-                writerConfig);
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer, writerConfig);
 
         // write an event.
         writer.writeEvent("0", "data").get();
 
-        // scale down to one segment.
-        Stream stream = new StreamImpl("test", "test");
-        Map<Double, Double> map = new HashMap<>();
-        map.put(0.0, 1.0);
-        assertTrue("Stream Scale down", controller.scaleStream(stream, Lists.newArrayList(0L, 1L), map, executor).getFuture().get());
-
         //Seal Stream.
-        assertTrue(controller.sealStream("test", "test").get());
+        assertTrue(controller.sealStream(scope, streamName).get());
 
         //Write by an existing writer to a sealed stream should complete exceptionally.
         assertFutureThrows("Should throw IllegalStateException",
-                writer.writeEvent("2", "write to sealed stream"),
+                writer.writeEvent("2", "Write to sealed stream"),
                 e -> IllegalStateException.class.isAssignableFrom(e.getClass()));
 
         //Subsequent writes will throw an exception.
-        assertThrows(IllegalStateException.class, () -> writer.writeEvent("test"));
+        assertThrows(IllegalStateException.class, () -> writer.writeEvent("testEvent"));
 
         //Creating a writer against a sealed stream throws an exception.
-        assertThrows(IllegalStateException.class, () -> clientFactory.createEventWriter("test", serializer, writerConfig));
+        assertThrows(IllegalStateException.class, () -> clientFactory.createEventWriter(streamName, serializer, writerConfig));
     }
 
     @Test(timeout = 50000)
