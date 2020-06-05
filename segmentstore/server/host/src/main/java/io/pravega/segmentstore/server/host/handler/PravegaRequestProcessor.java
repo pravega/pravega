@@ -570,11 +570,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(createTableSegment.getRequestId(), "Creating table segment {}.", createTableSegment);
         val timer = new Timer();
 <<<<<<< HEAD
+<<<<<<< HEAD
         tableStore.createSegment(createTableSegment.getSegment(), createTableSegment.isSorted(), TIMEOUT)
 =======
         // TODO: wire in CreateTableSegment.isSorted. https://github.com/pravega/pravega/issues/4656
         tableStore.createSegment(createTableSegment.getSegment(), TIMEOUT)
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+        tableStore.createSegment(createTableSegment.getSegment(), createTableSegment.isSorted(), TIMEOUT)
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
                   .thenAccept(v -> {
                       connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment()));
                       this.tableStatsRecorder.createTableSegment(createTableSegment.getSegment(), timer.getElapsed());

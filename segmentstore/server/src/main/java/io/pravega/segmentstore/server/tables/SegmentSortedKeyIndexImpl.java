@@ -16,9 +16,15 @@ import com.google.common.collect.Iterators;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
+=======
+import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.HashedArray;
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 import io.pravega.common.util.btree.sets.BTreeSet;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -117,17 +123,29 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
             batch.getItems().stream()
                     .filter(item -> !this.dataSource.isKeyExcluded(item.getKey().getKey()))
                     .forEach(item -> this.tailKeys.put(
+<<<<<<< HEAD
                             toArrayView(item.getKey().getKey()),
+=======
+                            item.getKey().getKey(),
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
                             new CacheBucketOffset(batchSegmentOffset + item.getOffset(), batch.isRemoval())));
         }
     }
 
     @Override
+<<<<<<< HEAD
     public void includeTailCache(Map<? extends BufferView, CacheBucketOffset> tailUpdates) {
         synchronized (this.tailKeys) {
             tailUpdates.forEach((key, offset) -> {
                 if (!this.dataSource.isKeyExcluded(key)) {
                     this.tailKeys.put(toArrayView(key), offset);
+=======
+    public void includeTailCache(Map<? extends ArrayView, CacheBucketOffset> tailUpdates) {
+        synchronized (this.tailKeys) {
+            tailUpdates.forEach((key, offset) -> {
+                if (!this.dataSource.isKeyExcluded(key)) {
+                    this.tailKeys.put(key, offset);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
                 }
             });
         }
@@ -151,7 +169,11 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     }
 
     @Override
+<<<<<<< HEAD
     public AsyncIterator<List<BufferView>> iterator(IteratorRange range, Duration fetchTimeout) {
+=======
+    public AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout) {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         // Get a snapshot of the tail keys at the beginning of the iteration. If the state of this index changes throughout
         // the iteration (i.e., calls to persist() and/or updateSegmentIndexOffset(), we may get inconsistent or incorrect
         // results. Since we do not guarantee that changes AFTER the iterator was initiated will be visible in the iteration,
@@ -165,11 +187,15 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     }
 
     @Override
+<<<<<<< HEAD
     public IteratorRange getIteratorRange(@Nullable BufferView fromKeyExclusive, @Nullable BufferView prefix) {
         return getIteratorRange(toArrayView(fromKeyExclusive), toArrayView(prefix));
     }
 
     private IteratorRange getIteratorRange(ArrayView fromKeyExclusive, ArrayView prefix) {
+=======
+    public IteratorRange getIteratorRange(@Nullable ArrayView fromKeyExclusive, @Nullable ArrayView prefix) {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         if (fromKeyExclusive != null && prefix != null) {
             // Validate args.
             Preconditions.checkArgument(KEY_COMPARATOR.compare(fromKeyExclusive, prefix) >= 0,
@@ -217,7 +243,11 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
 
     private CompletableFuture<ArrayView> getBTreeSetPage(long pageId, Duration timeout) {
         return this.dataSource.getRead().apply(this.segmentName, Collections.singletonList(pageIdToKey(pageId)), timeout)
+<<<<<<< HEAD
                 .thenApply(result -> result.isEmpty() || result.get(0) == null ? null : toArrayView(result.get(0).getValue()));
+=======
+                .thenApply(result -> result.isEmpty() || result.get(0) == null ? null : result.get(0).getValue());
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
     }
 
     private CompletableFuture<Void> persistBTreeSet(List<Map.Entry<Long, ArrayView>> toUpdate, Collection<Long> toDelete, Duration timeout) {
@@ -251,6 +281,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
         return new ByteArraySegment(b);
     }
 
+<<<<<<< HEAD
     /**
      * Ensures that the given {@link BufferView} is an {@link ArrayView}. If not, a copy is created and wrapped in an
      * {@link ArrayView}. This is necessary because we may hold on to this {@link BufferView} for a while (cached in the
@@ -268,12 +299,18 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
         return bufferView instanceof ArrayView ? (ArrayView) bufferView : new ByteArraySegment(bufferView.getCopy());
     }
 
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
     //endregion
 
     //region Helper Classes
 
     @RequiredArgsConstructor
+<<<<<<< HEAD
     private static class SortedIterator implements AsyncIterator<List<BufferView>> {
+=======
+    private static class SortedIterator implements AsyncIterator<List<ArrayView>> {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         private final NavigableMap<ArrayView, CacheBucketOffset> tailSnapshot;
         private final AsyncIterator<List<ArrayView>> persistedIterator;
         private final IteratorRange range;
@@ -287,21 +324,33 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
         }
 
         @Override
+<<<<<<< HEAD
         public CompletableFuture<List<BufferView>> getNext() {
+=======
+        public CompletableFuture<List<ArrayView>> getNext() {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
             return this.persistedIterator.getNext().thenApply(keys -> {
                 keys = mixWithTail(keys, this.tailSnapshot, lastKey.get(), range.getTo());
                 if (keys != null && !keys.isEmpty()) {
                     // Keep track of the last key; we'll need it for the next iteration.
                     this.lastKey.set(keys.get(keys.size() - 1));
                 }
+<<<<<<< HEAD
                 return keys == null ? null : keys.stream().map(a -> (BufferView) a).collect(Collectors.toList());
+=======
+                return keys;
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
             });
         }
 
         private List<ArrayView> mixWithTail(List<ArrayView> persistedKeys, NavigableMap<ArrayView, CacheBucketOffset> tailSnapshot,
                                             ArrayView fromExclusive, ArrayView toExclusive) {
             val tailResult = new ArrayList<ArrayView>();
+<<<<<<< HEAD
             val tailKeys = new HashSet<ArrayView>();
+=======
+            val tailKeys = new HashSet<HashedArray>();
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 
             NavigableMap<ArrayView, CacheBucketOffset> tailSection;
             if (persistedKeys == null || persistedKeys.isEmpty()) {
@@ -313,7 +362,11 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
             }
 
             tailSection.forEach((key, offset) -> {
+<<<<<<< HEAD
                 tailKeys.add(key);
+=======
+                tailKeys.add(new HashedArray(key));
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
                 if (!offset.isRemoval()) {
                     tailResult.add(key);
                 }
@@ -328,7 +381,11 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
             }
 
             // Generate an iterator through the persisted keys that excludes anything that was updated in the tail.
+<<<<<<< HEAD
             val persistedIterator = persistedKeys.stream().filter(key -> !tailKeys.contains(key)).iterator();
+=======
+            val persistedIterator = persistedKeys.stream().filter(key -> !tailKeys.contains(new HashedArray(key))).iterator();
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
             val tailIterator = tailResult.iterator();
             val result = new ArrayList<ArrayView>(persistedKeys.size() + tailResult.size());
             Iterators.mergeSorted(Arrays.asList(persistedIterator, tailIterator), KEY_COMPARATOR).forEachRemaining(result::add);
@@ -337,6 +394,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     }
 
     private static class UpdateArgs {
+<<<<<<< HEAD
         final HashSet<ArrayView> insertions = new HashSet<>();
         final HashSet<ArrayView> deletions = new HashSet<>();
         private long highestKeyOffset = -1;
@@ -353,6 +411,22 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
             ArrayView internalKey = toArrayView(key);
             this.deletions.add(internalKey);
             this.insertions.remove(internalKey);
+=======
+        final HashSet<HashedArray> insertions = new HashSet<>();
+        final HashSet<HashedArray> deletions = new HashSet<>();
+        private long highestKeyOffset = -1;
+        private int keyWithHighestOffsetLength = -1;
+
+        void keyInserted(HashedArray key, long offset) {
+            this.insertions.add(key);
+            this.deletions.remove(key);
+            updateHighestKeyOffsets(offset, key.getLength());
+        }
+
+        void keyDeleted(HashedArray key, long offset) {
+            this.deletions.add(key);
+            this.insertions.remove(key);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
             updateHighestKeyOffsets(offset, key.getLength());
         }
 

@@ -9,7 +9,11 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
+=======
+import io.pravega.common.util.ArrayView;
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.time.Duration;
@@ -49,7 +53,11 @@ class SortedKeyIndexDataSource {
      * @param keyContents The Key contents.
      * @return True if the key is an internal key (exclude), false otherwise.
      */
+<<<<<<< HEAD
     boolean isKeyExcluded(BufferView keyContents) {
+=======
+    boolean isKeyExcluded(ArrayView keyContents) {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         return INTERNAL_TRANSLATOR.isInternal(keyContents);
     }
 
@@ -65,6 +73,10 @@ class SortedKeyIndexDataSource {
 
     @FunctionalInterface
     public interface Read {
+<<<<<<< HEAD
         CompletableFuture<List<TableEntry>> apply(String segmentName, List<BufferView> keys, Duration timeout);
+=======
+        CompletableFuture<List<TableEntry>> apply(String segmentName, List<ArrayView> keys, Duration timeout);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
     }
 }

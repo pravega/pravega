@@ -9,6 +9,10 @@
  */
 package io.pravega.segmentstore.contracts.tables;
 
+<<<<<<< HEAD
+=======
+import io.pravega.common.util.ArrayView;
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -85,6 +89,23 @@ public interface TableStore {
      */
     int MAXIMUM_VALUE_LENGTH = 1024 * 1024 - MAXIMUM_KEY_LENGTH;
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+
+    /**
+     * Creates a new Segment and marks it as a Table Segment. This will be a non-sorted Table Segment.
+     * See {@link #createSegment(String, boolean, Duration)} (invoked with sorted:=false).
+     * This segment may not be used for Streaming purposes (i.e., it cannot be used with {@link StreamSegmentStore}).
+     *
+     * @param segmentName The name of the Table Segment to create.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
+     * failed, the future will be failed with the causing exception. Notable Exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentExistsException} If the Segment does exist (whether as a Table Segment or Stream Segment).
+     * </ul>
+     */
+    default CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
+        return createSegment(segmentName, false, timeout);
+    }
 
     /**
      * Creates a new Segment and marks it as a Table Segment.

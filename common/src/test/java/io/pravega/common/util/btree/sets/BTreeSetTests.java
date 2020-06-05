@@ -13,6 +13,10 @@ import io.pravega.common.MathHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
+<<<<<<< HEAD
+=======
+import io.pravega.common.util.HashedArray;
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -20,7 +24,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+<<<<<<< HEAD
 import java.util.HashSet;
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -187,12 +194,20 @@ public class BTreeSetTests extends ThreadPooledTestSuite {
             config.setMaxPageSize(maxUpdateSize);
             config.setAllowDuplicates(false);
             val toInsert = generate(config, random);
+<<<<<<< HEAD
             val uniqueInserts = new HashSet<>(toInsert);
+=======
+            val uniqueInserts = toInsert.stream().map(HashedArray::new).collect(Collectors.toSet());
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 
             val removeBatchSize = random.nextInt(maxBatchSize);
             val toRemove = pickRandomly(expectedItems, (double) removeBatchSize / maxBatchSize, random)
                     .stream()
+<<<<<<< HEAD
                     .filter(a -> !uniqueInserts.contains(a))
+=======
+                    .filter(a -> !uniqueInserts.contains(new HashedArray(a)))
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
                     .collect(Collectors.toList());
 
             set.update(toInsert, toRemove, ds::getNextPageId, TIMEOUT).join();

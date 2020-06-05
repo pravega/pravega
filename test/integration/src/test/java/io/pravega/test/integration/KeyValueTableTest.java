@@ -69,7 +69,6 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.mockito.Mockito.mock;
@@ -275,6 +274,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         }
     }
 
+<<<<<<< HEAD
     @Test
     @Override
     @Ignore
@@ -284,6 +284,8 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
     }
 
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
     @Override
     protected KeyValueTable<Integer, String> createKeyValueTable() {
         val kvt = newKeyValueTableName();

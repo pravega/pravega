@@ -48,6 +48,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+<<<<<<< HEAD
+=======
+import java.util.function.BiConsumer;
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -170,10 +174,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             attributes.put(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE);
         }
 
+<<<<<<< HEAD
         // Fetch defaults for all attributes, but check our own DEFAULT_ATTRIBUTES for any meaningful overrides.
         // NOTE: At the moment, all TableSegments are internal to Pravega and are used for metadata storage. As such, all
         // these defaults make sense for such use cases. If TableSegments are exposed to the end-user, then this method
         // will need to accept external configuration that defines at least MIN_UTILIZATION.
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         val attributeUpdates = attributes
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, DEFAULT_ATTRIBUTES.getOrDefault(e.getKey(), e.getValue())))
@@ -230,7 +237,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     logRequest("put", segmentInfo.getName(), updateBatch.isConditional(), updateBatch.isRemoval(),
                             toUpdate.size(), updateBatch.getLength());
                     return this.keyIndex.update(segment, updateBatch,
+<<<<<<< HEAD
                             () -> commit(toUpdate, this.serializer::serializeUpdate, segment, timer.getRemaining()), timer);
+=======
+                            () -> commit(toUpdate, updateBatch.getLength(), this.serializer::serializeUpdate, segment, timer.getRemaining()), timer);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
                 }, this.executor);
     }
 
@@ -251,17 +262,29 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     logRequest("remove", segmentInfo.getName(), removeBatch.isConditional(), removeBatch.isRemoval(),
                             toRemove.size(), removeBatch.getLength());
                     return this.keyIndex.update(segment, removeBatch,
+<<<<<<< HEAD
                             () -> commit(toRemove, this.serializer::serializeRemoval, segment, timer.getRemaining()), timer);
+=======
+                            () -> commit(toRemove, removeBatch.getLength(), this.serializer::serializeRemoval, segment, timer.getRemaining()), timer);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
                 }, this.executor)
                 .thenRun(Runnables.doNothing());
     }
 
     @Override
+<<<<<<< HEAD
     public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<BufferView> keys, Duration timeout) {
         return get(segmentName, keys, true, timeout);
     }
 
     private CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<BufferView> keys, boolean external, Duration timeout) {
+=======
+    public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<ArrayView> keys, Duration timeout) {
+        return get(segmentName, keys, true, timeout);
+    }
+
+    private CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<ArrayView> keys, boolean external, Duration timeout) {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         Exceptions.checkNotClosed(this.closed.get(), this);
         logRequest("get", segmentName, keys.size());
         if (keys.isEmpty()) {
@@ -339,6 +362,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         return this.segmentContainer.forSegment(segmentName, args.getFetchTimeout())
                 .thenComposeAsync(segment -> {
                     if (ContainerSortedKeyIndex.isSortedTableSegment(segment.getInfo())) {
@@ -350,15 +376,21 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                         return newHashIterator(segment, args, TableBucketReader::key, KeyTranslator::outbound);
                     }
                 }, this.executor);
+<<<<<<< HEAD
 =======
         logRequest("keyIterator", segmentName);
         return newIterator(segmentName, args, TableBucketReader::key);
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
     }
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         return this.segmentContainer.forSegment(segmentName, args.getFetchTimeout())
                 .thenComposeAsync(segment -> {
                     if (ContainerSortedKeyIndex.isSortedTableSegment(segment.getInfo())) {
@@ -369,10 +401,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                         return newHashIterator(segment, args, TableBucketReader::entry, KeyTranslator::outbound);
                     }
                 }, this.executor);
+<<<<<<< HEAD
 =======
         logRequest("entryIterator", segmentName);
         return newIterator(segmentName, args, TableBucketReader::entry);
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
     }
 
     //endregion
@@ -409,7 +444,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newSortedIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
+<<<<<<< HEAD
                                                                                     @NonNull Function<List<BufferView>, CompletableFuture<List<T>>> toResult) {
+=======
+                                                                                    @NonNull Function<List<ArrayView>, CompletableFuture<List<T>>> toResult) {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         return this.keyIndex.getSortedKeyIndex(segment)
                 .thenApply(index -> {
                     val prefix = translateItem(args.getPrefixFilter(), SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR, KeyTranslator::inbound);
@@ -420,7 +459,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     private <T> CompletableFuture<IteratorItem<T>> toSortedIteratorItem(List<BufferView> keys, Function<List<BufferView>,
+=======
+    private <T> CompletableFuture<IteratorItem<T>> toSortedIteratorItem(List<ArrayView> keys, Function<List<ArrayView>,
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
             CompletableFuture<List<T>>> toResult, SegmentProperties segmentInfo) {
         if (keys == null || keys.isEmpty()) {
             // End of iteration.
@@ -446,12 +489,15 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                                                                                   @NonNull GetBucketReader<T> createBucketReader,
                                                                                   @NonNull BiFunction<KeyTranslator, T, T> translateItem) {
         Preconditions.checkArgument(args.getPrefixFilter() == null, "Cannot perform a KeyHash iteration with a prefix.");
+<<<<<<< HEAD
 =======
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, @NonNull IteratorArgs args,
                                                                               @NonNull GetBucketReader<T> createBucketReader) {
         // TODO: this should be implemented with https://github.com/pravega/pravega/issues/4656.
         Preconditions.checkArgument(args.getPrefixFilter() == null, "Prefix Iterator not supported.");
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         UUID fromHash;
         try {
             fromHash = KeyHasher.getNextHash(args.getSerializedState() == null ? null : IteratorState.deserialize(args.getSerializedState()).getKeyHash());
@@ -466,6 +512,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         return this.segmentContainer
                 .forSegment(segmentName, args.getFetchTimeout())
@@ -475,6 +522,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> buildIterator(
             DirectSegmentAccess segment, GetBucketReader<T> createBucketReader, UUID fromHash, Duration fetchTimeout) {
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         // Create a converter that will use a TableBucketReader to fetch all requested items in the iterated Buckets.
         val bucketReader = createBucketReader.apply(segment, this.keyIndex::getBackpointerOffset, this.executor);
         val segmentInfo = segment.getInfo();
@@ -596,7 +645,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     @Data
     private static class IteratorItemImpl<T> implements IteratorItem<T> {
+<<<<<<< HEAD
         private final BufferView state;
+=======
+        private final ArrayView state;
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         private final Collection<T> entries;
     }
 

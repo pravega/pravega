@@ -16,6 +16,8 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.HashedArray;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -656,6 +658,7 @@ class ContainerKeyIndex implements AutoCloseable {
     @RequiredArgsConstructor
     private static class TailUpdates {
         final Map<UUID, CacheBucketOffset> byBucket = new HashMap<>();
+<<<<<<< HEAD
         final Map<BufferView, CacheBucketOffset> byKey = new HashMap<>();
         private final boolean recordByKey;
 
@@ -664,6 +667,16 @@ class ContainerKeyIndex implements AutoCloseable {
             this.byBucket.put(keyHash, cbo);
             if (this.recordByKey) {
                 this.byKey.put(key, cbo);
+=======
+        final Map<ArrayView, CacheBucketOffset> byKey = new HashMap<>();
+        private final boolean recordByKey;
+
+        void add(byte[] key, UUID keyHash, long offset, boolean isDeletion) {
+            CacheBucketOffset cbo = new CacheBucketOffset(offset, isDeletion);
+            this.byBucket.put(keyHash, cbo);
+            if (this.recordByKey) {
+                this.byKey.put(new HashedArray(key), cbo);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
             }
         }
     }

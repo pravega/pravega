@@ -11,6 +11,10 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
+<<<<<<< HEAD
+=======
+import io.pravega.common.util.HashedArray;
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.util.Arrays;
@@ -59,12 +63,20 @@ public class KeyTranslatorTests {
             val entry = TableEntry.versioned(keyData, new ByteArraySegment(new byte[]{10, 11}), 64789L);
             val expectedInboundKeyData = externalToInternal.apply(keyData);
 
+<<<<<<< HEAD
             boolean isIdentity = keyData.equals(expectedInboundKeyData);
+=======
+            boolean isIdentity = HashedArray.arrayEquals(keyData, expectedInboundKeyData);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
             Assert.assertEquals(isIdentity, translator.isInternal(keyData));
             Assert.assertEquals(isIdentity, translator.isInternal(key));
 
             val inboundKeyData = translator.inbound(keyData);
+<<<<<<< HEAD
             Assert.assertEquals(expectedInboundKeyData, inboundKeyData);
+=======
+            Assert.assertTrue(HashedArray.arrayEquals(expectedInboundKeyData, inboundKeyData));
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
             Assert.assertTrue(translator.isInternal(expectedInboundKeyData));
 
             val expectedInboundKey = TableKey.versioned(expectedInboundKeyData, key.getVersion());
@@ -77,7 +89,11 @@ public class KeyTranslatorTests {
             Assert.assertEquals(expectedInboundEntry, inboundEntry);
 
             val outboundKeyData = translator.outbound(inboundKeyData);
+<<<<<<< HEAD
             Assert.assertEquals(keyData, outboundKeyData);
+=======
+            Assert.assertTrue(HashedArray.arrayEquals(keyData, outboundKeyData));
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 
             val outboundKey = translator.outbound(inboundKey);
             Assert.assertEquals(key, outboundKey);

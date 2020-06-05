@@ -10,12 +10,19 @@
 package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
+=======
+import io.pravega.common.util.ArrayView;
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import lombok.RequiredArgsConstructor;
+<<<<<<< HEAD
 import lombok.SneakyThrows;
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 
 /**
  * Translates Table Segment Keys from an external form into an internal one and back.
@@ -45,10 +52,17 @@ abstract class KeyTranslator {
     /**
      * Translates the given external Key data into an internal form.
      *
+<<<<<<< HEAD
      * @param external The external Key data. This {@link BufferView} instance will not be altered.
      * @return A new {@link BufferView} representing the internal Key data.
      */
     abstract BufferView inbound(BufferView external);
+=======
+     * @param external The external Key data. This {@link ArrayView} instance will not be altered.
+     * @return A new {@link ArrayView} representing the internal Key data.
+     */
+    abstract ArrayView inbound(ArrayView external);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 
     /**
      * Translates the given external {@link TableKey} data into an internal form.
@@ -74,10 +88,17 @@ abstract class KeyTranslator {
     /**
      * Translates the given internal Key data into an external form.
      *
+<<<<<<< HEAD
      * @param internal The internal Key data. This {@link BufferView} instance will not be altered.
      * @return A new {@link BufferView} representing the external Key data.
      */
     abstract BufferView outbound(BufferView internal);
+=======
+     * @param internal The internal Key data. This {@link ArrayView} instance will not be altered.
+     * @return A new {@link ArrayView} representing the external Key data.
+     */
+    abstract ArrayView outbound(ArrayView internal);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 
     /**
      * Translates the given internal {@link TableKey} data into an external form.
@@ -103,12 +124,20 @@ abstract class KeyTranslator {
     }
 
     /**
+<<<<<<< HEAD
      * Determines whether the given {@link BufferView} represents a key that has been modified.
+=======
+     * Determines whether the given {@link ArrayView} represents a key that has been modified.
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
      *
      * @param key The key to check.
      * @return True if this is the result of a call to {@link #inbound}, false otherwise.
      */
+<<<<<<< HEAD
     abstract boolean isInternal(BufferView key);
+=======
+    abstract boolean isInternal(ArrayView key);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 
     /**
      * Determines whether the given {@link TableKey} represents a key that has been modified.
@@ -129,6 +158,7 @@ abstract class KeyTranslator {
         private final byte partition;
 
         @Override
+<<<<<<< HEAD
         @SneakyThrows
         BufferView inbound(BufferView external) {
             return BufferView.builder(2)
@@ -158,6 +188,38 @@ abstract class KeyTranslator {
                 return false;
             }
             return key.getBufferViewReader().readByte() == this.partition;
+=======
+        ArrayView inbound(ArrayView external) {
+            byte[] data = new byte[1 + external.getLength()];
+            data[0] = this.partition;
+            if (external.getLength() > 0) {
+                external.copyTo(data, 1, external.getLength());
+            }
+
+            return new ByteArraySegment(data);
+        }
+
+        @Override
+        ArrayView outbound(ArrayView internal) {
+            Preconditions.checkArgument(internal.getLength() >= 1,
+                    "Key too short. Expected at least 1, given %s.", internal.getLength());
+            byte p = internal.get(0);
+            Preconditions.checkArgument(p == this.partition, "Wrong partition. Expected %s, found %s.", this.partition, p);
+            if (internal.getLength() == 1) {
+                // There was no key to begin with.
+                return new ByteArraySegment(new byte[0]);
+            }
+
+            return internal.slice(1, internal.getLength() - 1);
+        }
+
+        @Override
+        boolean isInternal(ArrayView key) {
+            if (key.getLength() < 1) {
+                return false;
+            }
+            return key.get(0) == this.partition;
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         }
     }
 
@@ -167,7 +229,11 @@ abstract class KeyTranslator {
 
     private static class IdentityTranslator extends KeyTranslator {
         @Override
+<<<<<<< HEAD
         BufferView inbound(BufferView external) {
+=======
+        ArrayView inbound(ArrayView external) {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
             return external;
         }
 
@@ -182,7 +248,11 @@ abstract class KeyTranslator {
         }
 
         @Override
+<<<<<<< HEAD
         BufferView outbound(BufferView internal) {
+=======
+        ArrayView outbound(ArrayView internal) {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
             return internal;
         }
 
@@ -197,7 +267,11 @@ abstract class KeyTranslator {
         }
 
         @Override
+<<<<<<< HEAD
         boolean isInternal(BufferView key) {
+=======
+        boolean isInternal(ArrayView key) {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
             return true;
         }
     }

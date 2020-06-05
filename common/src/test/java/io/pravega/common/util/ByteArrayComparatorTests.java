@@ -15,7 +15,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+<<<<<<< HEAD
 import java.util.function.Function;
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import lombok.val;
@@ -47,6 +50,7 @@ public class ByteArrayComparatorTests {
     }
 
     /**
+<<<<<<< HEAD
      * Tests comparing different-length {@link ArrayView} instances.
      */
     @Test
@@ -81,6 +85,21 @@ public class ByteArrayComparatorTests {
             if (compareResult == 0) {
                 // Only equal to itself.
                 Assert.assertTrue(s.getLength() == 1 && s.getBufferViewReader().readByte() == ByteArrayComparator.MIN_VALUE);
+=======
+     * Tests comparing different-length {@link ArrayView} instances
+     */
+    @Test
+    public void testCompareArrayViewVariableSize() {
+        val c = new ByteArrayComparator();
+        val sortedData = generateSortedVariableData().stream().map(ByteArraySegment::new).collect(Collectors.toList());
+        sortedData.add(0, new ByteArraySegment(new byte[0])); // Empty.
+        test(sortedData, c::compare);
+        for (val s : sortedData) {
+            int compareResult = c.compare(new ByteArraySegment(c.getMinValue()), s);
+            if (compareResult == 0) {
+                // Only equal to itself.
+                Assert.assertTrue(s.getLength() == 1 && s.get(0) == ByteArrayComparator.MIN_VALUE);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
             } else if (compareResult > 0) {
                 // Only empty array is smaller than it.
                 Assert.assertEquals(0, s.getLength());

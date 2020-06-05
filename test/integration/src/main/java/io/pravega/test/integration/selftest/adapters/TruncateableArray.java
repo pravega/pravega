@@ -131,11 +131,14 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
+<<<<<<< HEAD
     public Reader getBufferViewReader() {
         throw new UnsupportedOperationException("getBufferViewReader() not supported.");
     }
 
     @Override
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
     public ArrayView slice(int offset, int length) {
         throw new UnsupportedOperationException("slice() not supported.");
     }

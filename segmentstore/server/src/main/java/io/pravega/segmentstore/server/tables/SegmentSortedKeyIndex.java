@@ -12,7 +12,10 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.annotations.Beta;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -54,7 +57,11 @@ interface SegmentSortedKeyIndex {
      *
      * @param tailUpdates The updates to include.
      */
+<<<<<<< HEAD
     void includeTailCache(Map<? extends BufferView, CacheBucketOffset> tailUpdates);
+=======
+    void includeTailCache(Map<? extends ArrayView, CacheBucketOffset> tailUpdates);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 
     /**
      * Notifies that the Table Segment has indexed and durably persisted all updates up to and including the given offset.
@@ -72,7 +79,11 @@ interface SegmentSortedKeyIndex {
      * @param fetchTimeout Timeout for each fetch triggered by {@link AsyncIterator#getNext()}.
      * @return An {@link AsyncIterator} that can be used to iterate keys.
      */
+<<<<<<< HEAD
     AsyncIterator<List<BufferView>> iterator(IteratorRange range, Duration fetchTimeout);
+=======
+    AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 
     /**
      * Generates a {@link IteratorRange} that can be used as argument to {@link #iterator} from the given input.
@@ -82,7 +93,11 @@ interface SegmentSortedKeyIndex {
      * @param prefix           The prefix of all keys returned.
      * @return An {@link IteratorRange}.
      */
+<<<<<<< HEAD
     IteratorRange getIteratorRange(@Nullable BufferView fromKeyExclusive, @Nullable BufferView prefix);
+=======
+    IteratorRange getIteratorRange(@Nullable ArrayView fromKeyExclusive, @Nullable ArrayView prefix);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 
     /**
      * Arguments for {@link #iterator}.
@@ -119,7 +134,11 @@ interface SegmentSortedKeyIndex {
             }
 
             @Override
+<<<<<<< HEAD
             public void includeTailCache(Map<? extends BufferView, CacheBucketOffset> tailUpdates) {
+=======
+            public void includeTailCache(Map<? extends ArrayView, CacheBucketOffset> tailUpdates) {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
                 // This method intentionally left blank.
             }
 
@@ -129,12 +148,20 @@ interface SegmentSortedKeyIndex {
             }
 
             @Override
+<<<<<<< HEAD
             public AsyncIterator<List<BufferView>> iterator(IteratorRange range, Duration fetchTimeout) {
+=======
+            public AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout) {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
                 return () -> CompletableFuture.completedFuture(null);
             }
 
             @Override
+<<<<<<< HEAD
             public IteratorRange getIteratorRange(@Nullable BufferView fromKeyExclusive, @Nullable BufferView prefix) {
+=======
+            public IteratorRange getIteratorRange(@Nullable ArrayView fromKeyExclusive, @Nullable ArrayView prefix) {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
                 return new IteratorRange(null, null);
             }
         };

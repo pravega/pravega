@@ -142,6 +142,9 @@ public class AsyncIteratorTests extends ThreadPooledTestSuite {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
     /**
      * Tests the {@link AsyncIterator#thenCompose} method.
      */
@@ -156,8 +159,11 @@ public class AsyncIteratorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertListEquals("Unexpected result.", expectedResult, result, String::equals);
     }
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
     private static class TestIterator<T> implements AsyncIterator<T> {
         @GuardedBy("items")
         private final Iterator<CompletableFuture<T>> items;

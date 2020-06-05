@@ -90,7 +90,10 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
     private static final int DEFAULT_COMPACTION_SIZE = -1; // Inherits from parent.
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+<<<<<<< HEAD
     private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
 
@@ -615,11 +618,19 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
     }
 
+<<<<<<< HEAD
     private void deleteSegment(Collection<BufferView> remainingKeys, ContainerTableExtension ext) throws Exception {
         deleteSegment(remainingKeys, true, ext);
     }
 
     private void deleteSegment(Collection<BufferView> remainingKeys, boolean mustBeEmpty, ContainerTableExtension ext) throws Exception {
+=======
+    private void deleteSegment(Collection<HashedArray> remainingKeys, ContainerTableExtension ext) throws Exception {
+        deleteSegment(remainingKeys, true, ext);
+    }
+
+    private void deleteSegment(Collection<HashedArray> remainingKeys, boolean mustBeEmpty, ContainerTableExtension ext) throws Exception {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         if (remainingKeys.size() > 0) {
             AssertExtensions.assertSuppliedFutureThrows(
                     "deleteIfEmpty worked on a non-empty segment.",
@@ -683,7 +694,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     @SneakyThrows
+<<<<<<< HEAD
     private void checkIteratorsSorted(Map<BufferView, BufferView> expectedEntries, ContainerTableExtension ext) {
+=======
+    private void checkIteratorsSorted(Map<HashedArray, HashedArray> expectedEntries, ContainerTableExtension ext) {
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
         val iteratorArgs = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
 
         // Collect and verify all Table Entries.
@@ -691,7 +706,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
         // Get the existing entries and sort them.
         val existingEntries = ext.get(SEGMENT_NAME, new ArrayList<>(expectedEntries.keySet()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+<<<<<<< HEAD
         existingEntries.sort((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey().getKey(), e2.getKey().getKey()));
+=======
+        existingEntries.sort((e1, e2) -> SegmentSortedKeyIndexImpl.KEY_COMPARATOR.compare(e1.getKey().getKey(), e2.getKey().getKey()));
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 
         // Extract the keys from the entries. They should still be sorted.
         val existingKeys = existingEntries.stream().map(TableEntry::getKey).collect(Collectors.toList());
@@ -702,7 +721,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         // need to only check key equality.
         val actualKeys = collectIteratorItems(ext.keyIterator(SEGMENT_NAME, iteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
         AssertExtensions.assertListEquals("Unexpected Table Keys from keyIterator().", existingKeys, actualKeys,
+<<<<<<< HEAD
                 (k1, k2) -> k1.getKey().equals(k2.getKey()));
+=======
+                (k1, k2) -> HashedArray.arrayEquals(k1.getKey(), k2.getKey()));
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
     }
 
     private <T> List<T> collectIteratorItems(AsyncIterator<IteratorItem<T>> iterator) throws Exception {

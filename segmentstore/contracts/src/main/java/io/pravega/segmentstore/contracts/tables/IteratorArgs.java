@@ -30,6 +30,7 @@ import lombok.NonNull;
 public class IteratorArgs {
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
      * EXPERIMENTAL!
      * (Optional) A filter to apply to all returned Iterator Entries. If specified, only those entries whose keys begin
      * with this prefix will be included.
@@ -39,9 +40,13 @@ public class IteratorArgs {
     @Beta
     private final BufferView prefixFilter;
 =======
+=======
+     * EXPERIMENTAL!
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
      * (Optional) A filter to apply to all returned Iterator Entries. If specified, only those entries whose keys begin
      * with this prefix will be included.
-     * TODO: this feature is not currently supported.
+     * This option only applies to Sorted Table Segments (see {@link TableStore}. An attempt to use it on a non-Sorted
+     * Table Segment will result in an {@link IllegalArgumentException}.
      */
     @Beta
     private final ArrayView prefixFilter;

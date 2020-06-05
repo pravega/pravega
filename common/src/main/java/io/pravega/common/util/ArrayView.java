@@ -55,6 +55,9 @@ public interface ArrayView extends BufferView {
 
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
      * Creates a new {@link ArrayView} that represents a sub-range of this {@link ArrayView} instance. The new instance
      * will share the same backing array as this one, so a change to one will be reflected in the other.
      *
@@ -66,8 +69,11 @@ public interface ArrayView extends BufferView {
     ArrayView slice(int offset, int length);
 
     /**
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
      * Returns a new {@link ByteBuffer} that wraps the contents of this {@link ArrayView}.
      *
      * @return A {@link ByteBuffer} that shares the same backing array as this {@link ArrayView}. Any changes made to

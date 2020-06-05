@@ -12,8 +12,12 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArrayComparator;
+=======
+import io.pravega.common.util.ArrayView;
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -401,6 +405,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         }
     }
 
+<<<<<<< HEAD
     private void checkSortedKeyIndex(HashMap<BufferView, TableEntry> existingEntries, TestContext context) {
         val expectedKeys = new ArrayList<>(existingEntries.keySet());
         expectedKeys.sort(new ByteArrayComparator()::compare);
@@ -408,6 +413,15 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         context.sortedKeyIndex.iterator(context.sortedKeyIndex.getIteratorRange(null, null), TIMEOUT)
                 .forEachRemaining(actualKeys::addAll, executorService()).join();
         AssertExtensions.assertListEquals("", expectedKeys, actualKeys, BufferView::equals);
+=======
+    private void checkSortedKeyIndex(HashMap<HashedArray, TableEntry> existingEntries, TestContext context) {
+        val expectedKeys = new ArrayList<>(existingEntries.keySet());
+        expectedKeys.sort(SegmentSortedKeyIndexImpl.KEY_COMPARATOR);
+        val actualKeys = new ArrayList<ArrayView>();
+        context.sortedKeyIndex.iterator(context.sortedKeyIndex.getIteratorRange(null, null), TIMEOUT)
+                .forEachRemaining(actualKeys::addAll, executorService()).join();
+        AssertExtensions.assertListEquals("", expectedKeys, actualKeys, HashedArray::arrayEquals);
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
     }
 
     private ArrayList<TestBatchData> generateAndPopulateEntries(TestContext context) {
@@ -446,7 +460,11 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
                 // Run the key through the external translator to ensure that we don't clash with internal keys by chance.
                 // (this is done for us by ContainerTableExtensionImpl already, so we're only simulating the same behavior).
+<<<<<<< HEAD
                 val key = SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(keyData));
+=======
+                val key = new HashedArray(SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(keyData)));
+>>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
                 val offset = context.metadata.getLength();
                 val entry = TableEntry.versioned(key, new ByteArraySegment(valueData), offset);
                 append = generateRawAppend(entry, offset, context);
