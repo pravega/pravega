@@ -38,7 +38,7 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.SegmentWithRange.Range;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
-import io.pravega.common.util.CopyOnWriteMapUtils;
+import io.pravega.common.util.CopyOnWriteHashMap;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
@@ -81,14 +81,13 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private final List<EventSegmentReader> readers = new ArrayList<>();
     @GuardedBy("readers")
-    private Map<Segment, Range> ranges = new HashMap<>();
-    @GuardedBy("readers")
     private final Map<Segment, Long> sealedSegments = new HashMap<>();
     @GuardedBy("readers")
     private Sequence lastRead;
-    @GuardedBy("readers")
+    // Ranges, ownedSegments and segmentOffsetUpdates may be lazily accessed by PositionImpl objects to build their
+    // state. The objective is to avoid creating per-event collections for performance reasons.
+    private CopyOnWriteHashMap<Segment, Range> ranges = new CopyOnWriteHashMap<>();
     private Map<Segment, Long> ownedSegments = new HashMap<>();
-    @GuardedBy("readers")
     private List<Entry<Segment, Long>> segmentOffsetUpdates = newImmutableSegmentOffsetUpdatesList();
     @GuardedBy("readers")
     private int segmentOffsetUpdatesIndex = 0;
@@ -221,7 +220,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
      */
     private PositionInternal getCurrentPosition() {
         return PositionImpl.builder().ownedSegments(ownedSegments)
-                                     .segmentRanges(ranges)
+                                     .segmentRanges(ranges.getInnerMap())
                                      .updatesToSegmentOffsets(segmentOffsetUpdates.subList(0, segmentOffsetUpdatesIndex))
                                      .build();
     }
@@ -305,7 +304,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             if (reader != null) {
                 if (groupState.releaseSegment(segment, reader.getOffset(), getLag(), position)) {
                     readers.remove(reader);
-                    ranges = CopyOnWriteMapUtils.remove(ranges, reader.getSegmentId());
+                    ranges.remove(reader.getSegmentId());
                     reader.close();
                 }
             }
@@ -320,7 +319,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             Segment oldSegment = iterator.next().getKey();
             Range range = ranges.get(oldSegment);
             if (groupState.handleEndOfSegment(new SegmentWithRange(oldSegment, range))) {
-                ranges = CopyOnWriteMapUtils.remove(ranges, oldSegment);
+                ranges.remove(oldSegment);
                 iterator.remove();
             } else {
                 break;
@@ -337,14 +336,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 long endOffset = groupState.getEndOffsetForSegment(newSegment.getKey().getSegment());
                 if (newSegment.getValue() < 0 || (newSegment.getValue() == endOffset && endOffset != Long.MAX_VALUE)) {
                     sealedSegments.put(newSegment.getKey().getSegment(), newSegment.getValue());
-                    ranges = CopyOnWriteMapUtils.put(ranges, newSegment.getKey().getSegment(), newSegment.getKey().getRange());
+                    ranges.put(newSegment.getKey().getSegment(), newSegment.getKey().getRange());
                 } else {
                     Segment segment = newSegment.getKey().getSegment();
                     EventSegmentReader in = inputStreamFactory.createEventReaderForSegment(segment, config.getBufferSize(),
                                                                                            segmentsWithData, endOffset);
                     in.setOffset(newSegment.getValue());
                     readers.add(in);
-                    ranges = CopyOnWriteMapUtils.put(ranges, segment, newSegment.getKey().getRange());
+                    ranges.put(segment, newSegment.getKey().getRange());
                 }
             }
             segmentsWithData.release();
@@ -410,7 +409,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     reader.close();
                 }
                 readers.clear();
-                ranges = new HashMap<>();
+                ranges = new CopyOnWriteHashMap<>();
                 ownedSegments = new HashMap<>();
                 segmentOffsetUpdates = newImmutableSegmentOffsetUpdatesList();
                 segmentOffsetUpdatesIndex = 0;
@@ -448,7 +447,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @VisibleForTesting
     Map<Segment, Range> getRanges() {
         synchronized (readers) {
-            return ImmutableMap.copyOf(ranges);
+            return ImmutableMap.copyOf(ranges.getInnerMap());
         }
     }
 
