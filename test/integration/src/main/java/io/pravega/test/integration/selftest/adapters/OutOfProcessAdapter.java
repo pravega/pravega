@@ -190,24 +190,24 @@ class OutOfProcessAdapter extends ExternalAdapter {
         int rpcPort = this.testConfig.getControllerRpcPort(controllerId);
         Process p = ProcessStarter
                 .forClass(io.pravega.controller.server.Main.class)
-                .sysProp("controller.containerCount", this.testConfig.getContainerCount())
-                .sysProp("controller.zk.url", getZkUrl())
-                .sysProp("controller.service.port", port)
-                .sysProp("controller.auth.enabled", this.testConfig.isEnableSecurity())
-                .sysProp("controller.auth.userPasswordFile",
+                .sysProp("controller.container.count", this.testConfig.getContainerCount())
+                .sysProp("controller.zk.connect.uri", getZkUrl())
+                .sysProp("controller.service.rpc.listener.port", port)
+                .sysProp("controller.security.auth.enable", this.testConfig.isEnableSecurity())
+                .sysProp("controller.security.pwdAuthHandler.accountsDb.location",
                         pathOfConfigItem(SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME))
-                .sysProp("controller.auth.tlsEnabled", this.testConfig.isEnableSecurity())
-                .sysProp("controller.auth.tlsCertFile",
+                .sysProp("controller.security.tls.enable", this.testConfig.isEnableSecurity())
+                .sysProp("controller.security.tls.server.certificate.location",
                         pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME))
-                .sysProp("controller.auth.tlsTrustStore",
+                .sysProp("controller.security.tls.trustStore.location",
                         pathOfConfigItem(SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME))
-                .sysProp("controller.auth.tlsKeyFile",
+                .sysProp("controller.security.tls.server.privateKey.location",
                         pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME))
-                .sysProp("controller.auth.tokenSigningKey", "secret")
-                .sysProp("controller.service.restIp", TestConfig.LOCALHOST)
-                .sysProp("controller.service.restPort", restPort)
-                .sysProp("controller.service.publishedRPCHost", TestConfig.LOCALHOST)
-                .sysProp("controller.service.publishedRPCPort", rpcPort)
+                .sysProp("controller.security.auth.delegationToken.signingKey.basis", "secret")
+                .sysProp("controller.service.rest.listener.host.ip", TestConfig.LOCALHOST)
+                .sysProp("controller.service.rest.listener.port", restPort)
+                .sysProp("controller.service.rpc.published.host.nameOrIp", TestConfig.LOCALHOST)
+                .sysProp("controller.service.rpc.published.port", rpcPort)
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("controller", controllerId))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("controller", controllerId))))
                 .start();

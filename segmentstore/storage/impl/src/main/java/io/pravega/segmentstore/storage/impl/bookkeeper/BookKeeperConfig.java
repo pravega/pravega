@@ -47,7 +47,7 @@ public class BookKeeperConfig {
     public static final Property<String> TLS_TRUST_STORE_PASSWORD_PATH = Property.named("connect.security.trustStore.pwd.location", "", "tlsTrustStorePasswordPath");
     public static final Property<Boolean> BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE = Property.named("write.quorum.racks.minimumCount.enable", false, "enforceMinNumRacksPerWriteQuorum");
     public static final Property<Integer> BK_MIN_NUM_RACKS_PER_WRITE_QUORUM = Property.named("write.quorum.racks.count.min", 2, "minNumRacksPerWriteQuorum");
-    public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopology.scriptFileName",
+    public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopology.script.location",
             "/opt/pravega/scripts/sample-bookkeeper-topology.sh", "networkTopologyScriptFileName");
     public static final Property<String> BK_DIGEST_TYPE = Property.named("digest.type.name", DigestType.CRC32C.name(), "digestType");
 
