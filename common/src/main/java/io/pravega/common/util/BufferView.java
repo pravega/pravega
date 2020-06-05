@@ -65,7 +65,8 @@ public interface BufferView {
 
     /**
      * Equivalent to invoking {@link #slice(int, int)} with offset 0 and getLength(). Depending on the implementation,
-     * this may return this instance or a new instance that is a copy of this one but pointing to the same backing buffer.
+     * this may return this instance or a new instance that is a duplicate of this one but pointing to the same backing buffer.
+     * No data copies are being made as part of invoking this method.
      *
      * @return A {@link BufferView}.
      */
@@ -128,7 +129,8 @@ public interface BufferView {
     }
 
     /**
-     * Gets a list of {@link ByteBuffer} that represent the contents of this {@link BufferView}.
+     * Gets a list of {@link ByteBuffer} that represent the contents of this {@link BufferView}. These buffer point
+     * directly to the data contained within this buffer (i.e., they are not copies of the data).
      *
      * @return A List of {@link ByteBuffer}.
      */
@@ -138,7 +140,9 @@ public interface BufferView {
      * Iterates through each of the buffers that make up this {@link BufferView}, in order, and invokes the given
      * {@link Collector} on each.
      *
-     * @param collectBuffer A {@link Collector} function that will be invoked for each component.
+     * @param collectBuffer A {@link Collector} function that will be invoked for each component. Each {@link ByteBuffer}
+     *                      passed as an argument to this function is a direct pointer to the data contained within the
+     *                      {@link BufferView} (i.e., they are not copies of the data).
      * @param <ExceptionT>  Type of exception that the {@link Collector} function throws, if any.
      * @throws ExceptionT If the {@link Collector} function throws an exception of this type, the iteration will end
      *                    and the exception will be bubbled up.
@@ -148,7 +152,9 @@ public interface BufferView {
     /**
      * Wraps the given {@link BufferView} into a single instance.
      *
-     * @param components The components to wrap.
+     * @param components The components to wrap. These components will be added by reference, without making any data
+     *                   copies. Any modifications made to these components will be reflected in the returned
+     *                   {@link BufferView} and vice-versa.
      * @return An empty {@link BufferView} (if the component list is empty), the first item in the list (if the component
      * list has 1 element) or a {@link CompositeBufferView} wrapping all the given instances otherwise.
      */

@@ -16,7 +16,7 @@ import lombok.Getter;
 import lombok.NonNull;
 
 /**
- * Builder for {@link BufferView} instances..
+ * Builder for {@link BufferView} instances.
  */
 @NotThreadSafe
 public class BufferViewBuilder {
@@ -41,7 +41,11 @@ public class BufferViewBuilder {
      * Includes the given {@link BufferView} in the builder.
      *
      * @param bufferView The {@link BufferView} to include. If empty, it will be ignored; if a {@link CompositeBufferView},
-     *                   its components will be added; otherwise it will be added as-is.
+     *                   its components will be added; otherwise the buffer itself will be added. No data copies are
+     *                   being made as part of this process; the resulting {@link BufferView} after invoking {@link #build()}
+     *                   will contain references to the {@link BufferView}s passed via this method and not contain copies
+     *                   of their data. Any modifications made to this {@link BufferView} will be reflected in the resulting
+     *                   {@link BufferView} and viceversa.
      */
     public void add(@NonNull BufferView bufferView) {
         if (bufferView.getLength() == 0) {

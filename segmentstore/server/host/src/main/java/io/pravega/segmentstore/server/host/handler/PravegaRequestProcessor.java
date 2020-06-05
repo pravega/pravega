@@ -740,7 +740,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         val msgSize = new AtomicInteger(segment.getBytes().length + WireCommands.TableKeysRead.HEADER_BYTES);
         val continuationToken = new AtomicReference<>(EMPTY_BUFFER);
-        val keys = new ArrayList<WireCommands.TableKey>();
+        val keys = Collections.synchronizedList(new ArrayList<WireCommands.TableKey>());
         val timer = new Timer();
         tableStore.keyIterator(segment, state, TIMEOUT)
                 .thenCompose(itr -> itr.collectRemaining(
@@ -748,7 +748,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             if (keys.size() >= suggestedKeyCount || msgSize.get() >= MAX_READ_SIZE) {
                                 return false;
                             }
-                            Collection<TableKey> tableKeys = e.getEntries();
                             ArrayView lastState = e.getState();
 
                             // Store all TableKeys.
@@ -794,7 +793,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         val msgSize = new AtomicInteger(segment.getBytes().length + WireCommands.TableEntriesRead.HEADER_BYTES);
         val continuationToken = new AtomicReference<>(EMPTY_BUFFER);
-        val entries = new ArrayList<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>>();
+        val entries = Collections.synchronizedList(new ArrayList<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>>());
         val timer = new Timer();
         tableStore.entryIterator(segment, state, TIMEOUT)
                 .thenCompose(itr -> itr.collectRemaining(
