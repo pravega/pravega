@@ -48,7 +48,8 @@ public class StreamInfo {
     private final StreamCut headStreamCut;
 
     /**
-     * Represents the stream state. It is set to True if the stream is Sealed.
+     * Indicates whether the Stream is sealed (true) or not (false). If a stream is sealed, then no further Events
+     * can be written to it.
      */
     private final boolean sealed;
 }
