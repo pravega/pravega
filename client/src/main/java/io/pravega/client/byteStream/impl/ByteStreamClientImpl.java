@@ -75,8 +75,8 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
     @Override
     public ByteStreamWriter createByteStreamWriter(String streamName) {
         StreamSegments segments = Futures.getThrowingException(controller.getCurrentSegments(scope, streamName));
-        Preconditions.checkArgument(segments.getNumberOfSegments() == 0, "Stream is sealed");
-        Preconditions.checkArgument(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
+        Preconditions.checkState(segments.getNumberOfSegments() > 0, "Stream is sealed");
+        Preconditions.checkState(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
         Segment segment = segments.getSegments().iterator().next();
         EventWriterConfig config = EventWriterConfig.builder().build();
         String delegationToken = segments.getDelegationToken();
