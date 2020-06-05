@@ -79,6 +79,16 @@ public class Property<T> {
         return this.legacyName != null;
     }
 
+    /**
+     * Returns full property name using the specified component code.
+     *
+     * @param componentCode the component prefix (`controller.`, `pravegaservice`, etc.)
+     * @return fully qualified property name
+     */
+    public String getFullName(String componentCode) {
+        return String.format("%s.%s", componentCode, this.getName());
+    }
+
     @Override
     public String toString() {
         return this.name;
