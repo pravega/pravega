@@ -36,7 +36,6 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.mockito.Mockito.mock;
@@ -110,14 +109,6 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
                     () -> this.tableStore.get(s.getScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
-    }
-
-    @Test
-    @Override
-    @Ignore
-    public void testIterators() {
-        // TODO: iterators not yet supported server-side.
-        super.testIterators();
     }
 
     @Override

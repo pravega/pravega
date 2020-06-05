@@ -113,6 +113,19 @@ public interface AsyncIterator<T> {
     }
 
     /**
+     * Returns a new {@link AsyncIterator} that wraps this instance and converts all items from this one into items of a
+     * new type using an async call.
+     *
+     * @param converter A {@link Function} that will convert {@link T} to {@link U}.
+     * @param <U>       New type.
+     * @return A new {@link AsyncIterator}.
+     */
+    default <U> AsyncIterator<U> thenCompose(@NonNull Function<? super T, CompletableFuture<U>> converter) {
+        return () -> AsyncIterator.this.getNext()
+                .thenCompose(item -> item == null ? CompletableFuture.completedFuture(null) : converter.apply(item));
+    }
+
+    /**
      * Returns an {@link Iterator} that wraps this instance.
      *
      * @return A new {@link BlockingAsyncIterator} wrapping this instance.

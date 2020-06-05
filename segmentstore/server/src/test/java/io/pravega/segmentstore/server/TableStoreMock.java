@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
@@ -57,8 +58,9 @@ public class TableStoreMock implements TableStore {
     //region TableStore Implementation
 
     @Override
-    public CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
+    public CompletableFuture<Void> createSegment(String segmentName, boolean sorted, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkArgument(!sorted, "Sorted Table Segments not supported in this mock.");
         return CompletableFuture.runAsync(() -> {
             synchronized (this.tables) {
                 if (this.tables.containsKey(segmentName)) {

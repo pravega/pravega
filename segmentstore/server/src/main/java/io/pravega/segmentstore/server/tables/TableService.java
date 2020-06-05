@@ -48,9 +48,9 @@ public class TableService extends SegmentContainerCollection implements TableSto
     //region TableStore Implementation
 
     @Override
-    public CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
+    public CompletableFuture<Void> createSegment(String segmentName, boolean sorted, Duration timeout) {
         return invokeExtension(segmentName,
-                e -> e.createSegment(segmentName, timeout),
+                e -> e.createSegment(segmentName, sorted, timeout),
                 "createSegment", segmentName);
     }
 
