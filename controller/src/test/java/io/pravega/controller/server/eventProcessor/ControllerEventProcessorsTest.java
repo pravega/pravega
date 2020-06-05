@@ -269,7 +269,7 @@ public class ControllerEventProcessorsTest {
         createStreamSignalsList.get(1).join();
         createStreamSignalsList.get(2).join();
 
-        verify(controller, times(3)).createStream(anyString(), anyString(), any());
+        verify(controller, times(4)).createStream(anyString(), anyString(), any());
 
         // fail first three requests
         createStreamResponsesList.get(0).completeExceptionally(new RuntimeException());

@@ -121,11 +121,13 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
     @Override
     public CompletableFuture<List<KVTSegmentRecord>> getActiveSegments() {
         // read current epoch record
+        log.info("getActiveSegments called");
         return verifyLegalState()
                 .thenCompose(v -> getActiveEpochRecord(true).thenApply(epochRecord -> epochRecord.getSegments()));
     }
 
     private CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached) {
+        log.info("GETTING ACTIVE EPOCH RECORD... ");
         return getCurrentEpochRecordData(ignoreCached).thenApply(VersionedMetadata::getObject);
     }
 
@@ -141,6 +143,7 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
 
     @Override
     public CompletableFuture<KVTEpochRecord> getEpochRecord(int epoch) {
+        log.info("getEpochRecord():: epoch number = {}", epoch);
         return getEpochRecordData(epoch).thenApply(VersionedMetadata::getObject);
     }
 

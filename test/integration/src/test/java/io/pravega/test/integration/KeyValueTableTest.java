@@ -28,11 +28,9 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-
 import io.pravega.test.common.TestUtils;
-import java.time.Duration;
 import java.util.Collections;
-
+import java.time.Duration;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.extern.slf4j.Slf4j;
@@ -43,8 +41,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
-
-import static org.mockito.Mockito.mock;
 
 /**
  * Integration test for {@link KeyValueTable}s using real Segment Store and connection.
@@ -60,37 +56,43 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
-    private PravegaConnectionListener serverListener;
+
     private ConnectionFactory connectionFactory;
     private TestingServer zkTestServer = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller;
     private KeyValueTableFactory keyValueTableFactory;
+    private PravegaConnectionListener server = null;
 
     @Before
     public void setup() throws Exception {
         super.setup();
         log.info("setup ...");
+        final int controllerPort = TestUtils.getAvailableListenPort();
+        final String serviceHost = ENDPOINT;
+        final int servicePort = TestUtils.getAvailableListenPort();
+        final int containerCount = 4;
+
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.initialize();
         this.tableStore = this.serviceBuilder.createTableStoreService();
-        int port = TestUtils.getAvailableListenPort();
-        this.serverListener = new PravegaConnectionListener(false, port, mock(StreamSegmentStore.class), this.tableStore);
-        this.serverListener.startListening();
-
+        //int port = TestUtils.getAvailableListenPort();
+        //this.serverListener = new PravegaConnectionListener(false, port, mock(StreamSegmentStore.class), this.tableStore);
+        //this.serverListener.startListening();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        this.server.startListening();
         this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
         // 1. Start ZK
         log.info("STARTING ZOOKEEPER ...");
         this.zkTestServer = new TestingServerStarter().start();
-        final int controllerPort = TestUtils.getAvailableListenPort();
-        final String serviceHost = "localhost";
-        final int servicePort = TestUtils.getAvailableListenPort();
-        final int containerCount = 4;
+
         this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 controllerPort, serviceHost, servicePort, containerCount);
         log.info("STARTING CONTROLLER ...");
         this.controllerWrapper.awaitRunning();
+
         //this.controller = new MockController(ENDPOINT, port, this.connectionFactory, true);
         this.controller = controllerWrapper.getController();
         log.info("CREATING SCOPE ...");
@@ -99,11 +101,25 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
         this.controller.close();
         this.connectionFactory.close();
-        this.serverListener.close();
+
+        this.server.close();
         this.serviceBuilder.close();
+
+        if (this.controllerWrapper != null) {
+            this.controllerWrapper.close();
+            this.controllerWrapper = null;
+        }
+        if (this.server != null) {
+            this.server.close();
+            this.server = null;
+        }
+        if (this.zkTestServer != null) {
+            this.zkTestServer.close();
+            this.zkTestServer = null;
+        }
     }
 
     /**
@@ -111,12 +127,12 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
      */
     @Test
     public void testCreateDeleteKeyValueTable() {
-        log.info("testCreateDeleteKeyValueTable ...");
         val kvt = newKeyValueTableName();
         boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join();
         Assert.assertTrue(created);
         val segments = this.controller.getCurrentSegmentsForKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName()).join();
         Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), segments.getSegments().size());
+
         for (val s : segments.getSegments()) {
             // We know there's nothing in these segments. But if the segments hadn't been created, then this will throw
             // an exception.
@@ -125,7 +141,6 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
 
         // Verify re-creation does not work.
         Assert.assertFalse(this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join());
-
         // Delete and verify segments have been deleted too.
         /*
         val deleted = this.controller.deleteKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName()).join();
@@ -158,7 +173,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     }
 
     private KeyValueTableInfo newKeyValueTableName() {
-        return new KeyValueTableInfo(SCOPE, String.format("KVT_%d", System.nanoTime()));
+        return new KeyValueTableInfo(SCOPE, String.format("KVT-%d", System.nanoTime()));
     }
 
 }

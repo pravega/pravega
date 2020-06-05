@@ -87,6 +87,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
             // refresh all mutable records
             storeHelper.invalidateCache(getMetadataTableName(id), STATE_KEY);
             storeHelper.invalidateCache(getMetadataTableName(id), CONFIGURATION_KEY);
+            //storeHelper.invalidateCache(getMetadataTableName(id), CURRENT_EPOCH_KEY);
         }
     }
 
@@ -194,7 +195,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
         return getId().thenCompose(id -> {
             String metadataTable = getMetadataTableName(id);
             return CompletableFuture.allOf(storeHelper.createTable(metadataTable))
-                    .thenAccept(v -> log.debug("stream {}/{} metadata table {} created", getScopeName(), getName(), metadataTable));
+                    .thenAccept(v -> log.debug("kvtable {}/{} metadata table {} created", getScopeName(), getName(), metadataTable));
         });
     }
 
@@ -202,7 +203,6 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
     CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime) {
         byte[] b = new byte[Long.BYTES];
         BitConverter.writeLong(b, 0, creationTime);
-
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CREATION_TIME_KEY, b)
                         .thenAccept(v -> storeHelper.invalidateCache(metadataTable, CREATION_TIME_KEY)));
@@ -227,14 +227,11 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
     CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data) {
         byte[] epochData = new byte[Integer.BYTES];
         BitConverter.writeInt(epochData, 0, data.getEpoch());
-
         return getMetadataTable()
-                .thenCompose(metadataTable -> {
-                    return storeHelper.addNewEntryIfAbsent(metadataTable, CURRENT_EPOCH_KEY, epochData)
-                            .thenAccept(v -> {
-                                storeHelper.invalidateCache(metadataTable, CURRENT_EPOCH_KEY);
-                            });
-                });
+                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CURRENT_EPOCH_KEY, epochData)
+                       .thenAccept(v -> {
+                           storeHelper.invalidateCache(metadataTable, CURRENT_EPOCH_KEY);
+                       }));
     }
 
     @Override

@@ -73,18 +73,26 @@ public class PravegaTablesScope implements Scope {
                 DATA_NOT_FOUND_PREDICATE,
                 () -> storeHelper.createTable(SCOPES_TABLE)
                                  .thenCompose(v -> {
-                                     log.debug("table created {}", SCOPES_TABLE);
+                                     log.debug("table for streams created {}", SCOPES_TABLE);
                                      return storeHelper.addNewEntryIfAbsent(SCOPES_TABLE, scopeName, newId());
                                  })), (r, e) -> {
             if (e == null || Exceptions.unwrap(e) instanceof StoreException.DataExistsException) {
-                return getStreamsInScopeTableName()
-                        .thenCompose(tableName -> storeHelper.createTable(tableName)
+                return CompletableFuture.allOf(getStreamsInScopeTableName()
+                        .thenCompose(streamsTableName -> storeHelper.createTable(streamsTableName)
                                                              .thenAccept(v -> {
-                                                                 log.debug("table created {}", tableName);
+                                                                 log.debug("table for streams created {}", streamsTableName);
                                                                  if (e != null) {
                                                                      throw new CompletionException(e);
                                                                  }
-                                                             }));
+                                                             })),
+                        getKVTablesInScopeTableName()
+                        .thenCompose(kvtsTableName -> storeHelper.createTable(kvtsTableName)
+                                .thenAccept(v -> {
+                                    log.debug("table for kvts created {}", kvtsTableName);
+                                    if (e != null) {
+                                        throw new CompletionException(e);
+                                    }
+                                })));
             } else {
                 throw new CompletionException(e);
             }

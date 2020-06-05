@@ -326,25 +326,21 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
 
     @Test
     public void testKeyValueTables() {
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.testController.createKeyValueTable("", "", null),
-                ex -> ex instanceof UnsupportedOperationException);
+
         AssertExtensions.assertThrows(
                 "",
                 () -> this.testController.deleteKeyValueTable("", ""),
                 ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.testController.getCurrentSegmentsForKeyValueTable("", ""),
-                ex -> ex instanceof UnsupportedOperationException);
+
         AssertExtensions.assertThrows(
                 "",
                 () -> this.testController.listKeyValueTables(""),
                 ex -> ex instanceof UnsupportedOperationException);
+
         AssertExtensions.assertThrows(
                 "",
                 () -> this.testController.updateKeyValueTable("", "", null),
                 ex -> ex instanceof UnsupportedOperationException);
+
     }
 }

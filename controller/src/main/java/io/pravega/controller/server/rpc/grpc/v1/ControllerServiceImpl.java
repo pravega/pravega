@@ -114,7 +114,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void createKeyValueTable(KeyValueTableConfig request, StreamObserver<CreateKeyValueTableStatus> responseObserver) {
         String scope = request.getScope();
         String kvt = request.getKvtName();
-        int partitionCount = request.getPartitionCount();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createKeyValueTable",
                 scope, kvt);
         log.info(requestTag.getRequestId(), "createKeyValueTable called for KVTable {}/{}.", scope, kvt);
@@ -134,7 +133,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> {
                     logIfEmpty(delegationToken, "getCurrentSegmentsKeyValueTable", request.getScope(), request.getKvtName());
-                    return controllerService.getCurrentSegments(request.getScope(), request.getKvtName())
+                    return controllerService.getCurrentSegmentsKeyValueTable(request.getScope(), request.getKvtName())
                             .thenApply(segmentRanges -> SegmentRanges.newBuilder()
                                     .addAllSegmentRanges(segmentRanges)
                                     .setDelegationToken(delegationToken)

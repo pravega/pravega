@@ -21,6 +21,7 @@ import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -30,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 public abstract class AbstractKVTableMetadataStore implements KVTableMetadataStore {
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, KeyValueTable> cache;
@@ -103,6 +105,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
             assert kvt.getName().equals(name);
         } else {
             kvt = cache.getUnchecked(new ImmutablePair<>(scope, name));
+            log.info("GOT KVT from cache: {}/{}", kvt.getScopeName(), kvt.getName());
             kvt.refresh();
         }
         return kvt;
