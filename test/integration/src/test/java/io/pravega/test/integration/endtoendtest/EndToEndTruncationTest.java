@@ -20,7 +20,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import java.io.Serializable;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
@@ -333,13 +332,9 @@ public class EndToEndTruncationTest {
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                                         .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
+        // Create scope and stream.
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
-
-        config = StreamConfiguration.builder()
-                                    .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
-                                    .build();
-        controller.updateStream("test", "test", config).get();
 
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
@@ -347,13 +342,11 @@ public class EndToEndTruncationTest {
                                                                                     .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
-
-
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("test", serializer,
                 writerConfig);
 
-        // routing key "0" translates to key 0.8. This write happens to segment 1.
+        // write an event.
         writer.writeEvent("0", "data").get();
 
         // scale down to one segment.
@@ -365,15 +358,15 @@ public class EndToEndTruncationTest {
         //Seal Stream.
         assertTrue(controller.sealStream("test", "test").get());
 
-        //write by an existing writer to a sealed stream should complete exceptionally.
+        //Write by an existing writer to a sealed stream should complete exceptionally.
         assertFutureThrows("Should throw IllegalStateException",
                 writer.writeEvent("2", "write to sealed stream"),
                 e -> IllegalStateException.class.isAssignableFrom(e.getClass()));
 
-        //subsequent writes will throw an exception to the application.
+        //Subsequent writes will throw an exception.
         assertThrows(IllegalStateException.class, () -> writer.writeEvent("test"));
 
-        //Create a writer against a sealed stream
+        //Creating a writer against a sealed stream throws an exception.
         assertThrows(IllegalStateException.class, () -> clientFactory.createEventWriter("test", serializer, writerConfig));
     }
 

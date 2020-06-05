@@ -103,14 +103,13 @@ public class SegmentSelector {
 
         if (successors == null) {
             return Collections.emptyList();
-        } else if  (successors.getSegmentToPredecessor().isEmpty()) {
+        } else if (successors.getSegmentToPredecessor().isEmpty()) {
             log.warn("Stream {} is sealed since no successor segments found for segment {} ", sealedSegment.getStream(), sealedSegment);
             Exception e = new IllegalStateException("Writes cannot proceed since the stream is sealed");
             removeAllWriters().forEach(pendingEvent -> pendingEvent.getAckFuture()
                                                                    .completeExceptionally(e));
             return Collections.emptyList();
-        }
-        else {
+        } else {
             return updateSegmentsUponSealed(successors, sealedSegment, segmentSealedCallback);
         }
     }
