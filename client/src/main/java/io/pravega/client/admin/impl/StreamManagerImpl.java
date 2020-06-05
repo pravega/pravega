@@ -22,6 +22,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
@@ -147,9 +148,12 @@ public class StreamManagerImpl implements StreamManager {
         CompletableFuture<StreamCut> currentTailStreamCut = streamCutHelper.fetchTailStreamCut(stream);
         CompletableFuture<StreamCut> currentHeadStreamCut = streamCutHelper.fetchHeadStreamCut(stream);
         return currentTailStreamCut.thenCombine(currentHeadStreamCut,
-                                                (tailSC, headSC) -> new StreamInfo(stream.getScope(),
-                                                                                   stream.getStreamName(),
-                                                                                   tailSC, headSC));
+                                                (tailSC, headSC) -> {
+                                                    boolean isSealed = ((StreamCutImpl) tailSC).getPositions().isEmpty();
+                                                    return new StreamInfo(stream.getScope(),
+                                                            stream.getStreamName(),
+                                                            tailSC, headSC, isSealed);
+                                                });
     }
 
     @Override
