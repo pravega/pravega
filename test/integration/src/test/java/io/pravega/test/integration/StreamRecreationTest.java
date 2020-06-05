@@ -12,6 +12,7 @@ package io.pravega.test.integration;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -45,6 +46,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -156,7 +158,11 @@ public class StreamRecreationTest {
             assertEquals("Wrong event read in re-created stream", eventContent, readResult);
 
             // Delete the stream.
+            StreamInfo streamInfo = streamManager.getStreamInfo(myScope, myStream);
+            assertFalse(streamInfo.isSealed());
             assertTrue("Unable to seal re-created stream.", streamManager.sealStream(myScope, myStream));
+            streamInfo = streamManager.getStreamInfo(myScope, myStream);
+            assertTrue(streamInfo.isSealed());
             assertTrue("Unable to delete re-created stream.", streamManager.deleteStream(myScope, myStream));
         }
     }
