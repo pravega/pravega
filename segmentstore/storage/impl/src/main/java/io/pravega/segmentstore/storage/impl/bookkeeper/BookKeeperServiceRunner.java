@@ -109,6 +109,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         Preconditions.checkState(this.servers.get(0) != null, "Bookie already stopped.");
         val bk = this.servers.get(bookieIndex);
         bk.shutdown();
+        log.info("Bookie {} is stopping.", bookieIndex);
         this.servers.set(bookieIndex, null);
         log.info("Bookie {} stopped.", bookieIndex);
     }
@@ -122,8 +123,9 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public void startBookie(int bookieIndex) throws Exception {
         Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
         Preconditions.checkState(this.servers.get(0) == null, "Bookie already running.");
+        log.info("Bookie {} is starting.", bookieIndex);
         this.servers.set(bookieIndex, runBookie(this.bookiePorts.get(bookieIndex)));
-        log.info("Bookie {} stopped.", bookieIndex);
+        log.info("Bookie {} started.", bookieIndex);
     }
 
     /**
