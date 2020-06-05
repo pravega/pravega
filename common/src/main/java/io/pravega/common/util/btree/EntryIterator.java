@@ -12,6 +12,7 @@ package io.pravega.common.util.btree;
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 import java.time.Duration;
 import java.util.Collections;

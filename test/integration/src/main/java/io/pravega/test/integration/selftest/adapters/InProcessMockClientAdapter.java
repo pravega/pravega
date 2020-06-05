@@ -228,7 +228,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
     private static class MockTableStore implements TableStore {
         @Override
-        public CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
+        public CompletableFuture<Void> createSegment(String segmentName, boolean sorted, Duration timeout) {
             throw new UnsupportedOperationException("createTableSegment");
         }
 

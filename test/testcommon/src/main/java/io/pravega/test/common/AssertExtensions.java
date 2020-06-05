@@ -300,7 +300,7 @@ public class AssertExtensions {
      * @param tester   A BiPredicate that will be used to verify the elements at the same indices in each list are equivalent.
      * @param <T>      The type of the list's elements.
      */
-    public static <T> void assertListEquals(String message, List<T> expected, List<T> actual, BiPredicate<T, T> tester) {
+    public static <T> void assertListEquals(String message, List<? extends T> expected, List<? extends T> actual, BiPredicate<T, T> tester) {
         Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
         for (int i = 0; i < expected.size(); i++) {
             T expectedItem = expected.get(i);
