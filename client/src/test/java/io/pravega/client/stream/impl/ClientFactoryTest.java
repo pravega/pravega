@@ -95,7 +95,6 @@ public class ClientFactoryTest {
         // setup mocks
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controllerClient, connectionFactory, inFactory, outFactory, condFactory, metaFactory);
         StreamSegments currentSegments = new StreamSegments(new TreeMap<>(), "");
-        SegmentOutputStream outStream = mock(SegmentOutputStream.class);
         when(controllerClient.getCurrentSegments(scope, stream))
                 .thenReturn(CompletableFuture.completedFuture(currentSegments));
 
