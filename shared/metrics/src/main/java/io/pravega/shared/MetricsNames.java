@@ -172,11 +172,13 @@ public final class MetricsNames {
     public static final String THREAD_POOL_ACTIVE_THREADS = PREFIX + "segmentstore.thread_pool.active_threads";  // Histogram
 
     // Metrics in Controller
-    // KeyValueTable request counts
+    // KeyValueTable create request counts
     public static final String CREATE_KVTABLE = PREFIX + "controller.kvtable.created";
-    // segment counts
+    // KeyValueTable segment counts
     public static final String KVTABLE_SEGMENTS_COUNT = PREFIX + "controller.kvtable.segments.count";
+    // KeyValueTable Create Latency
     public static final String CREATE_KVTABLE_LATENCY = PREFIX + "controller.kvtable.created_latency_ms";
+    // KeyValueTable Create Failure
     public static final String CREATE_KVTABLE_FAILED = PREFIX + "controller.kvtable.create_failed";
 
     // Stream request counts

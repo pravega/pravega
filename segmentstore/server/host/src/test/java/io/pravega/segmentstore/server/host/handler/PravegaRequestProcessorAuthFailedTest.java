@@ -23,7 +23,7 @@ import static io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class PravegaStreamRequestProcessorAuthFailedTest {
+public class PravegaRequestProcessorAuthFailedTest {
 
     private PravegaRequestProcessor processor;
     private ServerConnection connection;

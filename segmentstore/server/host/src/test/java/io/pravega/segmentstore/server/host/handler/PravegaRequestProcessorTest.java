@@ -89,7 +89,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @Slf4j
-public class PravegaStreamRequestProcessorTest {
+public class PravegaRequestProcessorTest {
 
     private static final int MAX_KEY_LENGTH = 100;
     private static final int MAX_VALUE_LENGTH = 100;

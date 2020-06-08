@@ -11,7 +11,6 @@ package io.pravega.client.tables;
 
 import com.google.common.annotations.Beta;
 import java.io.Serializable;
-
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;

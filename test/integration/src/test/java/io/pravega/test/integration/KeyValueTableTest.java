@@ -42,6 +42,8 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import static org.mockito.Mockito.mock;
+
 /**
  * Integration test for {@link KeyValueTable}s using real Segment Store and connection.
  * The only simulated component is the {@link Controller} which is provided via the {@link MockController}.
@@ -56,22 +58,20 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
-    private PravegaConnectionListener server = null;
+    private PravegaConnectionListener serverListener = null;
     private ConnectionFactory connectionFactory;
     private TestingServer zkTestServer = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller;
     private KeyValueTableFactory keyValueTableFactory;
-
+    private final int controllerPort = TestUtils.getAvailableListenPort();
+    private final String serviceHost = ENDPOINT;
+    private final int servicePort = TestUtils.getAvailableListenPort();
+    private final int containerCount = 4;
 
     @Before
     public void setup() throws Exception {
         super.setup();
-
-        final int controllerPort = TestUtils.getAvailableListenPort();
-        final String serviceHost = ENDPOINT;
-        final int servicePort = TestUtils.getAvailableListenPort();
-        final int containerCount = 4;
 
         // 1. Start ZK
         this.zkTestServer = new TestingServerStarter().start();
@@ -79,11 +79,10 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         // 2. Start Pravega SegmentStore service.
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         this.tableStore = serviceBuilder.createTableStoreService();
 
-        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore);
-        this.server.startListening();
+        this.serverListener = new PravegaConnectionListener(false, servicePort, serviceBuilder.createStreamSegmentService(), tableStore);
+        this.serverListener.startListening();
 
         // 3. Start Pravega Controller service
         this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
@@ -102,18 +101,10 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     public void tearDown() throws Exception {
         this.controller.close();
         this.connectionFactory.close();
-
-        if (this.controllerWrapper != null) {
-            this.controllerWrapper.close();
-            this.controllerWrapper = null;
-        }
-        this.server.close();
+        this.controllerWrapper.close();
+        this.serverListener.close();
         this.serviceBuilder.close();
-
-        if (this.zkTestServer != null) {
-            this.zkTestServer.close();
-            this.zkTestServer = null;
-        }
+        this.zkTestServer.close();
     }
 
     /**

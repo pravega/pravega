@@ -318,7 +318,7 @@ public final class NameUtils {
      * @param scope scope to be used in the ScopedStreamSegment name
      * @param streamName stream name to be used in ScopedStreamSegment name.
      * @param segmentId segment id to be used in ScopedStreamSegment name.
-     * @return fully qualified StreamSegmentName
+     * @return fully qualified StreamSegmentName.
      */
     public static String getQualifiedStreamSegmentName(String scope, String streamName, long segmentId) {
         int segmentNumber = getSegmentNumber(segmentId);
