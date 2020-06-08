@@ -313,6 +313,7 @@ project('segmentstore:storage:impl') {
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion    
     }
     javadoc {
         dependsOn delombok
@@ -328,6 +329,12 @@ project ('bindings') {
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+
+        // Adding JAXB API and the reference implementation as dependencies here, since they are not available
+        // in newer Java SE versions (11 and newer).
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
+        compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+        compile group: 'javax.activation', name: 'javax.activation-api', version: activationVersion
 
         //For Extended S3
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
@@ -1004,7 +1011,6 @@ task javadocs(type: Javadoc) {
 
     // Include names of any project that is to be included in the javadoc distribution
     ext.projects = [':client']
-    options.links("http://docs.oracle.com/javase/10/docs/api/");
     title = "Pravega API"
     destinationDir = file("${buildDir}/javadocs")
     source = files(projects.collect {
