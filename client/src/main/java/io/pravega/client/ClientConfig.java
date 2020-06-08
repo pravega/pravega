@@ -112,8 +112,8 @@ public class ClientConfig implements Serializable {
     /**
      * An optional property representing the timeout for the request to server.
      *
-     * The default request timeout is 30s if this option is not set. Notice that we want this request timeout to be
-     * long enough in testing in order to not mask any bugs.
+     * The default request timeout is 30s. Notice that we want this request timeout to be long enough(e.g., 3600s)
+     * in testing in order to not mask any bugs.
      */
     private final Duration serverRequestTimeout;
 
