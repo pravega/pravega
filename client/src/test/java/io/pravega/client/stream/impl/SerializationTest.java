@@ -124,7 +124,7 @@ public class SerializationTest {
         }
 
         public PositionImpl getPostionImpl() {
-            return new PositionImpl(ownedSegments, segmentRanges);
+            return new PositionImpl(ownedSegments, segmentRanges, null);
         }
     }
 
