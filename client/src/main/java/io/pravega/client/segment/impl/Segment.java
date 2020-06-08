@@ -49,6 +49,7 @@ public class Segment implements Comparable<Segment>, Serializable {
         return NameUtils.getScopedStreamName(scope, streamName);
     }
 
+<<<<<<< HEAD
     public String getScopedName() {
         return NameUtils.getQualifiedStreamSegmentName(scope, streamName, segmentId);
     }
@@ -57,6 +58,8 @@ public class Segment implements Comparable<Segment>, Serializable {
         return NameUtils.getQualifiedTableSegmentName(scope, streamName, segmentId);
     }
 
+=======
+>>>>>>> Issue 4774: Optimize reader computations (#4768)
     public Stream getStream() {
         return new StreamImpl(scope, streamName);
     }

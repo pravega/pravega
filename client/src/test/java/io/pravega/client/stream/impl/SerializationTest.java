@@ -125,10 +125,14 @@ public class SerializationTest {
 
         public PositionImpl getPostionImpl() {
 <<<<<<< HEAD
+<<<<<<< HEAD
             return new PositionImpl(ownedSegments, segmentRanges, null);
 =======
             return new PositionImpl(ownedSegments, segmentRanges);
 >>>>>>> Issue 4669: (Bugfix) Fix serialization in PositionImpl. (#4746)
+=======
+            return new PositionImpl(ownedSegments, segmentRanges, null);
+>>>>>>> Issue 4774: Optimize reader computations (#4768)
         }
     }
 
