@@ -10,13 +10,13 @@
 #
 
 init_segmentstore() {
-    [ ! -z "$PUBLISHED_ADDRESS" ] && add_system_property "pravegaservice.publishedIPAddress" "${PUBLISHED_ADDRESS}"
-    [ ! -z "$PUBLISHED_ADDRESS" ] && add_system_property "pravegaservice.listeningIPAddress" "0.0.0.0"
-    [ ! -z "$PUBLISHED_PORT" ] && add_system_property "pravegaservice.publishedPort" "${PUBLISHED_PORT}"
-    [ ! -z "$HOSTNAME" ] && add_system_property "metrics.metricsPrefix" "${HOSTNAME}"
-    add_system_property "pravegaservice.zkURL" "${ZK_URL}"
-    add_system_property "autoScale.controllerUri" "${CONTROLLER_URL}"
-    add_system_property "bookkeeper.zkAddress" "${BK_ZK_URL:-${ZK_URL}}"
-    add_system_property "pravegaservice.storageThreadPoolSize" "${STORAGE_THREAD_POOL_SIZE}"
+    [ ! -z "$PUBLISHED_ADDRESS" ] && add_system_property "pravegaservice.service.published.host.nameOrIp" "${PUBLISHED_ADDRESS}"
+    [ ! -z "$PUBLISHED_ADDRESS" ] && add_system_property "pravegaservice.service.listener.host.nameOrIp" "0.0.0.0"
+    [ ! -z "$PUBLISHED_PORT" ] && add_system_property "pravegaservice.service.published.port" "${PUBLISHED_PORT}"
+    [ ! -z "$HOSTNAME" ] && add_system_property "metrics.prefix" "${HOSTNAME}"
+    add_system_property "pravegaservice.zk.connect.uri" "${ZK_URL}"
+    add_system_property "autoScale.controller.connect.uri" "${CONTROLLER_URL}"
+    add_system_property "bookkeeper.zk.connect.uri" "${BK_ZK_URL:-${ZK_URL}}"
+    add_system_property "pravegaservice.storageThreadPool.size" "${STORAGE_THREAD_POOL_SIZE}"
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
