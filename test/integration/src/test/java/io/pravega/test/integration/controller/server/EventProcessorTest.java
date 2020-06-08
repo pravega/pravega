@@ -541,7 +541,7 @@ public class EventProcessorTest {
 
         // wait until at least one event is read from queue2 
         CompletableFuture.allOf(CompletableFuture.runAsync(() -> {
-            while (queue1EntriesFound.get() + queue2EntriesFound.get() < 10) {
+            while (output2.size() < 10) {
                 Integer entry = queue1.poll();
                 if (entry != null) {
                     log.info("entry read from queue 1: {}", entry);
@@ -552,7 +552,7 @@ public class EventProcessorTest {
                 }
             }
         }), CompletableFuture.runAsync(() -> {
-            while (queue1EntriesFound.get() + queue2EntriesFound.get() < 10) {
+            while (output2.size() < 10) {
                 Integer entry = queue2.poll();
                 if (entry != null) {
                     log.info("entry read from queue 2: {}", entry);
