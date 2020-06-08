@@ -14,7 +14,8 @@ import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Position;
@@ -226,7 +227,7 @@ public class EventProcessorTest {
         eventSerializer = new EventSerializer<>(new TestSerializer());
     
         @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
 
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
@@ -291,7 +292,7 @@ public class EventProcessorTest {
         final String readerGroup = "readerGroup2";
 
         @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
 
         controller.createScope(scope).join();
         final StreamConfiguration config = StreamConfiguration.builder()
@@ -364,7 +365,7 @@ public class EventProcessorTest {
         eventProcessorGroup.awaitTerminated();
 
         @Cleanup
-        ConnectionFactoryImpl connectionFactory2 = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory2 = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
 
         @Cleanup
         ClientFactoryImpl clientFactory2 = new ClientFactoryImpl(scope, controller, connectionFactory2);
@@ -421,7 +422,7 @@ public class EventProcessorTest {
         eventSerializer = new EventSerializer<>(new TestSerializer());
 
         @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
 
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);

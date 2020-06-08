@@ -11,8 +11,8 @@ package io.pravega.test.integration;
 
 import io.netty.channel.Channel;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.netty.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -76,9 +76,10 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
 
+        SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ConnectionFactoryImpl clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF, true);
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
@@ -90,14 +91,14 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
                 DelegationTokenProviderFactory.createWithEmptyToken());
         CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(payload), ack));
-        for (Channel c : ((ConnectionPoolImpl) clientCF.getConnectionPool()).getActiveChannels()) {
+        for (Channel c : connectionPool.getActiveChannels()) {
             c.close();
         }
         CompletableFuture<Void> ack2 = new CompletableFuture<>();
         out.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(payload), ack2));
         ack.get(5, TimeUnit.SECONDS);
         ack2.get(5, TimeUnit.SECONDS);
-        SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, clientCF).createSegmentMetadataClient(segment,
+        SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, connectionPool).createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals(payload.length * 2, metadataClient.fetchCurrentSegmentLength());
     }
@@ -115,23 +116,24 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
 
+        SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ConnectionFactoryImpl clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF, true);
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
-        ConditionalOutputStreamFactoryImpl segmentClient = new ConditionalOutputStreamFactoryImpl(controller, clientCF);
+        ConditionalOutputStreamFactoryImpl segmentClient = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
         ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment, DelegationTokenProviderFactory.createWithEmptyToken(), EventWriterConfig.builder().build());
         assertTrue(out.write(ByteBuffer.wrap(payload), 0));
-        for (Channel c : ((ConnectionPoolImpl) (clientCF.getConnectionPool())).getActiveChannels()) {
+        for (Channel c : connectionPool.getActiveChannels()) {
             c.close();
         }
         assertTrue(out.write(ByteBuffer.wrap(payload), payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE));
-        SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, clientCF).createSegmentMetadataClient(segment,
+        SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, connectionPool).createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals((payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE) * 2,
                      metadataClient.fetchCurrentSegmentLength());

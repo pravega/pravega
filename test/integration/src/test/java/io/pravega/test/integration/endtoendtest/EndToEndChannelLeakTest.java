@@ -12,8 +12,9 @@ package io.pravega.test.integration.endtoendtest;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -115,11 +116,9 @@ public class EndToEndChannelLeakTest {
         //Set the max number connections to verify channel creation behaviour
         final ClientConfig clientConfig = ClientConfig.builder().maxConnectionsPerSegmentStore(5).build();
 
-        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig);
         @Cleanup
-        ConnectionFactoryImpl connectionFactory =
-                new ConnectionFactoryImpl(clientConfig, connectionPool,
-                                          new InlineExecutor());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig, new InlineExecutor());
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
 
@@ -192,9 +191,9 @@ public class EndToEndChannelLeakTest {
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(SCOPE, STREAM_NAME, config).get();
-        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig);
         @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(clientConfig, connectionPool, executor);
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig, executor);
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         int expectedChannelCount = 0; // open socket count.
@@ -283,10 +282,9 @@ public class EndToEndChannelLeakTest {
         //Set the max number connections to verify channel creation behaviour
         final ClientConfig clientConfig = ClientConfig.builder().maxConnectionsPerSegmentStore(500).build();
 
-        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig);
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig, executor);
         @Cleanup
-        ConnectionFactoryImpl connectionFactory =
-                new ConnectionFactoryImpl(clientConfig, connectionPool, executor);
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
 
@@ -393,13 +391,12 @@ public class EndToEndChannelLeakTest {
                                                         .build();
         //Set the max number connections to verify channel creation behaviour
         final ClientConfig clientConfig = ClientConfig.builder().maxConnectionsPerSegmentStore(500).build();
-        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig);
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(SCOPE, STREAM_NAME, config).get();
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig, new InlineExecutor());
         @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(clientConfig, connectionPool,
-                                                                            new InlineExecutor());
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         int expectedChannelCount = 0; // open socket count.
