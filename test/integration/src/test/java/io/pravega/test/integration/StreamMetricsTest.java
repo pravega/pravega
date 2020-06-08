@@ -269,8 +269,8 @@ public class StreamMetricsTest {
         transaction.commit();
 
         String message = "Inconsistency found between metadata and metrics";
-        AssertExtensions.assertEventuallyEquals(message, (long) 3, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 500, 30000);
-        AssertExtensions.assertEventuallyEquals(message, (long) 2, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 200, 30000);
-        AssertExtensions.assertEventuallyEquals(message, (long) 1, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 200, 30000);
+        AssertExtensions.assertEventuallyEquals(message, 3L, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 500, 30000);
+        AssertExtensions.assertEventuallyEquals(message, 2L, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 200, 30000);
+        AssertExtensions.assertEventuallyEquals(message, 1L, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 200, 30000);
     }
 }
