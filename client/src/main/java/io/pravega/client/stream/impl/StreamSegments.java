@@ -84,6 +84,10 @@ public class StreamSegments {
         }
         return result;
     }
+
+    public int getNumberOfSegments() {
+        return segments.size();
+    }
     
     public StreamSegments withReplacementRange(Segment segment, StreamSegmentsWithPredecessors replacementRanges) {
         SegmentWithRange replacedSegment = findReplacedSegment(segment);
