@@ -23,6 +23,7 @@ import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
+import io.pravega.controller.server.rest.generated.model.RetentionConfig.TypeEnum;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
@@ -41,7 +42,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestUtils;
-
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -66,7 +66,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import static io.pravega.controller.server.rest.generated.model.RetentionConfig.TypeEnum;
 import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;

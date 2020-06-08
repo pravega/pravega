@@ -14,7 +14,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
-import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
@@ -1021,7 +1021,7 @@ public class EventStreamReaderTest {
                                                            Mockito.mock(WatermarkReaderImpl.class)), Mockito.mock(Controller.class));
     }
 
-    private StateSynchronizer<ReaderGroupState> createStateSynchronizerForReaderGroup(ConnectionFactory connectionFactory,
+    private StateSynchronizer<ReaderGroupState> createStateSynchronizerForReaderGroup(ConnectionPool connectionPool,
                                                                                       Controller controller,
                                                                                       MockSegmentStreamFactory streamFactory,
                                                                                       Stream stream, String readerId,
@@ -1035,7 +1035,7 @@ public class EventStreamReaderTest {
         controller.createStream(stream.getScope(), stream.getStreamName(), streamConfig);
         controller.createStream(stream.getScope(), readerGroupStream, StreamConfiguration.builder()
                                                                                          .scalingPolicy(ScalingPolicy.fixed(1)).build());
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(stream.getScope(), controller, connectionFactory,
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(stream.getScope(), controller, connectionPool,
                                                                 streamFactory, streamFactory, streamFactory,
                                                                 streamFactory);
 

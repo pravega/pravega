@@ -17,6 +17,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.connection.impl.FlowHandler;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;

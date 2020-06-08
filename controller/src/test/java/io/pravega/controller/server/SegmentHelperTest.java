@@ -12,7 +12,6 @@ package io.pravega.controller.server;
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.connection.impl.ClientConnection;
-import io.pravega.client.connection.impl.ClientConnection.CompletedCallback;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.stream.ScalingPolicy;

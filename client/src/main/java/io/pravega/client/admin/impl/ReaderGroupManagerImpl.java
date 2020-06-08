@@ -14,6 +14,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
@@ -57,14 +59,14 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     private final String scope;
     private final SynchronizerClientFactory clientFactory;
     private final Controller controller;
-    private final ConnectionFactory connectionFactory;
+    private final ConnectionPool connectionPool;
 
     public ReaderGroupManagerImpl(String scope, ClientConfig config, ConnectionFactory connectionFactory) {
         this.scope = scope;
         this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor());
 
-        this.connectionFactory = connectionFactory;
+        this.connectionPool = new ConnectionPoolImpl(config, connectionFactory);
         this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory);
     }
 
@@ -72,7 +74,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         this.scope = scope;
         this.clientFactory = clientFactory;
         this.controller = controller;
-        this.connectionFactory = connectionFactory;
+        this.connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory);
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
@@ -119,7 +121,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     public ReaderGroup getReaderGroup(String groupName) {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new ReaderGroupStateInitSerializer(), new ReaderGroupStateUpdatesSerializer(),
-                                   clientFactory, controller, connectionFactory);
+                                   clientFactory, controller, connectionPool);
     }
 
     @Override

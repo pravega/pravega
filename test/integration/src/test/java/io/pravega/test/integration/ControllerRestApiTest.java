@@ -13,8 +13,9 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -254,8 +255,9 @@ public class ControllerRestApiTest {
         URI controllerUri = SETUP_UTILS.getControllerUri();
         @Cleanup("shutdown")
         InlineExecutor inlineExecutor = new InlineExecutor();
-        try (ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
-             StreamManager streamManager = new StreamManagerImpl(createController(controllerUri, inlineExecutor), cf)) {
+        ClientConfig clientConfig = ClientConfig.builder().build();
+        try (ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+             StreamManager streamManager = new StreamManagerImpl(createController(controllerUri, inlineExecutor), cp)) {
             log.info("Creating scope: {}", testScope);
             streamManager.createScope(testScope);
 

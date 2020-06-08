@@ -12,6 +12,7 @@ package io.pravega.client.stream.mock;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.SynchronizerClientFactory;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
@@ -31,21 +32,22 @@ import java.util.function.Supplier;
 import lombok.Getter;
 
 public class MockClientFactory implements EventStreamClientFactory, SynchronizerClientFactory, AutoCloseable {
-    private final SocketConnectionFactoryImpl connectionFactory;
     @Getter
     private final Controller controller;
     private final ClientFactoryImpl impl;
 
     public MockClientFactory(String scope, MockSegmentStreamFactory ioFactory) {
-        this.connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        this.controller = new MockController("localhost", 0, connectionFactory, false);
-        this.impl = new ClientFactoryImpl(scope, controller, connectionFactory, ioFactory, ioFactory, ioFactory, ioFactory);
+        ClientConfig config = ClientConfig.builder().build();
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config));
+        this.controller = new MockController("localhost", 0, connectionPool, false);
+        this.impl = new ClientFactoryImpl(scope, controller, connectionPool, ioFactory, ioFactory, ioFactory, ioFactory);
     }
 
     public MockClientFactory(String scope, Controller controller) {
-        this.connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        ClientConfig config = ClientConfig.builder().build();
+        SocketConnectionFactoryImpl connectionPool = new SocketConnectionFactoryImpl(config);
         this.controller = controller;
-        this.impl = new ClientFactoryImpl(scope, controller, connectionFactory);
+        this.impl = new ClientFactoryImpl(scope, controller, connectionPool);
     }
 
     @Override
@@ -95,6 +97,7 @@ public class MockClientFactory implements EventStreamClientFactory, Synchronizer
 
     @Override
     public void close() {
-        this.connectionFactory.close();
+        this.controller.close();
+        this.impl.close();
     }
 }
