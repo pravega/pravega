@@ -127,7 +127,7 @@ public class ReaderGroupState implements Revisioned {
             if (entry.getValue().isEmpty()) {
                 result.put(entry.getKey(), 0.0);
             } else {
-                Long distance = Math.max(ASSUMED_LAG_MILLIS, distanceToTail.get(entry.getKey()));
+                long distance = Math.max(ASSUMED_LAG_MILLIS, distanceToTail.get(entry.getKey()));
                 result.put(entry.getKey(), entry.getValue().size() * distance / (double) maxDistance);
             }
         }
@@ -179,7 +179,7 @@ public class ReaderGroupState implements Revisioned {
         if (segments == null) {
             return null;
         }
-        return segments.keySet().stream().map(s -> s.getSegment()).collect(Collectors.toSet());
+        return segments.keySet().stream().map(SegmentWithRange::getSegment).collect(Collectors.toSet());
     }
     
     @Synchronized
