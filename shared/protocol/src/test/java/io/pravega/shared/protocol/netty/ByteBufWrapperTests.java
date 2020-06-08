@@ -108,11 +108,17 @@ public class ByteBufWrapperTests {
         val copy = wrap.getCopy();
         Assert.assertArrayEquals("Unexpected result from getCopy.", expectedData, copy);
 
+        // Get BufferView Reader.
+        val bufferViewReader = wrap.getBufferViewReader();
+        val bufferViewReaderData = bufferViewReader.readFully(2);
+        AssertExtensions.assertArrayEquals("Unexpected result from getReader.", expectedData, 0,
+                bufferViewReaderData.array(), bufferViewReaderData.arrayOffset(), expectedData.length);
+
         // Get Reader.
         @Cleanup
         val reader = wrap.getReader();
         val readerData = IOUtils.readFully(reader, wrap.getLength());
-        Assert.assertArrayEquals("Unexpected result from getReader.", expectedData, copy);
+        Assert.assertArrayEquals("Unexpected result from getReader.", expectedData, readerData);
 
         // Copy To OutputStream.
         @Cleanup

@@ -97,5 +97,11 @@ public abstract class ByteStreamWriter extends OutputStream {
      * @return The tail offset
      */
     public abstract long fetchTailOffset();
+
+    /**
+     * This makes a synchronous RPC call to the server to truncate the segment at the provided offset.
+     * @param offset The truncation offset.
+     */
+    public abstract void truncateDataBefore(long offset);
     
 }

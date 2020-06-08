@@ -31,6 +31,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperatio
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -857,7 +858,7 @@ public abstract class ScaleRequestHandlerTest {
         streamStore2.close();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testScaleStateReset() {
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         String stream = "testResetState";
@@ -913,9 +914,9 @@ public abstract class ScaleRequestHandlerTest {
         scaleRequestHandler.execute(event3).join();
         assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
         assertEquals(3, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
-    } 
-    
-    @Test
+    }
+
+    @Test(timeout = 30000)
     public void testScaleRange() throws ExecutionException, InterruptedException {
         // key range values taken from issue #2543
         StreamSegmentRecord segment = new StreamSegmentRecord(2, 1, 100L, 0.1706574888245243, 0.7085170563088633);
@@ -944,6 +945,44 @@ public abstract class ScaleRequestHandlerTest {
         assertEquals(0.1706574888245243, scaleOpEvent.getNewRanges().get(0).getKey(), 0.0);
         assertEquals(0.7085170563088633, scaleOpEvent.getNewRanges().get(1).getValue(), 0.0);
         assertTrue(scaleOpEvent.getNewRanges().get(0).getValue().doubleValue() == scaleOpEvent.getNewRanges().get(1).getKey().doubleValue());
+    }
+
+    @Test(timeout = 30000)
+    public void testWithExistingEpochTransition() {
+        ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
+        String stream = "testETR";
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+        streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
+
+        ArrayList<Map.Entry<Double, Double>> newRange = new ArrayList<>();
+        newRange.add(new AbstractMap.SimpleEntry<>(0.0, 1.0));
+
+        // submit scale request. that will create an ETR.
+        streamStore.submitScale(scope, stream, Lists.newArrayList(0L),
+                new ArrayList<>(newRange), System.currentTimeMillis(), null, null, executor).join();
+
+        // now post a scale event with different input
+        newRange = new ArrayList<>();
+        newRange.add(new AbstractMap.SimpleEntry<>(0.0, 0.5));
+        newRange.add(new AbstractMap.SimpleEntry<>(0.5, 1.0));
+        // case 1: manual scale
+        ScaleOpEvent manual = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
+                newRange, true, System.currentTimeMillis(), System.currentTimeMillis());
+        // run scaling workflow. This should do nothing and complete. 
+        scaleRequestHandler.execute(manual).join();
+
+        // case 2: auto scale
+        ScaleOpEvent auto = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
+                newRange, false, System.currentTimeMillis(), System.currentTimeMillis());
+        // run scaling workflow. This should throw Conflict Exception. 
+        AssertExtensions.assertSuppliedFutureThrows("", () -> scaleRequestHandler.execute(auto),
+                e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.ConflictException);
+
+        // verify that neither event led to any processing and stream is still at epoch 0 and active state.
+        assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
+        assertEquals(0, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
     }
 
     private static class EventWriterMock implements EventStreamWriter<ControllerEvent> {

@@ -69,9 +69,10 @@ class Write {
     }
 
     private ByteBuf convertData(CompositeArrayView data) {
-        val c = Unpooled.compositeBuffer();
-        data.collect((array, offset, length) -> c.addComponent(Unpooled.wrappedBuffer(array, offset, length)));
-        return c.writerIndex(c.capacity()).retain();
+        ByteBuf[] components = new ByteBuf[data.getComponentCount()];
+        val index = new AtomicInteger();
+        data.collect((array, offset, length) -> components[index.getAndIncrement()] = Unpooled.wrappedBuffer(array, offset, length));
+        return Unpooled.wrappedUnmodifiableBuffer(components);
     }
 
     //endregion
