@@ -22,22 +22,27 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Builder;
-import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 
 import static io.pravega.common.io.serialization.RevisionDataOutput.COMPACT_LONG_MAX;
 
-@EqualsAndHashCode(callSuper = false)
 public class PositionImpl extends PositionInternal {
 
     private static final PositionSerializer SERIALIZER = new PositionSerializer();
-    private final Map<Segment, Long> ownedSegments;
+    private Map<Segment, Long> ownedSegments;
     private final Map<Segment, Range> segmentRanges;
+
+    // If this field is set, it means that we will need to apply the updates on the ownedSegments.
+    private transient List<Entry<Segment, Long>> updatesToSegmentOffsets;
+    // This field represents the index up to which updatesToSegmentOffsets should be applied to ownedSegments.
+    private transient long version;
 
     /**
      * Instantiates Position with current and future owned segments.
@@ -47,35 +52,56 @@ public class PositionImpl extends PositionInternal {
     public PositionImpl(Map<SegmentWithRange, Long> segments) {
         this.ownedSegments = new HashMap<>(segments.size());
         this.segmentRanges = new HashMap<>(segments.size());
+        this.updatesToSegmentOffsets = null;
+        this.version = 0;
         for (Entry<SegmentWithRange, Long> entry : segments.entrySet()) {
             SegmentWithRange s = entry.getKey();
             this.ownedSegments.put(s.getSegment(), entry.getValue());
             this.segmentRanges.put(s.getSegment(), s.getRange());
         }
     }
-    
+
+    /**
+     * Builder to lazily construct a PositionImpl object. This builder allows as input both copies or references to
+     * (structurally immutable) external collections to build its internal state. In the case of using references to
+     * existing collections as input, the implementation of this class ensures that their contents will not be changed.
+     * By using this builder, we are making the internal state of this object to be lazily constructed (i.e., only if
+     * any method on the object is invoked, the internal state is built first based on the collections used as input).
+     *
+     * @param ownedSegments             Map of Segments and their current read offset.
+     * @param segmentRanges             Map that relates Segments with their assigned keyspace ranges.
+     * @param updatesToSegmentOffsets   Optional list of Segment offset updates. If this list is not null or empty,
+     *                                   this class will replay the input list and update a copy of ownedSegments with
+     *                                   the offsets in the list. This will happen before any other method invocation to
+     *                                   build the internal state of the object.
+     */
     @Builder(builderClassName = "PositionBuilder")
-    PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges) {
-        this.ownedSegments = ownedSegments;
+    PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges, List<Entry<Segment, Long>> updatesToSegmentOffsets) {
+        this.ownedSegments = Collections.unmodifiableMap(ownedSegments);
+        this.updatesToSegmentOffsets = (updatesToSegmentOffsets != null) ? Collections.unmodifiableList(updatesToSegmentOffsets) : null;
+        this.version = (updatesToSegmentOffsets != null) ? updatesToSegmentOffsets.size() : 0;
         if (segmentRanges == null) {
             this.segmentRanges = Collections.emptyMap();
         } else {
-            this.segmentRanges = segmentRanges;
+            this.segmentRanges = Collections.unmodifiableMap(segmentRanges);
         }
     }
 
     @Override
     public Set<Segment> getOwnedSegments() {
+        applySegmentOffsetUpdatesIfNeeded();
         return Collections.unmodifiableSet(ownedSegments.keySet());
     }
 
     @Override
     public Map<Segment, Long> getOwnedSegmentsWithOffsets() {
+        applySegmentOffsetUpdatesIfNeeded();
         return Collections.unmodifiableMap(ownedSegments);
     }
     
     @Override
     Map<SegmentWithRange, Long> getOwnedSegmentRangesWithOffsets() {
+        applySegmentOffsetUpdatesIfNeeded();
         HashMap<SegmentWithRange, Long> result = new HashMap<>();
         for (Entry<Segment, Long> entry : ownedSegments.entrySet()) {
             result.put(new SegmentWithRange(entry.getKey(), segmentRanges.get(entry.getKey())), entry.getValue());
@@ -83,9 +109,9 @@ public class PositionImpl extends PositionInternal {
         return result;
     }
 
-
     @Override
     public Set<Segment> getCompletedSegments() {
+        applySegmentOffsetUpdatesIfNeeded();
         return ownedSegments.entrySet()
             .stream()
             .filter(x -> x.getValue() < 0)
@@ -95,17 +121,39 @@ public class PositionImpl extends PositionInternal {
 
     @Override
     public Long getOffsetForOwnedSegment(Segment segmentId) {
+        applySegmentOffsetUpdatesIfNeeded();
         return ownedSegments.get(segmentId);
     }
 
     @Override
     public PositionImpl asImpl() {
+        applySegmentOffsetUpdatesIfNeeded();
         return this;
     }
     
     @Override
     public String toString() {
+        applySegmentOffsetUpdatesIfNeeded();
         return ToStringUtils.mapToString(ownedSegments);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        applySegmentOffsetUpdatesIfNeeded();
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        PositionImpl position = (PositionImpl) o;
+        return ownedSegments.equals(position.getOwnedSegmentsWithOffsets()) && segmentRanges.equals(position.segmentRanges);
+    }
+
+    @Override
+    public int hashCode() {
+        applySegmentOffsetUpdatesIfNeeded();
+        return Objects.hash(ownedSegments, segmentRanges);
     }
 
     static class PositionBuilder implements ObjectBuilder<PositionImpl> {
@@ -160,8 +208,7 @@ public class PositionImpl extends PositionInternal {
         }
 
         private void write01(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
-            Map<Segment, Range> map = position.segmentRanges;
-            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializer::writeRange);
+            revisionDataOutput.writeMap(position.segmentRanges, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializer::writeRange);
         }
 
         private static void writeRange(RevisionDataOutput out, Range range) throws IOException {
@@ -196,4 +243,30 @@ public class PositionImpl extends PositionInternal {
         return SERIALIZER.deserialize(new ByteArraySegment(buff));
     }
 
+    private synchronized void applySegmentOffsetUpdatesIfNeeded() {
+        // No updates, so nothing to do.
+        if (this.updatesToSegmentOffsets == null || this.updatesToSegmentOffsets.isEmpty()) {
+            return;
+        }
+        // We create the new ownedSegments map based on the updatesToSegmentOffsets list and existing ownedSegments map.
+        Map<Segment, Long> newOwnedSegments = new HashMap<>();
+        // Apply only the most recent Segment offset updates starting at the point this event was read.
+        for (int i = (int) this.version - 1; i >= 0; i--) {
+            newOwnedSegments.putIfAbsent(this.updatesToSegmentOffsets.get(i).getKey(), this.updatesToSegmentOffsets.get(i).getValue());
+            // We have the most recent updates on all the segments, no need to continue the loop.
+            if (newOwnedSegments.size() == this.ownedSegments.size()) {
+                break;
+            }
+        }
+        // In case that there are segments without updates in updatesToSegmentOffsets, we apply the existing values in ownedSegments.
+        if (newOwnedSegments.size() < this.ownedSegments.size()) {
+            for (Entry<Segment, Long> s : this.ownedSegments.entrySet()) {
+                newOwnedSegments.putIfAbsent(s.getKey(), s.getValue());
+            }
+        }
+        // Build the final state of this PositionImpl object.
+        this.ownedSegments = Collections.unmodifiableMap(newOwnedSegments);
+        this.updatesToSegmentOffsets = null;
+        this.version = 0;
+    }
 }
