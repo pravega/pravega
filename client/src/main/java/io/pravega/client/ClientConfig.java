@@ -110,9 +110,10 @@ public class ClientConfig implements Serializable {
     private final MetricListener metricListener;
 
     /**
-     * If the flag is set, a server request will time out if it doesn't receive response from Segment store
-     * in a given time period. Notice that we don't want this feature enabled in testing since it might mask some
-     * bugs.
+     * An optional property representing the timeout for the request to server.
+     *
+     * The default request timeout is 30s if this option is not set. Notice that we want this request timeout to be
+     * long enough in testing in order to not mask any bugs.
      */
     private final Duration serverRequestTimeout;
 
