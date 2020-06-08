@@ -22,7 +22,10 @@ import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
+<<<<<<< HEAD
 import io.pravega.segmentstore.contracts.SegmentProperties;
+=======
+>>>>>>> Issue 3637: (SegmentStore) Enable compaction on all Controller Table Segments (#3701)
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -165,16 +168,23 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, boolean sorted, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
+<<<<<<< HEAD
         val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
         if (sorted) {
             attributes.put(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE);
         }
+=======
+>>>>>>> Issue 3637: (SegmentStore) Enable compaction on all Controller Table Segments (#3701)
 
         // Fetch defaults for all attributes, but check our own DEFAULT_ATTRIBUTES for any meaningful overrides.
         // NOTE: At the moment, all TableSegments are internal to Pravega and are used for metadata storage. As such, all
         // these defaults make sense for such use cases. If TableSegments are exposed to the end-user, then this method
         // will need to accept external configuration that defines at least MIN_UTILIZATION.
+<<<<<<< HEAD
         val attributeUpdates = attributes
+=======
+        val attributeUpdates = TableAttributes.DEFAULT_VALUES
+>>>>>>> Issue 3637: (SegmentStore) Enable compaction on all Controller Table Segments (#3701)
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, DEFAULT_ATTRIBUTES.getOrDefault(e.getKey(), e.getValue())))
                 .collect(Collectors.toList());
