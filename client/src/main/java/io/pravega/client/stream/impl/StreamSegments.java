@@ -51,6 +51,21 @@ public class StreamSegments extends SegmentCollection {
         return segments.size();
     }
 
+<<<<<<< HEAD
+=======
+    public Collection<Segment> getSegments() {
+        ArrayList<Segment> result = new ArrayList<>(segments.size());
+        for (SegmentWithRange seg : segments.values()) {
+            result.add(seg.getSegment());
+        }
+        return result;
+    }
+
+    public int getNumberOfSegments() {
+        return segments.size();
+    }
+    
+>>>>>>> Issue 4817: Improve sealed stream handling of EventStreamWriter and ByteStreamWriter. (#4848)
     public StreamSegments withReplacementRange(Segment segment, StreamSegmentsWithPredecessors replacementRanges) {
         SegmentWithRange replacedSegment = findReplacedSegment(segment);
         verifyReplacementRange(replacedSegment, replacementRanges);

@@ -10,8 +10,11 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+<<<<<<< HEAD
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
+=======
+>>>>>>> Issue 4817: Improve sealed stream handling of EventStreamWriter and ByteStreamWriter. (#4848)
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;

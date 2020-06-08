@@ -406,6 +406,7 @@ public class ControllerImplTest {
                     // empty response if the Stream is sealed.
                     responseObserver.onNext( SegmentRanges.newBuilder().build());
                     responseObserver.onCompleted();
+<<<<<<< HEAD:client/src/test/java/io/pravega/client/control/impl/ControllerImplTest.java
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -427,6 +428,8 @@ public class ControllerImplTest {
                                                                  1.0))
                                                          .build());
                     responseObserver.onCompleted();
+=======
+>>>>>>> Issue 4817: Improve sealed stream handling of EventStreamWriter and ByteStreamWriter. (#4848):client/src/test/java/io/pravega/client/stream/impl/ControllerImplTest.java
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -1339,6 +1342,7 @@ public class ControllerImplTest {
 
         streamSegments = controllerClient.getCurrentSegments("scope1", "sealedStream");
         assertTrue(streamSegments.get().getNumberOfSegments() == 0);
+<<<<<<< HEAD:client/src/test/java/io/pravega/client/control/impl/ControllerImplTest.java
     }
 
     @Test
@@ -1351,6 +1355,8 @@ public class ControllerImplTest {
 
         streamSegments = controllerClient.getEpochSegments("scope1", "stream2", 0);
         AssertExtensions.assertFutureThrows("Should throw Exception", streamSegments, throwable -> true);
+=======
+>>>>>>> Issue 4817: Improve sealed stream handling of EventStreamWriter and ByteStreamWriter. (#4848):client/src/test/java/io/pravega/client/stream/impl/ControllerImplTest.java
     }
 
     @Test
