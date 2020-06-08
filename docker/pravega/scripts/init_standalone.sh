@@ -10,10 +10,10 @@
 #
 
 init_standalone() {
-    add_system_property "pravegaservice.publishedIPAddress" "${HOST_IP}"
-    add_system_property "pravegaservice.listeningIPAddress" "0.0.0.0"
-    add_system_property "singlenode.zkPort" "2181"
-    add_system_property "singlenode.controllerPort" "9090"
-    add_system_property "singlenode.segmentstorePort" "12345"
+    add_system_property "pravegaservice.service.published.host.nameOrIp" "${HOST_IP}"
+    add_system_property "pravegaservice.service.listener.host.nameOrIp" "0.0.0.0"
+    add_system_property "singlenode.zk.port" "2181"
+    add_system_property "singlenode.controller.rpc.port" "9090"
+    add_system_property "singlenode.segmentStore.port" "12345"
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }

@@ -69,16 +69,16 @@ public class PravegaControllerDockerService extends DockerBasedService {
         Mount mount = Mount.builder().type("Volume").source("controller-logs").target("/opt/pravega/logs").build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         Map<String, String> stringBuilderMap = new HashMap<>();
-        stringBuilderMap.put("controller.zk.url", zk);
-        stringBuilderMap.put("controller.service.publishedRPCHost", serviceName);
-        stringBuilderMap.put("controller.service.publishedRPCPort", String.valueOf(controllerPort));
-        stringBuilderMap.put("controller.service.port", String.valueOf(controllerPort));
-        stringBuilderMap.put("controller.service.restPort", String.valueOf(restPort));
+        stringBuilderMap.put("controller.zk.connect.uri", zk);
+        stringBuilderMap.put("controller.service.rpc.published.host.nameOrIp", serviceName);
+        stringBuilderMap.put("controller.service.rpc.published.port", String.valueOf(controllerPort));
+        stringBuilderMap.put("controller.service.rpc.listener.port", String.valueOf(controllerPort));
+        stringBuilderMap.put("controller.service.rest.listener.port", String.valueOf(restPort));
         stringBuilderMap.put("log.level", "DEBUG");
         stringBuilderMap.put("curator-default-session-timeout", String.valueOf(10 * 1000));
-        stringBuilderMap.put("controller.zk.sessionTimeoutMillis", String.valueOf(30 * 1000));
-        stringBuilderMap.put("controller.transaction.maxLeaseValue", String.valueOf(120 * 1000));
-        stringBuilderMap.put("controller.retention.frequencyMinutes", String.valueOf(2));
+        stringBuilderMap.put("controller.zk.connect.session.timeout.milliseconds", String.valueOf(30 * 1000));
+        stringBuilderMap.put("controller.transaction.lease.count.max", String.valueOf(120 * 1000));
+        stringBuilderMap.put("controller.retention.frequency.minutes", String.valueOf(2));
         StringBuilder systemPropertyBuilder = new StringBuilder();
         for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
             systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue()).append(" ");
