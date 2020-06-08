@@ -56,13 +56,13 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
-
+    private PravegaConnectionListener serverListener;
     private ConnectionFactory connectionFactory;
     private TestingServer zkTestServer = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller;
     private KeyValueTableFactory keyValueTableFactory;
-    private PravegaConnectionListener server = null;
+
 
     @Before
     public void setup() throws Exception {
@@ -73,29 +73,27 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         final int servicePort = TestUtils.getAvailableListenPort();
         final int containerCount = 4;
 
+        // 1. Start ZK
+        this.zkTestServer = new TestingServerStarter().start();
+
+        // 2. Start Pravega SegmentStore service.
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.initialize();
         this.tableStore = this.serviceBuilder.createTableStoreService();
-        //int port = TestUtils.getAvailableListenPort();
-        //this.serverListener = new PravegaConnectionListener(false, port, mock(StreamSegmentStore.class), this.tableStore);
-        //this.serverListener.startListening();
+        int port = TestUtils.getAvailableListenPort();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore);
-        this.server.startListening();
+        this.serverListener = new PravegaConnectionListener(false, port, store, this.tableStore);
+        this.serverListener.startListening();
         this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
-        // 1. Start ZK
-        log.info("STARTING ZOOKEEPER ...");
-        this.zkTestServer = new TestingServerStarter().start();
 
+        // 3. Start Pravega Controller service
         this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 controllerPort, serviceHost, servicePort, containerCount);
-        log.info("STARTING CONTROLLER ...");
         this.controllerWrapper.awaitRunning();
-
-        //this.controller = new MockController(ENDPOINT, port, this.connectionFactory, true);
         this.controller = controllerWrapper.getController();
-        log.info("CREATING SCOPE ...");
+
+        //4. Create Scope
         this.controller.createScope(SCOPE);
         this.keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE, this.controller, this.connectionFactory);
     }
@@ -104,18 +102,14 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     public void tearDown() throws Exception {
         this.controller.close();
         this.connectionFactory.close();
-
-        this.server.close();
+        this.serverListener.close();
         this.serviceBuilder.close();
 
         if (this.controllerWrapper != null) {
             this.controllerWrapper.close();
             this.controllerWrapper = null;
         }
-        if (this.server != null) {
-            this.server.close();
-            this.server = null;
-        }
+
         if (this.zkTestServer != null) {
             this.zkTestServer.close();
             this.zkTestServer = null;
