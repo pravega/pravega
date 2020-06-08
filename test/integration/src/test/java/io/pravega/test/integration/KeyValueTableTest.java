@@ -56,7 +56,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
-    private PravegaConnectionListener serverListener;
+    private PravegaConnectionListener server = null;
     private ConnectionFactory connectionFactory;
     private TestingServer zkTestServer = null;
     private ControllerWrapper controllerWrapper = null;
@@ -67,7 +67,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     @Before
     public void setup() throws Exception {
         super.setup();
-        log.info("setup ...");
+
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = ENDPOINT;
         final int servicePort = TestUtils.getAvailableListenPort();
@@ -78,14 +78,12 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
 
         // 2. Start Pravega SegmentStore service.
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.initialize();
-        this.tableStore = this.serviceBuilder.createTableStoreService();
-        int port = TestUtils.getAvailableListenPort();
+        serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        this.serverListener = new PravegaConnectionListener(false, port, store, this.tableStore);
-        this.serverListener.startListening();
-        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        this.tableStore = serviceBuilder.createTableStoreService();
 
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        this.server.startListening();
 
         // 3. Start Pravega Controller service
         this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
@@ -95,20 +93,22 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
 
         //4. Create Scope
         this.controller.createScope(SCOPE);
+        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         this.keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE, this.controller, this.connectionFactory);
     }
+
 
     @After
     public void tearDown() throws Exception {
         this.controller.close();
         this.connectionFactory.close();
-        this.serverListener.close();
-        this.serviceBuilder.close();
 
         if (this.controllerWrapper != null) {
             this.controllerWrapper.close();
             this.controllerWrapper = null;
         }
+        this.server.close();
+        this.serviceBuilder.close();
 
         if (this.zkTestServer != null) {
             this.zkTestServer.close();
