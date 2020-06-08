@@ -22,9 +22,9 @@ import lombok.Getter;
 public class AttributeIndexConfig {
     //region Config Names
 
-    public static final Property<Integer> ATTRIBUTE_SEGMENT_ROLLING_SIZE = Property.named("attributeSegmentRollingSizeBytes", 32 * 1024 * 1024);
+    public static final Property<Integer> ATTRIBUTE_SEGMENT_ROLLING_SIZE = Property.named("attributeSegment.rolling.size.bytes", 32 * 1024 * 1024, "attributeSegmentRollingSizeBytes");
     private static final int MAX_INDEX_PAGE_SIZE_VALUE = (int) Short.MAX_VALUE; // Max allowed by BTreeIndex.
-    public static final Property<Integer> MAX_INDEX_PAGE_SIZE = Property.named("maxIndexPageSizeBytes", MAX_INDEX_PAGE_SIZE_VALUE);
+    public static final Property<Integer> MAX_INDEX_PAGE_SIZE = Property.named("indexPage.size.bytes.max", MAX_INDEX_PAGE_SIZE_VALUE, "maxIndexPageSizeBytes");
     private static final int MIN_INDEX_PAGE_SIZE_VALUE = 1024;
     private static final String COMPONENT_CODE = "attributeindex";
 
