@@ -56,6 +56,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import static io.pravega.shared.MetricsTags.streamTags;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 @Slf4j
 public class StreamMetricsTest {
@@ -237,8 +238,7 @@ public class StreamMetricsTest {
 
         controllerWrapper.getControllerService().createScope(scaleRollingTxnScopeName).get();
         if (!controller.createStream(scaleRollingTxnScopeName, scaleRollingTxnStreamName, config).get()) {
-            log.error("Stream {} for scale testing already existed, exiting", scaleRollingTxnScopeName + "/" + scaleRollingTxnStreamName);
-            return;
+            fail("Stream " + scaleRollingTxnScopeName + "/" + scaleRollingTxnStreamName + " for scale testing already existed, test failed");
         }
 
         @Cleanup
@@ -258,8 +258,7 @@ public class StreamMetricsTest {
 
         Stream scaleRollingTxnStream = new StreamImpl(scaleRollingTxnScopeName, scaleRollingTxnStreamName);
         if (!controller.scaleStream(scaleRollingTxnStream, Collections.singletonList(0L), keyRanges, executor).getFuture().get()) {
-            log.error("Scale stream: splitting segment into three failed, exiting");
-            return;
+            fail("Scale stream: splitting segment into three failed, exiting");
         }
 
         assertEquals(3, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
