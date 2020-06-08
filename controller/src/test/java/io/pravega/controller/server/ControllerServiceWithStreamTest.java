@@ -10,7 +10,8 @@
 package io.pravega.controller.server;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -92,7 +93,7 @@ public abstract class ControllerServiceWithStreamTest {
     private StreamMetadataTasks streamMetadataTasks;
 
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private ConnectionFactoryImpl connectionFactory;
+    private ConnectionFactory connectionFactory;
     private StreamMetadataStore streamStore;
     private RequestTracker requestTracker = new RequestTracker(true);
 
@@ -112,7 +113,7 @@ public abstract class ControllerServiceWithStreamTest {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
         GrpcAuthHelper disabledAuthHelper = GrpcAuthHelper.getDisabledAuthHelper();

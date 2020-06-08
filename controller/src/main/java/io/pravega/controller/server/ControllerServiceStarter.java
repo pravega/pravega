@@ -13,7 +13,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
@@ -218,8 +219,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
             
             ClientConfig clientConfig = clientConfigBuilder.build();
-            connectionFactory = connectionFactoryRef.orElse(new ConnectionFactoryImpl(clientConfig));
-            segmentHelper = segmentHelperRef.orElse(new SegmentHelper(connectionFactory, hostStore));
+            connectionFactory = connectionFactoryRef.orElse(new SocketConnectionFactoryImpl(clientConfig));
+            segmentHelper = segmentHelperRef.orElse(new SegmentHelper(new ConnectionPoolImpl(clientConfig, connectionFactory), hostStore));
 
             GrpcAuthHelper authHelper = new GrpcAuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                                                            grpcServerConfig.getTokenSigningKey(),

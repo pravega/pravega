@@ -119,13 +119,6 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         }
 
         @Override
-        public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
-            this.rp = rp;
-            this.connection = new MockConnection(rp);
-            return CompletableFuture.completedFuture(connection);
-        }
-
-        @Override
         public ScheduledExecutorService getInternalExecutor() {
             return executorService;
         }
@@ -154,11 +147,6 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         
         @Override
         public void send(Append append) throws ConnectionFailedException {
-        }
-
-        @Override
-        public void sendAsync(WireCommand cmd, CompletedCallback callback) {
-            handleRequest(cmd);
         }
 
         @Override

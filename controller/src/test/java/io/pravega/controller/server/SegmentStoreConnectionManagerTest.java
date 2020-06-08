@@ -359,13 +359,6 @@ public class SegmentStoreConnectionManagerTest {
         }
 
         @Override
-        public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
-            this.rp = rp;
-            ClientConnection connection = new MockConnection(rp);
-            return CompletableFuture.completedFuture(connection);
-        }
-
-        @Override
         public ScheduledExecutorService getInternalExecutor() {
             return null;
         }
@@ -390,7 +383,9 @@ public class SegmentStoreConnectionManagerTest {
 
         @Override
         public void send(WireCommand cmd) throws ConnectionFailedException {
-
+            if (isClosed.get()) {
+                throw new ConnectionFailedException();
+            }
         }
 
         @Override
@@ -398,12 +393,6 @@ public class SegmentStoreConnectionManagerTest {
 
         }
 
-        @Override
-        public void sendAsync(WireCommand cmd, CompletedCallback callback) {
-            if (isClosed.get()) {
-                callback.complete(new ConnectionFailedException());
-            }
-        }
 
         @Override
         public void sendAsync(List<Append> appends, CompletedCallback callback) {

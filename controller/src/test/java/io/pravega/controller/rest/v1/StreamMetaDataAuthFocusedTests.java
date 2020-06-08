@@ -12,7 +12,8 @@ package io.pravega.controller.rest.v1;
 import com.google.common.collect.ImmutableMap;
 import io.grpc.ServerBuilder;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -125,7 +126,7 @@ public class StreamMetaDataAuthFocusedTests {
     private static File passwordHandlerInputFile;
 
     @SuppressWarnings("checkstyle:StaticVariableName")
-    private static ConnectionFactoryImpl connectionFactory;
+    private static ConnectionFactory connectionFactory;
     
     // We want to ensure that the tests in this class are run one after another (in no particular sequence), as we
     // are using a shared server (for execution efficiency). We use this in setup and teardown method initiazers
@@ -185,7 +186,7 @@ public class StreamMetaDataAuthFocusedTests {
         mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
         LocalController controller = new LocalController(mockControllerService, false, "");
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
         restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,

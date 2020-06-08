@@ -15,8 +15,9 @@ import com.google.common.collect.ImmutableSet;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCountUtil;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -41,17 +42,16 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
-
-import java.util.ArrayList;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -109,10 +109,10 @@ public class SegmentHelper implements AutoCloseable {
             .build();
 
     private final HostControllerStore hostStore;
-    private final ConnectionFactory connectionFactory;
+    private final ConnectionPool connectionPool;
 
-    public SegmentHelper(final ConnectionFactory clientCF, HostControllerStore hostStore) {
-        this.connectionFactory = clientCF;
+    public SegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore) {
+        this.connectionPool = connectionPool;
         this.hostStore = hostStore;
     }
 
@@ -138,7 +138,7 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
@@ -157,7 +157,7 @@ public class SegmentHelper implements AutoCloseable {
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.TRUNCATE_SEGMENT;
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         return sendRequest(connection, requestId, new WireCommands.TruncateSegment(requestId, qualifiedStreamSegmentName, offset, delegationToken))
@@ -172,7 +172,7 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         return sendRequest(connection, requestId, new WireCommands.DeleteSegment(requestId, qualifiedStreamSegmentName, delegationToken))
@@ -197,7 +197,7 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         return sendRequest(connection, requestId, new WireCommands.SealSegment(requestId, qualifiedName, delegationToken))
@@ -213,7 +213,7 @@ public class SegmentHelper implements AutoCloseable {
         final String transactionName = getTransactionName(scope, stream, segmentId, txId);
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(requestId, transactionName,
@@ -244,7 +244,7 @@ public class SegmentHelper implements AutoCloseable {
         final String transactionName = getTransactionName(scope, stream, sourceSegmentId, txId);
         final WireCommandType type = WireCommandType.MERGE_SEGMENTS;
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
         
         WireCommands.MergeSegments request = new WireCommands.MergeSegments(requestId,
@@ -277,7 +277,7 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
         WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(requestId, transactionName, delegationToken);
 
@@ -294,7 +294,7 @@ public class SegmentHelper implements AutoCloseable {
         
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(requestId,
@@ -310,7 +310,7 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
 
         final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         WireCommands.GetStreamSegmentInfo request = new WireCommands.GetStreamSegmentInfo(requestId,
@@ -341,7 +341,7 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         return sendRequest(connection, requestId, new WireCommands.CreateTableSegment(requestId, tableName, delegationToken))
@@ -366,7 +366,7 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.DELETE_TABLE_SEGMENT;
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         return sendRequest(connection, requestId, new WireCommands.DeleteTableSegment(requestId, tableName, mustBeEmpty, delegationToken))
@@ -400,7 +400,7 @@ public class SegmentHelper implements AutoCloseable {
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }).collect(Collectors.toList());
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
         WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, tableName, delegationToken,
                 new WireCommands.TableEntries(wireCommandEntries));
@@ -441,7 +441,7 @@ public class SegmentHelper implements AutoCloseable {
             return key;
         }).collect(Collectors.toList());
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, tableName, delegationToken, keyList);
@@ -477,7 +477,7 @@ public class SegmentHelper implements AutoCloseable {
             return new WireCommands.TableKey(buffer, WireCommands.TableKey.NO_VERSION);
         }).collect(Collectors.toList());
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, tableName, delegationToken, keyList);
@@ -510,7 +510,7 @@ public class SegmentHelper implements AutoCloseable {
 
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         final IteratorState token = (state == null) ? IteratorState.EMPTY : state;
@@ -546,7 +546,7 @@ public class SegmentHelper implements AutoCloseable {
 
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         final IteratorState token = (state == null) ? IteratorState.EMPTY : state;

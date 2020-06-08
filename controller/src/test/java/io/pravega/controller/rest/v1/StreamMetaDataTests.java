@@ -11,7 +11,8 @@ package io.pravega.controller.rest.v1;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -96,7 +97,7 @@ public class StreamMetaDataTests {
 
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
-    private ConnectionFactoryImpl connectionFactory;
+    private ConnectionFactory connectionFactory;
     
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
@@ -146,9 +147,9 @@ public class StreamMetaDataTests {
         mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
         LocalController controller = new LocalController(mockControllerService, false, "");
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
-                                                                                        .controllerURI(URI.create("tcp://localhost"))
-                                                                                        .build());
+        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                                                                        .controllerURI(URI.create("tcp://localhost"))
+                                                                        .build());
         restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,
                 connectionFactory);
         restServer.startAsync();

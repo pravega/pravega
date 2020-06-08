@@ -21,7 +21,8 @@ import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.impl.Credentials;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.PravegaCredentialsWrapper;
@@ -147,7 +148,7 @@ public class ControllerGrpcAuthFocusedTest {
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(
                 ClientConfig.builder()
                         .controllerURI(URI.create("tcp://localhost"))
                         .credentials(new DefaultCredentials(DEFAULT_PASSWORD, UserNames.ADMIN))
