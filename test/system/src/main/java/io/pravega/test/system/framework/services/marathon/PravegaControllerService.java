@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework.services.marathon;
 
+import io.pravega.controller.util.Config;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import java.net.URI;
@@ -119,18 +120,21 @@ public class PravegaControllerService extends MarathonBasedService {
         healthCheckList.add(setHealthCheck(300, "TCP", false, 60, 20, 0, CONTROLLER_PORT));
         app.setHealthChecks(healthCheckList);
 
+        String componentCode = "controller";
+
         //set env
         String controllerSystemProperties = "-Xmx512m" +
-                setSystemProperty("controller.zk.url", zk) +
-                setSystemProperty("controller.service.publishedRPCHost", this.id + ".marathon.mesos") +
-                setSystemProperty("controller.service.publishedRPCPort", String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty("controller.service.port", String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty("controller.service.restPort", String.valueOf(REST_PORT)) +
+                setSystemProperty(Config.PROPERTY_ZK_URL.getFullName(componentCode), zk) +
+                setSystemProperty(Config.PROPERTY_RPC_HOST.getFullName(componentCode), this.id + ".marathon.mesos") +
+                setSystemProperty(Config.PROPERTY_RPC_PORT.getFullName(componentCode), String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty(Config.PROPERTY_SERVICE_PORT.getFullName(componentCode), String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty(Config.PROPERTY_REST_PORT.getFullName(componentCode), String.valueOf(REST_PORT)) +
                 setSystemProperty("log.level", "DEBUG") +
                 setSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
                 setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
-                setSystemProperty("controller.transaction.maxLeaseValue", String.valueOf(120 * 1000)) +
-                setSystemProperty("controller.retention.frequencyMinutes", String.valueOf(2));
+                setSystemProperty(Config.PROPERTY_TXN_MAX_LEASE.getFullName(componentCode), String.valueOf(120 * 1000)) +
+                setSystemProperty(Config.PROPERTY_RETENTION_FREQUENCY_MINUTES.getFullName(componentCode), String.valueOf(2));
+
         Map<String, Object> map = new HashMap<>();
         map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
         app.setEnv(map);
