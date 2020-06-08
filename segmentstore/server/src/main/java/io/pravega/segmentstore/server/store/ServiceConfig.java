@@ -28,8 +28,12 @@ public class ServiceConfig {
     //region Config Names
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     public static final Property<Integer> CONTAINER_COUNT = Property.named("container.count", null, "containerCount");
     public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("container.parallelStarts", 2);
+=======
+    public static final Property<Integer> CONTAINER_COUNT = Property.named("container.count", null, "containerCount");
+>>>>>>> Issue 4712: Make configuration keys consistent and uniform (#4713)
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPool.core.size", 30, "threadPoolSize");
     public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("threadPool.storage.size", 200, "storageThreadPoolSize");
     public static final Property<Integer> LOW_PRIORITY_THREAD_POOL_SIZE = Property.named("threadPool.lowPriorityTasks.size", 10, "lowPriorityThreadPoolSize");
@@ -50,6 +54,7 @@ public class ServiceConfig {
     // 1. Modify the operator to set this old, as well as the new property.
     // 2. Modify this property to use the new key, with legacy key name set as the old key.
     // 3. Remove old property from the operator.
+<<<<<<< HEAD
 =======
     public static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount");
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 30);
@@ -67,6 +72,9 @@ public class ServiceConfig {
     public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zkTrustStore", "");
     public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zkTrustStorePasswordPath", "");
 >>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692)
+=======
+
+>>>>>>> Issue 4712: Make configuration keys consistent and uniform (#4713)
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY, "dataLogImplementation");
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS, "storageImplementation");

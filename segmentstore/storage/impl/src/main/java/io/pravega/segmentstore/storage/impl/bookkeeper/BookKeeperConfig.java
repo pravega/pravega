@@ -27,6 +27,9 @@ public class BookKeeperConfig {
     //region Config Names
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4712: Make configuration keys consistent and uniform (#4713)
     public static final Property<String> ZK_ADDRESS = Property.named("zk.connect.uri", "localhost:2181", "zkAddress");
     public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zk.connect.sessionTimeout.milliseconds", 10000, "zkSessionTimeoutMillis");
     public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zk.connect.sessionTimeout.milliseconds", 10000, "zkConnectionTimeoutMillis");
@@ -51,6 +54,7 @@ public class BookKeeperConfig {
     public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopology.script.location",
             "/opt/pravega/scripts/sample-bookkeeper-topology.sh", "networkTopologyScriptFileName");
     public static final Property<String> BK_DIGEST_TYPE = Property.named("digest.type.name", DigestType.CRC32C.name(), "digestType");
+<<<<<<< HEAD
 =======
     public static final Property<String> ZK_ADDRESS = Property.named("zkAddress", "localhost:2181");
     public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zkSessionTimeoutMillis", 10000);
@@ -77,6 +81,8 @@ public class BookKeeperConfig {
             "/opt/pravega/scripts/sample-bookkeeper-topology.sh");
     public static final Property<String> BK_DIGEST_TYPE = Property.named("digestType", DigestType.CRC32C.name());
 >>>>>>> Issue 4531: Use new BookKeeper API and Upgrade to BookKeeper 4.9.2 (#4798)
+=======
+>>>>>>> Issue 4712: Make configuration keys consistent and uniform (#4713)
 
     public static final String COMPONENT_CODE = "bookkeeper";
     /**

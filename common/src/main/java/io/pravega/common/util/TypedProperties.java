@@ -11,7 +11,10 @@ package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+<<<<<<< HEAD
 import lombok.extern.slf4j.Slf4j;
+=======
+>>>>>>> Issue 4712: Make configuration keys consistent and uniform (#4713)
 
 import java.util.Properties;
 import java.util.function.Function;
@@ -145,8 +148,16 @@ public class TypedProperties {
             propValue = this.properties.getProperty(propNewName, null);
         }
 
+<<<<<<< HEAD
         // This property wasn't specified using either new or old name, so the property value is still null
         if (propValue == null) {
+=======
+        if (value == null && property.hasLegacyName()) {
+            value = this.properties.getProperty(this.keyPrefix + property.getLegacyName(), null);
+        }
+        if (value == null) {
+            // 2. Nothing in the configuration for this Property.
+>>>>>>> Issue 4712: Make configuration keys consistent and uniform (#4713)
             if (property.hasDefaultValue()) {
                 return property.getDefaultValue();
             } else {
