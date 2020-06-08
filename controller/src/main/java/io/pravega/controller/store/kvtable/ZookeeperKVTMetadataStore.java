@@ -59,8 +59,14 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
     }
 
     @Override
-    public CompletableFuture<Void> createEntryForKVTable(String scopeName, String kvtName, Executor executor) {
-        return Futures.completeOn(((ZKScope) getScope(scopeName)).addKVTableToScope(kvtName), executor);
+    public CompletableFuture<Void> createEntryForKVTable(String scopeName, String kvtName, byte[] id,  Executor executor) {
+        return Futures.completeOn(
+                CompletableFuture.completedFuture((ZKScope) getScope(scopeName))
+                 .thenCompose(scope -> {
+                     scope.getKVTableInScopeZNodePath(kvtName)
+                    .thenCompose(path -> scope.addKVTableToScope(path, id));
+                     return CompletableFuture.completedFuture(null);
+                 }), executor);
     }
 
     @Override
@@ -71,10 +77,7 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
     @Override
     public CompletableFuture<CreateKVTableResponse> createKeyValueTable(String scope, String name, KeyValueTableConfiguration configuration,
                                                                 long createTimestamp, KVTOperationContext context, Executor executor) {
-        ZKScope zkScope = (ZKScope) getScope(scope);
-        return  zkScope.getKVTableInScopeZNodePath(name)
-                .thenCompose(path -> zkScope.addKVTableToScope(path)
-                .thenCompose( v -> super.createKeyValueTable(scope, name, configuration, createTimestamp, context, executor)));
+        return super.createKeyValueTable(scope, name, configuration, createTimestamp, context, executor);
     }
 
     @Override

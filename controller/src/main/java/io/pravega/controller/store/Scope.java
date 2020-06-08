@@ -9,9 +9,11 @@
  */
 package io.pravega.controller.store;
 
+import io.pravega.common.util.BitConverter;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -64,4 +66,10 @@ public interface Scope {
      * This allows us reuse of scope object without having to recreate a new scope object for each new operation
      */
     void refresh();
+
+    default byte[] newId() {
+        byte[] b = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(b, 0, UUID.randomUUID());
+        return b;
+    }
 }

@@ -10,6 +10,7 @@
 package io.pravega.controller.store.kvtable;
 
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -42,11 +43,13 @@ public interface KVTableMetadataStore extends AutoCloseable {
      *
      * @param scopeName       scope name
      * @param kvtName         KeyValueTable name
+     * @param id              Unique Identifier for KVTable
      * @param executor        callers executor
      * @return boolean indicating whether the stream was created
      */
     CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                   final String kvtName,
+                                                  final byte[] id,
                                                   final Executor executor);
 
     /**
@@ -184,4 +187,12 @@ public interface KVTableMetadataStore extends AutoCloseable {
     CompletableFuture<KeyValueTableConfiguration> getConfiguration(final String scope, final String name,
                                                             final KVTOperationContext context,
                                                             final Executor executor);
+
+    /**
+     * Returns a Scope object from scope identifier.
+     *
+     * @param scopeName scope identifier is scopeName.
+     * @return Scope object.
+     */
+    Scope newScope(final String scopeName);
 }

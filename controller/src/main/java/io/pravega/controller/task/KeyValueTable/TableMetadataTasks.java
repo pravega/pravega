@@ -18,6 +18,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.common.util.BitConverter;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -107,40 +108,40 @@ public class TableMetadataTasks implements AutoCloseable {
                                                                                    KeyValueTableConfiguration kvtConfig,
                                                                                    final long createTimestamp) {
         final long requestId = requestTracker.getRequestIdFor("createKVTable", scope, kvtName);
-        return RetryHelper.withRetriesAsync(() -> Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
-                .thenCompose(state -> {
-                    if (state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
-                        return Futures.completeOn(kvtMetadataStore.checkScopeExists(scope)
-                                .thenCompose(exists -> {
-                                    if (exists) {
-                                        return Futures.exceptionallyExpecting(kvtMetadataStore.createEntryForKVTable(scope, kvtName, executor)
-                                                        .thenCompose(v -> kvtMetadataStore.getKVTable(scope, kvtName, null).getId()
-                                                        .thenCompose(uuid -> {
-                                                            CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(),
-                                                                                                        createTimestamp, requestId, UUID.fromString(uuid));
-                                                            return addIndexAndSubmitTask(event,
-                                                                    () -> CompletableFuture.completedFuture(null))
-                                                                    .thenCompose(x -> checkDone(() -> isCreated(scope, kvtName, kvtConfig, executor))
-                                                                            .thenCompose(y -> kvtMetadataStore.getConfiguration(scope, kvtName, null, executor)
-                                                                            .thenCompose(cfg -> {
-                                                                                if (cfg.getPartitionCount() == kvtConfig.getPartitionCount()) {
-                                                                                   return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SUCCESS);
-                                                                                } else {
-                                                                                   return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.TABLE_EXISTS);
-                                                                                }
-                                                                            })));
-                                                        })),
-                                                e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException,
-                                                CreateKeyValueTableStatus.Status.TABLE_EXISTS);
-                                    } else {
-                                        return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND);
-                                    }
-                                }), executor);
-                    } else {
-                       return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.TABLE_EXISTS);
-                    }
-                }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+        return RetryHelper.withRetriesAsync(() -> {
+               // 1. check if scope with this name exists...
+               return kvtMetadataStore.checkScopeExists(scope)
+                   .thenCompose(exists -> {
+                        if (!exists) {
+                           return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND);
+                        }
+                        //2. check state of the KVTable, if found
+                        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
+                                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
+                                    .thenCompose(state -> {
+                                       if (state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
+                                           //3. get a new UUID for the KVTable we will be creating.
+                                           byte[] newUUID = kvtMetadataStore.newScope(scope).newId();
+                                           CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(),
+                                                        createTimestamp, requestId, BitConverter.readUUID(newUUID, 0));
+                                                //4. Update ScopeTable with entry for this KVT and Publish event for creation
+                                                return Futures.exceptionallyExpecting(addIndexAndSubmitTask(event, () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, newUUID, executor))
+                                                                .thenCompose(x -> checkDone(() -> isCreated(scope, kvtName, kvtConfig, executor))
+                                                                        .thenCompose(y -> kvtMetadataStore.getConfiguration(scope, kvtName, null, executor)
+                                                                                .thenCompose(cfg -> {
+                                                                                    if (cfg.getPartitionCount() == kvtConfig.getPartitionCount()) {
+                                                                                        return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SUCCESS);
+                                                                                    } else {
+                                                                                        return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.TABLE_EXISTS);
+                                                                                    }
+                                                                                }))),
+                                                        e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException,
+                                                        CreateKeyValueTableStatus.Status.TABLE_EXISTS);
+                                            }
+                                            return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.TABLE_EXISTS);
+                                        });
+                            } );
+                }, e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
     }
 
     private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition) {

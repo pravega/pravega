@@ -136,7 +136,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         for (val s : segments.getSegments()) {
             // We know there's nothing in these segments. But if the segments hadn't been created, then this will throw
             // an exception.
-            this.tableStore.get(s.getScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT).join();
+            this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT).join();
         }
 
         // Verify re-creation does not work.

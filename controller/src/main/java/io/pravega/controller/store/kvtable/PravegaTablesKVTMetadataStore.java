@@ -67,7 +67,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     }
 
     @Override
-    PravegaTablesScope newScope(final String scopeName) {
+    public PravegaTablesScope newScope(final String scopeName) {
         return new PravegaTablesScope(scopeName, storeHelper);
     }
 
@@ -80,8 +80,9 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
 
     public CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                          final String kvtName,
+                                                         final byte[] id,
                                                          final Executor executor) {
-        return Futures.completeOn(((PravegaTablesScope) getScope(scopeName)).addKVTableToScope(kvtName), executor);
+        return Futures.completeOn(((PravegaTablesScope) getScope(scopeName)).addKVTableToScope(kvtName, id), executor);
     }
 
     @Override

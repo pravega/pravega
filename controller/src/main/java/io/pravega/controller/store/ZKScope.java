@@ -17,7 +17,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.StoreException;
 import lombok.Builder;
 import lombok.Data;
@@ -31,7 +30,6 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -321,19 +319,13 @@ public class ZKScope implements Scope {
         }
     }
 
-    public CompletableFuture<Void> addKVTableToScope(String kvt) {
+    public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
         return Futures.toVoid(getKVTableInScopeZNodePath(kvt)
                 .thenCompose(path -> store.createZNodeIfNotExist(path)
-                .thenCompose(x -> store.setData(path, newId(), new Version.IntVersion(0)))));
+                .thenCompose(x -> store.setData(path, id, new Version.IntVersion(0)))));
     }
 
     public static CompletableFuture<String> getKVTableInScopeZNodePath(String kvtName) {
         return CompletableFuture.completedFuture(String.format(KVTABLE_METADATA_ROOT_PATH, kvtName));
-    }
-
-    private byte[] newId() {
-        byte[] b = new byte[2 * Long.BYTES];
-        BitConverter.writeUUID(b, 0, UUID.randomUUID());
-        return b;
     }
 }

@@ -69,7 +69,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
 
     @Override
     @Synchronized
-    Scope newScope(final String scopeName) {
+    public Scope newScope(final String scopeName) {
         if (scopes.containsKey(scopeName)) {
             return scopes.get(scopeName);
         } else {
@@ -111,6 +111,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
 
     public CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                          final String kvtName,
+                                                         final byte[] id,
                                                          final Executor executor) {
         return Futures.completeOn(((InMemoryScope) getScope(scopeName)).addKVTableToScope(kvtName), executor);
     }

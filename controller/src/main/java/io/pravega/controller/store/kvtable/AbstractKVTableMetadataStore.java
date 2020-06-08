@@ -82,14 +82,6 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
         return scope;
     }
 
-    /**
-     * Returns a Scope object from scope identifier.
-     *
-     * @param scopeName scope identifier is scopeName.
-     * @return Scope object.
-     */
-    abstract Scope newScope(final String scopeName);
-
     abstract KeyValueTable newKeyValueTable(final String scope, final String kvTableName);
 
     @Override
@@ -212,5 +204,6 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
 
     public abstract CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                                   final String kvtName,
+                                                                  final byte[] id,
                                                                   final Executor executor);
 }

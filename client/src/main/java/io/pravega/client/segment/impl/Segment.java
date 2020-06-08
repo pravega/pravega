@@ -50,6 +50,10 @@ public class Segment implements Comparable<Segment>, Serializable {
         return NameUtils.getQualifiedStreamSegmentName(scope, streamName, segmentId);
     }
 
+    public String getKVTScopedName() {
+        return NameUtils.getQualifiedTableSegmentName(scope, streamName, segmentId);
+    }
+
     public Stream getStream() {
         return new StreamImpl(scope, streamName);
     }
