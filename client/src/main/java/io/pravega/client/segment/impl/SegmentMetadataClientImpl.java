@@ -13,7 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
-import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
@@ -53,16 +53,16 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
     private final Segment segmentId;
     private final Controller controller;
-    private final ConnectionFactory connectionFactory;
+    private final ConnectionPool connectionPool;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object lock = new Object();
     @GuardedBy("lock")
     private RawClient client = null;
     private final DelegationTokenProvider tokenProvider;
 
-    public SegmentMetadataClientImpl(Segment segment, Controller controller, ConnectionFactory connectionFactory,
+    public SegmentMetadataClientImpl(Segment segment, Controller controller, ConnectionPool connectionPool,
                                      String delegationToken) {
-        this(segment, controller, connectionFactory,
+        this(segment, controller, connectionPool,
                 DelegationTokenProviderFactory.create(delegationToken, controller, segment));
     }
 
@@ -101,7 +101,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     RawClient getConnection() {
         synchronized (lock) {
             if (client == null || client.isClosed()) {
-                client = new RawClient(controller, connectionFactory, segmentId);
+                client = new RawClient(controller, connectionPool, segmentId);
             }
             return client;
         }

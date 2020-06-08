@@ -13,6 +13,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * A factory that establishes connections to Pravega servers.
@@ -31,5 +32,7 @@ public interface ConnectionFactory extends AutoCloseable {
 
     @Override
     void close();
+
+    ScheduledExecutorService getInternalExecutor();
 
 }

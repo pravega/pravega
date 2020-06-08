@@ -9,7 +9,7 @@
  */
 package io.pravega.client.admin.impl;
 
-import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -36,9 +36,9 @@ public class StreamCutHelper {
     private final Controller controller;
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
 
-    public StreamCutHelper(Controller controller, ConnectionFactory connectionFactory) {
+    public StreamCutHelper(Controller controller, ConnectionPool connectionPool) {
         this.controller = controller;
-        this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
+        this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
     }
 
     /**

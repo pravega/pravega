@@ -13,6 +13,7 @@ package io.pravega.client.segment.impl;
 import io.pravega.auth.InvalidTokenException;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.concurrent.Futures;

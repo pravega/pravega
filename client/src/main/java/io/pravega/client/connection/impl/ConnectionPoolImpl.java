@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -85,9 +86,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private final ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
     @GuardedBy("$lock")
     private final Map<PravegaNodeUri, List<Connection>> connectionMap = new HashMap<>();
+    private ConnectionFactory connectionFactory;
 
-    public ConnectionPoolImpl(ClientConfig clientConfig) {
+    public ConnectionPoolImpl(ClientConfig clientConfig, ConnectionFactory connectionFactory) {
         this.clientConfig = clientConfig;
+        this.connectionFactory = connectionFactory;
         MetricListener metricListener = clientConfig.getMetricListener();
         this.metricNotifier = metricListener == null ? NO_OP_METRIC_NOTIFIER : new ClientMetricUpdater(metricListener);
     }
@@ -181,7 +184,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
      * flows on the connection.
      */
     private CompletableFuture<FlowHandler> establishConnection(PravegaNodeUri location) {
-        return FlowHandler.openConnection(location, clientConfig, metricNotifier);
+        return FlowHandler.openConnection(location, clientConfig, metricNotifier, connectionFactory);
         //TODO: set handler as callback 
         //TODO: Switch to AsynchronousSocketChannel.connect
         //TODO: Add ssl
@@ -226,5 +229,10 @@ public class ConnectionPoolImpl implements ConnectionPool {
         if (closed.compareAndSet(false, true)) {
             metricNotifier.close();
         }
+    }
+
+    @Override
+    public ScheduledExecutorService getInternalExecutor() {
+        return connectionFactory.getInternalExecutor();
     }
 }

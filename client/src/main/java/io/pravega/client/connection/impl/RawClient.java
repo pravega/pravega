@@ -82,16 +82,16 @@ public class RawClient implements AutoCloseable {
         }
     }
 
-    public RawClient(PravegaNodeUri uri, ConnectionFactory connectionFactory) {
+    public RawClient(PravegaNodeUri uri, ConnectionPool connectonPool) {
         this.segmentId = null;
-        this.connection = connectionFactory.establishConnection(flow, uri, responseProcessor);
+        this.connection = connectonPool.getClientConnection(flow, uri, responseProcessor);
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
-    public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId) {
+    public RawClient(Controller controller, ConnectionPool connectonPool, Segment segmentId) {
         this.segmentId = segmentId;
         this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
-                                    .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(flow, uri, responseProcessor));
+                                    .thenCompose((PravegaNodeUri uri) -> connectonPool.getClientConnection(flow, uri, responseProcessor));
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -137,15 +137,15 @@ public class RawClient implements AutoCloseable {
             synchronized (lock) {
                 requests.put(requestId, reply);
             }
-            c.sendAsync(request, cfe -> {
-                if (cfe != null) {
-                    synchronized (lock) {
-                        requests.remove(requestId);
-                    }
-                    reply.completeExceptionally(cfe);
-                    closeConnection(cfe);
+            try {
+                c.send(request);
+            } catch (ConnectionFailedException cfe) {
+                synchronized (lock) {
+                    requests.remove(requestId);
                 }
-            });
+                reply.completeExceptionally(cfe);
+                closeConnection(cfe);
+            }
             return reply;
         });
     }

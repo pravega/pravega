@@ -40,7 +40,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
 
     private static final int FLOW_DISABLED = 0;
     private final PravegaNodeUri location;
-    private TcpClientConnection channel; //Final (set in factory after construction)
+    private ClientConnection channel; //Final (set in factory after construction)
     @Getter
     private final MetricNotifier metricNotifier;
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
@@ -59,12 +59,12 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         this.metricNotifier = updateMetric;
     }
 
-    public static CompletableFuture<FlowHandler> openConnection(PravegaNodeUri location, ClientConfig clientConfig, MetricNotifier updateMetric) {
+    static CompletableFuture<FlowHandler> openConnection(PravegaNodeUri location, ClientConfig clientConfig, MetricNotifier updateMetric, ConnectionFactory connectionFactory) {
         FlowHandler flowHandler = new FlowHandler(location, updateMetric);
-        TcpClientConnection connection = TcpClientConnection.connect(location, clientConfig, flowHandler);
-        flowHandler.channel = connection;
-        return CompletableFuture.completedFuture(flowHandler);
-        
+        return connectionFactory.establishConnection(location, flowHandler).thenApply(connection -> {            
+            flowHandler.channel = connection;
+            return flowHandler;
+        });       
         //TODO: hello
         //TODO: start keepalive
         //TODO: ch.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS)

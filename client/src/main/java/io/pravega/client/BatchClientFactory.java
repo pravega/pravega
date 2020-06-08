@@ -49,7 +49,7 @@ public interface BatchClientFactory extends AutoCloseable {
         val connectionFactory = new SocketConnectionFactoryImpl(config);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                            connectionFactory.getInternalExecutor());
-        return new BatchClientFactoryImpl(controller, connectionFactory);
+        return new BatchClientFactoryImpl(controller, config, connectionFactory);
     }
     
     /**

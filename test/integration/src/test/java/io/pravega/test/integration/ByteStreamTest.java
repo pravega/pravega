@@ -16,7 +16,13 @@ import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
@@ -220,8 +226,13 @@ public class ByteStreamTest {
     }
     
     ByteStreamClientFactory createClientFactory(String scope) {
-        val connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        return new ByteStreamClientImpl(scope, controller, connectionFactory);
+        ClientConfig config = ClientConfig.builder().build();
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(config);
+        ConnectionPool pool = new ConnectionPoolImpl(config, connectionFactory);
+        val inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, pool);
+        val outputStreamFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
+        val metaStreamFactory = new SegmentMetadataClientFactoryImpl(controller, pool);
+        return new ByteStreamClientImpl(scope, controller, pool, inputStreamFactory, outputStreamFactory, metaStreamFactory);
     }
 
 }

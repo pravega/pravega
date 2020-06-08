@@ -9,10 +9,13 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.Flow;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.Flow;
 import io.pravega.common.Exceptions;
+import io.pravega.controller.server.SegmentStoreConnectionManager.ConnectionWrapper;
+import io.pravega.controller.server.SegmentStoreConnectionManager.ReusableReplyProcessor;
+import io.pravega.controller.server.SegmentStoreConnectionManager.SegmentStoreConnectionPool;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -20,27 +23,23 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
-import lombok.Getter;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.Getter;
+import org.junit.Before;
+import org.junit.Test;
 
-import static io.pravega.controller.server.SegmentStoreConnectionManager.ReusableReplyProcessor;
-import static io.pravega.controller.server.SegmentStoreConnectionManager.ConnectionWrapper;
-import static io.pravega.controller.server.SegmentStoreConnectionManager.SegmentStoreConnectionPool;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class SegmentStoreConnectionManagerTest {
     private AtomicInteger replyProcCounter;

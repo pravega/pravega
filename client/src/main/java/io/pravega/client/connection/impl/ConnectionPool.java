@@ -12,6 +12,7 @@ package io.pravega.client.connection.impl;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * This represents a ConnectionPool that manages the actual network connections to different SegmentStore instances.
@@ -48,5 +49,10 @@ public interface ConnectionPool extends AutoCloseable {
 
     @Override
     void close();
+
+    /**
+     * Returns the client internal thread pool executor.
+     */
+    ScheduledExecutorService getInternalExecutor();
 }
 

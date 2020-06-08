@@ -125,15 +125,16 @@ public class TcpClientConnection implements ClientConnection {
         }
     }
 
-    public static TcpClientConnection connect(PravegaNodeUri location, ClientConfig clientConfig,  ReplyProcessor callback) {
-        Socket socket = createClientSocket(location, clientConfig); //TODO: Switch to AsynchronousSocketChannel.connect
+    public static TcpClientConnection connect(PravegaNodeUri location, ClientConfig clientConfig, ReplyProcessor callback,
+                                              ScheduledExecutorService executor) {
+        Socket socket = createClientSocket(location, clientConfig); // TODO: Switch to
+                                                                    // AsynchronousSocketChannel.connect
         SocketChannel channel = socket.getChannel();
         AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
         ConnectionReader reader = new ConnectionReader(location.toString(), channel, callback, batchSizeTracker);
         reader.start();
         CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, channel, 
-                                                        ExecutorServiceHelpers.newScheduledThreadPool(1, "Timeouts for " + location));
-        //TODO: Use common thread pool for timeouts.
+                                                        executor);
         return new TcpClientConnection(socket, encoder, reader, location);
     }
 

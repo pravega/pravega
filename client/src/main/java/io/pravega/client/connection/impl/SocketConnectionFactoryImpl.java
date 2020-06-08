@@ -19,6 +19,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -27,7 +28,8 @@ public class SocketConnectionFactoryImpl implements ConnectionFactory {
     private static final AtomicInteger POOLCOUNT = new AtomicInteger();
 
     private final ClientConfig clientConfig;
-    private final ScheduledExecutorService executor;
+    @Getter
+    private final ScheduledExecutorService internalExecutor;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public SocketConnectionFactoryImpl(ClientConfig clientConfig) {
@@ -37,20 +39,20 @@ public class SocketConnectionFactoryImpl implements ConnectionFactory {
     @VisibleForTesting
     public SocketConnectionFactoryImpl(ClientConfig clientConfig, Integer numThreadsInPool) {
         this.clientConfig = Preconditions.checkNotNull(clientConfig, "clientConfig");
-        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(getThreadPoolSize(numThreadsInPool),
+        this.internalExecutor = ExecutorServiceHelpers.newScheduledThreadPool(getThreadPoolSize(numThreadsInPool),
                 "clientInternal-" + POOLCOUNT.incrementAndGet());
     }
 
     @VisibleForTesting
     public SocketConnectionFactoryImpl(ClientConfig clientConfig, ScheduledExecutorService executor) {
         this.clientConfig = Preconditions.checkNotNull(clientConfig, "clientConfig");
-        this.executor = executor;
+        this.internalExecutor = executor;
     }
 
 
     @Override
     public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
-        return CompletableFuture.completedFuture(TcpClientConnection.connect(endpoint, clientConfig, rp));
+        return CompletableFuture.completedFuture(TcpClientConnection.connect(endpoint, clientConfig, rp, internalExecutor));
     }
 
 
@@ -69,7 +71,7 @@ public class SocketConnectionFactoryImpl implements ConnectionFactory {
     public void close() {
         log.info("Shutting down connection factory");
         if (closed.compareAndSet(false, true)) {
-            ExecutorServiceHelpers.shutdown(executor);
+            ExecutorServiceHelpers.shutdown(internalExecutor);
         }
     }
 }
