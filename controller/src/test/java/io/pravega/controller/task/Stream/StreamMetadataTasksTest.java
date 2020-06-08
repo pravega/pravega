@@ -12,7 +12,8 @@ package io.pravega.controller.task.Stream;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.RetentionPolicy;
@@ -138,7 +139,7 @@ public abstract class StreamMetadataTasksTest {
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StreamRequestHandler streamRequestHandler;
-    private ConnectionFactoryImpl connectionFactory;
+    private ConnectionFactory connectionFactory;
 
     private RequestTracker requestTracker = new RequestTracker(true);
     private EventStreamWriterMock<CommitEvent> commitWriter;
@@ -165,7 +166,7 @@ public abstract class StreamMetadataTasksTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, bucketStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", new GrpcAuthHelper(authEnabled, "key", 300), requestTracker));
 

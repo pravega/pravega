@@ -32,7 +32,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.annotation.ParametersAreNonnullByDefault;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.state.ConnectionState;
 
 /**
  * Connection Manager class that maintains a cache of connection pools to connection to different segment stores.
@@ -189,19 +188,19 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         }
 
         private <T> void sendAsync(WireCommand request, CompletableFuture<T> resultFuture) {
-            connection.sendAsync(request, cfe -> {
-                if (cfe != null) {
-                    Throwable cause = Exceptions.unwrap(cfe);
-                    if (cause instanceof ConnectionFailedException) {
-                        resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(),
-                                WireCommandFailedException.Reason.ConnectionFailed));
-                        state.set(ConnectionState.DISCONNECTED);
-                    } else {
-                        log.debug("connection.sendAsync failed with {}", cause.getClass());
-                        resultFuture.completeExceptionally(cause);
-                    }
+            try {
+                connection.send(request);
+            } catch (ConnectionFailedException cfe) {
+                Throwable cause = Exceptions.unwrap(cfe);
+                if (cause instanceof ConnectionFailedException) {
+                    resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(),
+                                                                                      WireCommandFailedException.Reason.ConnectionFailed));
+                    state.set(ConnectionState.DISCONNECTED);
+                } else {
+                    log.debug("connection.sendAsync failed with {}", cause.getClass());
+                    resultFuture.completeExceptionally(cause);
                 }
-            });
+            }
         }
 
         private enum ConnectionState {

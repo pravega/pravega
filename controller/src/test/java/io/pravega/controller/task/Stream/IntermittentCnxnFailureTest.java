@@ -10,8 +10,9 @@
 package io.pravega.controller.task.Stream;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -75,7 +76,7 @@ public class IntermittentCnxnFailureTest {
 
     private SegmentHelper segmentHelperMock;
     private RequestTracker requestTracker = new RequestTracker(true);
-    private ConnectionFactory connectionFactory;
+    private ConnectionPool connectionPool;
     
     @Before
     public void setup() throws Exception {
@@ -89,9 +90,9 @@ public class IntermittentCnxnFailureTest {
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), new SocketConnectionFactoryImpl(ClientConfig.builder().build()));
 
-        segmentHelperMock = spy(new SegmentHelper(connectionFactory, hostStore));
+        segmentHelperMock = spy(new SegmentHelper(connectionPool, hostStore));
 
         doReturn(Controller.NodeUri.newBuilder().setEndpoint("localhost").setPort(Config.SERVICE_PORT).build()).when(segmentHelperMock).getSegmentUri(
                 anyString(), anyString(), anyInt());
@@ -115,7 +116,7 @@ public class IntermittentCnxnFailureTest {
         streamStore.close();
         zkClient.close();
         zkServer.close();
-        connectionFactory.close();
+        connectionPool.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 

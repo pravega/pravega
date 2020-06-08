@@ -10,7 +10,7 @@
 package io.pravega.controller.mocks;
 
 import io.netty.buffer.Unpooled;
-import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.tables.impl.IteratorState;
 import io.pravega.client.tables.impl.IteratorStateImpl;
 import io.pravega.client.tables.impl.KeyVersion;
@@ -55,7 +55,7 @@ import static org.mockito.Mockito.spy;
 public class SegmentHelperMock {
     private static final int SERVICE_PORT = 12345;
     public static SegmentHelper getSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionFactory.class), mock(HostControllerStore.class)));
+        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionPool.class), mock(HostControllerStore.class)));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong());
@@ -92,7 +92,7 @@ public class SegmentHelperMock {
     }
 
     public static SegmentHelper getFailingSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionFactory.class), mock(HostControllerStore.class)));
+        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionPool.class), mock(HostControllerStore.class)));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong());

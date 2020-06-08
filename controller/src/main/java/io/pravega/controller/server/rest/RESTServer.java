@@ -10,7 +10,7 @@
 package io.pravega.controller.server.rest;
 
 import com.google.common.util.concurrent.AbstractIdleService;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.auth.JKSHelper;
 import io.pravega.controller.server.ControllerService;
