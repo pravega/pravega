@@ -15,8 +15,8 @@ import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -51,13 +51,6 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
@@ -75,10 +68,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -176,7 +175,7 @@ public class WatermarkingTest {
         scale(controller, streamObj, config);
 
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         @Cleanup
         SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
 
@@ -344,7 +343,7 @@ public class WatermarkingTest {
         scale(controller, streamObj, config);
 
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         @Cleanup
         SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
 

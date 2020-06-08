@@ -14,8 +14,8 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -234,9 +234,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
 
+        SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF, true);
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
@@ -264,13 +265,14 @@ public class AppendTest extends LeakDetectorTestSuite {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
 
+        SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF, true);
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
-        ConditionalOutputStreamFactoryImpl segmentClient = new ConditionalOutputStreamFactoryImpl(controller, clientCF);
+        ConditionalOutputStreamFactoryImpl segmentClient = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup

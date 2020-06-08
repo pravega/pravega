@@ -13,8 +13,8 @@ import com.google.common.collect.ImmutableSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -117,7 +117,7 @@ public class StreamCutsTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup

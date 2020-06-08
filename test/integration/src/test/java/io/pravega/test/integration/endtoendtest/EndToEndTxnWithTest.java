@@ -13,7 +13,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventWriterConfig;
@@ -116,7 +117,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
@@ -168,7 +169,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(SCOPE, STREAM, config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         @Cleanup
@@ -197,7 +198,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
 

@@ -16,7 +16,8 @@ import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
@@ -162,9 +163,9 @@ public class EndToEndTruncationTest {
         Future<Void> ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
 
-        MockController controller = new MockController(endpoint, port, streamManager.getConnectionFactory(), true);
+        MockController controller = new MockController(endpoint, port, streamManager.getConnectionPool(), true);
         SegmentMetadataClientFactory metadataClientFactory = new SegmentMetadataClientFactoryImpl(controller,
-                                                                                                  streamManager.getConnectionFactory());
+                                                                                                  streamManager.getConnectionPool());
         Segment segment = new Segment(scope, streamName, 0);
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
@@ -204,7 +205,7 @@ public class EndToEndTruncationTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
@@ -264,7 +265,7 @@ public class EndToEndTruncationTest {
         controller.updateStream("test", "test", config).get();
 
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                 .controllerURI(URI.create("tcp://" + serviceHost))
                 .build());
         @Cleanup
@@ -334,7 +335,7 @@ public class EndToEndTruncationTest {
         controller.updateStream("test", "test", config).get();
 
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
@@ -522,7 +523,7 @@ public class EndToEndTruncationTest {
         controllerWrapper.getControllerService().createScope(scope).join();
         controller.createStream(scope, streamName, config).join();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI)
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI)
                                                                                     .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
