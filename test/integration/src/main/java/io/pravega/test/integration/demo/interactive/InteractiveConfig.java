@@ -14,6 +14,9 @@ import java.util.Map;
 import lombok.Builder;
 import lombok.Data;
 
+/**
+ * Configuration for {@link InteractiveDemo}.
+ */
 @Data
 @Builder
 class InteractiveConfig {
@@ -59,7 +62,7 @@ class InteractiveConfig {
     Map<String, Object> getAll() {
         return ImmutableMap.<String, Object>builder()
                 .put(CONTROLLER_URI, getControllerUri())
-                .put(DEFAULT_SEGMENT_COUNT, getControllerUri())
+                .put(DEFAULT_SEGMENT_COUNT, getDefaultSegmentCount())
                 .put(TIMEOUT_MILLIS, getTimeoutMillis())
                 .put(MAX_LIST_ITEMS, getMaxListItems())
                 .build();
