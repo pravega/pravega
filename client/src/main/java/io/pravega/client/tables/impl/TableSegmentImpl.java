@@ -119,7 +119,7 @@ class TableSegmentImpl implements TableSegment {
     public CompletableFuture<List<TableSegmentKeyVersion>> put(@NonNull Iterator<TableSegmentEntry> tableEntries) {
         val wireEntries = entriesToWireCommand(tableEntries);
         return execute((state, requestId) -> {
-            val request = new WireCommands.UpdateTableEntries(requestId, this.segmentName, state.getToken(), wireEntries);
+            val request = new WireCommands.UpdateTableEntries(requestId, this.segmentName, state.getToken(), wireEntries, Long.MIN_VALUE);
 
             return sendRequest(request, state, WireCommands.TableEntriesUpdated.class)
                     .thenApply(this::fromWireCommand);
@@ -130,7 +130,7 @@ class TableSegmentImpl implements TableSegment {
     public CompletableFuture<Void> remove(@NonNull Iterator<TableSegmentKey> tableKeys) {
         val wireKeys = keysToWireCommand(tableKeys);
         return execute((state, requestId) -> {
-            val request = new WireCommands.RemoveTableKeys(requestId, this.segmentName, state.getToken(), wireKeys);
+            val request = new WireCommands.RemoveTableKeys(requestId, this.segmentName, state.getToken(), wireKeys, Long.MIN_VALUE);
             return Futures.toVoid(sendRequest(request, state, WireCommands.TableKeysRemoved.class));
         });
     }

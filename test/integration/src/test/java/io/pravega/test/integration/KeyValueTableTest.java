@@ -63,7 +63,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         this.serviceBuilder.initialize();
         this.tableStore = this.serviceBuilder.createTableStoreService();
         int port = TestUtils.getAvailableListenPort();
-        this.serverListener = new PravegaConnectionListener(false, port, mock(StreamSegmentStore.class), this.tableStore);
+        this.serverListener = new PravegaConnectionListener(false, port, mock(StreamSegmentStore.class), this.tableStore, executorService());
         this.serverListener.startListening();
 
         this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
