@@ -545,6 +545,9 @@ project('test:integration') {
         systemProperties System.getProperties()
     }
 
+    /**
+     * See: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool .
+     */
     task startInteractiveDemo(type: JavaExec) {
         main = "io.pravega.test.integration.demo.interactive.InteractiveDemo"
         classpath = sourceSets.main.runtimeClasspath

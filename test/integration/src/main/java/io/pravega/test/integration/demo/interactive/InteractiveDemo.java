@@ -23,7 +23,7 @@ import lombok.val;
 import org.slf4j.LoggerFactory;
 
 /**
- * Interactive CLI for Pravega.
+ * Interactive CLI Demo Tool for Pravega.
  */
 public class InteractiveDemo {
     private static final String CMD_HELP = "help";
@@ -33,7 +33,8 @@ public class InteractiveDemo {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.ERROR);
 
-        System.out.println("Pravega Interactive CLI.\n");
+        System.out.println("Pravega Interactive Demo Tool.\n");
+        System.out.println("\tUsage instructions: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool");
         val config = InteractiveConfig.getDefault();
 
         // Output loaded config.
