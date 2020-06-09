@@ -544,6 +544,18 @@ project('test:integration') {
         standardInput = System.in
         systemProperties System.getProperties()
     }
+
+    task startInteractiveDemo(type: JavaExec) {
+        main = "io.pravega.test.integration.demo.interactive.InteractiveDemo"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        systemProperties System.getProperties()
+        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/logback.xml")
+
+        if (systemProperties.get("extDirs") != null) {
+            classpath += files(systemProperties.get("extDirs"))
+        }
+    }
 }
 
 project('shared:controller-api') {

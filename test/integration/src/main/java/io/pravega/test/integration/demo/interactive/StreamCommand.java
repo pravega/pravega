@@ -31,6 +31,9 @@ import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.val;
 
+/**
+ * Commands relating to Streams.
+ */
 abstract class StreamCommand extends Command {
     static final String COMPONENT = "stream";
 
@@ -218,7 +221,11 @@ abstract class StreamCommand extends Command {
             ensureArgCount(1, 2);
             val scopedStream = getScopedNameArg(0);
             boolean group = getCommandArgs().getArgs().size() >= 2 && getBooleanArg(1);
-            val aggregator = group ? new GroupedItems() : new SingleItem();
+            final Aggregator aggregator = group ? new GroupedItems() : new SingleItem();
+
+            @Cleanup
+            val listener = new BackgroundConsoleListener();
+            listener.start();
 
             val readerGroup = UUID.randomUUID().toString().replace("-", "");
             val readerId = UUID.randomUUID().toString().replace("-", "");
@@ -234,7 +241,12 @@ abstract class StreamCommand extends Command {
             try (val reader = factory.createReader(readerId, readerGroup, new UTF8StringSerializer(), readerConfig)) {
                 EventRead<String> event;
                 int displayCount = 0;
-                while ((event = reader.readNextEvent(getConfig().getTimeoutMillis())) != null && event.getEvent() != null) {
+                while (!listener.isTriggered() && (event = reader.readNextEvent(2000)) != null) {
+                    if (event.getEvent() == null) {
+                        // Nothing read yet.
+                        aggregator.flush();
+                        continue;
+                    }
                     boolean accepted = aggregator.accept(event);
                     if (accepted && ++displayCount > getConfig().getMaxListItems()) {
                         aggregator.flush();
@@ -246,20 +258,21 @@ abstract class StreamCommand extends Command {
                 aggregator.flush();
             } finally {
                 rgManager.deleteReaderGroup(readerGroup);
+                listener.stop();
             }
             output("Done.");
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("read", "Appends a number of Events to a Stream.")
-                    .withArg("scoped-stream-name", "Scoped Stream name to append.")
+            return createDescriptor("read", "Reads all Events from a Stream and then tails the Stream.")
+                    .withArg("scoped-stream-name", "Scoped Stream name to read from.")
                     .withArg("[group-similar]", "(Optional). If set ('true'), displays a count of events per prefix (as generated using 'stream append').")
                     .withSyntaxExample("scope1/stream1", "Reads and displays all events in 'scope1/stream1'.")
                     .withSyntaxExample("scope1/stream1 true", "Reads all events in `scope1/stream1' and displays a summary.")
                     .build();
         }
 
-        private abstract class Aggregator {
+        private static abstract class Aggregator {
             abstract boolean accept(EventRead<String> event);
 
             abstract void flush();
