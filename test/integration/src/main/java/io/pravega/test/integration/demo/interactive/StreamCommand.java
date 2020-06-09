@@ -28,9 +28,14 @@ abstract class StreamCommand extends Command {
         super(commandArgs);
     }
 
-    private static CommandDescriptor createDescriptor(String name, String description, ArgDescriptor... args) {
-        return new CommandDescriptor(COMPONENT, name, description, args);
+    private static Command.CommandDescriptor.CommandDescriptorBuilder createDescriptor(String name, String description) {
+        return Command.CommandDescriptor.builder()
+                .component(COMPONENT)
+                .name(name)
+                .description(description);
     }
+
+    //region Create
 
     static class Create extends StreamCommand {
         Create(@NonNull CommandArgs commandArgs) {
@@ -60,10 +65,14 @@ abstract class StreamCommand extends Command {
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("create", "Creates one or more Streams.",
-                    new ArgDescriptor("scoped-stream-names", "Names of the Scoped Streams to create."));
+            return createDescriptor("create", "Creates one or more Streams.")
+                    .withArg("scoped-stream-names", "Names of the Scoped Streams to create.")
+                    .withSyntaxExample("scope1/stream1 scope1/stream2 scope2/stream3", "Creates stream1 and stream2 in scope1 and stream3 in scope2.")
+                    .build();
         }
     }
+
+    //endregion
 
     static class Delete extends StreamCommand {
         Delete(@NonNull CommandArgs commandArgs) {
@@ -92,10 +101,16 @@ abstract class StreamCommand extends Command {
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("delete", "Deletes one or more Streams.",
-                    new ArgDescriptor("scoped-stream-names", "Names of the Scoped Streams to delete."));
+            return createDescriptor("delete", "Deletes one or more Streams.")
+                    .withArg("scoped-stream-names", "Names of the Scoped Streams to delete.")
+                    .withSyntaxExample("scope1/stream1 scope1/stream2 scope2/stream3", "Deletes stream1 and stream2 from scope1 and stream3 from scope2.")
+                    .build();
         }
     }
+
+    //endregion
+
+    //region List
 
     static class List extends StreamCommand {
         List(@NonNull CommandArgs commandArgs) {
@@ -118,8 +133,11 @@ abstract class StreamCommand extends Command {
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("list", "Lists all Streams in a Scope.",
-                    new ArgDescriptor("scope-name", "Name of Scope to list Streams from."));
+            return createDescriptor("list", "Lists all Streams in a Scope.")
+                    .withArg("scope-name", "Name of Scope to list Streams from.")
+                    .build();
         }
     }
+
+    //endregion
 }

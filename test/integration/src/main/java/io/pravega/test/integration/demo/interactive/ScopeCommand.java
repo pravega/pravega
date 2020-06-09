@@ -23,8 +23,11 @@ abstract class ScopeCommand extends Command {
         super(commandArgs);
     }
 
-    private static Command.CommandDescriptor createDescriptor(String name, String description, Command.ArgDescriptor... args) {
-        return new Command.CommandDescriptor(COMPONENT, name, description, args);
+    private static Command.CommandDescriptor.CommandDescriptorBuilder createDescriptor(String name, String description) {
+        return Command.CommandDescriptor.builder()
+                .component(COMPONENT)
+                .name(name)
+                .description(description);
     }
 
     static class Create extends StreamCommand {
@@ -48,8 +51,9 @@ abstract class ScopeCommand extends Command {
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("create", "Creates one or more Scopes.",
-                    new ArgDescriptor("scope-names", "Name of the Scopes to create."));
+            return createDescriptor("create", "Creates one or more Scopes.")
+                    .withArg("scope-names", "Name of the Scopes to create.")
+                    .build();
         }
     }
 
@@ -74,8 +78,9 @@ abstract class ScopeCommand extends Command {
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("delete", "Deletes one or more Scopes.",
-                    new ArgDescriptor("scope-names", "Names of the Scopes to delete."));
+            return createDescriptor("delete", "Deletes one or more Scopes.")
+                    .withArg("scope-names", "Names of the Scopes to delete.")
+                    .build();
         }
     }
 }

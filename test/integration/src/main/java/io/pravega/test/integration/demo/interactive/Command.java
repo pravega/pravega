@@ -16,7 +16,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import io.pravega.common.Exceptions;
 import io.pravega.shared.NameUtils;
 import java.io.PrintStream;
 import java.net.URI;
@@ -24,16 +23,19 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.Singular;
 import lombok.val;
 
 /**
@@ -166,28 +168,49 @@ abstract class Command {
     /**
      * Describes an argument.
      */
-    @RequiredArgsConstructor
-    @Getter
+    @Data
     public static class ArgDescriptor {
+        @NonNull
         private final String name;
+        @NonNull
+        private final String description;
+    }
+
+    @Data
+    public static class SyntaxExample {
+        @NonNull
+        private final String args;
+        @NonNull
         private final String description;
     }
 
     /**
      * Describes a Command.
      */
-    @Getter
+    @Data
+    @Builder
     static class CommandDescriptor {
+        @NonNull
         private final String component;
+        @NonNull
         private final String name;
+        @NonNull
         private final String description;
-        private final ArgDescriptor[] args;
+        @NonNull
+        @Singular
+        private final List<ArgDescriptor> args;
+        @NonNull
+        @Singular
+        private final List<SyntaxExample> syntaxExamples;
 
-        public CommandDescriptor(String component, String name, String description, ArgDescriptor... args) {
-            this.component = Exceptions.checkNotNullOrEmpty(component, "component");
-            this.name = Exceptions.checkNotNullOrEmpty(name, "name");
-            this.description = Exceptions.checkNotNullOrEmpty(description, "description");
-            this.args = args;
+        public static class CommandDescriptorBuilder {
+            public CommandDescriptorBuilder withArg(String name, String description) {
+                return arg(new ArgDescriptor(name, description));
+            }
+
+            public CommandDescriptorBuilder withSyntaxExample(String args, String description) {
+                return syntaxExample(new SyntaxExample(args, description));
+            }
         }
     }
 

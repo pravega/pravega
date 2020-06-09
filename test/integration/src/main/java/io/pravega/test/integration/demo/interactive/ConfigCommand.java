@@ -21,8 +21,11 @@ abstract class ConfigCommand extends Command {
         super(args);
     }
 
-    private static CommandDescriptor createDescriptor(String name, String description, ArgDescriptor... args) {
-        return new CommandDescriptor(COMPONENT, name, description, args);
+    private static Command.CommandDescriptor.CommandDescriptorBuilder createDescriptor(String name, String description) {
+        return Command.CommandDescriptor.builder()
+                .component(COMPONENT)
+                .name(name)
+                .description(description);
     }
 
     static class Set extends ConfigCommand {
@@ -46,8 +49,10 @@ abstract class ConfigCommand extends Command {
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("set", "Sets one or more config values for use during this session.",
-                    new ArgDescriptor("name=value list", "Space-separated name=value pairs."));
+            return createDescriptor("set", "Sets one or more config values for use during this session.")
+                    .withArg("name=value list", "Space-separated name=value pairs.")
+                    .withSyntaxExample("config=value1 config2=value2", "Sets config1 to value1 and config2 to value2.")
+                    .build();
         }
     }
 
@@ -63,7 +68,7 @@ abstract class ConfigCommand extends Command {
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("list", "Lists all configuration set during this session.");
+            return createDescriptor("list", "Lists all configuration set during this session.").build();
         }
     }
 }

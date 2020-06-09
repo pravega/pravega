@@ -23,24 +23,7 @@ import lombok.val;
 import org.slf4j.LoggerFactory;
 
 /**
- * config list
- * config set controller-host=XYZ controller-port=XYZ
- *
- * stream create XYZ
- * stream delete XYZ
- * stream append XYZ {JSON}
- * stream txn begin XYZ
- * stream txn commit XYZ TXN-id
- * stream txn abort XYZ TXN-id
- * stream read XYZ
- *
- * kvt create XYZ
- * kvt delete XYZ
- * kvt get XYZ {JSON: [KF], k1, ..., kn} -> JSON {K, Ver, Value}
- * kvt put XYZ {JSON: [KF], {k1, ver1, val1}, ...}
- * kvt remove XYZ {JSON: [KF], {k1, ver1}, ...}
- * kvt list-keys XYZ KF [refresh-rate]
- * kvt list-entries XYZ KF [refresh-rate]
+ * Interactive CLI for Pravega.
  */
 public class InteractiveDemo {
     private static final String CMD_HELP = "help";
@@ -50,7 +33,7 @@ public class InteractiveDemo {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.ERROR);
 
-        System.out.println("Pravega CLI.\n");
+        System.out.println("Pravega Interactive CLI.\n");
         val config = InteractiveConfig.getDefault();
 
         // Output loaded config.
@@ -122,7 +105,7 @@ public class InteractiveDemo {
         System.out.println(String.format("\t%s %s %s: %s",
                 d.getComponent(),
                 d.getName(),
-                Arrays.stream(d.getArgs()).map(InteractiveDemo::formatArgName).collect(Collectors.joining(" ")),
+                d.getArgs().stream().map(InteractiveDemo::formatArgName).collect(Collectors.joining(" ")),
                 d.getDescription()));
     }
 
@@ -136,6 +119,14 @@ public class InteractiveDemo {
         printCommandSummary(d);
         for (Command.ArgDescriptor ad : d.getArgs()) {
             System.out.println(String.format("\t\t%s: %s", formatArgName(ad), ad.getDescription()));
+        }
+
+        if (d.getSyntaxExamples().size() > 0) {
+            System.out.println("\tExamples:");
+            for (val se : d.getSyntaxExamples()) {
+                System.out.println(String.format("\t\t%s %s %s", d.getComponent(), d.getName(), se.getArgs()));
+                System.out.println(String.format("\t\t -> %s", se.getDescription()));
+            }
         }
     }
 

@@ -20,18 +20,21 @@ class InteractiveConfig {
     static final String CONTROLLER_URI = "controller-uri";
     static final String DEFAULT_SEGMENT_COUNT = "default-segment-count";
     static final String TIMEOUT_MILLIS = "timeout-millis";
+    static final String MAX_LIST_ITEMS = "max-list-items";
+
+    private String controllerUri;
+    private int defaultSegmentCount;
+    private int timeoutMillis;
+    private int maxListItems;
 
     static InteractiveConfig getDefault() {
         return InteractiveConfig.builder()
                 .controllerUri("tcp://localhost:9090")
                 .defaultSegmentCount(4)
                 .timeoutMillis(60000)
+                .maxListItems(1000)
                 .build();
     }
-
-    private String controllerUri;
-    private int defaultSegmentCount;
-    private int timeoutMillis;
 
     InteractiveConfig set(String propertyName, String value) {
         switch (propertyName) {
@@ -44,6 +47,9 @@ class InteractiveConfig {
             case TIMEOUT_MILLIS:
                 setTimeoutMillis(Integer.parseInt(value));
                 break;
+            case MAX_LIST_ITEMS:
+                setMaxListItems(Integer.parseInt(value));
+                break;
             default:
                 throw new IllegalArgumentException(String.format("Unrecognized property name '%s'.", propertyName));
         }
@@ -55,6 +61,7 @@ class InteractiveConfig {
                 .put(CONTROLLER_URI, getControllerUri())
                 .put(DEFAULT_SEGMENT_COUNT, getControllerUri())
                 .put(TIMEOUT_MILLIS, getTimeoutMillis())
+                .put(MAX_LIST_ITEMS, getMaxListItems())
                 .build();
     }
 }

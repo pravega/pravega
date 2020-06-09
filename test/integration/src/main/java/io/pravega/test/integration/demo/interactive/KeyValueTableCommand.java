@@ -14,12 +14,14 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
+import io.pravega.common.util.AsyncIterator;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
@@ -31,6 +33,9 @@ import lombok.NonNull;
 import lombok.val;
 
 abstract class KeyValueTableCommand extends Command {
+    /**
+     * Group name for all {@link KeyValueTableCommand} instances. If changing this, update all Javadoc below (syntax examples).
+     */
     static final String COMPONENT = "kvt";
 
     KeyValueTableCommand(@NonNull CommandArgs commandArgs) {
@@ -64,19 +69,33 @@ abstract class KeyValueTableCommand extends Command {
 
     protected List<TableEntry<String, String>> toEntries(String[][] rawEntries) {
         return Arrays.stream(rawEntries).map(e -> {
+            Preconditions.checkArgument(e.length == 2 || e.length == 1,
+                    "TableEntry must have 2 or 3 elements ('[key, value]' or '[key, version, value]'). Found  %s.", e.length);
             val key = e[0];
             Version ver = Version.NO_VERSION;
             String value;
             if (e.length == 2) {
                 value = e[1];
-            } else if (e.length == 3) {
+            } else {
                 ver = Version.fromString(e[1]);
                 value = e[2];
-            } else {
-                throw new IllegalArgumentException(String.format("TableEntry must have 2 or 3 elements. Found: %s.", rawEntries.length));
             }
 
             return TableEntry.versioned(key, ver, value);
+        }).collect(Collectors.toList());
+    }
+
+    protected List<TableKey<String>> toKeys(String[][] rawKeys) {
+        return Arrays.stream(rawKeys).map(k -> {
+            Preconditions.checkArgument(k.length == 2 || k.length == 1,
+                    "TableKey must have 1 or 2 elements ('[key]' or '[key, version]'). Found: %s.", k.length);
+            val key = k[0];
+            Version ver = Version.NO_VERSION;
+            if (k.length == 2) {
+                ver = Version.fromString(k[1]);
+            }
+
+            return TableKey.versioned(key, ver);
         }).collect(Collectors.toList());
     }
 
@@ -93,12 +112,14 @@ abstract class KeyValueTableCommand extends Command {
             throw new IllegalArgumentException("Unexpected number of arguments.");
         }
 
-
         return new KeyFamilyArg<>(keyFamily, arg);
     }
 
-    private static Command.CommandDescriptor createDescriptor(String name, String description, Command.ArgDescriptor... args) {
-        return new Command.CommandDescriptor(COMPONENT, name, description, args);
+    private static Command.CommandDescriptor.CommandDescriptorBuilder createDescriptor(String name, String description) {
+        return Command.CommandDescriptor.builder()
+                .component(COMPONENT)
+                .name(name)
+                .description(description);
     }
 
     //region Create
@@ -128,8 +149,10 @@ abstract class KeyValueTableCommand extends Command {
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("create", "Creates one or more Key-Value Tables.",
-                    new ArgDescriptor("scoped-kvt-names", "Name of the Scoped Key-Value Tables to create."));
+            return createDescriptor("create", "Creates one or more Key-Value Tables.")
+                    .withArg("scoped-kvt-names", "Name of the Scoped Key-Value Tables to create.")
+                    .withSyntaxExample("scope1/kvt1 scope1/kvt2 scope2/kvt3", "Creates kvt1 and kvt2 in scope1 and kvt3 in scope2.")
+                    .build();
         }
     }
 
@@ -159,8 +182,10 @@ abstract class KeyValueTableCommand extends Command {
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("delete", "Deletes one or more Key-Value Tables.",
-                    new ArgDescriptor("scoped-kvt-names", "Names of the Scoped Key-Value Tables to delete."));
+            return createDescriptor("delete", "Deletes one or more Key-Value Tables.")
+                    .withArg("scoped-kvt-names", "Names of the Scoped Key-Value Tables to delete.")
+                    .withSyntaxExample("scope1/kvt1 scope1/kvt2 scope3/kvt3", "Deletes kvt1 and kvt2 from scope1 and kvt3 from scope3.")
+                    .build();
         }
     }
 
@@ -185,21 +210,32 @@ abstract class KeyValueTableCommand extends Command {
 
             output("Get %s Key(s) from %s[%s]:", keys.length, kvtName, args.getKeyFamily());
             assert keys.length == result.size() : String.format("Bad result length. Expected %s, actual %s", keys.length, result.size());
-            for (int i = 0; i < result.size(); i++) {
+            int maxCount = Math.min(getConfig().getMaxListItems(), result.size());
+            for (int i = 0; i < maxCount; i++) {
                 String[] output = toArray(result.get(i), keys[i]);
                 output("\t%s", GSON.toJson(output));
+            }
+
+            if (maxCount < result.size()) {
+                output("Only showing first %s items (of %s). Change this using '%s' config value.",
+                        maxCount, result.size(), InteractiveConfig.MAX_LIST_ITEMS);
             }
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("get", "Gets the values of keys from a Key-Value Table.",
-                    new ArgDescriptor("scoped-kvt-name", "Name of the Scoped Key-Value Table to get from."),
-                    new ArgDescriptor("[key-family]", "(Optional) Key Family to get Keys for."),
-                    new ArgDescriptor("keys", "A JSON Array representing the keys to get. Example: \"{[key1, key2, key3]}\"."));
+            return createDescriptor("get", "Gets the values of keys from a Key-Value Table.")
+                    .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to get from.")
+                    .withArg("[key-family]", "(Optional) Key Family to get Keys for.")
+                    .withArg("keys", "A JSON Array representing the keys to get. Example: \"{[key1, key2, key3]}\".")
+                    .withSyntaxExample("scope1/kvt1 {[key1, \"key2:escape\"]}", "Gets 'key1' and 'key2:escape' from scope1/kvt1 (no Key Family).")
+                    .withSyntaxExample("scope1/kvt1 key-family-1 {[key1]}", "Gets 'key1' belonging to 'key-family-1' from scope1/kvt1.")
+                    .build();
         }
     }
 
     //endregion
+
+    //region Put
 
     static class Put extends KeyValueTableCommand {
         Put(@NonNull CommandArgs commandArgs) {
@@ -210,10 +246,8 @@ abstract class KeyValueTableCommand extends Command {
         public void execute() throws Exception {
             val kvtName = getScopedNameArg(0);
             val args = getArgsWithKeyFamily(1, 3, String[][].class);
-            val rawEntries = args.getArg();
-
-            Preconditions.checkArgument(rawEntries.length > 0, "Expected at least one key.");
-            val entries = toEntries(rawEntries);
+            val entries = toEntries(args.getArg());
+            Preconditions.checkArgument(entries.size() > 0, "Expected at least one Table Entry.");
             @Cleanup
             val kvt = createKVT(kvtName);
             val result = kvt.replaceAll(args.getKeyFamily(), entries).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
@@ -229,12 +263,23 @@ abstract class KeyValueTableCommand extends Command {
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("put", "Updates one or more Keys in a Key-Value table.",
-                    new ArgDescriptor("scoped-kvt-name", "Name of the Scoped Key-Value Table to update."),
-                    new ArgDescriptor("[key-family]", "(Optional) Key Family to update Entries for."),
-                    new ArgDescriptor("entries", "A JSON Array representing the keys to get. Example: \"{[[key1, ver1, val1], [key2, ver2, val2]]}\"."));
+            return createDescriptor("put", "Updates one or more Keys in a Key-Value table.")
+                    .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to update.")
+                    .withArg("[key-family]", "(Optional) Key Family to update Entries for.")
+                    .withArg("entries", "A JSON Array representing the keys to get.")
+                    .withSyntaxExample("scope1/kvt1 {[[key1, value1]]}", "Unconditionally updates 'key1' to 'value1' in 'scope1/kvt1'.")
+                    .withSyntaxExample("scope1/kvt1 {[[key1, \"segment1:version1\", value1]]}",
+                            "Conditionally updates 'key1' to 'value1' in 'scope1/kvt1' using 'segment1:version1' as condition version.")
+                    .withSyntaxExample("scope1/kvt1 key-family-1 {[[key1, \"segment1:version1\", value1], [key2, val2]]}",
+                            "Conditionally updates 'key1' to 'value1' and 'key2' to 'value2' in 'scope1/kvt1' with key family 'key-family-1' " +
+                                    "conditioned on `key1` having version 'segment1:version1'.")
+                    .build();
         }
     }
+
+    //endregion
+
+    //region Remove
 
     static class Remove extends KeyValueTableCommand {
         Remove(@NonNull CommandArgs commandArgs) {
@@ -243,52 +288,133 @@ abstract class KeyValueTableCommand extends Command {
 
         @Override
         public void execute() throws Exception {
-            output("KVT.Remove %s", getCommandArgs());
+            val kvtName = getScopedNameArg(0);
+            val args = getArgsWithKeyFamily(1, 3, String[][].class);
+            val keys = toKeys(args.getArg());
+            Preconditions.checkArgument(keys.size() > 0, "Expected at least one Table Key.");
+            @Cleanup
+            val kvt = createKVT(kvtName);
+            kvt.removeAll(args.getKeyFamily(), keys).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+
+            int conditionalCount = (int) keys.stream().filter(e -> e.getVersion() != Version.NO_VERSION).count();
+            output("Removed %s Key(s) from %s[%s] (Conditional=%s, Unconditional=%s).",
+                    keys.size(), kvtName, args.getKeyFamily(), conditionalCount, keys.size() - conditionalCount);
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("remove", "Removes one or more Keys from a Key-Value table.",
-                    new ArgDescriptor("scoped-kvt-name", "Name of the Scoped Key-Value Table to remove from."));
+            return createDescriptor("remove", "Removes one or more Keys from a Key-Value table.")
+                    .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to remove from.")
+                    .withArg("[key-family]", "(Optional) Key Family to remove Keys for.")
+                    .withArg("entries", "A JSON Array representing the keys to remove.")
+                    .withSyntaxExample("scope1/kvt1 {[[key1]]}", "Unconditionally removes 'key1' from 'scope1/kvt1'.")
+                    .withSyntaxExample("scope1/kvt1 {[[key1, \"segment1:version1\"]]}",
+                            "Conditionally removes 'key1' from 'scope1/kvt1' using 'segment1:version1' as condition version.")
+                    .withSyntaxExample("scope1/kvt1 key-family-1 {[[key1, \"segment1:version1\"], [key2]]}",
+                            "Conditionally removes 'key1' and 'key2' from 'scope1/kvt1' with key family 'key-family-1' " +
+                                    "conditioned on `key1` having version 'segment1:version1'.")
+                    .build();
         }
     }
 
-    static class ListKeys extends KeyValueTableCommand {
+    //endregion
+
+    //region Key/Entry iterators
+
+    private static abstract class ListCommand<T> extends KeyValueTableCommand {
+        ListCommand(@NonNull CommandArgs commandArgs) {
+            super(commandArgs);
+        }
+
+        protected abstract AsyncIterator<IteratorItem<T>> getIterator(KeyValueTable<String, String> kvt, String keyFamily);
+
+        protected abstract String[] convertToArray(T item);
+
+        @Override
+        public void execute() throws Exception {
+            ensureArgCount(2);
+            val kvtName = getScopedNameArg(0);
+            val keyFamily = getArg(1);
+            @Cleanup
+            val kvt = createKVT(kvtName);
+            val iterator = getIterator(kvt, keyFamily);
+            int count = 0;
+            while (count < getConfig().getMaxListItems()) {
+                val batch = iterator.getNext().get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+                if (batch == null) {
+                    break; // We're done.
+                }
+
+                int maxCount = Math.min(getConfig().getMaxListItems() - count, batch.getItems().size());
+                for (int i = 0; i < maxCount; i++) {
+                    output("\t%s", GSON.toJson(convertToArray(batch.getItems().get(i))));
+                }
+
+                count += maxCount;
+                if (maxCount < batch.getItems().size()) {
+                    output("Only showing first %s items. Change this using '%s' config value.",
+                            maxCount, InteractiveConfig.MAX_LIST_ITEMS);
+                }
+            }
+
+            output("Total: %s item(s).", count);
+        }
+    }
+
+    static class ListKeys extends ListCommand<TableKey<String>> {
         ListKeys(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
         @Override
-        public void execute() throws Exception {
-            output("KVT.ListKeys %s", getCommandArgs());
+        protected AsyncIterator<IteratorItem<TableKey<String>>> getIterator(KeyValueTable<String, String> kvt, String keyFamily) {
+            return kvt.keyIterator(keyFamily, 100, null);
+        }
+
+        @Override
+        protected String[] convertToArray(TableKey<String> item) {
+            return toArray(item);
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("list-keys", "Lists all keys in a Key-Value Table.",
-                    new ArgDescriptor("scoped-kvt-name", "Name of the Scoped Key-Value Table to list keys from."),
-                    new ArgDescriptor("key-family", "Name of the Key Family to list keys from."));
+            return createDescriptor("list-keys", "Lists all keys in a Key-Value Table.")
+                    .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to list keys from.")
+                    .withArg("key-family", "Name of the Key Family to list keys from.")
+                    .build();
         }
     }
 
-    static class ListEntries extends KeyValueTableCommand {
+    static class ListEntries extends ListCommand<TableEntry<String, String>> {
         ListEntries(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
         @Override
-        public void execute() throws Exception {
-            output("KVT.ListEntries %s", getCommandArgs());
+        protected AsyncIterator<IteratorItem<TableEntry<String, String>>> getIterator(KeyValueTable<String, String> kvt, String keyFamily) {
+            return kvt.entryIterator(keyFamily, 100, null);
+        }
+
+        @Override
+        protected String[] convertToArray(TableEntry<String, String> item) {
+            return toArray(item, item.getKey().getKey());
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("list-entries", "Lists all entries in a Key-Value Table.",
-                    new ArgDescriptor("scoped-kvt-name", "Name of the Scoped Key-Value Table to list entries from."),
-                    new ArgDescriptor("key-family", "Name of the Key Family to list entries from."));
+            return createDescriptor("list-entries", "Lists all entries in a Key-Value Table.")
+                    .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to list entries from.")
+                    .withArg("key-family", "Name of the Key Family to list entries from.")
+                    .build();
         }
     }
 
+    //endregion
+
+    //region Helper classes
+
     @Data
     private static class KeyFamilyArg<T> {
-        final String keyFamily;
-        final T arg;
+        private final String keyFamily;
+        private final T arg;
     }
+
+    //endregion
 }
