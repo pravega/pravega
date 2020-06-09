@@ -159,6 +159,25 @@ public class ByteArraySegmentTests {
     }
 
     /**
+     * Tests the functionality of getBufferViewReader.
+     */
+    @Test
+    public void testGetBufferViewReader() {
+        final byte[] buffer = createFormattedBuffer();
+        ByteArraySegment segment = new ByteArraySegment(buffer);
+
+        for (int offset = 0; offset < buffer.length / 2; offset++) {
+            int length = buffer.length - offset * 2;
+            BufferView.Reader reader = segment.slice(offset, length).getBufferViewReader();
+            ByteArraySegment readBuffer = reader.readFully(2);
+            for (int i = 0; i < length; i++) {
+                Assert.assertEquals("Unexpected value at index " + i + " after reading from offset " + offset, segment.get(i + offset), readBuffer.get(i));
+            }
+            Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
+        }
+    }
+
+    /**
      * Tests the functionality of getReader (the ability to return an InputStream from a sub-segment of the main buffer).
      */
     @Test

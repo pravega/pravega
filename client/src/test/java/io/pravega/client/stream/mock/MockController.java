@@ -345,6 +345,11 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<StreamSegments> getEpochSegments(String scope, String stream, int epoch) {
+        return CompletableFuture.completedFuture(getCurrentSegments(new StreamImpl(scope, stream)));
+    }
+
+    @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
         return CompletableFuture.completedFuture(getCurrentSegments(new StreamImpl(scope, stream)));
     }
