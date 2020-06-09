@@ -21,9 +21,12 @@ import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;

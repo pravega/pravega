@@ -10,10 +10,15 @@
 package io.pravega.client.stream.impl;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 =======
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
+=======
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;

@@ -15,7 +15,10 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+<<<<<<< HEAD
 import io.pravega.client.control.impl.Controller;
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.netty.impl.RawClient;
@@ -35,7 +38,12 @@ import io.pravega.client.stream.impl.ByteBufferSerializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 =======
 import io.pravega.client.control.impl.Controller;
+<<<<<<< HEAD
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
+=======
+import io.pravega.client.stream.impl.ByteBufferSerializer;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockClientFactory;

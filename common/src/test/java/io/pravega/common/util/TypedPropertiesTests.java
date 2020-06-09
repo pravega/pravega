@@ -98,6 +98,7 @@ public class TypedPropertiesTests {
         assertEquals("configValue", config);
     }
 
+<<<<<<< HEAD
 
 
     @Test
@@ -109,6 +110,17 @@ public class TypedPropertiesTests {
         String config = typedProps.get(Property.named(
                 "newPropertyKey", "default", "legacyPropertyKey"));
         assertEquals("old", config);
+=======
+    @Test
+    public void testNewPropertyTakesPrecedenceOverLegacy() {
+        Properties props1 = new Properties();
+        props1.setProperty("ns1.newPropertyKey", "configValue");
+        props1.setProperty("ns1.legacyPropertyKey", "configValue");
+        TypedProperties typedProps = new TypedProperties(props1, "ns1");
+        String config = typedProps.get(Property.named(
+                "newPropertyKey", "default", "legacyPropertyKey"));
+        assertEquals("configValue", config);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
     }
 
     private <T> void testData(Properties props, ExtractorFunction<T> methodToTest, Predicate<String> valueValidator) throws Exception {

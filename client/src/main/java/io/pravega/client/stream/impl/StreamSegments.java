@@ -50,6 +50,7 @@ public class StreamSegments extends SegmentCollection {
 
     public int getNumberOfSegments() {
         return segments.size();
+<<<<<<< HEAD
 =======
     }
 
@@ -57,6 +58,8 @@ public class StreamSegments extends SegmentCollection {
     protected double hashToRange(String key) {
         return HASHER.hashToRange(key);
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
     }
 
     public StreamSegments withReplacementRange(Segment segment, StreamSegmentsWithPredecessors replacementRanges) {

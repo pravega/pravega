@@ -106,6 +106,98 @@ public class ByteArraySegmentTests extends BufferViewTestBase {
     }
 
     /**
+<<<<<<< HEAD
+=======
+     * Tests the functionality of copyTo(array).
+     */
+    @Test
+    public void testCopyToByteBuffer() {
+        final byte[] sourceBuffer = createFormattedBuffer();
+        final int targetOffset = 10;
+        final byte[] targetBuffer = new byte[sourceBuffer.length + targetOffset];
+        final int copyLength = sourceBuffer.length - 7;
+
+        ByteArraySegment source = new ByteArraySegment(sourceBuffer);
+
+        // Copy second part.
+        source.copyTo(ByteBuffer.wrap(targetBuffer, targetOffset, copyLength));
+        for (int i = 0; i < targetBuffer.length; i++) {
+            int expectedValue = i < targetOffset || i >= targetOffset + copyLength ? 0 : i - targetOffset;
+            Assert.assertEquals("Unexpected value after copyFrom (second half) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
+        }
+    }
+
+    /**
+     * Tests the functionality of copyTo(OutputStream).
+     */
+    @Test
+    public void testCopyToStream() throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        int count = 10;
+        ArrayList<ByteArraySegment> sourceSegments = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            ByteArraySegment s = new ByteArraySegment(createFormattedBuffer());
+            sourceSegments.add(s);
+            s.copyTo(outputStream);
+        }
+
+        for (int i = 0; i < count; i++) {
+            ByteArraySegment s = sourceSegments.get(i);
+            ByteArraySegment t = new ByteArraySegment(new byte[s.getLength()]);
+            t.copyFrom(s, 0, t.getLength());
+
+            Assert.assertEquals("Source and target lengths differ.", s.getLength(), t.getLength());
+            for (int j = 0; j < s.getLength(); j++) {
+                if (t.get(j) != s.get(j)) {
+                    Assert.fail(String.format("Source at target differ at index %d.", j));
+                }
+            }
+        }
+    }
+
+    /**
+     * Tests the functionality of getBufferViewReader.
+     */
+    @Test
+    public void testGetBufferViewReader() {
+        final byte[] buffer = createFormattedBuffer();
+        ByteArraySegment segment = new ByteArraySegment(buffer);
+
+        for (int offset = 0; offset < buffer.length / 2; offset++) {
+            int length = buffer.length - offset * 2;
+            BufferView.Reader reader = segment.slice(offset, length).getBufferViewReader();
+            ByteArraySegment readBuffer = reader.readFully(2);
+            for (int i = 0; i < length; i++) {
+                Assert.assertEquals("Unexpected value at index " + i + " after reading from offset " + offset, segment.get(i + offset), readBuffer.get(i));
+            }
+            Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
+        }
+    }
+
+    /**
+     * Tests the functionality of getReader (the ability to return an InputStream from a sub-segment of the main buffer).
+     */
+    @Test
+    public void testGetReader() throws IOException {
+        final byte[] buffer = createFormattedBuffer();
+        ByteArraySegment segment = new ByteArraySegment(buffer);
+
+        for (int offset = 0; offset < buffer.length / 2; offset++) {
+            int length = buffer.length - offset * 2;
+            byte[] readBuffer = new byte[length];
+            try (InputStream stream = segment.getReader(offset, length)) {
+                int readBytes = StreamHelpers.readAll(stream, readBuffer, 0, readBuffer.length);
+                Assert.assertEquals("Unexpected number of bytes read from the InputStream at offset " + offset, length, readBytes);
+            }
+
+            for (int i = 0; i < length; i++) {
+                Assert.assertEquals("Unexpected value at index " + i + " after reading from offset " + offset, segment.get(i + offset), readBuffer[i]);
+            }
+        }
+    }
+
+    /**
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
      * Tests the functionality of getWriter (the ability to return an OutputStream that can be used to write to the main buffer).
      */
     @Test

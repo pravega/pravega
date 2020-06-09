@@ -22,9 +22,15 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 import static org.junit.Assert.assertEquals;
 =======
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+import java.util.UUID;
+
+import static org.junit.Assert.assertEquals;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
 import static org.junit.Assert.assertTrue;
 
 public class NameUtilsTest {

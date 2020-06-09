@@ -28,7 +28,10 @@ public class ServiceConfig {
     //region Config Names
 
     public static final Property<Integer> CONTAINER_COUNT = Property.named("container.count", null, "containerCount");
+<<<<<<< HEAD
     public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("container.parallelStarts", 2);
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPool.core.size", 30, "threadPoolSize");
     public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("threadPool.storage.size", 200, "storageThreadPoolSize");
     public static final Property<Integer> LOW_PRIORITY_THREAD_POOL_SIZE = Property.named("threadPool.lowPriorityTasks.size", 10, "lowPriorityThreadPoolSize");
@@ -49,6 +52,10 @@ public class ServiceConfig {
     // 1. Modify the operator to set this old, as well as the new property.
     // 2. Modify this property to use the new key, with legacy key name set as the old key.
     // 3. Remove old property from the operator.
+<<<<<<< HEAD
+=======
+
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY, "dataLogImplementation");
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS, "storageImplementation");

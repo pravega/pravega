@@ -175,12 +175,18 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
         // Fetch defaults for all attributes, but check our own DEFAULT_ATTRIBUTES for any meaningful overrides.
         // NOTE: At the moment, all TableSegments are internal to Pravega and are used for metadata storage. As such, all
         // these defaults make sense for such use cases. If TableSegments are exposed to the end-user, then this method
         // will need to accept external configuration that defines at least MIN_UTILIZATION.
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
         val attributeUpdates = attributes
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, DEFAULT_ATTRIBUTES.getOrDefault(e.getKey(), e.getValue())))

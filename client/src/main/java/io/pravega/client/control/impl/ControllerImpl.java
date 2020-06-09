@@ -93,10 +93,14 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
+<<<<<<< HEAD
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 
+=======
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;

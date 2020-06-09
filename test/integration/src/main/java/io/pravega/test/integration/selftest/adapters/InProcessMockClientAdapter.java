@@ -13,6 +13,10 @@ package io.pravega.test.integration.selftest.adapters;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.mock.MockStreamManager;
+<<<<<<< HEAD
+=======
+import io.pravega.common.util.ArrayView;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;

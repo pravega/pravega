@@ -124,10 +124,14 @@ class TableSegmentImpl implements TableSegment {
         val wireEntries = entriesToWireCommand(tableEntries);
         return execute((state, requestId) -> {
 <<<<<<< HEAD
+<<<<<<< HEAD
             val request = new WireCommands.UpdateTableEntries(requestId, this.segmentName, state.getToken(), wireEntries, Long.MIN_VALUE);
 =======
             val request = new WireCommands.UpdateTableEntries(requestId, this.segmentName, state.getToken(), wireEntries);
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+            val request = new WireCommands.UpdateTableEntries(requestId, this.segmentName, state.getToken(), wireEntries, Long.MIN_VALUE);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
 
             return sendRequest(request, state, WireCommands.TableEntriesUpdated.class)
                     .thenApply(this::fromWireCommand);
@@ -139,10 +143,14 @@ class TableSegmentImpl implements TableSegment {
         val wireKeys = keysToWireCommand(tableKeys);
         return execute((state, requestId) -> {
 <<<<<<< HEAD
+<<<<<<< HEAD
             val request = new WireCommands.RemoveTableKeys(requestId, this.segmentName, state.getToken(), wireKeys, Long.MIN_VALUE);
 =======
             val request = new WireCommands.RemoveTableKeys(requestId, this.segmentName, state.getToken(), wireKeys);
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+            val request = new WireCommands.RemoveTableKeys(requestId, this.segmentName, state.getToken(), wireKeys, Long.MIN_VALUE);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
             return Futures.toVoid(sendRequest(request, state, WireCommands.TableKeysRemoved.class));
         });
     }

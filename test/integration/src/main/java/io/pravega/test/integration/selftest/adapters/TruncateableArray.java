@@ -132,13 +132,19 @@ public class TruncateableArray implements ArrayView {
 
     @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
     public Reader getBufferViewReader() {
         throw new UnsupportedOperationException("getBufferViewReader() not supported.");
     }
 
     @Override
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
     public ArrayView slice(int offset, int length) {
         throw new UnsupportedOperationException("slice() not supported.");
     }

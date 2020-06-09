@@ -704,13 +704,21 @@ public class PravegaRequestProcessorTest {
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(false), any());
 
         // Remove a Table Key
+<<<<<<< HEAD
         WireCommands.TableKey key = new WireCommands.TableKey(toByteBuf(e1.getKey().getKey()), 0L);
+=======
+        WireCommands.TableKey key = new WireCommands.TableKey(wrappedBuffer(e1.getKey().getKey().array()), 0L);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
         processor.removeTableKeys(new WireCommands.RemoveTableKeys(3, tableSegmentName, "", singletonList(key), 0L));
         order.verify(connection).send(new WireCommands.TableKeysRemoved(3, tableSegmentName));
         verify(recorderMock).removeKeys(eq(tableSegmentName), eq(1), eq(true), any());
 
         // Test with non-existent key.
+<<<<<<< HEAD
         key = new WireCommands.TableKey(toByteBuf(e1.getKey().getKey()), 0L);
+=======
+        key = new WireCommands.TableKey(wrappedBuffer(e1.getKey().getKey().array()), 0L);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
         processor.removeTableKeys(new WireCommands.RemoveTableKeys(4, tableSegmentName, "", singletonList(key), 0L));
         order.verify(connection).send(new WireCommands.TableKeyBadVersion(4, tableSegmentName, ""));
         verifyNoMoreInteractions(recorderMock);
@@ -1045,6 +1053,7 @@ public class PravegaRequestProcessorTest {
 
     private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
         return ServiceBuilder.newInMemoryBuilder(config, (size, name, threadPriority) -> new InlineExecutor())
+<<<<<<< HEAD
                 .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
                         setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
     }
@@ -1052,6 +1061,10 @@ public class PravegaRequestProcessorTest {
     private ByteBuf toByteBuf(BufferView bufferView) {
         val buffers = bufferView.getContents().stream().map(Unpooled::wrappedBuffer).toArray(ByteBuf[]::new);
         return Unpooled.wrappedUnmodifiableBuffer(buffers);
+=======
+                             .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
+                                     setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
     }
 
     //endregion

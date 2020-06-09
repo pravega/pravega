@@ -54,8 +54,11 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactoryForTests;
+<<<<<<< HEAD
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -180,7 +183,11 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         StreamMetrics.reset();
         TransactionMetrics.reset();
     }
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
     @Test
     public void testTimeout() {
         streamMetadataTasks.setCompletionTimeoutMillis(500L);
@@ -198,7 +205,11 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         };
         AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
         reset(streamRequestHandler);
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
         doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processTruncateStream(any());
         result = new ResultObserver<>();
         this.controllerService.truncateStream(Controller.StreamCut.newBuilder()
@@ -209,13 +220,21 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
                                                                   .putCut(0, 0).putCut(1, 0).build(), result);
         AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
         reset(streamRequestHandler);
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
         doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processSealStream(any());
         result = new ResultObserver<>();
         this.controllerService.sealStream(ModelHelper.createStreamInfo(SCOPE1, stream), result);
         AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
         reset(streamRequestHandler);
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
         streamStore.setState(SCOPE1, stream, State.SEALED, null, executorService).join();
         doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processDeleteStream(any());
         ResultObserver<Controller.DeleteStreamStatus> result2 = new ResultObserver<>();

@@ -725,6 +725,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 new SimpleImmutableEntry<>(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY),
                 new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), WireCommands.TableValue.EMPTY));
         testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries), 0L));
+<<<<<<< HEAD
 
         // Each Key and Value will retain the buffer once. We do not retain anything for the empty Table Key/Value.
         int refCntIncrement = entries.stream()
@@ -735,6 +736,8 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 WireCommands.UpdateTableEntries::readFrom,
                 ce -> ce.tableEntries.getEntries().get(0).getValue().getData().refCnt(),
                 refCntIncrement);
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
     }
 
     @Test
@@ -745,6 +748,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testRemoveTableKeys() throws IOException {
         testCommand(new WireCommands.RemoveTableKeys(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buf, 1L),
+<<<<<<< HEAD
                 new WireCommands.TableKey(buf, 2L)), 0L));
         testReleasableCommand(
                 () -> new WireCommands.RemoveTableKeys(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buf, 1L),
@@ -752,6 +756,9 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 WireCommands.RemoveTableKeys::readFrom,
                 ce -> ce.getKeys().get(0).getData().refCnt(),
                 2);
+=======
+                                                                                       new WireCommands.TableKey(buf, 2L)), 0L));
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
     }
 
     @Test
@@ -889,6 +896,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         testReleasableCommand(fromBuf, fromStream, getRefCnt, 1);
     }
 
+<<<<<<< HEAD
     @SuppressWarnings("unchecked")
     private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(
             Supplier<T> fromBuf, WireCommands.Constructor fromStream, Function<T, Integer> getRefCnt, int refCntIncrement) throws IOException {
@@ -904,10 +912,44 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         assertEquals(originalRefCnt, buf.refCnt());
 
         // Deserialize the command.
+=======
+    @Test
+    public void testReadTableEntriesDelta() throws IOException {
+        WireCommands.ReadTableEntriesDelta cmd = new WireCommands.ReadTableEntriesDelta(l, testString1, "", 1L, 100);
+        testCommand(cmd);
+    }
+
+    @Test
+    public void testtableEntriesDeltaRead() throws IOException {
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l + 1), new WireCommands.TableValue(buf)));
+        WireCommands.TableEntries tableEntries = new WireCommands.TableEntries(entries);
+
+        WireCommands.TableEntriesDeltaRead cmd = new WireCommands.TableEntriesDeltaRead(
+                l, testString1, tableEntries, false, false,  WireCommands.TableKey.NO_VERSION);
+        testCommand(cmd);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(
+            Supplier<T> fromBuf, WireCommands.Constructor fromStream, Function<T, Integer> getRefCnt) throws IOException {
+        // If we pass in the buffer ourselves, there should be no need to release.
+        int originalRefCnt = buf.refCnt();
+        T command = fromBuf.get();
+        assertTrue(command.isReleased());
+        command.release();
+        assertEquals(originalRefCnt, buf.refCnt());
+        assertTrue(command.isReleased());
+        command.release(); // Do this again. The second time should have no effect.
+        assertEquals(originalRefCnt, buf.refCnt());
+
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         command.writeFields(new DataOutputStream(bout));
         ByteBuf buffer = Unpooled.wrappedBuffer(bout.toByteArray());
         T command2 = (T) fromStream.readFrom(new EnhancedByteBufInputStream(buffer), bout.size());
+<<<<<<< HEAD
         expectedRefCnt += refCntIncrement;
         assertEquals(expectedRefCnt, (int) getRefCnt.apply(command2));
         assertEquals(expectedRefCnt, buffer.refCnt());
@@ -921,6 +963,14 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         // Release the command.
         command2.release();
         expectedRefCnt -= refCntIncrement;
+=======
+        assertEquals(2, (int) getRefCnt.apply(command2));
+        assertEquals(2, buffer.refCnt());
+        buffer.release();
+        assertEquals(1, (int) getRefCnt.apply(command2));
+        assertEquals(1, buffer.refCnt());
+        command2.release();
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
         assertEquals(0, (int) getRefCnt.apply(command2));
         assertEquals(0, buffer.refCnt());
         command2.release(); // Do this again. The second time should have no effect.

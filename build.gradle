@@ -240,7 +240,10 @@ project('shared:protocol') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+<<<<<<< HEAD
         testCompile project(path: ':common', configuration: 'testRuntime')
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
     }
 }
 
@@ -321,7 +324,11 @@ project('segmentstore:storage:impl') {
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+<<<<<<< HEAD
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+=======
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion    
+>>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
     }
     javadoc {
         dependsOn delombok
