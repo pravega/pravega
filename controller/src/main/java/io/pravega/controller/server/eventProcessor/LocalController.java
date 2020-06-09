@@ -305,6 +305,12 @@ public class LocalController implements Controller {
                 .thenApply(this::getStreamSegments);
     }
 
+    @Override
+    public CompletableFuture<StreamSegments> getEpochSegments(String scope, String streamName, int epoch) {
+        return controller.getEpochSegments(scope, streamName, epoch)
+                         .thenApply(this::getStreamSegments);
+    }
+
     private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
         NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
         for (SegmentRange r : ranges) {

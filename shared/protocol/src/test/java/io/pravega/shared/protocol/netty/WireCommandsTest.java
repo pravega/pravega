@@ -10,7 +10,6 @@
 package io.pravega.shared.protocol.netty;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
@@ -27,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import lombok.Data;
 import org.junit.Test;
 
@@ -72,11 +73,23 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testAppendBlock() throws IOException {
         testCommand(new WireCommands.AppendBlock(uuid));
+
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.AppendBlock(uuid, buf),
+                WireCommands.AppendBlock::readFrom,
+                ab -> ab.getData().refCnt());
     }
 
     @Test
     public void testAppendBlockEnd() throws IOException {
         testCommand(new WireCommands.AppendBlockEnd(uuid, i, buf, i, i, l));
+
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.AppendBlockEnd(uuid, i, buf, i, i, l),
+                WireCommands.AppendBlockEnd::readFrom,
+                abe -> abe.getData().refCnt());
     }
 
     @Data
@@ -117,6 +130,12 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         ConditionalAppendV7 commandV7 = new ConditionalAppendV7(uuid, l, l, new Event(buf));
         commandV7.writeFields(new DataOutputStream(bout));
         testCommandFromByteArray(bout.toByteArray(), new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), -1));
+
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), -1),
+                WireCommands.ConditionalAppend::readFrom,
+                ce -> ce.getEvent().getData().refCnt());
     }
 
     @Test
@@ -128,15 +147,26 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
         // Invalid length scenario.
         assertThrows("Read with invalid buffer length.",
-                     () -> WireCommands.ConditionalAppend.readFrom(new ByteBufInputStream(wrappedBuffer(bytes)), 4),
-                     t -> t instanceof InvalidMessageException);
+                () -> WireCommands.ConditionalAppend.readFrom(new EnhancedByteBufInputStream(wrappedBuffer(bytes)), 4),
+                t -> t instanceof InvalidMessageException);
         // Invalid buffer data.
         assertThrows("Read with invalid data.",
-                     () -> WireCommands.ConditionalAppend.readFrom(new ByteBufInputStream(buf), buf.capacity()),
-                     t -> t instanceof EOFException);
+                () -> WireCommands.ConditionalAppend.readFrom(new EnhancedByteBufInputStream(buf), buf.capacity()),
+                t -> t instanceof EOFException);
         assertThrows("Unsupported operation",
-                     () -> cmd.process(mock(RequestProcessor.class)),
-                     t -> t instanceof UnsupportedOperationException);
+                () -> cmd.process(mock(RequestProcessor.class)),
+                t -> t instanceof UnsupportedOperationException);
+    }
+
+    @Test
+    public void testPartialEvent() throws IOException {
+        testCommand(new WireCommands.PartialEvent(buf));
+
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.PartialEvent(buf),
+                WireCommands.PartialEvent::readFrom,
+                pe -> pe.getData().refCnt());
     }
 
     @Test
@@ -520,36 +550,13 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testSegmentRead() throws IOException {
         testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buf, l));
-    }
 
-    @Test
-    public void testSegmentReadRelease() throws IOException {
-        // If we pass in the buffer ourselves, there should be no need to release.
-        int originalRefCnt = buf.refCnt();
-        WireCommands.SegmentRead sr = new WireCommands.SegmentRead(testString1, l, true, false, buf, l);
-        assertFalse(sr.isMustRelease());
-        assertFalse(sr.isReleased());
-        sr.release();
-        assertEquals(originalRefCnt, buf.refCnt());
-        assertTrue(sr.isReleased());
-        sr.release(); // Do this again. The second time should have no effect.
-        assertEquals(originalRefCnt, buf.refCnt());
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.SegmentRead(testString1, l, true, false, buf, l),
+                WireCommands.SegmentRead::readFrom,
+                sr -> sr.getData().refCnt());
 
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        sr.writeFields(new DataOutputStream(bout));
-        ByteBuf buffer = Unpooled.wrappedBuffer(bout.toByteArray());
-        WireCommands.SegmentRead read = (WireCommands.SegmentRead) WireCommands.SegmentRead.readFrom(new EnhancedByteBufInputStream(buffer), bout.size());
-        assertTrue(read.isMustRelease());
-        assertEquals(2, read.getData().refCnt());
-        assertEquals(2, buffer.refCnt());
-        buffer.release();
-        assertEquals(1, read.getData().refCnt());
-        assertEquals(1, buffer.refCnt());
-        read.release();
-        assertEquals(0, read.getData().refCnt());
-        assertEquals(0, buffer.refCnt());
-        read.release(); // Do this again. The second time should have no effect.
-        assertEquals(0, buffer.refCnt());
     }
 
     @Test
@@ -713,7 +720,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
                 new SimpleImmutableEntry<>(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY),
                 new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), WireCommands.TableValue.EMPTY));
-        testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries)));
+        testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries), 0L));
     }
 
     @Test
@@ -724,7 +731,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testRemoveTableKeys() throws IOException {
         testCommand(new WireCommands.RemoveTableKeys(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buf, 1L),
-                                                                                       new WireCommands.TableKey(buf, 2L))));
+                                                                                       new WireCommands.TableKey(buf, 2L)), 0L));
     }
 
     @Test
@@ -817,7 +824,52 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         testCommand(cmd);
     }
 
+    @Test
+    public void testReadTableEntriesDelta() throws IOException {
+        WireCommands.ReadTableEntriesDelta cmd = new WireCommands.ReadTableEntriesDelta(l, testString1, "", 1L, 100);
+        testCommand(cmd);
+    }
 
+    @Test
+    public void testtableEntriesDeltaRead() throws IOException {
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l + 1), new WireCommands.TableValue(buf)));
+        WireCommands.TableEntries tableEntries = new WireCommands.TableEntries(entries);
+
+        WireCommands.TableEntriesDeltaRead cmd = new WireCommands.TableEntriesDeltaRead(
+                l, testString1, tableEntries, false, false,  WireCommands.TableKey.NO_VERSION);
+        testCommand(cmd);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(
+            Supplier<T> fromBuf, WireCommands.Constructor fromStream, Function<T, Integer> getRefCnt) throws IOException {
+        // If we pass in the buffer ourselves, there should be no need to release.
+        int originalRefCnt = buf.refCnt();
+        T command = fromBuf.get();
+        assertTrue(command.isReleased());
+        command.release();
+        assertEquals(originalRefCnt, buf.refCnt());
+        assertTrue(command.isReleased());
+        command.release(); // Do this again. The second time should have no effect.
+        assertEquals(originalRefCnt, buf.refCnt());
+
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        command.writeFields(new DataOutputStream(bout));
+        ByteBuf buffer = Unpooled.wrappedBuffer(bout.toByteArray());
+        T command2 = (T) fromStream.readFrom(new EnhancedByteBufInputStream(buffer), bout.size());
+        assertEquals(2, (int) getRefCnt.apply(command2));
+        assertEquals(2, buffer.refCnt());
+        buffer.release();
+        assertEquals(1, (int) getRefCnt.apply(command2));
+        assertEquals(1, buffer.refCnt());
+        command2.release();
+        assertEquals(0, (int) getRefCnt.apply(command2));
+        assertEquals(0, buffer.refCnt());
+        command2.release(); // Do this again. The second time should have no effect.
+        assertEquals(0, buffer.refCnt());
+    }
 
     private void testCommand(WireCommand command) throws IOException {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();

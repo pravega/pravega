@@ -18,7 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import lombok.Getter;
-import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.api.DigestType;
 
 /**
  * General configuration for BookKeeper Client.
@@ -26,30 +26,30 @@ import org.apache.bookkeeper.client.BookKeeper;
 public class BookKeeperConfig {
     //region Config Names
 
-    public static final Property<String> ZK_ADDRESS = Property.named("zkAddress", "localhost:2181");
-    public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zkSessionTimeoutMillis", 10000);
-    public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zkConnectionTimeoutMillis", 10000);
-    public static final Property<String> ZK_METADATA_PATH = Property.named("zkMetadataPath", "/segmentstore/containers");
-    public static final Property<Integer> ZK_HIERARCHY_DEPTH = Property.named("zkHierarchyDepth", 2);
-    public static final Property<Integer> MAX_WRITE_ATTEMPTS = Property.named("maxWriteAttempts", 5);
-    public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("bkEnsembleSize", 3);
-    public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 2);
-    public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("bkWriteQuorumSize", 3);
-    public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("bkWriteTimeoutMillis", 60000);
-    public static final Property<Integer> BK_READ_TIMEOUT = Property.named("readTimeoutMillis", 30000);
-    public static final Property<Integer> BK_READ_BATCH_SIZE = Property.named("readBatchSize", 64);
-    public static final Property<Integer> MAX_OUTSTANDING_BYTES = Property.named("maxOutstandingBytes", 256 * 1024 * 1024);
-    public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("bkLedgerMaxSize", 1024 * 1024 * 1024);
-    public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
-    public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
-    public static final Property<Boolean> BK_TLS_ENABLED = Property.named("tlsEnabled", false);
-    public static final Property<String> TLS_TRUST_STORE_PATH = Property.named("tlsTrustStorePath", "config/client.truststore.jks");
-    public static final Property<String> TLS_TRUST_STORE_PASSWORD_PATH = Property.named("tlsTrustStorePasswordPath", "");
-    public static final Property<Boolean> BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE = Property.named("enforceMinNumRacksPerWriteQuorum", false);
-    public static final Property<Integer> BK_MIN_NUM_RACKS_PER_WRITE_QUORUM = Property.named("minNumRacksPerWriteQuorum", 2);
-    public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopologyScriptFileName",
-            "/opt/pravega/scripts/sample-bookkeeper-topology.sh");
-    public static final Property<String> BK_DIGEST_TYPE = Property.named("digestType", BookKeeper.DigestType.CRC32C.name());
+    public static final Property<String> ZK_ADDRESS = Property.named("zk.connect.uri", "localhost:2181", "zkAddress");
+    public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zk.connect.sessionTimeout.milliseconds", 10000, "zkSessionTimeoutMillis");
+    public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zk.connect.sessionTimeout.milliseconds", 10000, "zkConnectionTimeoutMillis");
+    public static final Property<String> ZK_METADATA_PATH = Property.named("zk.metadata.path", "/segmentstore/containers", "zkMetadataPath");
+    public static final Property<Integer> ZK_HIERARCHY_DEPTH = Property.named("zk.metadata.hierarchy.depth", 2, "zkHierarchyDepth");
+    public static final Property<Integer> MAX_WRITE_ATTEMPTS = Property.named("write.attempts.count.max", 5, "maxWriteAttempts");
+    public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("ensemble.size", 3, "bkEnsembleSize");
+    public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("ack.quorum.size", 2, "bkAckQuorumSize");
+    public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("write.quorum.size", 3, "bkWriteQuorumSize");
+    public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("write.timeout.milliseconds", 60000, "bkWriteTimeoutMillis");
+    public static final Property<Integer> BK_READ_TIMEOUT = Property.named("read.timeout.milliseconds", 30000, "bkReadTimeoutMillis");
+    public static final Property<Integer> BK_READ_BATCH_SIZE = Property.named("read.batch.size", 64, "readBatchSize");
+    public static final Property<Integer> MAX_OUTSTANDING_BYTES = Property.named("write.outstanding.bytes.max", 256 * 1024 * 1024, "maxOutstandingBytes");
+    public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("ledger.size.max", 1024 * 1024 * 1024, "bkLedgerMaxSize");
+    public static final Property<String> BK_PASSWORD = Property.named("connect.security.auth.pwd", "", "bkPass");
+    public static final Property<String> BK_LEDGER_PATH = Property.named("ledger.path", "", "bkLedgerPath");
+    public static final Property<Boolean> BK_TLS_ENABLED = Property.named("connect.security.tls.enable", false, "tlsEnabled");
+    public static final Property<String> TLS_TRUST_STORE_PATH = Property.named("connect.security.tls.trustStore.location", "config/client.truststore.jks", "tlsTrustStorePath");
+    public static final Property<String> TLS_TRUST_STORE_PASSWORD_PATH = Property.named("connect.security.trustStore.pwd.location", "", "tlsTrustStorePasswordPath");
+    public static final Property<Boolean> BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE = Property.named("write.quorum.racks.minimumCount.enable", false, "enforceMinNumRacksPerWriteQuorum");
+    public static final Property<Integer> BK_MIN_NUM_RACKS_PER_WRITE_QUORUM = Property.named("write.quorum.racks.count.min", 2, "minNumRacksPerWriteQuorum");
+    public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopology.script.location",
+            "/opt/pravega/scripts/sample-bookkeeper-topology.sh", "networkTopologyScriptFileName");
+    public static final Property<String> BK_DIGEST_TYPE = Property.named("digest.type.name", DigestType.CRC32C.name(), "digestType");
 
     public static final String COMPONENT_CODE = "bookkeeper";
     /**
@@ -175,7 +175,7 @@ public class BookKeeperConfig {
     private final String networkTopologyFileName;
 
     @Getter
-    private final BookKeeper.DigestType digestType;
+    private final DigestType digestType;
 
     //endregion
 
@@ -245,16 +245,16 @@ public class BookKeeperConfig {
         return new ConfigBuilder<>(COMPONENT_CODE, BookKeeperConfig::new);
     }
 
-    private BookKeeper.DigestType getDigestType(String digestType) {
-        if (digestType.equals(BookKeeper.DigestType.MAC.name())) {
-            return BookKeeper.DigestType.MAC;
-        } else if (digestType.equals(BookKeeper.DigestType.CRC32.name())) {
-            return BookKeeper.DigestType.CRC32;
-        } else if (digestType.equals(BookKeeper.DigestType.DUMMY.name())) {
-            return BookKeeper.DigestType.DUMMY;
+    static DigestType getDigestType(String digestType) {
+        if (digestType.equals(DigestType.MAC.name())) {
+            return DigestType.MAC;
+        } else if (digestType.equals(DigestType.CRC32.name())) {
+            return DigestType.CRC32;
+        } else if (digestType.equals(DigestType.DUMMY.name())) {
+            return DigestType.DUMMY;
         } else {
             // Default digest for performance reasons.
-            return BookKeeper.DigestType.CRC32C;
+            return DigestType.CRC32C;
         }
     }
 

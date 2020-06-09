@@ -94,7 +94,7 @@ public class GrpcAuthHelper {
             claims.put(resource, String.valueOf(expectedLevel));
 
             return new JsonWebToken("segmentstoreresource", "segmentstore", tokenSigningKey.getBytes(),
-                            this.accessTokenTTLInSeconds, claims).toCompactString();
+                            claims, this.accessTokenTTLInSeconds).toCompactString();
         } else {
             return "";
         }
@@ -119,6 +119,6 @@ public class GrpcAuthHelper {
         customClaims.put("*", String.valueOf(READ_UPDATE));
 
         return new JsonWebToken("segmentstoreresource", "segmentstore", tokenSigningKey.getBytes(),
-                null, customClaims).toCompactString();
+                customClaims, null).toCompactString();
     }
 }
