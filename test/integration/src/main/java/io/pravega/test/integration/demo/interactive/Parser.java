@@ -19,7 +19,9 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 final class Parser {
-    private static final String SCANNER_PATTERN = "[^\"\\s]+|\"(\\\\.|[^\\\\\"])*\"";
+    private static final String MATCH_ESCAPED_DOUBLE_QUOTES = "[^\"\\s]+|\"(\\\\.|[^\\\\\"])*\"";
+    private static final String MATCH_BRACES = "(^\\{\\s]+)|(\\{).+\\}";
+    private static final String SCANNER_PATTERN = String.format("(%s)|(%s)", MATCH_BRACES, MATCH_ESCAPED_DOUBLE_QUOTES);
 
     /**
      * Parses the given String into a Command, separating elements by spaces, and treating characters between double quotes(")

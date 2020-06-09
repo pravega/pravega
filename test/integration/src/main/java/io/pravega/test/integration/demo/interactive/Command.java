@@ -14,11 +14,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
 import io.pravega.common.Exceptions;
+import io.pravega.shared.NameUtils;
 import java.io.PrintStream;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -41,6 +42,8 @@ import lombok.val;
 @RequiredArgsConstructor
 abstract class Command {
     //region Private
+
+    protected static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
 
     @Getter
     @NonNull
@@ -65,18 +68,16 @@ abstract class Command {
      */
     public abstract void execute() throws Exception;
 
+    protected InteractiveConfig getConfig() {
+        return getCommandArgs().getConfig();
+    }
+
+    protected URI getControllerUri() {
+        return URI.create(getConfig().getControllerUri());
+    }
+
     protected void output(String messageTemplate, Object... args) {
         this.out.println(String.format(messageTemplate, args));
-    }
-
-    protected void prettyJSONOutput(String jsonString) {
-        JsonElement je = new JsonParser().parse(jsonString);
-        output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
-    }
-
-    protected void prettyJSONOutput(String key, Object value) {
-        JsonElement je = new JsonParser().parse(objectToJSON(new Tuple(key, value)));
-        output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
     }
 
     protected boolean confirmContinue() {
@@ -106,13 +107,55 @@ abstract class Command {
         return getArg(index, Boolean::parseBoolean);
     }
 
+    protected ScopedName getScopedNameArg(int index) {
+        return getArg(index, scopedName -> {
+            val parts = NameUtils.extractStreamNameTokens(scopedName);
+            Preconditions.checkArgument(parts.size() == 2, "Invalid scoped Stream name. Expected format 'scope/stream': '%s'.", scopedName);
+            return new ScopedName(parts.get(0), parts.get(1));
+        });
+    }
+
+    protected <T> T getJsonArg(int index, Class<T> c) {
+        String jsonArg = getArg(index);
+        jsonArg = removeEnvelope(jsonArg, "{", "}");
+        return GSON.fromJson(jsonArg, c);
+    }
+
+    protected String getArg(int index) {
+        return removeEnvelope(this.commandArgs.getArgs().get(index), "\"", "\"");
+    }
+
     private <T> T getArg(int index, Function<String, T> converter) {
         String s = null;
         try {
-            s = this.commandArgs.getArgs().get(index);
+            s = getArg(index);
             return converter.apply(s);
         } catch (Exception ex) {
             throw new IllegalArgumentException(String.format("Unexpected argument '%s' at position %d: %s.", s, index, ex.getMessage()));
+        }
+    }
+
+    private String removeEnvelope(String s, String removeBeginning, String removeEnd) {
+        if (s.length() > removeBeginning.length() + removeEnd.length()
+                && s.startsWith(removeBeginning) && s.endsWith(removeEnd)) {
+            s = s.substring(removeBeginning.length(), s.length() - removeEnd.length());
+        }
+
+        return s;
+    }
+
+    //endregion
+
+    //region ScopedName
+
+    @Data
+    protected static class ScopedName {
+        private final String scope;
+        private final String name;
+
+        @Override
+        public String toString() {
+            return NameUtils.getScopedStreamName(this.scope, this.name);
         }
     }
 
@@ -164,6 +207,7 @@ abstract class Command {
                         .put(ScopeCommand.Delete::descriptor, ScopeCommand.Delete::new)
                         .put(StreamCommand.Create::descriptor, StreamCommand.Create::new)
                         .put(StreamCommand.Delete::descriptor, StreamCommand.Delete::new)
+                        .put(StreamCommand.List::descriptor, StreamCommand.List::new)
                         .put(KeyValueTableCommand.Create::descriptor, KeyValueTableCommand.Create::new)
                         .put(KeyValueTableCommand.Delete::descriptor, KeyValueTableCommand.Delete::new)
                         .put(KeyValueTableCommand.Get::descriptor, KeyValueTableCommand.Get::new)

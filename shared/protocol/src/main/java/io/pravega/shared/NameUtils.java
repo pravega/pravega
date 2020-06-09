@@ -12,6 +12,7 @@ package io.pravega.shared;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
@@ -283,6 +284,16 @@ public final class NameUtils {
      */
     public static String getScopedKeyValueTableName(String scope, String streamName) {
         return getScopedStreamNameInternal(scope, streamName).toString();
+    }
+
+    /**
+     * Returns a list representing the components of a scoped stream name.
+     * @param scopedStreamName The scoped stream name.
+     * @return A list containing the components. If the scoped stream name was properly formatted, this list should have
+     * two elements: element index 0 has the scope name and element index 1 has the stream name.
+     */
+    public static List<String> extractStreamNameTokens(String scopedStreamName){
+        return Arrays.asList(scopedStreamName.split("/"));
     }
 
     /**

@@ -9,7 +9,12 @@
  */
 package io.pravega.test.integration.demo.interactive;
 
+import com.google.common.base.Preconditions;
+import io.pravega.client.admin.StreamManager;
+import java.net.URI;
+import lombok.Cleanup;
 import lombok.NonNull;
+import lombok.val;
 
 abstract class ScopeCommand extends Command {
     static final String COMPONENT = "scope";
@@ -28,13 +33,23 @@ abstract class ScopeCommand extends Command {
         }
 
         @Override
-        public void execute() throws Exception {
-            output("Scope.Create %s", getCommandArgs());
+        public void execute() {
+            Preconditions.checkArgument(getCommandArgs().getArgs().size() > 0, "At least one scope name expected.");
+            @Cleanup
+            val sm = StreamManager.create(URI.create(getConfig().getControllerUri()));
+            for (val scopeName : getCommandArgs().getArgs()) {
+                val success = sm.createScope(scopeName);
+                if (success) {
+                    output("Scope '%s' created successfully.", scopeName);
+                } else {
+                    output("Scope '%s' could not be created.", scopeName);
+                }
+            }
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("create", "Creates a new Scope.",
-                    new ArgDescriptor("scope-name", "Name of the Scope to create."));
+            return createDescriptor("create", "Creates one or more Scopes.",
+                    new ArgDescriptor("scope-names", "Name of the Scopes to create."));
         }
     }
 
@@ -44,13 +59,23 @@ abstract class ScopeCommand extends Command {
         }
 
         @Override
-        public void execute() throws Exception {
-            output("Scope.Delete %s", getCommandArgs());
+        public void execute() {
+            Preconditions.checkArgument(getCommandArgs().getArgs().size() > 0, "At least one scope name expected.");
+            @Cleanup
+            val sm = StreamManager.create(URI.create(getConfig().getControllerUri()));
+            for (val scopeName : getCommandArgs().getArgs()) {
+                val success = sm.deleteScope(scopeName);
+                if (success) {
+                    output("Scope '%s' deleted successfully.", scopeName);
+                } else {
+                    output("Scope '%s' could not be deleted.", scopeName);
+                }
+            }
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("delete", "Creates a new Stream.",
-                    new ArgDescriptor("scope-name", "Name of the Scope to delete."));
+            return createDescriptor("delete", "Deletes one or more Scopes.",
+                    new ArgDescriptor("scope-names", "Names of the Scopes to delete."));
         }
     }
 }

@@ -17,26 +17,32 @@ import lombok.Data;
 @Data
 @Builder
 class InteractiveConfig {
-    static final String CONTROLLER_HOST = "controller-host";
-    static final String CONTROLLER_PORT = "controller-port";
+    static final String CONTROLLER_URI = "controller-uri";
+    static final String DEFAULT_SEGMENT_COUNT = "default-segment-count";
+    static final String TIMEOUT_MILLIS = "timeout-millis";
 
     static InteractiveConfig getDefault() {
         return InteractiveConfig.builder()
-                .controllerHost("localhost")
-                .controllerPort(12345)
+                .controllerUri("tcp://localhost:9090")
+                .defaultSegmentCount(4)
+                .timeoutMillis(60000)
                 .build();
     }
 
-    private String controllerHost;
-    private int controllerPort;
+    private String controllerUri;
+    private int defaultSegmentCount;
+    private int timeoutMillis;
 
     InteractiveConfig set(String propertyName, String value) {
         switch (propertyName) {
-            case CONTROLLER_HOST:
-                setControllerHost(value);
+            case CONTROLLER_URI:
+                setControllerUri(value);
                 break;
-            case CONTROLLER_PORT:
-                setControllerPort(Integer.parseInt(value));
+            case DEFAULT_SEGMENT_COUNT:
+                setDefaultSegmentCount(Integer.parseInt(value));
+                break;
+            case TIMEOUT_MILLIS:
+                setTimeoutMillis(Integer.parseInt(value));
                 break;
             default:
                 throw new IllegalArgumentException(String.format("Unrecognized property name '%s'.", propertyName));
@@ -46,8 +52,9 @@ class InteractiveConfig {
 
     Map<String, Object> getAll() {
         return ImmutableMap.<String, Object>builder()
-                .put("controller-host", getControllerHost())
-                .put("controller-port", getControllerPort())
+                .put(CONTROLLER_URI, getControllerUri())
+                .put(DEFAULT_SEGMENT_COUNT, getControllerUri())
+                .put(TIMEOUT_MILLIS, getTimeoutMillis())
                 .build();
     }
 }
