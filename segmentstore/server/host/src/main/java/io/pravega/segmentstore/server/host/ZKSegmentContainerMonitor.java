@@ -17,7 +17,6 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CollectionHelpers;
-import io.pravega.common.util.OrderedItemProcessor;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import java.io.IOException;
@@ -33,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -80,7 +80,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     private final AtomicLong lastReportTime;
     // We start Segment Containers sequentially, given that starting them in parallel may lead to the cache being full
     // if there is too much data to recover.
-    private final OrderedItemProcessor<Integer, ContainerHandle> startContainerOrderedProcessor;
+    private final Semaphore parallelConcurrentRecoveries;
 
     /**
      * Creates an instance of ZKSegmentContainerMonitor.
@@ -102,9 +102,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         this.hostContainerMapNode = new NodeCache(zkClient, clusterPath);
         this.assigmentTask = new AtomicReference<>();
         this.lastReportTime = new AtomicLong(CURRENT_TIME_MILLIS.get());
-        // Allow OrderedItemProcessor to throw exceptions, as they may happen while starting containers. But we want to
-        // continue processing subsequent container starts irrespective of such failures.
-        this.startContainerOrderedProcessor = new OrderedItemProcessor<>(parallelContainerStarts, this::startContainer, false, this.executor);
+        // Throttle the max number of parallel container recoveries.
+        this.parallelConcurrentRecoveries = new Semaphore(parallelContainerStarts);
     }
 
     /**
@@ -119,7 +118,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     public void initialize(Duration monitorInterval) {
         Exceptions.checkNotClosed(closed.get(), this);
 
-        // Start loading the segment container to node assigment map from zookeeper.
+        // Start loading the segment container to node assignment map from zookeeper.
         this.hostContainerMapNode.start();
 
         // There are two triggers for the segment container monitor.
@@ -155,7 +154,6 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
 
         // Wait for all the containers to be closed.
         Futures.await(Futures.allOf(results), CLOSE_TIMEOUT_PER_CONTAINER.toMillis());
-        this.startContainerOrderedProcessor.close();
     }
 
     @VisibleForTesting
@@ -197,10 +195,11 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
                     this.lastReportTime.set(CURRENT_TIME_MILLIS.get());
                 }
 
-                // We start segment containers sequentially to ensure that we do not overload the cache with parallel
-                // container recoveries.
-                containersToBeStarted.forEach(startContainerOrderedProcessor::process);
                 // Initiate the start and stop tasks asynchronously.
+                containersToBeStarted.forEach(containerId -> {
+                    Exceptions.handleInterrupted(parallelConcurrentRecoveries::acquire);
+                    this.startContainer(containerId);
+                });
                 containersToBeStopped.forEach(this::stopContainer);
             } else {
                 log.warn("No segment container assignments found");
@@ -272,6 +271,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
                             // should be available immediately after the task is complete.
                             // Also need to ensure this is always called, hence doing this in a finally block.
                             this.pendingTasks.remove(containerId);
+                            this.parallelConcurrentRecoveries.release();
                         }
                     });
         } catch (Throwable e) {
