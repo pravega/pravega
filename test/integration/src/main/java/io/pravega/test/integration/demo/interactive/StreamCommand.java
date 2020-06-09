@@ -9,14 +9,24 @@
  */
 package io.pravega.test.integration.demo.interactive;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Streams;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.EventRead;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import java.net.URI;
 import java.util.Comparator;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.val;
@@ -44,7 +54,7 @@ abstract class StreamCommand extends Command {
 
         @Override
         public void execute() {
-            Preconditions.checkArgument(getCommandArgs().getArgs().size() > 0, "At least one stream name expected.");
+            ensureMinArgCount(1);
             @Cleanup
             val sm = StreamManager.create(URI.create(getConfig().getControllerUri()));
             val sc = StreamConfiguration.builder()
@@ -74,6 +84,8 @@ abstract class StreamCommand extends Command {
 
     //endregion
 
+    //region Delete
+
     static class Delete extends StreamCommand {
         Delete(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
@@ -81,7 +93,7 @@ abstract class StreamCommand extends Command {
 
         @Override
         public void execute() {
-            Preconditions.checkArgument(getCommandArgs().getArgs().size() > 0, "At least one stream name expected.");
+            ensureMinArgCount(1);
             @Cleanup
             val sm = StreamManager.create(URI.create(getConfig().getControllerUri()));
             for (int i = 0; i < getCommandArgs().getArgs().size(); i++) {
@@ -136,6 +148,166 @@ abstract class StreamCommand extends Command {
             return createDescriptor("list", "Lists all Streams in a Scope.")
                     .withArg("scope-name", "Name of Scope to list Streams from.")
                     .build();
+        }
+    }
+
+    //endregion
+
+    //region Append
+
+    static class Append extends StreamCommand {
+        Append(@NonNull CommandArgs commandArgs) {
+            super(commandArgs);
+        }
+
+        @Override
+        public void execute() throws Exception {
+            ensureArgCount(2, 3);
+            val scopedStream = getScopedNameArg(0);
+            String routingKey = null;
+            int eventCount;
+            if (getCommandArgs().getArgs().size() == 3) {
+                routingKey = getArg(1);
+                eventCount = getIntArg(2);
+            } else {
+                eventCount = getIntArg(1);
+            }
+
+            @Cleanup
+            val factory = EventStreamClientFactory.withScope(scopedStream.getScope(), ClientConfig.builder().controllerURI(getControllerUri()).build());
+            @Cleanup
+            val writer = factory.createEventWriter(scopedStream.getName(), new UTF8StringSerializer(), EventWriterConfig.builder().build());
+
+            String eventPrefix = UUID.randomUUID().toString();
+            output("Appending %s Event(s) with payload prefix '%s' having routing key '%s'.", eventCount, eventPrefix, routingKey);
+            val futures = new CompletableFuture[eventCount];
+            for (int i = 0; i < eventCount; i++) {
+                if (routingKey == null) {
+                    futures[i] = writer.writeEvent(String.format("%s_%s", eventPrefix, i));
+                } else {
+                    futures[i] = writer.writeEvent(routingKey, String.format("%s_%s", eventPrefix, i));
+                }
+            }
+
+            CompletableFuture.allOf(futures).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+            output("Done.");
+        }
+
+        public static CommandDescriptor descriptor() {
+            return createDescriptor("append", "Appends a number of Events to a Stream.")
+                    .withArg("scoped-stream-name", "Scoped Stream name to append.")
+                    .withArg("[routing-key]", "(Optional) Routing key to use.")
+                    .withArg("event-count", "Number of events to append.")
+                    .withSyntaxExample("scope1/stream1 100", "Appends 100 events to 'scope1/stream1'.")
+                    .withSyntaxExample("scope1/stream1 \"my routing key\"100", "Appends 100 events to 'scope1/stream1' with routing key 'my routing key'.")
+                    .build();
+        }
+    }
+
+    //endregion
+
+    //region Read
+
+    static class Read extends StreamCommand {
+        Read(@NonNull CommandArgs commandArgs) {
+            super(commandArgs);
+        }
+
+        @Override
+        public void execute() throws Exception {
+            ensureArgCount(1, 2);
+            val scopedStream = getScopedNameArg(0);
+            boolean group = getCommandArgs().getArgs().size() >= 2 && getBooleanArg(1);
+            val aggregator = group ? new GroupedItems() : new SingleItem();
+
+            val readerGroup = UUID.randomUUID().toString().replace("-", "");
+            val readerId = UUID.randomUUID().toString().replace("-", "");
+
+            val cc = ClientConfig.builder().controllerURI(getControllerUri()).build();
+            val readerConfig = ReaderConfig.builder().build();
+            @Cleanup
+            val factory = EventStreamClientFactory.withScope(scopedStream.getScope(), cc);
+            @Cleanup
+            val rgManager = ReaderGroupManager.withScope(scopedStream.getScope(), cc);
+            val rgConfig = ReaderGroupConfig.builder().stream(scopedStream.toString()).build();
+            rgManager.createReaderGroup(readerGroup, rgConfig);
+            try (val reader = factory.createReader(readerId, readerGroup, new UTF8StringSerializer(), readerConfig)) {
+                EventRead<String> event;
+                int displayCount = 0;
+                while ((event = reader.readNextEvent(getConfig().getTimeoutMillis())) != null && event.getEvent() != null) {
+                    boolean accepted = aggregator.accept(event);
+                    if (accepted && ++displayCount > getConfig().getMaxListItems()) {
+                        aggregator.flush();
+                        output("Reached maximum number of events %s. Change this using '%s' config value.",
+                                getConfig().getMaxListItems(), InteractiveConfig.MAX_LIST_ITEMS);
+                        break;
+                    }
+                }
+                aggregator.flush();
+            } finally {
+                rgManager.deleteReaderGroup(readerGroup);
+            }
+            output("Done.");
+        }
+
+        public static CommandDescriptor descriptor() {
+            return createDescriptor("read", "Appends a number of Events to a Stream.")
+                    .withArg("scoped-stream-name", "Scoped Stream name to append.")
+                    .withArg("[group-similar]", "(Optional). If set ('true'), displays a count of events per prefix (as generated using 'stream append').")
+                    .withSyntaxExample("scope1/stream1", "Reads and displays all events in 'scope1/stream1'.")
+                    .withSyntaxExample("scope1/stream1 true", "Reads all events in `scope1/stream1' and displays a summary.")
+                    .build();
+        }
+
+        private abstract class Aggregator {
+            abstract boolean accept(EventRead<String> event);
+
+            abstract void flush();
+        }
+
+        private class SingleItem extends Aggregator {
+            @Override
+            boolean accept(EventRead<String> event) {
+                output("\t%s", event.getEvent());
+                return true;
+            }
+
+            @Override
+            void flush() {
+                // Nothing to do.
+            }
+        }
+
+        private class GroupedItems extends Aggregator {
+            private String lastGroup = null;
+            private int count = 0;
+
+            @Override
+            boolean accept(EventRead<String> event) {
+                if (event.getEvent() == null) {
+                    return false;
+                }
+                int pos = event.getEvent().indexOf("_");
+                val eventGroup = pos < 0 ? event.getEvent() : event.getEvent().substring(0, pos);
+                if (eventGroup.equals(this.lastGroup)) {
+                    this.count++;
+                    return false;
+                } else {
+                    flush();
+                    this.lastGroup = eventGroup;
+                    this.count = 1;
+                    return true;
+                }
+            }
+
+            @Override
+            void flush() {
+                if (this.lastGroup != null) {
+                    output("\t%s: %s events.", this.lastGroup, this.count);
+                    this.lastGroup = null;
+                    this.count = 0;
+                }
+            }
         }
     }
 

@@ -46,11 +46,14 @@ abstract class KeyValueTableCommand extends Command {
         return KeyValueTableManager.create(URI.create(getConfig().getControllerUri()));
     }
 
-    protected KeyValueTable<String, String> createKVT(ScopedName scopedName) {
+    protected KeyValueTableFactory createKVTFactory(ScopedName scopedName) {
         return KeyValueTableFactory
-                .withScope(scopedName.getScope(), ClientConfig.builder().controllerURI(getControllerUri()).build())
-                .forKeyValueTable(scopedName.getName(), new UTF8StringSerializer(), new UTF8StringSerializer(),
-                        KeyValueTableClientConfiguration.builder().build());
+                .withScope(scopedName.getScope(), ClientConfig.builder().controllerURI(getControllerUri()).build());
+    }
+
+    protected KeyValueTable<String, String> createKVT(ScopedName scopedName, KeyValueTableFactory factory) {
+        return factory.forKeyValueTable(scopedName.getName(), new UTF8StringSerializer(), new UTF8StringSerializer(),
+                KeyValueTableClientConfiguration.builder().build());
     }
 
     protected String[] toArray(TableEntry<String, String> e, String key) {
@@ -131,7 +134,7 @@ abstract class KeyValueTableCommand extends Command {
 
         @Override
         public void execute() {
-            Preconditions.checkArgument(getCommandArgs().getArgs().size() > 0, "At least one KVT name expected.");
+            ensureMinArgCount(1);
             @Cleanup
             val m = createManager();
             val kvtConfig = KeyValueTableConfiguration.builder()
@@ -167,7 +170,7 @@ abstract class KeyValueTableCommand extends Command {
 
         @Override
         public void execute() {
-            Preconditions.checkArgument(getCommandArgs().getArgs().size() > 0, "At least one KVT name expected.");
+            ensureMinArgCount(1);
             @Cleanup
             val m = createManager();
             for (int i = 0; i < getCommandArgs().getArgs().size(); i++) {
@@ -200,12 +203,15 @@ abstract class KeyValueTableCommand extends Command {
 
         @Override
         public void execute() throws Exception {
+            ensureArgCount(2, 3);
             val kvtName = getScopedNameArg(0);
             val args = getArgsWithKeyFamily(1, 3, String[].class);
             val keys = args.getArg();
             Preconditions.checkArgument(keys.length > 0, "Expected at least one key.");
             @Cleanup
-            val kvt = createKVT(kvtName);
+            val factory = createKVTFactory(kvtName);
+            @Cleanup
+            val kvt = createKVT(kvtName, factory);
             val result = kvt.getAll(args.getKeyFamily(), Arrays.asList(keys)).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
 
             output("Get %s Key(s) from %s[%s]:", keys.length, kvtName, args.getKeyFamily());
@@ -244,12 +250,15 @@ abstract class KeyValueTableCommand extends Command {
 
         @Override
         public void execute() throws Exception {
+            ensureArgCount(2, 3);
             val kvtName = getScopedNameArg(0);
             val args = getArgsWithKeyFamily(1, 3, String[][].class);
             val entries = toEntries(args.getArg());
             Preconditions.checkArgument(entries.size() > 0, "Expected at least one Table Entry.");
             @Cleanup
-            val kvt = createKVT(kvtName);
+            val factory = createKVTFactory(kvtName);
+            @Cleanup
+            val kvt = createKVT(kvtName, factory);
             val result = kvt.replaceAll(args.getKeyFamily(), entries).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
 
             int conditionalCount = (int) entries.stream().filter(e -> e.getKey().getVersion() != Version.NO_VERSION).count();
@@ -288,12 +297,15 @@ abstract class KeyValueTableCommand extends Command {
 
         @Override
         public void execute() throws Exception {
+            ensureArgCount(2, 3);
             val kvtName = getScopedNameArg(0);
             val args = getArgsWithKeyFamily(1, 3, String[][].class);
             val keys = toKeys(args.getArg());
             Preconditions.checkArgument(keys.size() > 0, "Expected at least one Table Key.");
             @Cleanup
-            val kvt = createKVT(kvtName);
+            val factory = createKVTFactory(kvtName);
+            @Cleanup
+            val kvt = createKVT(kvtName, factory);
             kvt.removeAll(args.getKeyFamily(), keys).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
 
             int conditionalCount = (int) keys.stream().filter(e -> e.getVersion() != Version.NO_VERSION).count();
@@ -335,7 +347,9 @@ abstract class KeyValueTableCommand extends Command {
             val kvtName = getScopedNameArg(0);
             val keyFamily = getArg(1);
             @Cleanup
-            val kvt = createKVT(kvtName);
+            val factory = createKVTFactory(kvtName);
+            @Cleanup
+            val kvt = createKVT(kvtName, factory);
             val iterator = getIterator(kvt, keyFamily);
             int count = 0;
             while (count < getConfig().getMaxListItems()) {

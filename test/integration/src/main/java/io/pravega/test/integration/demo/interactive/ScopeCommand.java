@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration.demo.interactive;
 
-import com.google.common.base.Preconditions;
 import io.pravega.client.admin.StreamManager;
 import java.net.URI;
 import lombok.Cleanup;
@@ -37,7 +36,7 @@ abstract class ScopeCommand extends Command {
 
         @Override
         public void execute() {
-            Preconditions.checkArgument(getCommandArgs().getArgs().size() > 0, "At least one scope name expected.");
+            ensureMinArgCount(1);
             @Cleanup
             val sm = StreamManager.create(URI.create(getConfig().getControllerUri()));
             for (val scopeName : getCommandArgs().getArgs()) {
@@ -64,7 +63,7 @@ abstract class ScopeCommand extends Command {
 
         @Override
         public void execute() {
-            Preconditions.checkArgument(getCommandArgs().getArgs().size() > 0, "At least one scope name expected.");
+            ensureMinArgCount(1);
             @Cleanup
             val sm = StreamManager.create(URI.create(getConfig().getControllerUri()));
             for (val scopeName : getCommandArgs().getArgs()) {

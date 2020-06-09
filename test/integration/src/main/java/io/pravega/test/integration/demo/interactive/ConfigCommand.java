@@ -35,6 +35,7 @@ abstract class ConfigCommand extends Command {
 
         @Override
         public void execute() {
+            ensureMinArgCount(1);
             val newValues = new HashMap<String, String>();
             getCommandArgs().getArgs().forEach(s -> {
                 String[] items = s.split("=");

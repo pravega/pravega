@@ -20,6 +20,7 @@ import io.pravega.shared.NameUtils;
 import java.io.PrintStream;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -93,8 +94,15 @@ abstract class Command {
 
     //region Arguments
 
-    protected void ensureArgCount(int expectedCount) {
-        Preconditions.checkArgument(this.commandArgs.getArgs().size() == expectedCount, "Incorrect argument count.");
+    protected void ensureMinArgCount(int minCount) {
+        Preconditions.checkArgument(minCount <= this.commandArgs.getArgs().size(), "Expected at least %s arguments, found %s.",
+                minCount, this.commandArgs.getArgs().size());
+    }
+
+    protected void ensureArgCount(int... expectedCount) {
+        boolean match = Arrays.stream(expectedCount).anyMatch(c -> c == this.commandArgs.getArgs().size());
+        Preconditions.checkArgument(match, "Incorrect argument count (%s). Expected any of: %s.", this.commandArgs.getArgs().size(),
+                Arrays.stream(expectedCount).mapToObj(Integer::toString).collect(Collectors.joining(", ")));
     }
 
     protected int getIntArg(int index) {
@@ -231,6 +239,8 @@ abstract class Command {
                         .put(StreamCommand.Create::descriptor, StreamCommand.Create::new)
                         .put(StreamCommand.Delete::descriptor, StreamCommand.Delete::new)
                         .put(StreamCommand.List::descriptor, StreamCommand.List::new)
+                        .put(StreamCommand.Append::descriptor, StreamCommand.Append::new)
+                        .put(StreamCommand.Read::descriptor, StreamCommand.Read::new)
                         .put(KeyValueTableCommand.Create::descriptor, KeyValueTableCommand.Create::new)
                         .put(KeyValueTableCommand.Delete::descriptor, KeyValueTableCommand.Delete::new)
                         .put(KeyValueTableCommand.Get::descriptor, KeyValueTableCommand.Get::new)
