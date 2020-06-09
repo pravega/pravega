@@ -574,15 +574,22 @@ public class TestState {
         }
 
         /**
-         * Gets a value indicating the average latency.
+         * Gets a value indicating the overall latency.
          */
-        synchronized double average() {
+        synchronized double sum() {
             long sum = 0;
             for (int i = 0; i < this.latencyCounts.length; i++) {
                 sum += (long) this.latencyCounts[i] * i;
             }
 
-            return (double) sum / this.size;
+            return (double) sum;
+        }
+
+        /**
+         * Gets a value indicating the average latency.
+         */
+        synchronized double average() {
+            return sum() / this.size;
         }
 
         /**

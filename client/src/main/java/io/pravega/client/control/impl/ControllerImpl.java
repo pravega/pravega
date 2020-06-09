@@ -90,6 +90,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
@@ -767,7 +768,7 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<StreamSegmentSuccessors> getSuccessors(final StreamCut from) {
         Exceptions.checkNotClosed(closed.get(), this);
         Stream stream = from.asImpl().getStream();
-        long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
+        long traceId = LoggerHelpers.traceEnter(log, "getSuccessors", stream);
 
         return getSegmentsBetweenStreamCuts(from, StreamCut.UNBOUNDED).whenComplete((x, e) -> {
             if (e != null) {
@@ -792,7 +793,7 @@ public class ControllerImpl implements Controller {
             if (e != null) {
                 log.warn("getSegments for {} failed: ", stream.getStreamName(), e);
             }
-            LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
+            LoggerHelpers.traceLeave(log, "getSegments", traceId);
         });
     }
 
@@ -838,22 +839,55 @@ public class ControllerImpl implements Controller {
                   .getCurrentSegments(ModelHelper.createStreamInfo(scope, stream), callback);
             return callback.getFuture();
         }, this.executor);
-        return result.thenApply(ranges -> {
-            log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
-            NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
-            for (SegmentRange r : ranges.getSegmentRangesList()) {
-                Preconditions.checkState(r.getMinKey() <= r.getMaxKey(),
-                                         "Min keyrange %s was not less than maximum keyRange %s for segment %s",
-                                         r.getMinKey(), r.getMaxKey(), r.getSegmentId());
-                rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
-            }
-            return new StreamSegments(rangeMap, ranges.getDelegationToken());
-        }).whenComplete((x, e) -> {
+        return result.thenApply(this::getStreamSegments)
+                     .whenComplete((x, e) -> {
                          if (e != null) {
                              log.warn("getCurrentSegments for {}/{} failed: ", scope, stream, e);
                          }
+                         if (x.getNumberOfSegments() == 0 ) {
+                             log.warn("getCurrentSegments for {}/{} returned zero segments since the Stream is sealed", scope, stream);
+                         }
                          LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
                      });
+    }
+
+    @Override
+    public CompletableFuture<StreamSegments> getEpochSegments(final String scope, final String stream, int epoch) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        Exceptions.checkArgument(epoch >= 0, "epoch", "Should be a positive integer");
+        long traceId = LoggerHelpers.traceEnter(log, "getEpochSegments", scope, stream);
+
+        final CompletableFuture<SegmentRanges> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(traceId, "getEpochSegments", scope, stream);
+            GetEpochSegmentsRequest request = GetEpochSegmentsRequest.newBuilder()
+                                                                     .setStreamInfo(ModelHelper.createStreamInfo(scope, stream))
+                                                                     .setEpoch(epoch)
+                                                                     .build();
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                  .getEpochSegments(request, callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(this::getStreamSegments)
+                     .whenComplete((x, e) -> {
+                         if (e != null) {
+                             log.warn("getEpochSegments for {}/{} with for epoch {} failed: ", scope, stream, epoch, e);
+                         }
+                         LoggerHelpers.traceLeave(log, "getEpochSegments", traceId);
+                     });
+    }
+
+    private StreamSegments getStreamSegments(final SegmentRanges ranges) {
+        log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
+        NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
+        for (SegmentRange r : ranges.getSegmentRangesList()) {
+            Preconditions.checkState(r.getMinKey() <= r.getMaxKey(),
+                    "Min keyrange %s was not less than maximum keyRange %s for segment %s",
+                    r.getMinKey(), r.getMaxKey(), r.getSegmentId());
+            rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
+        }
+        return new StreamSegments(rangeMap, ranges.getDelegationToken());
     }
 
     @Override
