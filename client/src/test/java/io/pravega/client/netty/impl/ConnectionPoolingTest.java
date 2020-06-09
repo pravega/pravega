@@ -30,7 +30,6 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.pravega.client.ClientConfig;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -38,6 +37,7 @@ import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
@@ -56,6 +56,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
@@ -144,7 +145,7 @@ public class ConnectionPoolingTest {
                      sslEngine.setSSLParameters(sslParameters);
                      p.addLast(handler);
                  }
-                 p.addLast(new CommandEncoder(null),
+                 p.addLast(new CommandEncoder(null, NO_OP_METRIC_NOTIFIER),
                            new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                            new CommandDecoder(),
                            new EchoServerHandler());

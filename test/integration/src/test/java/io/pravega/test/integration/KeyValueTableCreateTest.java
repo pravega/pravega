@@ -56,7 +56,7 @@ public class KeyValueTableCreateTest extends ThreadPooledTestSuite {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, executorService());
         this.server.startListening();
 
         this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

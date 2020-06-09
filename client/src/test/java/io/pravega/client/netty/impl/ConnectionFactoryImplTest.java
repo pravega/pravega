@@ -25,6 +25,7 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.util.ReferenceCountUtil;
 import io.pravega.client.ClientConfig;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -52,12 +53,14 @@ public class ConnectionFactoryImplTest {
     boolean ssl = false;
     private Channel serverChannel;
     private int port;
+    private SslContext sslCtx;
+    private EventLoopGroup bossGroup;
+    private EventLoopGroup workerGroup;
 
     @Before
     public void setUp() throws Exception {
         // Configure SSL.
         port = TestUtils.getAvailableListenPort();
-        final SslContext sslCtx;
         if (ssl) {
             try {
                 sslCtx = SslContextBuilder.forServer(new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
@@ -69,8 +72,6 @@ public class ConnectionFactoryImplTest {
             sslCtx = null;
         }
         boolean nio = false;
-        EventLoopGroup bossGroup;
-        EventLoopGroup workerGroup;
         try {
             bossGroup = new EpollEventLoopGroup(1);
             workerGroup = new EpollEventLoopGroup();
@@ -106,8 +107,12 @@ public class ConnectionFactoryImplTest {
 
     @After
     public void tearDown() throws Exception {
-        serverChannel.close();
-        serverChannel.closeFuture();
+        serverChannel.close().awaitUninterruptibly();
+        bossGroup.shutdownGracefully().await();
+        workerGroup.shutdownGracefully().await();
+        if (sslCtx != null) {
+            ReferenceCountUtil.safeRelease(sslCtx);
+        }
     }
 
     @Test

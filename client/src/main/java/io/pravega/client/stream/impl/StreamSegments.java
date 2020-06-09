@@ -47,6 +47,10 @@ public class StreamSegments extends SegmentCollection {
         return HASHER.hashToRange(key);
     }
 
+    public int getNumberOfSegments() {
+        return segments.size();
+    }
+
     public StreamSegments withReplacementRange(Segment segment, StreamSegmentsWithPredecessors replacementRanges) {
         SegmentWithRange replacedSegment = findReplacedSegment(segment);
         verifyReplacementRange(replacedSegment, replacementRanges);
