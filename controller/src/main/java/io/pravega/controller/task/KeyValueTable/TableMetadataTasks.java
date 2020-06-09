@@ -9,9 +9,7 @@
  */
 package io.pravega.controller.task.KeyValueTable;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
@@ -22,27 +20,21 @@ import io.pravega.common.util.BitConverter;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
-import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableState;
 import io.pravega.controller.store.stream.StoreException;
 
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
-import io.pravega.controller.task.Stream.RequestSweeper;
+import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.util.RetryHelper;
-import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.UUID;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import lombok.Synchronized;
@@ -67,10 +59,7 @@ public class TableMetadataTasks implements AutoCloseable {
     private final String hostId;
     private final GrpcAuthHelper authHelper;
     private final RequestTracker requestTracker;
-    private String requestStreamName;
-    private final CompletableFuture<Void> writerInitFuture = new CompletableFuture<>();
-    private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
-
+    private EventHelper eventHelper;
 
     public TableMetadataTasks(final KVTableMetadataStore kvtMetadataStore,
                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
@@ -88,11 +77,12 @@ public class TableMetadataTasks implements AutoCloseable {
     @Synchronized
     public void initializeStreamWriters(final EventStreamClientFactory clientFactory,
                                         final String streamName) {
-        this.requestStreamName = streamName;
-        requestEventWriterRef.set(clientFactory.createEventWriter(requestStreamName,
+
+        this.eventHelper = new EventHelper(clientFactory.createEventWriter(streamName,
                 ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
-                EventWriterConfig.builder().build()));
-        writerInitFuture.complete(null);
+                EventWriterConfig.builder().build()), streamName,
+                                            this.executor, this.eventExecutor, hostId,
+                ((AbstractKVTableMetadataStore) this.kvtMetadataStore).getHostTaskIndex());
     }
 
     /**
@@ -124,35 +114,29 @@ public class TableMetadataTasks implements AutoCloseable {
                                            byte[] newUUID = kvtMetadataStore.newScope(scope).newId();
                                            CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(),
                                                         createTimestamp, requestId, BitConverter.readUUID(newUUID, 0));
-                                                //4. Update ScopeTable with entry for this KVT and Publish event for creation
-                                                return Futures.exceptionallyExpecting(addIndexAndSubmitTask(event, () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, newUUID, executor))
-                                                                .thenCompose(x -> checkDone(() -> isCreated(scope, kvtName, kvtConfig, executor))
-                                                                        .thenCompose(y -> kvtMetadataStore.getConfiguration(scope, kvtName, null, executor)
-                                                                                .thenCompose(cfg -> {
-                                                                                    if (cfg.getPartitionCount() == kvtConfig.getPartitionCount()) {
-                                                                                        return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SUCCESS);
-                                                                                    } else {
-                                                                                        return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.TABLE_EXISTS);
-                                                                                    }
-                                                                                }))),
-                                                        e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException,
-                                                        CreateKeyValueTableStatus.Status.TABLE_EXISTS);
-                                            }
-                                            return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.TABLE_EXISTS);
-                                        });
-                            } );
-                }, e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+                                                //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
+                                                return eventHelper.addIndexAndSubmitTask(event, () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, newUUID, executor))
+                                                          .thenCompose(x -> isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor));
+                                       }
+                                       return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor);
+                                 });
+                            });
+               }, e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
     }
 
-    private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition) {
-        return checkDone(condition, 100L);
-    }
-
-    private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition, long delay) {
-        AtomicBoolean isDone = new AtomicBoolean(false);
-        return Futures.loop(() -> !isDone.get(),
-                () -> Futures.delayedFuture(condition, delay, executor)
-                        .thenAccept(isDone::set), executor);
+    private CompletableFuture<CreateKeyValueTableStatus.Status> isCreateProcessed(String scope, String kvtName,
+                                                                                  KeyValueTableConfiguration kvtConfig,
+                                                                                  final long createTimestamp,
+                                                                                  Executor executor) {
+        return eventHelper.checkDone(() -> isCreated(scope, kvtName, kvtConfig, executor))
+                .thenCompose(y -> isSameCreateRequest(scope, kvtName, kvtConfig, createTimestamp, executor))
+                .thenCompose(same -> {
+                    if (same) {
+                        return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SUCCESS);
+                    } else {
+                        return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.TABLE_EXISTS);
+                    }
+                });
     }
 
     private CompletableFuture<Boolean> isCreated(String scope, String kvtName, KeyValueTableConfiguration kvtConfig, Executor executor) {
@@ -161,83 +145,25 @@ public class TableMetadataTasks implements AutoCloseable {
                 .thenCompose(state -> CompletableFuture.completedFuture(state.equals(KVTableState.ACTIVE)));
     }
 
-    @VisibleForTesting
-    public void setRequestEventWriter(EventStreamWriter<ControllerEvent> requestEventWriter) {
-        requestEventWriterRef.set(requestEventWriter);
-        writerInitFuture.complete(null);
-    }
+    private CompletableFuture<Boolean> isSameCreateRequest(String requestScopeName, String requestKVTName,
+                                                           KeyValueTableConfiguration requestKVTConfig,
+                                                           final long requestCreateTimestamp,
+                                                           Executor executor) {
+    return kvtMetadataStore.getCreationTime(requestScopeName, requestKVTName, null, executor)
+    .thenCompose(creationTime -> {
+        if (creationTime == requestCreateTimestamp) {
+            kvtMetadataStore.getConfiguration(requestScopeName, requestKVTName, null, executor)
+                    .thenCompose(cfg -> {
+                        if (cfg.getPartitionCount() == requestKVTConfig.getPartitionCount()) {
+                            return CompletableFuture.completedFuture(Boolean.TRUE);
 
-    /**
-     * This method takes an event and a future supplier and guarantees that if future supplier has been executed then event will
-     * be posted in request stream. It does it by following approach:
-     * 1. it first adds the index for the event to be posted to the current host.
-     * 2. it then invokes future.
-     * 3. it then posts event.
-     * 4. removes the index.
-     *
-     * If controller fails after step 2, a replacement controller will failover all indexes and {@link RequestSweeper} will
-     * post events for any index that is found.
-     *
-     * Upon failover, an index can be found if failure occurred in any step before 3. It is safe to post duplicate events
-     * because event processing is idempotent. It is also safe to post event even if step 2 was not performed because the
-     * event will be ignored by the processor after a while.
-     *
-     * @param event      Event to publish.
-     * @param futureSupplier  Supplier future to execute before submitting event.
-     * @return CompletableFuture<T> returned by Supplier or Exception.
-     */
-    @VisibleForTesting
-    <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, Supplier<CompletableFuture<T>> futureSupplier) {
-        String id = UUID.randomUUID().toString();
-        // We first add index and then call the metadata update.
-        //  While trying to perform a metadata update, upon getting a connection exception or a write conflict exception
-        // (which can also occur if we had retried on a store exception), we will still post the event because we
-        //  don't know whether our update succeeded. Posting the event is harmless, though. If the update
-        // has succeeded, then the event will be used for processing. If the update had failed, then the event
-        // will be discarded. We will throw the exception that we received from running futureSupplier or return the
-        // successful value
-        return this.kvtMetadataStore.addRequestToIndex(this.hostId, id, event)
-                .thenCompose(v -> Futures.handleCompose(futureSupplier.get(),
-                        (r, e) -> {
-                            if (e == null || (Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException ||
-                                    Exceptions.unwrap(e) instanceof StoreException.WriteConflictException)) {
-                                return RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event),
-                                        ex -> log.warn("writing event failed with {}", ex.getMessage()), executor)
-                                        .thenCompose(z -> kvtMetadataStore.removeTaskFromIndex(this.hostId, id))
-                                        .thenApply(vd -> {
-                                            if (e != null) {
-                                                throw new CompletionException(e);
-                                            } else {
-                                                return r;
-                                            }
-                                        });
-                            } else {
-                                throw new CompletionException(e);
-                            }
-                        }));
-    }
-
-    CompletableFuture<Void> writeEvent(ControllerEvent event) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        writerInitFuture.thenComposeAsync(v -> requestEventWriterRef.get().writeEvent(event.getKey(), event),
-                eventExecutor)
-                .whenComplete((r, e) -> {
-                    if (e != null) {
-                        log.warn("exception while posting event {} {}", e.getClass().getName(), e.getMessage());
-                        if (e instanceof TaskExceptions.ProcessingDisabledException) {
-                            result.completeExceptionally(e);
                         } else {
-                            // transform any other event write exception to retryable
-                            // exception
-                            result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event",
-                                    e));
+                            return CompletableFuture.completedFuture(Boolean.FALSE);
                         }
-                    } else {
-                        log.info("event posted successfully");
-                        result.complete(null);
-                    }
-                });
-        return result;
+                    });
+            }
+        return CompletableFuture.completedFuture(Boolean.FALSE);
+        });
     }
 
     private String retrieveDelegationToken() {
@@ -261,12 +187,6 @@ public class TableMetadataTasks implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        if (!writerInitFuture.isDone()) {
-            writerInitFuture.cancel(true);
-        }
-        EventStreamWriter<ControllerEvent> writer = requestEventWriterRef.get();
-        if (writer != null) {
-            writer.close();
-        }
+        eventHelper.close();
     }
 }

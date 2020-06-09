@@ -13,7 +13,6 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
-import io.pravega.shared.controller.event.ControllerEvent;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -140,27 +139,6 @@ public interface KVTableMetadataStore extends AutoCloseable {
                                                     final KVTableState state, final VersionedMetadata<KVTableState> previous,
                                                     final KVTOperationContext context,
                                                     final Executor executor);
-
-    /**
-     * Adds specified request in the host's task index. 
-     * This is idempotent operation.
-     *
-     * @param hostId      Host identifier.
-     * @param id          Unique id used while adding task to index.
-     * @param request     Request to index.
-     * @return            A future when completed will indicate that the task is indexed for the given host.
-     */
-    CompletableFuture<Void> addRequestToIndex(final String hostId, final String id, final ControllerEvent request);
-
-    /**
-     * Removes the index for task identified by `id` in host task index for host identified by `hostId`
-     * This is idempotent operation.
-     *
-     * @param hostId Node whose child is to be removed.
-     * @param id     Unique id used while adding task to index.
-     * @return Future which when completed will indicate that the task has been removed from index.
-     */
-    CompletableFuture<Void> removeTaskFromIndex(final String hostId, final String id);
 
     KeyValueTable getKVTable(String scope, final String name, KVTOperationContext context);
 

@@ -42,6 +42,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -78,8 +79,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
     private final HostIndex hostTxnIndex;
+    @Getter
     private final HostIndex hostTaskIndex;
-    private final ControllerEventSerializer controllerEventSerializer;
+    private final ControllerEventSerializer controllerEventSerializer = new ControllerEventSerializer();
 
     protected AbstractStreamMetadataStore(HostIndex hostTxnIndex, HostIndex hostTaskIndex) {
         cache = CacheBuilder.newBuilder()
@@ -118,7 +120,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         this.hostTxnIndex = hostTxnIndex;
         this.hostTaskIndex = hostTaskIndex;
-        this.controllerEventSerializer = new ControllerEventSerializer();
     }
 
     /**
@@ -645,16 +646,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Set<String>> listHostsOwningTxn() {
         return hostTxnIndex.getHosts();
-    }
-
-    @Override
-    public CompletableFuture<Void> addRequestToIndex(String hostId, String id, ControllerEvent task) {
-        return hostTaskIndex.addEntity(hostId, id, controllerEventSerializer.toByteBuffer(task).array());
-    }
-
-    @Override
-    public CompletableFuture<Void> removeTaskFromIndex(String hostId, String id) {
-        return hostTaskIndex.removeEntity(hostId, id, true);
     }
 
     @Override

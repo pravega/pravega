@@ -19,8 +19,7 @@ import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 import io.pravega.controller.store.stream.StoreException;
-import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.ControllerEventSerializer;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -35,8 +34,8 @@ import java.util.concurrent.TimeUnit;
 public abstract class AbstractKVTableMetadataStore implements KVTableMetadataStore {
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, KeyValueTable> cache;
+    @Getter
     private final HostIndex hostTaskIndex;
-    private final ControllerEventSerializer controllerEventSerializer;
 
     protected AbstractKVTableMetadataStore(HostIndex hostTaskIndex) {
         cache = CacheBuilder.newBuilder()
@@ -73,7 +72,6 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                             }
                         });
         this.hostTaskIndex = hostTaskIndex;
-        this.controllerEventSerializer = new ControllerEventSerializer();
     }
 
     protected Scope getScope(final String scopeName) {
@@ -163,16 +161,6 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                                                          final KVTOperationContext context,
                                                                          final Executor executor) {
         return Futures.completeOn(getKVTable(scope, name, context).getVersionedState(), executor);
-    }
-
-    @Override
-    public CompletableFuture<Void> addRequestToIndex(String hostId, String id, ControllerEvent task) {
-        return hostTaskIndex.addEntity(hostId, id, controllerEventSerializer.toByteBuffer(task).array());
-    }
-
-    @Override
-    public CompletableFuture<Void> removeTaskFromIndex(String hostId, String id) {
-        return hostTaskIndex.removeEntity(hostId, id, true);
     }
 
     @Override

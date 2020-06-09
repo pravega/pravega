@@ -187,7 +187,7 @@ public class PravegaTablesScope implements Scope {
 
     public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
         return getKVTablesInScopeTableName()
-                .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntry(tableName, kvt, id)));
+                .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, kvt, id)));
     }
 
     public CompletableFuture<Void> removeKVTableFromScope(String kvt) {
