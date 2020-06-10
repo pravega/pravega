@@ -18,6 +18,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -158,6 +159,25 @@ public class ByteArraySegmentTests {
     }
 
     /**
+     * Tests the functionality of getBufferViewReader.
+     */
+    @Test
+    public void testGetBufferViewReader() {
+        final byte[] buffer = createFormattedBuffer();
+        ByteArraySegment segment = new ByteArraySegment(buffer);
+
+        for (int offset = 0; offset < buffer.length / 2; offset++) {
+            int length = buffer.length - offset * 2;
+            BufferView.Reader reader = segment.slice(offset, length).getBufferViewReader();
+            ByteArraySegment readBuffer = reader.readFully(2);
+            for (int i = 0; i < length; i++) {
+                Assert.assertEquals("Unexpected value at index " + i + " after reading from offset " + offset, segment.get(i + offset), readBuffer.get(i));
+            }
+            Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
+        }
+    }
+
+    /**
      * Tests the functionality of getReader (the ability to return an InputStream from a sub-segment of the main buffer).
      */
     @Test
@@ -201,7 +221,7 @@ public class ByteArraySegmentTests {
      * Tests the ability for the ByteArraySegment to create sub-segments.
      */
     @Test
-    public void testSubSegment() {
+    public void testSlice() {
         final byte[] buffer = createFormattedBuffer();
         ByteArraySegment segment = new ByteArraySegment(buffer);
 
@@ -214,17 +234,17 @@ public class ByteArraySegmentTests {
 
             // Check correctness.
             for (int i = 0; i < segment.getLength(); i++) {
-                Assert.assertEquals(String.format("Unexpected value at offset %d for subsegment (O=%d, L=%d), iteration %d.", i, startOffset, segment.getLength(), iteration), buffer[i + startOffset], segment.get(i));
+                Assert.assertEquals(String.format("Unexpected value at offset %d for slice (O=%d, L=%d), iteration %d.", i, startOffset, segment.getLength(), iteration), buffer[i + startOffset], segment.get(i));
             }
 
-            // Pick a new size and create a new subsegment.
+            // Pick a new size and create a new slice.
             if (iteration % 2 == 0) {
                 // Upper half for even iterations.
                 startOffset = startOffset + segment.getLength() / 2;
-                segment = segment.subSegment(segment.getLength() / 2, segment.getLength() - segment.getLength() / 2);
+                segment = segment.slice(segment.getLength() / 2, segment.getLength() - segment.getLength() / 2);
             } else {
                 // Lower half for odd iterations.
-                segment = segment.subSegment(0, segment.getLength() / 2);
+                segment = segment.slice(0, segment.getLength() / 2);
             }
         }
     }
@@ -251,10 +271,22 @@ public class ByteArraySegmentTests {
             Assert.assertEquals("One of the 'mutator' methods modified the buffer at index " + i, i, buffer[i]);
         }
 
-        // Check that a subsegment is also read-only.
-        Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment.", segment.subSegment(0, 1).isReadOnly());
+        // Check that a sub-segment is also read-only.
+        Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment.", segment.slice(0, 1).isReadOnly());
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment (when attempting to create a non-read-only segment).", segment.subSegment(0, 1, false).isReadOnly());
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment.", new ByteArraySegment(buffer).subSegment(0, 1, true).isReadOnly());
+    }
+
+    @Test
+    public void testGetContents() {
+        final byte[] buffer = createFormattedBuffer();
+        val segment = new ByteArraySegment(buffer, 1, buffer.length - 3, true);
+        val contents = segment.getContents();
+        Assert.assertEquals(1, contents.size());
+        val b = contents.get(0);
+        Assert.assertEquals(segment.getLength(), b.remaining());
+        AssertExtensions.assertArrayEquals("", segment.array(), segment.arrayOffset(),
+                b.array(), b.arrayOffset() + b.position(), b.remaining());
     }
 
     private void checkReadOnlyException(String methodName, AssertExtensions.RunnableWithException code) {

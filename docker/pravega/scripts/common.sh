@@ -18,3 +18,27 @@ add_system_property() {
         export JAVA_OPTS="${JAVA_OPTS} -D${name}=${value}"
     fi
 }
+
+# Add system property for ECS configUri with ECS credentials
+add_system_property_ecs_config_uri() {
+    local name=$1
+    local configUri=$2
+    local identity=$3
+    local secret=$4
+
+    if ! echo ${configUri} | grep -q "identity"; then
+        configUri=${configUri}"%26identity="${identity}"%26secretKey="${secret}
+    fi
+
+    echo "${name}" "${configUri}"
+    add_system_property "${name}" "${configUri}"
+}
+
+# Add ECS certificates into Java truststore
+add_certs_into_truststore() {
+    CERTS=/etc/secret-volume/ca-bundle/*
+    for cert in $CERTS
+    do
+      yes | keytool -importcert -storepass changeit -file "${cert}" -alias "${cert}" -keystore /etc/ssl/certs/java/cacerts || true
+    done
+}

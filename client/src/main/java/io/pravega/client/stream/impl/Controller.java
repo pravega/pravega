@@ -167,6 +167,16 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName);
 
     /**
+     * API to get list of segments for given epoch.
+     *
+     * @param scope Scope
+     * @param streamName Stream name
+     * @param epoch Epoch number.
+     * @return Stream segments for a given Epoch.
+     */
+    CompletableFuture<StreamSegments> getEpochSegments(final String scope, final String streamName, int epoch);
+
+    /**
      * API to create a new transaction. The transaction timeout is relative to the creation time.
      * 
      * @param stream           Stream name
@@ -300,7 +310,7 @@ public interface Controller extends AutoCloseable {
      * This is called by writers via {@link EventStreamWriter#noteTime(long)} or
      * {@link Transaction#commit(long)}. The controller should aggrigate this information and write
      * it to the stream's marks segment so that it read by readers who will in turn ultimately
-     * surface this information through the {@link EventStreamReader#getCurrentTimeWindow()} API.
+     * surface this information through the {@link EventStreamReader#getCurrentTimeWindow(Stream)} API.
      * 
      * @param writer The name of the writer. (User defined)
      * @param stream The stream the timestamp is associated with.

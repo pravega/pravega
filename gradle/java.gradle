@@ -31,6 +31,15 @@ plugins.withId('java') {
 
     archivesBaseName = "pravega" + project.path.replace(':', '-')
 
+    // Include LICENSE and NOTICE files in every jar file 
+    jar {
+        into ('META-INF') {
+            from project.rootDir
+            include 'LICENSE'
+            include 'NOTICE'
+        }
+    }
+
     task sourceJar(type: Jar) {
         classifier = 'sources'
         from sourceSets.main.java
@@ -77,6 +86,9 @@ plugins.withId('java') {
         maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
         minHeapSize = "128m"
         maxHeapSize = "512m"
+        def jvmArgsCopy = jvmArgs
+        jvmArgsCopy.add("-XX:MaxDirectMemorySize=4g")
+        jvmArgs = jvmArgsCopy
     }
 
     dependencies {

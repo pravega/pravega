@@ -47,20 +47,20 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 /**
  * Manages the state of the reader group on behalf of a reader.
  * 
- * {@link #initializeReader(long)}  must be called upon reader startup before any other methods.
+ * {@link #initializeReader(long)} must be called upon reader startup before any other methods.
  * 
- * {@link #readerShutdown(Position)}  should be called when the reader is shutting down. After this
+ * {@link #readerShutdown(Position)} should be called when the reader is shutting down. After this
  * method is called no other methods should be called on this class.
  * 
  * This class updates makes transitions using the {@link ReaderGroupState} object. If there are available
- * segments a reader can acquire them by calling {@link #acquireNewSegmentsIfNeeded(long)}.
+ * segments a reader can acquire them by calling {@link #acquireNewSegmentsIfNeeded(long, Position)}.
  * 
  * To balance load across multiple readers a reader can release segments so that other readers can acquire
- * them by calling {@link #releaseSegment(Segment, long, long)}. A reader can tell if calling this method is
+ * them by calling {@link #releaseSegment(Segment, long, long, Position)}. A reader can tell if calling this method is
  * needed by calling {@link #findSegmentToReleaseIfRequired()}
  * 
  * Finally when a segment is sealed it may have one or more successors. So when a reader comes to the end of a
- * segment it should call {@link #handleEndOfSegment(Segment)} so that it can continue reading from the
+ * segment it should call {@link #handleEndOfSegment(SegmentWithRange)} so that it can continue reading from the
  * successor to that segment.
  */
 @Slf4j
@@ -279,8 +279,8 @@ public class ReaderGroupStateManager {
 
     /**
      * If there are unassigned segments and this host has not acquired one in a while, acquires them.
-     * @param lagTime the time between the reader's current location and the end of the stream
-     * @param Position the last position read by the reader.
+     * @param timeLag the time between the reader's current location and the end of the stream
+     * @param position the last position read by the reader.
      * @return A map from the new segment that was acquired to the offset to begin reading from within the segment.
      */
     Map<SegmentWithRange, Long> acquireNewSegmentsIfNeeded(long timeLag, Position position) throws ReaderNotInReaderGroupException {
@@ -290,6 +290,10 @@ public class ReaderGroupStateManager {
         } else {
             return Collections.emptyMap();
         }
+    }
+
+    boolean canUpdateLagIfNeeded() {
+        return !fetchStateTimer.hasRemaining();
     }
     
     boolean updateLagIfNeeded(long timeLag, Position position) {
@@ -326,26 +330,28 @@ public class ReaderGroupStateManager {
         //Make sure it has been a while, and compaction are staggered.
         if (sync.bytesWrittenSinceCompaction() > MIN_BYTES_BETWEEN_COMPACTIONS && Math.random() < COMPACTION_PROBABILITY) {
             log.debug("Compacting reader group state {}", sync.getState());
-            sync.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
+            sync.compact(ReaderGroupState.CompactReaderGroupState::new);
         }
     }
-    
-    private boolean shouldAcquireSegment() throws ReaderNotInReaderGroupException {
+
+    boolean canAcquireSegmentIfNeeded() {
+        return !acquireTimer.hasRemaining();
+    }
+
+    boolean shouldAcquireSegment() throws ReaderNotInReaderGroupException {
         synchronized (decisionLock) {
+            if (acquireTimer.hasRemaining()) {
+                return false;
+            }
             ReaderGroupState state = sync.getState();
             if (!state.isReaderOnline(readerId)) {
                 throw new ReaderNotInReaderGroupException(readerId);
-            }
-            if (acquireTimer.hasRemaining()) {
-                return false;
             }
             if (state.getCheckpointForReader(readerId) != null) {
                 return false;
             }
             if (state.getNumberOfUnassignedSegments() == 0) {
-                if (doesReaderOwnTooManySegments(state)) {
-                    acquireTimer.reset(calculateAcquireTime(readerId, state));
-                }
+                acquireTimer.reset(calculateAcquireTime(readerId, state));
                 return false;
             }
             acquireTimer.reset(UPDATE_WINDOW);
@@ -405,7 +411,9 @@ public class ReaderGroupStateManager {
 
     @VisibleForTesting
     static Duration calculateAcquireTime(String readerId, ReaderGroupState state) {
-        return TIME_UNIT.multipliedBy(state.getNumberOfReaders() - state.getRanking(readerId));
+        int multiplier = state.getNumberOfReaders() - state.getRanking(readerId);
+        Preconditions.checkArgument(multiplier >= 1, "Invalid acquire timer multiplier");
+        return TIME_UNIT.multipliedBy(multiplier);
     }
     
     String getCheckpoint() throws ReaderNotInReaderGroupException {

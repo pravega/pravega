@@ -147,8 +147,7 @@ project('common') {
         title = "Pravega Common Libraries"
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -163,8 +162,7 @@ project('shared:authplugin') {
         title = "Pravega Auth API"
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -186,8 +184,7 @@ project('shared:security') {
         exclude 'io/pravega/shared/*'
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 project ('shared:cluster') {
@@ -203,8 +200,7 @@ project ('shared:cluster') {
         exclude 'io/pravega/shared/*'
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -224,8 +220,7 @@ project ('shared:metrics') {
         exclude 'io/pravega/shared/*'
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -236,7 +231,8 @@ project('shared:protocol') {
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
-     
+        testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
 }
 
@@ -251,7 +247,6 @@ project('client') {
         compile group: 'io.netty', name: 'netty-transport-native-epoll', version: nettyVersion, classifier: 'linux-x86_64'
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
-        testCompile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
@@ -260,9 +255,8 @@ project('client') {
         title = "Pravega Client API"
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
+        failOnError = true
         exclude "**/impl/**";
-        options.addBooleanOption("Xdoclint:all,-reference", true)
     }
 }
 
@@ -274,12 +268,12 @@ project('test:testcommon') {
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
+        compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
     }
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -291,8 +285,7 @@ project('segmentstore:contracts') {
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:all,-reference", true)
+        failOnError = true
     }
 }
 
@@ -307,8 +300,7 @@ project('segmentstore:storage') {
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -321,12 +313,12 @@ project('segmentstore:storage:impl') {
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion    
     }
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -337,6 +329,12 @@ project ('bindings') {
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+
+        // Adding JAXB API and the reference implementation as dependencies here, since they are not available
+        // in newer Java SE versions (11 and newer).
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
+        compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+        compile group: 'javax.activation', name: 'javax.activation-api', version: activationVersion
 
         //For Extended S3
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
@@ -353,8 +351,7 @@ project ('bindings') {
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -369,8 +366,7 @@ project('segmentstore:server') {
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:all,-reference,-missing", true)
+        failOnError = true
     }
 }
 
@@ -444,6 +440,12 @@ project('segmentstore:server:host') {
 
     applicationDistribution.into("bin") {
         from(createAppWithGCLogging)
+    }
+
+    javadoc {
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
     }
 }
 
@@ -564,8 +566,7 @@ project('shared:controller-api') {
         exclude 'io/pravega/controller/*'
         dependsOn delombok
         source = delombok.outputDir
-        failOnError = false
-        options.addBooleanOption("Xdoclint:none", true)
+        failOnError = true
     }
 }
 
@@ -1010,7 +1011,6 @@ task javadocs(type: Javadoc) {
 
     // Include names of any project that is to be included in the javadoc distribution
     ext.projects = [':client']
-    options.links("http://docs.oracle.com/javase/10/docs/api/");
     title = "Pravega API"
     destinationDir = file("${buildDir}/javadocs")
     source = files(projects.collect {
@@ -1043,6 +1043,8 @@ distributions {
                 exclude "logback.xml"
             }
             from (project(":standalone").installDist)
+            from 'LICENSE'
+            from 'NOTICE'
         }
     }
     client {
@@ -1052,6 +1054,8 @@ distributions {
             from { project(":shared:authplugin").configurations.runtime.allArtifacts.files }
             from { project(":client").configurations.runtime }
             from { project(":client").configurations.runtime.allArtifacts.files }
+            from 'LICENSE'
+            from 'NOTICE'
         }
     }
     javadoc {

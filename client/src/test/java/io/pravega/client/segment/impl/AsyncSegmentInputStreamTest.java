@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.security.auth.DelegationTokenProvider;
@@ -17,7 +18,6 @@ import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -25,9 +25,10 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.AssertExtensions;
-import java.nio.ByteBuffer;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -49,26 +50,26 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class AsyncSegmentInputStreamTest {
+public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
     private static final int SERVICE_PORT = 12345;
 
     @Test(timeout = 10000)
     public void testRetry() {
-
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         DelegationTokenProvider tokenProvider = mock(DelegationTokenProvider.class);
         when(tokenProvider.retrieveToken()).thenReturn(CompletableFuture.completedFuture("")); // return empty token
+        Semaphore dataAvailable = new Semaphore(0);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, tokenProvider);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, tokenProvider, dataAvailable);
         ClientConnection c = mock(ClientConnection.class);
         InOrder inOrder = Mockito.inOrder(c);
         connectionFactory.provideConnection(endpoint, c);
-        
+
         WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false,
-                                                                            ByteBufferUtils.EMPTY, in.getRequestId());
+                Unpooled.EMPTY_BUFFER, in.getRequestId());
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -84,14 +85,15 @@ public class AsyncSegmentInputStreamTest {
         }).doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                connectionFactory.getProcessor(endpoint).segmentRead(segmentRead);
+                connectionFactory.getProcessor(endpoint).process(segmentRead);
                 return null;
             }
         }).when(c).sendAsync(any(ReadSegment.class), any(ClientConnection.CompletedCallback.class));
-        
+        assertEquals(0, dataAvailable.availablePermits());
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
         assertEquals(segmentRead, readFuture.join());
         assertTrue(Futures.isSuccessful(readFuture));
+        assertEquals(1, dataAvailable.availablePermits());
         inOrder.verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId())),
                                     Mockito.any(ClientConnection.CompletedCallback.class));
         inOrder.verify(c).close();
@@ -113,14 +115,15 @@ public class AsyncSegmentInputStreamTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         DelegationTokenProvider tokenProvider = mock(DelegationTokenProvider.class);
         when(tokenProvider.retrieveToken()).thenReturn(CompletableFuture.completedFuture("")); // return empty token
+        Semaphore dataAvailable = new Semaphore(0);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, tokenProvider);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, tokenProvider, dataAvailable);
         ClientConnection c = mock(ClientConnection.class);
         InOrder inOrder = Mockito.inOrder(c);
         connectionFactory.provideConnection(endpoint, c);
 
         WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false,
-                ByteBufferUtils.EMPTY, in.getRequestId());
+                Unpooled.EMPTY_BUFFER, in.getRequestId());
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -130,14 +133,15 @@ public class AsyncSegmentInputStreamTest {
         }).doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                connectionFactory.getProcessor(endpoint).segmentRead(segmentRead);
+                connectionFactory.getProcessor(endpoint).process(segmentRead);
                 return null;
             }
         }).when(c).sendAsync(any(ReadSegment.class), any(ClientConnection.CompletedCallback.class));
-
+        assertEquals(0, dataAvailable.availablePermits());
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
         assertEquals(segmentRead, readFuture.join());
         assertTrue(Futures.isSuccessful(readFuture));
+        assertEquals(1, dataAvailable.availablePermits());
         inOrder.verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId())),
                 Mockito.any(ClientConnection.CompletedCallback.class));
         inOrder.verify(c).close();
@@ -159,9 +163,10 @@ public class AsyncSegmentInputStreamTest {
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         MockConnectionFactoryImpl mockedCF = spy(connectionFactory);
+        Semaphore dataAvailable = new Semaphore(0);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, mockedCF, segment,
-                DelegationTokenProviderFactory.createWithEmptyToken());
+                DelegationTokenProviderFactory.createWithEmptyToken(), dataAvailable);
         InOrder inOrder = Mockito.inOrder(c);
 
         // Failed Connection
@@ -173,7 +178,7 @@ public class AsyncSegmentInputStreamTest {
         successfulConnection.complete(c);
 
         WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false,
-                                                                            ByteBufferUtils.EMPTY, in.getRequestId());
+                Unpooled.EMPTY_BUFFER, in.getRequestId());
         // simulate a establishConnection failure to segment store.
         Mockito.doReturn(failedConnection)
                .doCallRealMethod()
@@ -191,17 +196,18 @@ public class AsyncSegmentInputStreamTest {
         }).doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) {
-                mockedCF.getProcessor(endpoint).segmentRead(segmentRead);
+                mockedCF.getProcessor(endpoint).process(segmentRead);
                 return null;
             }
         }).when(c).sendAsync(any(ReadSegment.class), callBackCaptor.capture());
-
+        assertEquals(0, dataAvailable.availablePermits());
         // Read invocation.
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
 
         // Verification.
         assertEquals(segmentRead, readFuture.join());
         assertTrue(Futures.isSuccessful(readFuture)); // read completes after 3 retries.
+        assertEquals(1, dataAvailable.availablePermits());
         // Verify that the reader attempts to establish connection 3 times ( 2 failures followed by a successful attempt).
         verify(mockedCF, times(3)).establishConnection(any(Flow.class), eq(endpoint), any(ReplyProcessor.class));
         // The second time sendAsync is invoked but it fail due to the exception.
@@ -222,9 +228,10 @@ public class AsyncSegmentInputStreamTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
+        Semaphore dataAvailable = new Semaphore(0);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
-                DelegationTokenProviderFactory.createWithEmptyToken());
+                DelegationTokenProviderFactory.createWithEmptyToken(), dataAvailable);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         in.getConnection().get(); // Make sure connection is established.
@@ -233,6 +240,7 @@ public class AsyncSegmentInputStreamTest {
         in.close();
         assertThrows(ConnectionClosedException.class, () -> Futures.getThrowingException(read));
         verify(c).close();
+        assertEquals(0, dataAvailable.availablePermits());
     }
 
     @Test(timeout = 10000)
@@ -241,20 +249,22 @@ public class AsyncSegmentInputStreamTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
-
+        Semaphore dataAvailable = new Semaphore(0);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
-                DelegationTokenProviderFactory.createWithEmptyToken());
+                DelegationTokenProviderFactory.createWithEmptyToken(), dataAvailable);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
-        
+
         WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false,
-                                                                            ByteBufferUtils.EMPTY, in.getRequestId());
+                Unpooled.EMPTY_BUFFER, in.getRequestId());
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
+        assertEquals(0, dataAvailable.availablePermits());
         AssertExtensions.assertBlocks(() -> readFuture.get(), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-            processor.segmentRead(segmentRead);            
+            processor.process(segmentRead);            
         });
+        assertEquals(1, dataAvailable.availablePermits());
         verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId())),
                             Mockito.any(ClientConnection.CompletedCallback.class));
         assertTrue(Futures.isSuccessful(readFuture));
@@ -269,10 +279,10 @@ public class AsyncSegmentInputStreamTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
-
+        Semaphore dataAvailable = new Semaphore(0);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
-                DelegationTokenProviderFactory.createWithEmptyToken());
+                DelegationTokenProviderFactory.createWithEmptyToken(), dataAvailable);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
 
@@ -281,21 +291,20 @@ public class AsyncSegmentInputStreamTest {
                                                                                                  mockClientReplyStackTrace, 1234L);
         //Trigger read.
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
-
+        assertEquals(0, dataAvailable.availablePermits());
         //verify that a response from Segment store completes the readFuture and the future completes with SegmentTruncatedException.
         AssertExtensions.assertBlocks(() -> assertThrows(SegmentTruncatedException.class, () -> readFuture.get()), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-            processor.segmentIsTruncated(segmentIsTruncated);
+            processor.process(segmentIsTruncated);
         });
         verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId())),
                             Mockito.any(ClientConnection.CompletedCallback.class));
         assertTrue(!Futures.isSuccessful(readFuture)); // verify read future completedExceptionally
         assertThrows(SegmentTruncatedException.class, () -> readFuture.get());
         verifyNoMoreInteractions(c);
-
         //Ensure that reads at a different offset can still happen on the same instance.
         WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 5656, false, false,
-                                                                            ByteBufferUtils.EMPTY, in.getRequestId());
+                Unpooled.EMPTY_BUFFER, in.getRequestId());
         CompletableFuture<SegmentRead> readFuture2 = in.read(5656, 5678);
         AssertExtensions.assertBlocks(() -> readFuture2.get(), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
@@ -306,6 +315,7 @@ public class AsyncSegmentInputStreamTest {
         assertTrue(Futures.isSuccessful(readFuture2));
         assertEquals(segmentRead, readFuture2.join());
         verifyNoMoreInteractions(c);
+        assertEquals(1, dataAvailable.availablePermits());
     }
 
     @Test(timeout = 10000)
@@ -316,21 +326,24 @@ public class AsyncSegmentInputStreamTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
+        Semaphore dataAvailable = new Semaphore(0);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
-                DelegationTokenProviderFactory.createWithEmptyToken());
+                DelegationTokenProviderFactory.createWithEmptyToken(), dataAvailable);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
+        assertEquals(0, dataAvailable.availablePermits());
         AssertExtensions.assertBlocks(() -> readFuture.get(), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-            processor.segmentRead(new WireCommands.SegmentRead(segment.getScopedName(), 1235, false, false, ByteBuffer.wrap(bad), in.getRequestId()));
-            processor.segmentRead(new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBuffer.wrap(good), in.getRequestId()));
+            processor.process(new WireCommands.SegmentRead(segment.getScopedName(), 1235, false, false, Unpooled.wrappedBuffer(bad), in.getRequestId()));
+            processor.process(new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, Unpooled.wrappedBuffer(good), in.getRequestId()));
         });
+        assertEquals(2, dataAvailable.availablePermits());
         verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId() )),
                             Mockito.any(ClientConnection.CompletedCallback.class));
         assertTrue(Futures.isSuccessful(readFuture));
-        assertEquals(ByteBuffer.wrap(good), readFuture.join().getData());
+        assertEquals(Unpooled.wrappedBuffer(good), readFuture.join().getData());
         verifyNoMoreInteractions(c);
     }
 

@@ -12,6 +12,7 @@ package io.pravega.client.segment.impl;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventStreamReader;
+import java.util.concurrent.Semaphore;
 
 /**
  * Creates {@link SegmentInputStream} for reading from existing segments.
@@ -30,6 +31,20 @@ public interface SegmentInputStreamFactory {
      * @return New instance of SegmentInputStream for reading.
      */
     SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider);
+
+    /**
+     * Opens an existing segment for reading bytes. This operation will fail if the
+     * segment does not exist.
+     * This operation may be called multiple times on the same stream from the
+     * same client (i.e., there can be concurrent Stream Readers in the same
+     * process space).
+     *
+     * @param segment The segment to create an input for.
+     * @param tokenProvider The {@link DelegationTokenProvider} instance to be used for obtaining a delegation token.
+     * @param startOffset The start offset of the segment.
+     * @return New instance of SegmentInputStream for reading.
+     */
+    SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider, long startOffset);
     
     /**
      * Opens an existing segment for reading events. This operation will fail if the
@@ -48,10 +63,12 @@ public interface SegmentInputStreamFactory {
      * does not exist.
      *
      * @param segment The segment to create an input for.
+     * @param bufferSize The size of the buffer to hold for data incoming on this segment.
+     * @param hasData A Semaphore that will have `release` called when data is available.
      * @param endOffset The offset up to which the segment can be read.
      * @return New instance of the EventSegmentReader for reading.
      */
-    EventSegmentReader createEventReaderForSegment(Segment segment, long endOffset);
+    EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize, Semaphore hasData, long endOffset);
 
     /**
      * Opens an existing segment for reading. This operation will fail if the

@@ -103,4 +103,9 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
         return out.fetchTailOffset();
     }
 
+    @Override
+    public void truncateDataBefore(long offset) {
+        out.truncateDataBefore(offset);
+    }
+
 }

@@ -12,6 +12,8 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import io.pravega.common.util.InvalidPropertyValueException;
 import io.pravega.test.common.AssertExtensions;
 import java.time.Duration;
+
+import org.apache.bookkeeper.client.api.DigestType;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -43,6 +45,10 @@ public class BookKeeperConfigTest {
         Assert.assertEquals(false, cfg.isTLSEnabled());
         Assert.assertEquals("config/client.truststore.jks", cfg.getTlsTrustStore());
         Assert.assertEquals("", cfg.getTlsTrustStorePasswordPath());
+        Assert.assertEquals(false, cfg.isEnforceMinNumRacksPerWriteQuorum());
+        Assert.assertEquals(2, cfg.getMinNumRacksPerWriteQuorum());
+        Assert.assertEquals("/opt/pravega/scripts/sample-bookkeeper-topology.sh", cfg.getNetworkTopologyFileName());
+        Assert.assertEquals(DigestType.CRC32C, cfg.getDigestType());
     }
 
     @Test
@@ -101,5 +107,14 @@ public class BookKeeperConfigTest {
                         .with(BookKeeperConfig.ZK_HIERARCHY_DEPTH, -1)
                         .build(),
                 ex -> ex instanceof InvalidPropertyValueException);
+    }
+
+    @Test
+    public void testDigestTypeConversion() {
+        Assert.assertEquals(DigestType.CRC32, BookKeeperConfig.getDigestType("CRC32"));
+        Assert.assertEquals(DigestType.CRC32C, BookKeeperConfig.getDigestType("CRC32C"));
+        Assert.assertEquals(DigestType.DUMMY, BookKeeperConfig.getDigestType("DUMMY"));
+        Assert.assertEquals(DigestType.MAC, BookKeeperConfig.getDigestType("MAC"));
+        Assert.assertEquals(DigestType.CRC32C, BookKeeperConfig.getDigestType("any-other-value"));
     }
 }

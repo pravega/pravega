@@ -9,6 +9,7 @@
  */
 package io.pravega.common.io.serialization;
 
+import io.pravega.common.io.BufferViewSink;
 import io.pravega.common.util.BufferView;
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -26,9 +27,9 @@ import java.util.function.ToIntFunction;
  *
  * This interface is designed to serialize data that can be consumed using {@link RevisionDataInput}.
  */
-public interface RevisionDataOutput extends DataOutput {
+public interface RevisionDataOutput extends DataOutput, BufferViewSink {
     /**
-     * Maximum value that can be encoded using {@link #writeCompactLong).
+     * Maximum value that can be encoded using {@link #writeCompactLong}.
      */
     long COMPACT_LONG_MAX = 0x3FFF_FFFF_FFFF_FFFFL - 1;
 
@@ -63,8 +64,8 @@ public interface RevisionDataOutput extends DataOutput {
     int UUID_BYTES = 2 * Long.BYTES;
 
     /**
-     * Gets a value indicating whether this instance of a RevisionDataOutput requires {@link #length) to be called prior to writing
-     * anything to it.
+     * Gets a value indicating whether this instance of a RevisionDataOutput requires {@link #length} to be called
+     * prior to writing anything to it.
      *
      * @return True if Length must be declared beforehand (by invoking length()) or not.
      */
@@ -271,6 +272,7 @@ public interface RevisionDataOutput extends DataOutput {
      *               by {@link RevisionDataInput#readArray})).
      * @throws IOException If an IO Exception occurred.
      */
+    @Override
     void writeBuffer(BufferView buffer) throws IOException;
 
     /**

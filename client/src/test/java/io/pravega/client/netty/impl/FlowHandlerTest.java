@@ -14,16 +14,21 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.EventLoop;
 import io.netty.channel.ChannelPromise;
+import io.netty.channel.DefaultChannelPipeline;
+import io.netty.channel.EventLoop;
+import io.pravega.client.netty.impl.FlowHandler.KeepAliveTask;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.metrics.ClientMetricKeys;
+import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.util.Collections;
@@ -49,6 +54,7 @@ import static java.lang.String.valueOf;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -107,7 +113,7 @@ public class FlowHandlerTest {
         when(ch.write(any(Object.class))).thenReturn(completedFuture);
         when(ch.newPromise()).thenReturn(promise);
 
-        flowHandler = new FlowHandler("testConnection");
+        flowHandler = new FlowHandler("testConnection", new TestMetricNotifier());
     }
 
     @Test
@@ -342,16 +348,89 @@ public class FlowHandlerTest {
         @Cleanup
         ClientConnection connection2 = flowHandler.createFlow(new Flow(11, 0), replyProcessor);
         flowHandler.channelActive(ctx);
+        KeepAliveTask keepAlive = flowHandler.getKeepAlive();
+        keepAlive.run();
 
         // simulate a KeepAlive connection failure.
-        flowHandler.close();
+        keepAlive.getListener().operationComplete(failedFuture("Induced error"));
 
         // ensure all the reply processors are informed immediately of the channel being closed due to KeepAlive Failure.
         verify(processor).processingFailure(any(ConnectionFailedException.class));
         verify(replyProcessor).processingFailure(any(ConnectionFailedException.class));
 
         // verify any attempt to send msg over the connection will throw a ConnectionFailedException.
-        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection1.send(mock(WireCommand.class))  );
-        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection2.send(mock(WireCommand.class))  );
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection1.send(mock(WireCommand.class)));
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection2.send(mock(WireCommand.class)));
+    }
+    
+    @Test
+    public void keepAliveWriteFailureTest() throws Exception {
+        ReplyProcessor replyProcessor = mock(ReplyProcessor.class);
+        @Cleanup
+        ClientConnection connection1 = flowHandler.createFlow(flow, processor);
+        @Cleanup
+        ClientConnection connection2 = flowHandler.createFlow(new Flow(11, 0), replyProcessor);
+        flowHandler.channelActive(ctx);
+        KeepAliveTask keepAlive = flowHandler.getKeepAlive();
+        when(ch.writeAndFlush(any(KeepAlive.class))).thenThrow(new RuntimeException("Induced error"));
+        keepAlive.run();
+
+        // ensure all the reply processors are informed immediately of the channel being closed due to KeepAlive Failure.
+        verify(processor).processingFailure(any(ConnectionFailedException.class));
+        verify(replyProcessor).processingFailure(any(ConnectionFailedException.class));
+
+        // verify any attempt to send msg over the connection will throw a ConnectionFailedException.
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection1.send(mock(WireCommand.class)));
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection2.send(mock(WireCommand.class)));
+    }
+    
+    @Test
+    public void keepAliveTimeoutTest() throws Exception {
+        ReplyProcessor replyProcessor = mock(ReplyProcessor.class);
+        @Cleanup
+        ClientConnection connection1 = flowHandler.createFlow(flow, processor);
+        @Cleanup
+        ClientConnection connection2 = flowHandler.createFlow(new Flow(11, 0), replyProcessor);
+        flowHandler.channelActive(ctx);
+        KeepAliveTask keepAlive = flowHandler.getKeepAlive();
+        keepAlive.run();
+        keepAlive.run(); //Triggers a timeout.
+        
+        // ensure all the reply processors are informed immediately of the channel being closed due to KeepAlive Failure.
+        verify(processor).processingFailure(any(ConnectionFailedException.class));
+        verify(replyProcessor).processingFailure(any(ConnectionFailedException.class));
+
+        // verify any attempt to send msg over the connection will throw a ConnectionFailedException.
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection1.send(mock(WireCommand.class)));
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection2.send(mock(WireCommand.class)));
+    }
+
+
+    private ChannelFuture failedFuture(String message) {
+        DefaultChannelPipeline pipeline = new DefaultChannelPipeline(ch) {
+        };
+        return pipeline.newFailedFuture(new RuntimeException(message));
+    }
+    
+    /**
+     * Added a mock MetricNotifier different from the default one to exercise reporting metrics from client side.
+     */
+    static class TestMetricNotifier implements MetricNotifier {
+        @Override
+        public void updateSuccessMetric(ClientMetricKeys metricKey, String[] metricTags, long value) {
+            NO_OP_METRIC_NOTIFIER.updateSuccessMetric(metricKey, metricTags, value);
+            assertNotNull(metricKey);
+        }
+
+        @Override
+        public void updateFailureMetric(ClientMetricKeys metricKey, String[] metricTags, long value) {
+            NO_OP_METRIC_NOTIFIER.updateFailureMetric(metricKey, metricTags, value);
+            assertNotNull(metricKey);
+        }
+
+        @Override
+        public void close() {
+            NO_OP_METRIC_NOTIFIER.close();
+        }
     }
 }

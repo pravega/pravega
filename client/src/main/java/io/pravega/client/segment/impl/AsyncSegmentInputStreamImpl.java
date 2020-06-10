@@ -11,21 +11,22 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -58,9 +60,18 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @VisibleForTesting
     @Getter
     private final long requestId = Flow.create().asLong();
+    private final Semaphore replyAvailable;
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
+        @Override
+        public void process(Reply reply) {
+            super.process(reply);
+            if (replyAvailable != null) {
+                replyAvailable.release();
+            }
+        }
+        
         @Override
         public void connectionDropped() {
             closeConnection(new ConnectionFailedException());
@@ -99,7 +110,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                         segmentIsSealed.getOffset(),
                         true,
                         true,
-                        ByteBufferUtils.EMPTY,
+                        Unpooled.EMPTY_BUFFER,
                         segmentIsSealed.getRequestId()));
             }
         }
@@ -141,7 +152,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, Segment segment,
-                                       DelegationTokenProvider tokenProvider) {
+                                       DelegationTokenProvider tokenProvider, Semaphore dataAvailable) {
         super(segment);
         this.tokenProvider = tokenProvider;
         Preconditions.checkNotNull(controller);
@@ -149,6 +160,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         Preconditions.checkNotNull(segment);
         this.controller = controller;
         this.connectionFactory = connectionFactory;
+        this.replyAvailable = dataAvailable;
     }
 
     @Override
