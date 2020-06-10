@@ -119,7 +119,7 @@ abstract class Command {
 
     protected ScopedName getScopedNameArg(int index) {
         return getArg(index, scopedName -> {
-            val parts = NameUtils.extractStreamNameTokens(scopedName);
+            val parts = NameUtils.extractScopedNameTokens(scopedName);
             Preconditions.checkArgument(parts.size() == 2, "Invalid scoped Stream name. Expected format 'scope/stream': '%s'.", scopedName);
             return new ScopedName(parts.get(0), parts.get(1));
         });

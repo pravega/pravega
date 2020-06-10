@@ -307,13 +307,17 @@ public final class NameUtils {
     }
 
     /**
-     * Returns a list representing the components of a scoped stream name.
-     * @param scopedStreamName The scoped stream name.
-     * @return A list containing the components. If the scoped stream name was properly formatted, this list should have
+     * Returns a list representing the components of a scoped Stream/Key-Value Table name.
+     *
+     * @param scopedName The scoped name.
+     * @return A list containing the components. If the scoped name was properly formatted, this list should have
      * two elements: element index 0 has the scope name and element index 1 has the stream name.
+     * @throws IllegalStateException If 'scopedName' is not in the form 'scope/name`.
      */
-    public static List<String> extractStreamNameTokens(String scopedStreamName){
-        return Arrays.asList(scopedStreamName.split("/"));
+    public static List<String> extractScopedNameTokens(String scopedName) {
+        String[] tokens = scopedName.split("/");
+        Preconditions.checkArgument(tokens.length == 2, "Unexpected format for '%s'. Expected format '<scope-name>/<name>'.", scopedName);
+        return Arrays.asList(tokens);
     }
 
     /**
@@ -419,7 +423,7 @@ public final class NameUtils {
         for (int i = 2; i < tokens.length; i++) {
             retVal.add(tokens[i]);
         }
-        
+
         return retVal;
     }
 

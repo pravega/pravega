@@ -10,14 +10,14 @@
 package io.pravega.shared;
 
 import io.pravega.test.common.AssertExtensions;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-
-import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -54,6 +54,14 @@ public class NameUtilsTest {
         String scopedName = NameUtils.getScopedKeyValueTableName(scope, kvt);
         Assert.assertTrue(scopedName.startsWith(scope));
         Assert.assertTrue(scopedName.endsWith(kvt));
+
+        List<String> tokens = NameUtils.extractScopedNameTokens(scopedName);
+        Assert.assertEquals(scope, tokens.get(0));
+        Assert.assertEquals(kvt, tokens.get(1));
+        Assert.assertEquals(2, tokens.size());
+
+        AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens("abc"), ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens("a/b/c"), ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
