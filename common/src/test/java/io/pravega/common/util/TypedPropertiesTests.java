@@ -18,6 +18,8 @@ import java.util.function.Predicate;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
+
 /**
  * Unit tests for the TypedProperties class.
  */
@@ -86,6 +88,27 @@ public class TypedPropertiesTests {
                 TypedPropertiesTests::isEnum);
     }
 
+    @Test
+    public void testPropertyWithLegacyPropertySpecified() {
+        Properties props1 = new Properties();
+        props1.setProperty("ns1.legacyPropertyKey", "configValue");
+        TypedProperties typedProps = new TypedProperties(props1, "ns1");
+        String config = typedProps.get(Property.named(
+                "newPropertyKey", "default", "legacyPropertyKey"));
+        assertEquals("configValue", config);
+    }
+
+    @Test
+    public void testNewPropertyTakesPrecedenceOverLegacy() {
+        Properties props1 = new Properties();
+        props1.setProperty("ns1.newPropertyKey", "configValue");
+        props1.setProperty("ns1.legacyPropertyKey", "configValue");
+        TypedProperties typedProps = new TypedProperties(props1, "ns1");
+        String config = typedProps.get(Property.named(
+                "newPropertyKey", "default", "legacyPropertyKey"));
+        assertEquals("configValue", config);
+    }
+
     private <T> void testData(Properties props, ExtractorFunction<T> methodToTest, Predicate<String> valueValidator) throws Exception {
         for (int componentId = 0; componentId < TypedPropertiesTests.COMPONENT_COUNT; componentId++) {
             String componentCode = getComponentCode(componentId);
@@ -101,7 +124,7 @@ public class TypedPropertiesTests {
                     if (valueValidator.test(config.get(stringProperty))) {
                         // This is a value that should exist and be returned by methodToTest.
                         String actualValue = toString(methodToTest.apply(config, property));
-                        Assert.assertEquals("Unexpected value returned by extractor.", expectedValue, actualValue);
+                        assertEquals("Unexpected value returned by extractor.", expectedValue, actualValue);
                     } else {
                         AssertExtensions.assertThrows(
                                 String.format("TypedProperties returned property and interpreted it with the wrong type. PropertyName: %s, Value: %s.", fullyQualifiedPropertyName, expectedValue),
