@@ -452,8 +452,6 @@ public class LocalController implements Controller {
                     throw new IllegalArgumentException("Scope does not exist: " + scope);
                 case TABLE_EXISTS:
                     return false;
-                case STREAM_EXISTS:
-                    throw new IllegalArgumentException("Stream with the same name exists in this scope: " + kvtName);
                 case SUCCESS:
                     return true;
                 default:

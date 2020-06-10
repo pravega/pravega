@@ -115,21 +115,11 @@ public class ControllerService {
             return CompletableFuture.completedFuture(
                     CreateKeyValueTableStatus.newBuilder().setStatus(CreateKeyValueTableStatus.Status.INVALID_TABLE_NAME).build());
         }
-        return streamStore.checkStreamExists(scope, kvtName)
-                .thenCompose(streamExists -> {
-                    if (streamExists) {
-                        // we can't have a stream and a kvtable with the same name inside the same scope.
-                        return CompletableFuture.completedFuture(
-                                CreateKeyValueTableStatus.newBuilder()
-                                .setStatus(CreateKeyValueTableStatus.Status.STREAM_EXISTS).build());
-                    } else {
-                        return kvtMetadataTasks.createKeyValueTable(scope, kvtName, kvtConfig, createTimestamp)
-                                .thenApplyAsync(status -> {
-                                    reportCreateKVTableMetrics(scope, kvtName, kvtConfig.getPartitionCount(), status, timer.getElapsed());
-                                    return CreateKeyValueTableStatus.newBuilder().setStatus(status).build();
-                                }, executor);
-                    }
-                });
+        return kvtMetadataTasks.createKeyValueTable(scope, kvtName, kvtConfig, createTimestamp)
+                .thenApplyAsync(status -> {
+                    reportCreateKVTableMetrics(scope, kvtName, kvtConfig.getPartitionCount(), status, timer.getElapsed());
+                    return CreateKeyValueTableStatus.newBuilder().setStatus(status).build();
+                }, executor);
     }
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegmentsKeyValueTable(final String scope, final String kvtName) {

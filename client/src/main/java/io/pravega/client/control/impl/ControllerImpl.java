@@ -1193,9 +1193,6 @@ public class ControllerImpl implements Controller {
                 case TABLE_EXISTS:
                     log.warn(requestId, "KeyValueTable already exists: {}", kvtName);
                     return false;
-                case STREAM_EXISTS:
-                    log.warn(requestId, "Stream with same name already exists in scope: {}", kvtName);
-                    return false;
                 case SUCCESS:
                     log.info(requestId, "KeyValueTable created successfully: {}/{}", scope, kvtName);
                     return true;

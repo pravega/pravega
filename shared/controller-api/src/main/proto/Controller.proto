@@ -60,9 +60,8 @@ message CreateKeyValueTableStatus {
         SUCCESS = 0;
         FAILURE = 1;
         TABLE_EXISTS = 2;
-        STREAM_EXISTS = 3;
-        SCOPE_NOT_FOUND = 4;
-        INVALID_TABLE_NAME = 5;
+        SCOPE_NOT_FOUND = 3;
+        INVALID_TABLE_NAME = 4;
     }
     Status status = 1;
 }

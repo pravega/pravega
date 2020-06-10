@@ -96,7 +96,7 @@ public final class NameUtils {
     /**
      * This is used in composing segment name for a table segment used for a KeyValueTable
      */
-    private static final String KVTABLE_SUFFIX = "_kvtable";
+    private static final String KVTABLE_SUFFIX = "_kvt";
 
     /**
      * Prefix for identifying system created mark segments for storing watermarks. 
@@ -299,7 +299,14 @@ public final class NameUtils {
      * @return fully qualified TableSegmentName for a TableSegment that is part of the KeyValueTable.
      */
     public static String getQualifiedTableSegmentName(String scope, String kvTableName, long segmentId) {
-        return getQualifiedStreamSegmentName(scope, kvTableName, segmentId);
+        int segmentNumber = getSegmentNumber(segmentId);
+        int epoch = getEpoch(segmentId);
+        StringBuffer sb = getScopedStreamNameInternal(scope, kvTableName + KVTABLE_SUFFIX);
+        sb.append('/');
+        sb.append(segmentNumber);
+        sb.append(EPOCH_DELIMITER);
+        sb.append(epoch);
+        return sb.toString();
     }
 
     /**
