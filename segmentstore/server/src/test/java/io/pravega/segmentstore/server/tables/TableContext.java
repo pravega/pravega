@@ -1,23 +1,23 @@
-package io.pravega.segmentstore.server.tables;
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */ package io.pravega.segmentstore.server.tables;
 
-import com.google.common.util.concurrent.Service;
-import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.BufferView;
-import io.pravega.segmentstore.contracts.*;
-import io.pravega.segmentstore.server.*;
+import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
+import java.util.Random;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.val;
-import org.junit.Assert;
-
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 public class TableContext implements AutoCloseable {
 
