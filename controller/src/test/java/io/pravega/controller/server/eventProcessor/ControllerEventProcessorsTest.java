@@ -221,7 +221,7 @@ public class ControllerEventProcessorsTest {
         LinkedBlockingQueue<CompletableFuture<Void>> createStreamSignals = new LinkedBlockingQueue<>();
         List<CompletableFuture<Boolean>> createStreamResponsesList = new LinkedList<>();
         List<CompletableFuture<Void>> createStreamSignalsList = new LinkedList<>();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 8; i++) {
             CompletableFuture<Boolean> responseFuture = new CompletableFuture<>();
             CompletableFuture<Void> signalFuture = new CompletableFuture<>();
             createStreamResponsesList.add(responseFuture);
@@ -264,29 +264,33 @@ public class ControllerEventProcessorsTest {
         createScopeResponsesList.get(1).complete(true);
 
         // create streams should be called now
-        // since we call three create streams. We will wait on first three signal futures
+        // since we call four create streams. We will wait on first three signal futures
         createStreamSignalsList.get(0).join();
         createStreamSignalsList.get(1).join();
         createStreamSignalsList.get(2).join();
+        createStreamSignalsList.get(3).join();
 
         verify(controller, times(4)).createStream(anyString(), anyString(), any());
 
-        // fail first three requests
+        // fail first four requests
         createStreamResponsesList.get(0).completeExceptionally(new RuntimeException());
         createStreamResponsesList.get(1).completeExceptionally(new RuntimeException());
         createStreamResponsesList.get(2).completeExceptionally(new RuntimeException());
+        createStreamResponsesList.get(3).completeExceptionally(new RuntimeException());
         
-        // this should result in a retry for three create streams. wait on next three signals
-        createStreamSignalsList.get(3).join();
+        // this should result in a retry for four create streams. wait on next four signals
         createStreamSignalsList.get(4).join();
         createStreamSignalsList.get(5).join();
+        createStreamSignalsList.get(6).join();
+        createStreamSignalsList.get(7).join();
 
-        verify(controller, times(6)).createStream(anyString(), anyString(), any());
+        verify(controller, times(8)).createStream(anyString(), anyString(), any());
         
         // complete successfully
-        createStreamResponsesList.get(3).complete(true);
         createStreamResponsesList.get(4).complete(true);
         createStreamResponsesList.get(5).complete(true);
+        createStreamResponsesList.get(6).complete(true);
+        createStreamResponsesList.get(7).complete(true);
     }
     
 }
