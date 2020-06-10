@@ -33,8 +33,8 @@ public class InteractiveDemo {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.ERROR);
 
-        System.out.println("Pravega Interactive Demo Tool.\n");
-        System.out.println("\tUsage instructions: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool");
+        System.out.println("Pravega Interactive Demo Tool.");
+        System.out.println("\tUsage instructions: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool\n");
         val config = InteractiveConfig.getDefault();
 
         // Output loaded config.
@@ -96,6 +96,7 @@ public class InteractiveDemo {
         } catch (IllegalArgumentException ex) {
             // We found a command, but had the wrong arguments to it.
             System.out.println("Bad command syntax: " + ex.getMessage());
+            System.out.println("\nCommand usage:");
             printCommandDetails(pc);
         } catch (Exception ex) {
             ex.printStackTrace(System.out);
@@ -106,7 +107,7 @@ public class InteractiveDemo {
         System.out.println(String.format("\t%s %s %s: %s",
                 d.getComponent(),
                 d.getName(),
-                d.getArgs().stream().map(InteractiveDemo::formatArgName).collect(Collectors.joining(" ")),
+                d.getArgs().stream().map(InteractiveDemo::formatArgInline).collect(Collectors.joining(" ")),
                 d.getDescription()));
     }
 
@@ -119,14 +120,14 @@ public class InteractiveDemo {
 
         printCommandSummary(d);
         for (Command.ArgDescriptor ad : d.getArgs()) {
-            System.out.println(String.format("\t\t%s: %s", formatArgName(ad), ad.getDescription()));
+            System.out.println(String.format("\t  - %s: %s", formatArgTable(ad), ad.getDescription()));
         }
 
         if (d.getSyntaxExamples().size() > 0) {
-            System.out.println("\tExamples:");
+            System.out.println("Examples:");
             for (val se : d.getSyntaxExamples()) {
-                System.out.println(String.format("\t\t%s %s %s", d.getComponent(), d.getName(), se.getArgs()));
-                System.out.println(String.format("\t\t -> %s", se.getDescription()));
+                System.out.println(String.format("\t   %s %s %s", d.getComponent(), d.getName(), se.getArgs()));
+                System.out.println(String.format("\t    -> %s", se.getDescription()));
             }
         }
     }
@@ -152,8 +153,12 @@ public class InteractiveDemo {
                 .forEach(InteractiveDemo::printCommandSummary);
     }
 
-    private static String formatArgName(Command.ArgDescriptor ad) {
-        return String.format("<%s>", ad.getName());
+    private static String formatArgInline(Command.ArgDescriptor ad) {
+        return ad.getName();
+    }
+
+    private static String formatArgTable(Command.ArgDescriptor ad) {
+        return Strings.padEnd(ad.getName(), 20, ' ');
     }
 
 }

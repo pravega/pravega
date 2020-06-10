@@ -14,6 +14,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
@@ -21,6 +22,7 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.AsyncIterator;
 import java.net.URI;
 import java.util.Arrays;
@@ -197,24 +199,57 @@ abstract class KeyValueTableCommand extends Command {
 
     //endregion
 
+    //region DataCommand
+
+    private static abstract class DataCommand extends KeyValueTableCommand {
+        DataCommand(@NonNull CommandArgs commandArgs) {
+            super(commandArgs);
+        }
+
+
+        protected abstract void ensurePreconditions();
+
+        protected abstract void executeInternal(ScopedName kvtName, KeyValueTable<String, String> kvt) throws Exception;
+
+        public void execute() throws Exception {
+            ensurePreconditions();
+            val kvtName = getScopedNameArg(0);
+            @Cleanup
+            val factory = createKVTFactory(kvtName);
+            @Cleanup
+            val kvt = createKVT(kvtName, factory);
+            try {
+                executeInternal(kvtName, kvt);
+            } catch (Throwable ex) {
+                val innerEx = Exceptions.unwrap(ex);
+                if (innerEx instanceof ConditionalTableUpdateException) {
+                    output("%s: %s", innerEx.getClass().getSimpleName(), innerEx.getMessage());
+                } else {
+                    throw ex;
+                }
+            }
+        }
+    }
+
+    //endregion
+
     //region Get
 
-    static class Get extends KeyValueTableCommand {
+    static class Get extends DataCommand {
         Get(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
         @Override
-        public void execute() throws Exception {
+        protected void ensurePreconditions() {
             ensureArgCount(2, 3);
-            val kvtName = getScopedNameArg(0);
+        }
+
+        @Override
+        protected void executeInternal(ScopedName kvtName, KeyValueTable<String, String> kvt) throws Exception {
             val args = getArgsWithKeyFamily(1, 3, String[].class);
             val keys = args.getArg();
             Preconditions.checkArgument(keys.length > 0, "Expected at least one key.");
-            @Cleanup
-            val factory = createKVTFactory(kvtName);
-            @Cleanup
-            val kvt = createKVT(kvtName, factory);
             val result = kvt.getAll(args.getKeyFamily(), Arrays.asList(keys)).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
 
             output("Get %s Key(s) from %s[%s]:", keys.length, kvtName, args.getKeyFamily());
@@ -252,25 +287,151 @@ abstract class KeyValueTableCommand extends Command {
 
     //region Put
 
-    static class Put extends KeyValueTableCommand {
+    static class Put extends DataCommand {
         Put(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
         @Override
-        public void execute() throws Exception {
+        protected void ensurePreconditions() {
+            ensureArgCount(3, 4);
+        }
+
+        @Override
+        protected void executeInternal(ScopedName kvtName, KeyValueTable<String, String> kvt) throws Exception {
+            String keyFamily = null;
+            String key;
+            String value;
+            if (getCommandArgs().getArgs().size() == 4) {
+                keyFamily = getArg(1);
+                key = getArg(2);
+                value = getArg(3);
+            } else {
+                key = getArg(1);
+                value = getArg(2);
+            }
+
+            val version = kvt.put(keyFamily, key, value).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+            output("Key '%s' updated successfully. New version: '%s'.", key, version);
+        }
+
+        public static CommandDescriptor descriptor() {
+            return createDescriptor("put", "Unconditionally inserts or updates a Table Entry.")
+                    .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to update.")
+                    .withArg("[key-family]", "(Optional) Key Family to update the Table Entry for.")
+                    .withArg("key", "The key.")
+                    .withArg("value", "The value.")
+                    .withSyntaxExample("scope1/kvt1 key1 value1", "Sets 'key1:=value1' in 'scope1/kvt1'.")
+                    .withSyntaxExample("scope1/kvt1 key-family-1 key1 value1", "Sets 'key1:=value1' in 'scope1/kvt1' with key family 'key-family-1'.")
+                    .build();
+        }
+    }
+
+    static class PutIf extends DataCommand {
+        PutIf(@NonNull CommandArgs commandArgs) {
+            super(commandArgs);
+        }
+
+        @Override
+        protected void ensurePreconditions() {
+            ensureArgCount(4, 5);
+        }
+
+        @Override
+        protected void executeInternal(ScopedName kvtName, KeyValueTable<String, String> kvt) throws Exception {
+            String keyFamily = null;
+            String key;
+            Version version;
+            String value;
+            if (getCommandArgs().getArgs().size() == 5) {
+                keyFamily = getArg(1);
+                key = getArg(2);
+                version = Version.fromString(getArg(3));
+                value = getArg(4);
+            } else {
+                key = getArg(1);
+                version = Version.fromString(getArg(2));
+                value = getArg(3);
+            }
+
+            val newVersion = kvt.replace(keyFamily, key, value, version).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+            output("Key '%s' updated successfully. New version: '%s'.", key, newVersion);
+        }
+
+        public static CommandDescriptor descriptor() {
+            return createDescriptor("put-if", "Conditionally inserts or updates a Table Entry.")
+                    .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to update.")
+                    .withArg("[key-family]", "(Optional) Key Family to update the Table entry for.")
+                    .withArg("key", "The key.")
+                    .withArg("version", "The expected Key Version.")
+                    .withArg("value", "The value.")
+                    .withSyntaxExample("scope1/kvt1 key1 s1:1 value1", "Inserts 'key1:=value1' in 'scope1/kvt1', " +
+                            "only if the current version of 'key1' is 's1:1'.")
+                    .withSyntaxExample("scope1/kvt1 key-family-1 key1 s1:1 value1", "Inserts 'key1:=value1' in 'scope1/kvt1' " +
+                            "with key family 'key-family-1', only if the current version of 'key1' is 's1:1'.")
+                    .build();
+        }
+    }
+
+    static class PutIfAbsent extends DataCommand {
+        PutIfAbsent(@NonNull CommandArgs commandArgs) {
+            super(commandArgs);
+        }
+
+        @Override
+        protected void ensurePreconditions() {
+            ensureArgCount(3, 4);
+        }
+
+        @Override
+        protected void executeInternal(ScopedName kvtName, KeyValueTable<String, String> kvt) throws Exception {
+            String keyFamily = null;
+            String key;
+            String value;
+            if (getCommandArgs().getArgs().size() == 4) {
+                keyFamily = getArg(1);
+                key = getArg(2);
+                value = getArg(3);
+            } else {
+                key = getArg(1);
+                value = getArg(2);
+            }
+
+            val version = kvt.putIfAbsent(keyFamily, key, value).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+            output("Key '%s' inserted successfully. New version: '%s'.", key, version);
+        }
+
+        public static CommandDescriptor descriptor() {
+            return createDescriptor("put-if-absent", "Inserts a Table Entry, only if its Key is not already present.")
+                    .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to update.")
+                    .withArg("[key-family]", "(Optional) Key Family to insert the Table entry for.")
+                    .withArg("key", "The key.")
+                    .withArg("value", "The value.")
+                    .withSyntaxExample("scope1/kvt1 key1 value1", "Inserts 'key1:=value1' in 'scope1/kvt1', only if not already present.")
+                    .withSyntaxExample("scope1/kvt1 key-family-1 key1 value1", "Inserts 'key1:=value1' in 'scope1/kvt1' " +
+                            "with key family 'key-family-1', only if not already present.")
+                    .build();
+        }
+    }
+
+    static class PutAll extends DataCommand {
+        PutAll(@NonNull CommandArgs commandArgs) {
+            super(commandArgs);
+        }
+
+        @Override
+        protected void ensurePreconditions() {
             ensureArgCount(2, 3);
-            val kvtName = getScopedNameArg(0);
+        }
+
+        @Override
+        protected void executeInternal(ScopedName kvtName, KeyValueTable<String, String> kvt) throws Exception {
             val args = getArgsWithKeyFamily(1, 3, String[][].class);
             val entries = toEntries(args.getArg());
             Preconditions.checkArgument(entries.size() > 0, "Expected at least one Table Entry.");
             Preconditions.checkArgument(entries.size() == 1 || args.getKeyFamily() != null, "Expected a Key Family if updating more than one entry.");
-            @Cleanup
-            val factory = createKVTFactory(kvtName);
-            @Cleanup
-            val kvt = createKVT(kvtName, factory);
-            val result = kvt.replaceAll(args.getKeyFamily(), entries).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
 
+            val result = kvt.replaceAll(args.getKeyFamily(), entries).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
             int conditionalCount = (int) entries.stream().filter(e -> e.getKey().getVersion() != Version.NO_VERSION).count();
             output("Updated %s Key(s) to %s[%s] (Conditional=%s, Unconditional=%s):",
                     entries.size(), kvtName, args.getKeyFamily(), conditionalCount, entries.size() - conditionalCount);
@@ -282,7 +443,7 @@ abstract class KeyValueTableCommand extends Command {
         }
 
         public static CommandDescriptor descriptor() {
-            return createDescriptor("put", "Updates one or more Keys in a Key-Value table.")
+            return createDescriptor("put-all", "Updates one or more Keys in a Key-Value table.")
                     .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to update.")
                     .withArg("[key-family]", "(Optional) Key Family to update Entries for.")
                     .withArg("entries", "A JSON Array representing the keys to get.")
@@ -300,23 +461,22 @@ abstract class KeyValueTableCommand extends Command {
 
     //region Remove
 
-    static class Remove extends KeyValueTableCommand {
+    static class Remove extends DataCommand {
         Remove(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
         @Override
-        public void execute() throws Exception {
+        protected void ensurePreconditions() {
             ensureArgCount(2, 3);
-            val kvtName = getScopedNameArg(0);
+        }
+
+        @Override
+        protected void executeInternal(ScopedName kvtName, KeyValueTable<String, String> kvt) throws Exception {
             val args = getArgsWithKeyFamily(1, 3, String[][].class);
             val keys = toKeys(args.getArg());
             Preconditions.checkArgument(keys.size() > 0, "Expected at least one Table Key.");
             Preconditions.checkArgument(keys.size() == 1 || args.getKeyFamily() != null, "Expected a Key Family if removing more than one entry.");
-            @Cleanup
-            val factory = createKVTFactory(kvtName);
-            @Cleanup
-            val kvt = createKVT(kvtName, factory);
             kvt.removeAll(args.getKeyFamily(), keys).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
 
             int conditionalCount = (int) keys.stream().filter(e -> e.getVersion() != Version.NO_VERSION).count();
@@ -343,7 +503,7 @@ abstract class KeyValueTableCommand extends Command {
 
     //region Key/Entry iterators
 
-    private static abstract class ListCommand<T> extends KeyValueTableCommand {
+    private static abstract class ListCommand<T> extends DataCommand {
         ListCommand(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
@@ -353,14 +513,14 @@ abstract class KeyValueTableCommand extends Command {
         protected abstract String[] convertToArray(T item);
 
         @Override
-        public void execute() throws Exception {
+        protected void ensurePreconditions() {
             ensureArgCount(2);
-            val kvtName = getScopedNameArg(0);
+        }
+
+        @Override
+        protected void executeInternal(ScopedName kvtName, KeyValueTable<String, String> kvt) throws Exception {
             val keyFamily = getArg(1);
-            @Cleanup
-            val factory = createKVTFactory(kvtName);
-            @Cleanup
-            val kvt = createKVT(kvtName, factory);
+
             val iterator = getIterator(kvt, keyFamily);
             int count = 0;
             while (count < getConfig().getMaxListItems()) {
