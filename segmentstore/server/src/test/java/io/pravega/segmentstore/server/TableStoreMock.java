@@ -119,6 +119,11 @@ public class TableStoreMock implements TableStore {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
+        throw new UnsupportedOperationException();
+    }
+
     @SneakyThrows(StreamSegmentNotExistsException.class)
     private TableData getTableData(String segmentName) {
         synchronized (this.tables) {

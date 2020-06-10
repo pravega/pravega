@@ -2197,12 +2197,12 @@ public final class WireCommands {
         final String segment;
         @ToString.Exclude
         final String delegationToken;
-        final long fromVersion;
+        final long fromPosition;
         final int suggestedEntryCount;
 
         @Override
         public void process(RequestProcessor cp) {
-
+            cp.readTableEntriesDelta(this);
         }
 
         @Override
@@ -2210,7 +2210,7 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
-            out.writeLong(fromVersion);
+            out.writeLong(fromPosition);
             out.writeInt(suggestedEntryCount);
         }
 
@@ -2218,10 +2218,10 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
-            long fromVersion = in.readLong();
+            long fromPosition = in.readLong();
             int suggestedEntryCount = in.readInt();
 
-            return new ReadTableEntriesDelta(requestId, segment, delegationToken, fromVersion, suggestedEntryCount);
+            return new ReadTableEntriesDelta(requestId, segment, delegationToken, fromPosition, suggestedEntryCount);
         }
     }
 
@@ -2233,12 +2233,12 @@ public final class WireCommands {
         final TableEntries tableEntries;
         final boolean shouldClear;
         final boolean reachedEnd;
-        final long lastVersion;
+        final long lastPosition;
 
         // TODO: Will be implemented as apart of: https://github.com/pravega/pravega/issues/4677
         @Override
         public void process(ReplyProcessor cp) throws UnsupportedOperationException {
-
+            cp.tableEntriesDeltaRead(this);
         }
 
         @Override
@@ -2248,7 +2248,7 @@ public final class WireCommands {
             tableEntries.writeFields(out);
             out.writeBoolean(shouldClear);
             out.writeBoolean(reachedEnd);
-            out.writeLong(lastVersion);
+            out.writeLong(lastPosition);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -2257,9 +2257,9 @@ public final class WireCommands {
             TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
             boolean shouldClear = in.readBoolean();
             boolean reachedEnd = in.readBoolean();
-            long lastVersion = in.readLong();
+            long lastPosition = in.readLong();
 
-            return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastVersion);
+            return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastPosition);
         }
     }
 

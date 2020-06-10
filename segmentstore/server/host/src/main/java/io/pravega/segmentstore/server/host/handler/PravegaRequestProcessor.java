@@ -49,6 +49,7 @@ import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifi
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
+import io.pravega.segmentstore.server.tables.EntryIteratorState;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -91,6 +92,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -836,6 +838,77 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                                         continuationToken.get()));
                       this.tableStatsRecorder.iterateEntries(readTableEntries.getSegment(), entries.size(), timer.getElapsed());
                   }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
+    }
+
+    @Override
+    public void readTableEntriesDelta(WireCommands.ReadTableEntriesDelta readTableEntriesDelta) {
+        final String segment = readTableEntriesDelta.getSegment();
+        final String operation = "readTableEntriesDelta";
+
+        if (!verifyToken(segment, readTableEntriesDelta.getRequestId(), readTableEntriesDelta.getDelegationToken(), operation)) {
+            return;
+        }
+
+        final int suggestedEntryCount = readTableEntriesDelta.getSuggestedEntryCount();
+        final long fromPosition = readTableEntriesDelta.getFromPosition();
+
+        log.info(readTableEntriesDelta.getRequestId(), "Fetching keys from {}.", readTableEntriesDelta);
+
+        final AtomicInteger msgSize = new AtomicInteger(0);
+        final Map<ArrayView, TableEntry> entries = new HashMap<>();
+        final AtomicReference<EntryIteratorState> lastState = new AtomicReference<>();
+        val timer = new Timer();
+        tableStore.entryIterator(segment, fromPosition, TIMEOUT)
+                .thenCompose(itr -> itr.collectRemaining(
+                        e -> {
+                            synchronized (entries) {
+                                if (entries.size() < suggestedEntryCount && msgSize.get() < MAX_READ_SIZE) {
+                                    EntryIteratorState state = EntryIteratorState.deserialize(e.getState().array());
+                                    // Store all TableEntries.
+                                    TableEntry entry = e.getEntries().iterator().next();
+                                    entries.computeIfPresent(entry.getKey().getKey(), (key, value) -> {
+                                        if (state.isDeletionRecord()) {
+                                            return null;
+                                        }
+                                        return (value.getKey().getVersion() < entry.getKey().getVersion()) ? entry : value;
+                                    });
+                                    entries.putIfAbsent(entry.getKey().getKey(), entry);
+                                    lastState.set(state);
+                                    // Update total read data.
+                                    msgSize.addAndGet(getTableEntryBytes(segment, entries.values(), 0));
+                                    return true;
+                                } else {
+                                    return false;
+                                }
+                            }
+                        }))
+                .thenAccept(v -> {
+                    final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries;
+                    synchronized (entries) {
+                        log.debug(readTableEntriesDelta.getRequestId(), "{} entries obtained for ReadTableEntriesDelta request.", entries.size());
+                        wireCommandEntries = entries.values().stream()
+                                .map(e -> {
+                                    TableKey k = e.getKey();
+                                    val keyWireCommand = new WireCommands.TableKey(wrappedBuffer(k.getKey().array(), k.getKey().arrayOffset(),
+                                            k.getKey().getLength()),
+                                            k.getVersion());
+                                    ArrayView value = e.getValue();
+                                    val valueWireCommand = new WireCommands.TableValue(wrappedBuffer(value.array(), value.arrayOffset(),
+                                            value.getLength()));
+                                    return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, valueWireCommand);
+                                })
+                                .collect(toList());
+                    }
+                    connection.send(new WireCommands.TableEntriesDeltaRead(
+                            readTableEntriesDelta.getRequestId(),
+                            segment,
+                            new WireCommands.TableEntries(wireCommandEntries),
+                            lastState.get().isShouldClear(),
+                            lastState.get().isReachedEnd(),
+                            lastState.get().getPosition()));
+                    this.tableStatsRecorder.iterateEntries(readTableEntriesDelta.getSegment(), entries.size(), timer.getElapsed());
+                }).exceptionally(e -> handleException(readTableEntriesDelta.getRequestId(), segment, operation, e));
+
     }
 
     private int getTableKeyBytes(String segment, Collection<TableKey> keys, int continuationTokenLength) {

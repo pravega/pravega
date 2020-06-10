@@ -21,6 +21,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -280,6 +281,45 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::entry);
     }
 
+    @Override
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
+        logRequest("entryIterator", segmentName);
+        return newIterator(segmentName, fromPosition, fetchTimeout);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, long fromPosition, @NonNull Duration fetchTimeout) {
+        return this.segmentContainer
+                .forSegment(segmentName, fetchTimeout)
+                .thenComposeAsync(segment -> {
+                    SegmentProperties properties = segment.getInfo();
+                    long compactionOffset = properties.getAttributes().getOrDefault(TableAttributes.COMPACTION_OFFSET, 0L);
+                    // All of the most recent keys will exist beyond the compactionOffset.
+                    long startOffset = Math.max(fromPosition, compactionOffset);
+                    // We should clear if the starting position may have been truncated out due to compaction.
+                    boolean shouldClear = fromPosition < compactionOffset;
+                    // Max length of the batch size.
+                    int maxLength = (int) (properties.getLength() - startOffset);
+
+                    TableEntryIterator.ConvertResult<IteratorItem<T>> converter = item -> {
+                        return CompletableFuture.completedFuture(new EntryIteratorItemImpl<>(
+                                item.getKey(),
+                                Collections.singletonList((T) item.getValue())));
+                    };
+
+                    return TableEntryIterator.<IteratorItem<T>>builder()
+                            .segment(segment)
+                            .entrySerializer(serializer)
+                            .executor(executor)
+                            .maxLength(maxLength)
+                            .startOffset(startOffset)
+                            .fetchTimeout(fetchTimeout)
+                            .resultConverter(converter)
+                            .shouldClear(shouldClear)
+                            .build();
+                });
+    }
+
     //endregion
 
     //region Helpers
@@ -465,6 +505,29 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return String.format("State = %s, EntryCount = %s", this.state, this.entries.size());
         }
     }
+
+    // endregion
+
+    // region EntryIteratorItemImpl
+
+    @RequiredArgsConstructor
+    private class EntryIteratorItemImpl<T> implements IteratorItem<T> {
+        private final EntryIteratorState state;
+        @Getter
+        private final Collection<T> entries;
+
+        @Override
+        public ArrayView getState() {
+            return this.state.serialize();
+        }
+
+        @Override
+        public String toString() {
+            return String.format("State = %s", this.state);
+        }
+    }
+
+    //endregion
 
     @FunctionalInterface
     private interface GetBucketReader<T> {
