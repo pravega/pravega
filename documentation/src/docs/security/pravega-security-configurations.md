@@ -348,14 +348,14 @@ fewer security configuration parameters to configure.
 
 |Parameter|Details|Default Value|Feature|
 |---------|-------|-------------|-------|
-| `singlenode.security.tls.enable` | Whether to enable TLS for client-server communications. | False | TLS |
-| `singlenode.security.tls.certificate.location` | Path of the X.509 PEM-encoded server certificate file for the server. |Empty| TLS |
-| `singlenode.security.tls.privateKey.location` | Path of the PEM-encoded private key file for the service. | Empty | TLS |
-| `singlenode.security.tls.keyStore.location` | Path of the keystore file in `.jks` for the REST interface. | Empty | TLS |
-| `singlenode.security.tls.keyStore.pwd.location` |Path of the file containing the keystore password for the REST interface. | Empty | TLS |
-| `singlenode.security.tls.trustStore.location` | Path of the truststore file for internal TLS connections. | Empty | TLS |
-| `singlenode.security.auth.enable` | Whether to enable authentication and authorization for clients. |False| Auth |
-| `singlenode.security.auth.credentials.username` | The default username used for internal communication between Segment Store and Controller. | Empty| Auth |
-| `singlenode.security.auth.credentials.pwd` | The default password used for internal communication between Segment Store and Controller. | Empty| Auth |
-| `singlenode.security.auth.pwdAuthHandler.accountsDb.location` | Path of the file containing user credentials and ACLs, for the PasswordAuthHandler. |Empty| Auth |
-| `singlenode.segmentStore.tls.certificate.autoReload.enable` | Whether to automatically reload SSL/TLS context if the server certificate is updated. | False | TLS |
+| `singlenode.security.tls.enable` | Whether to enable TLS for client-server communications. | false | TLS |
+| `singlenode.security.tls.certificate.location` | Path of the X.509 PEM-encoded server certificate file for the server. | | TLS |
+| `singlenode.security.tls.privateKey.location` | Path of the PEM-encoded private key file for the service. |  | TLS |
+| `singlenode.security.tls.keyStore.location` | Path of the keystore file in `.jks` for the REST interface. |  | TLS |
+| `singlenode.security.tls.keyStore.pwd.location` |Path of the file containing the keystore password for the REST interface. |  | TLS |
+| `singlenode.security.tls.trustStore.location` | Path of the truststore file for internal TLS connections. |  | TLS |
+| `singlenode.security.auth.enable` | Whether to enable authentication and authorization for clients. | false | Auth |
+| `singlenode.security.auth.credentials.username` | The default username used for internal communication between Segment Store and Controller. | | Auth |
+| `singlenode.security.auth.credentials.pwd` | The default password used for internal communication between Segment Store and Controller. | | Auth |
+| `singlenode.security.auth.pwdAuthHandler.accountsDb.location` | Path of the file containing user credentials and ACLs, for the PasswordAuthHandler. | | Auth |
+| `singlenode.segmentStore.tls.certificate.autoReload.enable` | Whether to automatically reload SSL/TLS context if the server certificate is updated. | false | TLS |
