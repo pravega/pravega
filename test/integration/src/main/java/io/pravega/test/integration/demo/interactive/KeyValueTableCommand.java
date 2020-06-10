@@ -25,6 +25,7 @@ import io.pravega.common.util.AsyncIterator;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -56,18 +57,20 @@ abstract class KeyValueTableCommand extends Command {
                 KeyValueTableClientConfiguration.builder().build());
     }
 
-    protected String[] toArray(TableEntry<String, String> e, String key) {
-        String[] result = new String[3];
-        result[0] = key;
-        if (e != null) {
-            result[1] = e.getKey().getVersion().toString();
-            result[2] = e.getValue();
-        }
-        return result;
+    protected String[] toArray(TableEntry<String, String> e) {
+        return new String[]{e.getKey().getKey(), e.getKey().getVersion().toString(), e.getValue()};
     }
 
     protected String[] toArray(TableKey<String> k) {
         return new String[]{k.getKey(), k.getVersion().toString()};
+    }
+
+    protected String toJson(String[] keys) {
+        if (keys.length == 1) {
+            return GSON.toJson(keys[0]);
+        } else {
+            return GSON.toJson(keys);
+        }
     }
 
     protected List<TableEntry<String, String>> toEntries(String[][] rawEntries) {
@@ -216,15 +219,21 @@ abstract class KeyValueTableCommand extends Command {
 
             output("Get %s Key(s) from %s[%s]:", keys.length, kvtName, args.getKeyFamily());
             assert keys.length == result.size() : String.format("Bad result length. Expected %s, actual %s", keys.length, result.size());
-            int maxCount = Math.min(getConfig().getMaxListItems(), result.size());
-            for (int i = 0; i < maxCount; i++) {
-                String[] output = toArray(result.get(i), keys[i]);
-                output("\t%s", GSON.toJson(output));
+            int count = 0;
+            for (val e : result) {
+                if (e != null) {
+                    output("\t%s", toJson(toArray(e)));
+                    if (++count >= getConfig().getMaxListItems()) {
+                        output("Only showing first %s items (of %s). Change this using '%s' config value.",
+                                getConfig().getMaxListItems(), result.size(), InteractiveConfig.MAX_LIST_ITEMS);
+                        break;
+                    }
+                }
             }
 
-            if (maxCount < result.size()) {
-                output("Only showing first %s items (of %s). Change this using '%s' config value.",
-                        maxCount, result.size(), InteractiveConfig.MAX_LIST_ITEMS);
+            int notFound = (int) result.stream().filter(Objects::isNull).count();
+            if (notFound > 0) {
+                output("\t%s key(s) could not be found.", notFound);
             }
         }
 
@@ -255,6 +264,7 @@ abstract class KeyValueTableCommand extends Command {
             val args = getArgsWithKeyFamily(1, 3, String[][].class);
             val entries = toEntries(args.getArg());
             Preconditions.checkArgument(entries.size() > 0, "Expected at least one Table Entry.");
+            Preconditions.checkArgument(entries.size() == 1 || args.getKeyFamily() != null, "Expected a Key Family if updating more than one entry.");
             @Cleanup
             val factory = createKVTFactory(kvtName);
             @Cleanup
@@ -267,7 +277,7 @@ abstract class KeyValueTableCommand extends Command {
             assert entries.size() == result.size() : String.format("Bad result length. Expected %s, actual %s", entries.size(), result.size());
             for (int i = 0; i < result.size(); i++) {
                 String[] output = toArray(TableKey.versioned(entries.get(i).getKey().getKey(), result.get(i)));
-                output("\t%s", GSON.toJson(output));
+                output("\t%s", toJson(output));
             }
         }
 
@@ -277,11 +287,11 @@ abstract class KeyValueTableCommand extends Command {
                     .withArg("[key-family]", "(Optional) Key Family to update Entries for.")
                     .withArg("entries", "A JSON Array representing the keys to get.")
                     .withSyntaxExample("scope1/kvt1 {[[key1, value1]]}", "Unconditionally updates 'key1' to 'value1' in 'scope1/kvt1'.")
-                    .withSyntaxExample("scope1/kvt1 {[[key1, \"segment1:version1\", value1]]}",
-                            "Conditionally updates 'key1' to 'value1' in 'scope1/kvt1' using 'segment1:version1' as condition version.")
-                    .withSyntaxExample("scope1/kvt1 key-family-1 {[[key1, \"segment1:version1\", value1], [key2, val2]]}",
+                    .withSyntaxExample("scope1/kvt1 {[[key1, \"seg1:ver1\", value1]]}",
+                            "Conditionally updates 'key1' to 'value1' in 'scope1/kvt1' using 'seg1:ver1' as condition version.")
+                    .withSyntaxExample("scope1/kvt1 key-family-1 {[[key1, \"seg1:ver\", value1], [key2, val2]]}",
                             "Conditionally updates 'key1' to 'value1' and 'key2' to 'value2' in 'scope1/kvt1' with key family 'key-family-1' " +
-                                    "conditioned on `key1` having version 'segment1:version1'.")
+                                    "conditioned on `key1` having version 'seg1:ver1'.")
                     .build();
         }
     }
@@ -302,6 +312,7 @@ abstract class KeyValueTableCommand extends Command {
             val args = getArgsWithKeyFamily(1, 3, String[][].class);
             val keys = toKeys(args.getArg());
             Preconditions.checkArgument(keys.size() > 0, "Expected at least one Table Key.");
+            Preconditions.checkArgument(keys.size() == 1 || args.getKeyFamily() != null, "Expected a Key Family if removing more than one entry.");
             @Cleanup
             val factory = createKVTFactory(kvtName);
             @Cleanup
@@ -319,11 +330,11 @@ abstract class KeyValueTableCommand extends Command {
                     .withArg("[key-family]", "(Optional) Key Family to remove Keys for.")
                     .withArg("entries", "A JSON Array representing the keys to remove.")
                     .withSyntaxExample("scope1/kvt1 {[[key1]]}", "Unconditionally removes 'key1' from 'scope1/kvt1'.")
-                    .withSyntaxExample("scope1/kvt1 {[[key1, \"segment1:version1\"]]}",
-                            "Conditionally removes 'key1' from 'scope1/kvt1' using 'segment1:version1' as condition version.")
-                    .withSyntaxExample("scope1/kvt1 key-family-1 {[[key1, \"segment1:version1\"], [key2]]}",
+                    .withSyntaxExample("scope1/kvt1 {[[key1, \"s1:ver1\"]]}",
+                            "Conditionally removes 'key1' from 'scope1/kvt1' using 'seg1:ver1' as condition version.")
+                    .withSyntaxExample("scope1/kvt1 key-family-1 {[[key1, \"seg1:ver1\"], [key2]]}",
                             "Conditionally removes 'key1' and 'key2' from 'scope1/kvt1' with key family 'key-family-1' " +
-                                    "conditioned on `key1` having version 'segment1:version1'.")
+                                    "conditioned on `key1` having version 'seg1:ver1'.")
                     .build();
         }
     }
@@ -360,7 +371,7 @@ abstract class KeyValueTableCommand extends Command {
 
                 int maxCount = Math.min(getConfig().getMaxListItems() - count, batch.getItems().size());
                 for (int i = 0; i < maxCount; i++) {
-                    output("\t%s", GSON.toJson(convertToArray(batch.getItems().get(i))));
+                    output("\t%s", toJson(convertToArray(batch.getItems().get(i))));
                 }
 
                 count += maxCount;
@@ -386,7 +397,7 @@ abstract class KeyValueTableCommand extends Command {
 
         @Override
         protected String[] convertToArray(TableKey<String> item) {
-            return toArray(item);
+            return new String[]{item.getKey()};
         }
 
         public static CommandDescriptor descriptor() {
@@ -409,7 +420,7 @@ abstract class KeyValueTableCommand extends Command {
 
         @Override
         protected String[] convertToArray(TableEntry<String, String> item) {
-            return toArray(item, item.getKey().getKey());
+            return toArray(item);
         }
 
         public static CommandDescriptor descriptor() {
