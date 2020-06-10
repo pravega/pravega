@@ -248,6 +248,7 @@ abstract class Command {
                         .put(KeyValueTableCommand.PutIf::descriptor, KeyValueTableCommand.PutIf::new)
                         .put(KeyValueTableCommand.PutIfAbsent::descriptor, KeyValueTableCommand.PutIfAbsent::new)
                         .put(KeyValueTableCommand.PutAll::descriptor, KeyValueTableCommand.PutAll::new)
+                        .put(KeyValueTableCommand.PutRange::descriptor, KeyValueTableCommand.PutRange::new)
                         .put(KeyValueTableCommand.Remove::descriptor, KeyValueTableCommand.Remove::new)
                         .put(KeyValueTableCommand.ListKeys::descriptor, KeyValueTableCommand.ListKeys::new)
                         .put(KeyValueTableCommand.ListEntries::descriptor, KeyValueTableCommand.ListEntries::new)

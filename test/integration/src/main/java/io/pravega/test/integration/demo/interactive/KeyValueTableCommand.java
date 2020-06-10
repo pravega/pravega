@@ -25,11 +25,13 @@ import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.AsyncIterator;
 import java.net.URI;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.NonNull;
@@ -205,7 +207,6 @@ abstract class KeyValueTableCommand extends Command {
         DataCommand(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
-
 
         protected abstract void ensurePreconditions();
 
@@ -453,6 +454,43 @@ abstract class KeyValueTableCommand extends Command {
                     .withSyntaxExample("scope1/kvt1 key-family-1 {[[key1, \"seg1:ver\", value1], [key2, val2]]}",
                             "Conditionally updates 'key1' to 'value1' and 'key2' to 'value2' in 'scope1/kvt1' with key family 'key-family-1' " +
                                     "conditioned on `key1` having version 'seg1:ver1'.")
+                    .build();
+        }
+    }
+
+    static class PutRange extends DataCommand {
+        PutRange(@NonNull CommandArgs commandArgs) {
+            super(commandArgs);
+        }
+
+        @Override
+        protected void ensurePreconditions() {
+            ensureArgCount(4);
+        }
+
+        @Override
+        protected void executeInternal(ScopedName kvtName, KeyValueTable<String, String> kvt) throws Exception {
+            val keyFamily = getArg(1);
+            val rangeStart = getIntArg(2);
+            val rangeEnd = getIntArg(3);
+
+            Preconditions.checkArgument(rangeStart <= rangeEnd, "RangeStart (%s) must be less than or equal to RangeEnd (%s).", rangeStart, rangeEnd);
+            val valuePrefix = Instant.now().toString();
+            val newValues = IntStream.rangeClosed(rangeStart, rangeEnd).boxed()
+                    .map(i -> TableEntry.unversioned(i.toString(), String.format("%s_%s", valuePrefix, i)))
+                    .collect(Collectors.toList());
+
+            kvt.replaceAll(keyFamily, newValues).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+            output("Bulk-updated %s Key(s) to %s[%s].", newValues.size(), kvtName, keyFamily);
+        }
+
+        public static CommandDescriptor descriptor() {
+            return createDescriptor("put-range", "Bulk-updates a set of generated keys between two numbers.")
+                    .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to update.")
+                    .withArg("key-family", "Key Family to update Entries for (not optional).")
+                    .withArg("range-start", "The lower bound of the range.")
+                    .withArg("range-end", "The upper bound of the range..")
+                    .withSyntaxExample("scope1/kvt1 key-family-1 1 100", "Updates keys '1' to '100' in 'scope1/kvt1' with key family 'key-family-1'.")
                     .build();
         }
     }
