@@ -6,7 +6,8 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- */ package io.pravega.segmentstore.server.tables;
+ */
+package io.pravega.segmentstore.server.tables;
 
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -23,6 +24,10 @@ public class TableContext implements AutoCloseable {
 
     private static final int DEFAULT_COMPACTION_SIZE = -1; // Inherits from parent.
 
+    private final static int CONTAINER_ID = 1;
+    private final static long SEGMENT_ID = 2L;
+    private final static String SEGMENT_NAME = "TableSegment";
+
     final KeyHasher hasher;
     final ContainerMock container;
     final CacheStorage cacheStorage;
@@ -32,9 +37,6 @@ public class TableContext implements AutoCloseable {
     final int defaultCompactionSize;
     final Random random;
 
-    final static String SEGMENT_NAME = "TableSegment";
-    final static long SEGMENT_ID = 2L;
-    final static int CONTAINER_ID = 1;
 
     TableContext(ScheduledExecutorService executorService) {
         this(KeyHashers.DEFAULT_HASHER, DEFAULT_COMPACTION_SIZE, executorService);

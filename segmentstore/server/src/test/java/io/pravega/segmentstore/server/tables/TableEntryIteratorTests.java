@@ -20,15 +20,26 @@ import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendO
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import lombok.*;
+import lombok.Builder;
+import lombok.Cleanup;
+import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
 import javax.annotation.concurrent.NotThreadSafe;
 import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -81,7 +92,7 @@ public class TableEntryIteratorTests extends ThreadPooledTestSuite {
     @Test
     public void testFromMid() {
         TestData data = createTestData(NUM_ENTRIES);
-        test(data, data.getExpectedStartEntry(NUM_ENTRIES/2));
+        test(data, data.getExpectedStartEntry(NUM_ENTRIES / 2));
     }
 
     @Test
@@ -159,7 +170,7 @@ public class TableEntryIteratorTests extends ThreadPooledTestSuite {
     private static class TestData {
 
         private static final String KEY_PREFIX = "KEY";
-        private static final Random random = new Random();
+        private static final Random RANDOM = new Random();
 
         private final IndexReader reader;
         private final TableContext context;
@@ -183,7 +194,7 @@ public class TableEntryIteratorTests extends ThreadPooledTestSuite {
             @Cleanup
             val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
 
-            int i = random.nextInt(actual.size());
+            int i = RANDOM.nextInt(actual.size());
             TableEntry toUpdate = actual.get(i);
             AtomicReference<TableEntry> mostRecent = new AtomicReference<>(toUpdate);
             for (int numUpdates = 0; !hasCompacted() && numUpdates < MAX_UPDATE_COUNT; numUpdates++) {
@@ -192,6 +203,7 @@ public class TableEntryIteratorTests extends ThreadPooledTestSuite {
                         () -> context.ext.put(SEGMENT_NAME, Collections.singletonList(entry), TIMEOUT),
                         processor,
                         context.segment().getInfo()::getLength).thenAccept(value -> {
+                            @SuppressWarnings("unchecked")
                             List<Long> version = (List<Long>) value;
                             mostRecent.set(TableEntry.versioned(entry.getKey().getKey(), entry.getValue(), version.iterator().next()));
                 }).get();
@@ -233,19 +245,19 @@ public class TableEntryIteratorTests extends ThreadPooledTestSuite {
         public static List<TableEntry> generateEntries(int numEntries, int keyLowerBound) {
             List<TableEntry> entries = new ArrayList<>();
             for (int i = 0; i < numEntries; i++) {
-                    entries.add(generateEntry(i+keyLowerBound));
+                    entries.add(generateEntry(i + keyLowerBound));
             }
             return entries;
         }
 
         public static TableEntry deleteRandomEntry(List<TableEntry> entries) {
-            int i = random.nextInt(entries.size());
+            int i = RANDOM.nextInt(entries.size());
             return TableEntry.notExists(entries.get(i).getKey().getKey(), new ByteArraySegment(new byte[0]));
         }
 
         public static TableEntry generateEntry(int i) {
             byte[] val = new byte[16];
-            random.nextBytes(val);
+            RANDOM.nextBytes(val);
             return TableEntry.unversioned(
                     new ByteArraySegment((KEY_PREFIX + i).getBytes()),
                     new ByteArraySegment(val));
@@ -253,7 +265,7 @@ public class TableEntryIteratorTests extends ThreadPooledTestSuite {
 
         public static TableEntry generateUpdatedKey(TableEntry entry) {
             byte[] val = new byte[16];
-            random.nextBytes(val);
+            RANDOM.nextBytes(val);
             return TableEntry.versioned(entry.getKey().getKey(), new ByteArraySegment(val), entry.getKey().getVersion());
         }
 
