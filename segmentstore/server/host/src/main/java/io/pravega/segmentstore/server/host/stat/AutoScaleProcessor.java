@@ -209,7 +209,7 @@ public class AutoScaleProcessor implements AutoCloseable {
             lastRequestTs = pair.getKey();
         }
 
-        long timestamp = System.currentTimeMillis();
+        long timestamp = getTimeMillis();
         long requestId = requestIdGenerator.get();
         if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
             log.info(requestId, "sending request for scale up for {}", streamSegmentName);
@@ -230,7 +230,7 @@ public class AutoScaleProcessor implements AutoCloseable {
             lastRequestTs = pair.getValue();
         }
 
-        long timestamp = System.currentTimeMillis();
+        long timestamp = getTimeMillis();
         long requestId = requestIdGenerator.get();
         if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
             log.info(requestId, "sending request for scale down for {}", streamSegmentName);
@@ -266,7 +266,7 @@ public class AutoScaleProcessor implements AutoCloseable {
         // note: we are working on caller's thread. We should not do any blocking computation here and return as quickly as
         // possible.
         // So we will decide whether to scale or not and then unblock by asynchronously calling 'writeEvent'
-        long currentTime = System.currentTimeMillis();
+        long currentTime = getTimeMillis();
         if (currentTime - startTime > configuration.getCooldownDuration().toMillis()) {
             log.debug("cool down period elapsed for {}", streamSegmentName);
 
@@ -293,7 +293,8 @@ public class AutoScaleProcessor implements AutoCloseable {
     }
 
     void notifyCreated(String segmentStreamName) {
-        cache.put(segmentStreamName, new ImmutablePair<>(System.currentTimeMillis(), System.currentTimeMillis()));
+        long timeMillis = getTimeMillis();
+        cache.put(segmentStreamName, new ImmutablePair<>(timeMillis, timeMillis));
     }
 
     void notifySealed(String segmentStreamName) {
@@ -309,6 +310,12 @@ public class AutoScaleProcessor implements AutoCloseable {
     Pair<Long, Long> get(String streamSegmentName) {
         return cache.getIfPresent(streamSegmentName);
     }
+    
+    @VisibleForTesting
+    @Synchronized
+    CompletableFuture<EventStreamWriter<AutoScaleEvent>> getWriterFuture() {
+        return writer;
+    }
 
     private static class EventSerializer implements Serializer<AutoScaleEvent> {
         private final ControllerEventSerializer baseSerializer = new ControllerEventSerializer();
@@ -322,6 +329,11 @@ public class AutoScaleProcessor implements AutoCloseable {
         public AutoScaleEvent deserialize(ByteBuffer serializedValue) {
             return (AutoScaleEvent) this.baseSerializer.fromByteBuffer(serializedValue);
         }
+    }
+
+    @VisibleForTesting
+    protected long getTimeMillis() {
+        return System.currentTimeMillis();
     }
 }
 

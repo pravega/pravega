@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.host.stat;
 
 import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.concurrent.Futures;
@@ -21,14 +22,15 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.net.URI;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+
+import lombok.NonNull;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
@@ -44,6 +46,22 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         return 1;
     }
 
+    @Test (timeout = 10000)
+    public void writerCreationTest() {
+        TestAutoScaleProcessor processor = new TestAutoScaleProcessor(
+                AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0).with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                                .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
+                executorService());
+        String segmentStreamName = "scope/myStreamSegment/0.#epoch.0";
+        processor.notifyCreated(segmentStreamName);
+        assertNull(processor.getWriterFuture());
+        
+        processor.setTimeMillis(20 * 60000L);
+        processor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
+        
+        assertNotNull(processor.getWriterFuture());
+    }
+    
     @Test (timeout = 10000)
     public void scaleTest() {
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -241,4 +259,30 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
             }
         };
     }
+
+    private class TestAutoScaleProcessor extends AutoScaleProcessor {
+        private AtomicLong timeMillis = new AtomicLong();
+        
+        TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor) {
+            super(configuration, executor);
+        }
+
+        TestAutoScaleProcessor(@NonNull EventStreamWriter<AutoScaleEvent> writer, @NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor) {
+            super(writer, configuration, executor);
+        }
+
+        TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory, @NonNull ScheduledExecutorService executor) {
+            super(configuration, clientFactory, executor);
+        }
+
+        @Override
+        protected long getTimeMillis() {
+            return timeMillis.get();
+        }
+
+        protected void setTimeMillis(long time) {
+            timeMillis.set(time);
+        }
+    }
+
 }
