@@ -87,7 +87,6 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
             // refresh all mutable records
             storeHelper.invalidateCache(getMetadataTableName(id), STATE_KEY);
             storeHelper.invalidateCache(getMetadataTableName(id), CONFIGURATION_KEY);
-            //storeHelper.invalidateCache(getMetadataTableName(id), CURRENT_EPOCH_KEY);
         }
     }
 
@@ -202,6 +201,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
     @Override
     CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime) {
         byte[] b = new byte[Long.BYTES];
+        log.info("Sroring Creation time: {}", creationTime);
         BitConverter.writeLong(b, 0, creationTime);
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CREATION_TIME_KEY, b)

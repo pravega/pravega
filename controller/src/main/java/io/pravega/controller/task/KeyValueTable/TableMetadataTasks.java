@@ -103,7 +103,7 @@ public class TableMetadataTasks implements AutoCloseable {
                return kvtMetadataStore.checkScopeExists(scope)
                    .thenCompose(exists -> {
                         if (!exists) {
-                           return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND);
+                            return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND);
                         }
                         //2. check state of the KVTable, if found
                         return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
@@ -114,9 +114,10 @@ public class TableMetadataTasks implements AutoCloseable {
                                            byte[] newUUID = kvtMetadataStore.newScope(scope).newId();
                                            CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(),
                                                         createTimestamp, requestId, BitConverter.readUUID(newUUID, 0));
-                                                //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
-                                                return eventHelper.addIndexAndSubmitTask(event, () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, newUUID, executor))
-                                                          .thenCompose(x -> isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor));
+                                           //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
+                                           return eventHelper.addIndexAndSubmitTask(event,
+                                                   () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, newUUID, executor))
+                                                   .thenCompose(x -> isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor));
                                        }
                                        return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor);
                                  });
@@ -142,21 +143,23 @@ public class TableMetadataTasks implements AutoCloseable {
     private CompletableFuture<Boolean> isCreated(String scope, String kvtName, KeyValueTableConfiguration kvtConfig, Executor executor) {
        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
-                .thenCompose(state -> CompletableFuture.completedFuture(state.equals(KVTableState.ACTIVE)));
+               .thenApply(state -> {
+                    log.debug("KVTable State is {}", state.toString());
+                    return state.equals(KVTableState.ACTIVE);
+                });
     }
 
-    private CompletableFuture<Boolean> isSameCreateRequest(String requestScopeName, String requestKVTName,
-                                                           KeyValueTableConfiguration requestKVTConfig,
+    private CompletableFuture<Boolean> isSameCreateRequest(final String requestScopeName, final String requestKVTName,
+                                                           final KeyValueTableConfiguration requestKVTConfig,
                                                            final long requestCreateTimestamp,
                                                            Executor executor) {
     return kvtMetadataStore.getCreationTime(requestScopeName, requestKVTName, null, executor)
     .thenCompose(creationTime -> {
         if (creationTime == requestCreateTimestamp) {
-            kvtMetadataStore.getConfiguration(requestScopeName, requestKVTName, null, executor)
+            return kvtMetadataStore.getConfiguration(requestScopeName, requestKVTName, null, executor)
                     .thenCompose(cfg -> {
                         if (cfg.getPartitionCount() == requestKVTConfig.getPartitionCount()) {
                             return CompletableFuture.completedFuture(Boolean.TRUE);
-
                         } else {
                             return CompletableFuture.completedFuture(Boolean.FALSE);
                         }

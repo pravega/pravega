@@ -34,6 +34,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.AbstractMap;
 import java.util.List;
@@ -324,6 +325,21 @@ public final class ModelHelper {
     }
 
     /**
+     * Helper to convert KeyValueTableConfiguration object into KeyValueTableConfig Impl.
+     *
+     * @param config The KeyValueTable Configuration object
+     * @return New instance of KeyValueTableConfig.
+     */
+    public static final KeyValueTableConfig decode(String scopeName, String kvtName, final KeyValueTableConfiguration config) {
+        Preconditions.checkNotNull(config, "config");
+        Preconditions.checkNotNull(scopeName, "scopeName");
+        Preconditions.checkNotNull(kvtName, "kvtName");
+        Preconditions.checkArgument(config.getPartitionCount() > 0, "Number of partitions should be > 0.");
+        return KeyValueTableConfig.newBuilder().setScope(scopeName)
+                .setKvtName(kvtName).setPartitionCount(config.getPartitionCount()).build();
+    }
+
+    /**
      * Converts PravegaNodeURI into NodeURI.
      *
      * @param uri The PravegaNodeURI string.
@@ -363,6 +379,12 @@ public final class ModelHelper {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return StreamInfo.newBuilder().setScope(scope).setStream(stream).build();
+    }
+
+    public static final KeyValueTableInfo createKeyValueTableInfo(final String scope, final String kvtName) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTable");
+        return KeyValueTableInfo.newBuilder().setScope(scope).setKvtName(kvtName).build();
     }
 
     public static final SegmentId createSegmentId(final String scope, final String stream, final long segmentId) {

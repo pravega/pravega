@@ -23,7 +23,6 @@ import io.pravega.client.tables.impl.KeyValueTableFactoryImpl;
 import io.pravega.client.tables.impl.KeyValueTableTestBase;
 import io.pravega.common.util.ByteArraySegment;
 
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -42,13 +41,9 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import static org.mockito.Mockito.mock;
-
 /**
  * Integration test for {@link KeyValueTable}s using real Segment Store and connection.
  * The only simulated component is the {@link Controller} which is provided via the {@link MockController}.
- * import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
- * //import io.pravega.test.common.AssertExtensions;
  */
 @Slf4j
 public class KeyValueTableTest extends KeyValueTableTestBase {

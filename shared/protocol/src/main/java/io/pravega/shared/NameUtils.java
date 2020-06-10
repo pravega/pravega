@@ -291,9 +291,7 @@ public final class NameUtils {
     }
 
     /**
-     * Method to generate Fully Qualified  TableSegmentName using scope, stream and segment id.
-     * Table segments for KVTables have segment names suffixed with _table,
-     * so we can have a stream and KeyValueTable with the same name.
+     * Method to generate Fully Qualified TableSegmentName using scope, stream and segment id.
      *
      * @param scope scope to be used in the ScopedTableSegment name
      * @param kvTableName kvTable name to be used in ScopedTableSegment name.
@@ -301,15 +299,7 @@ public final class NameUtils {
      * @return fully qualified TableSegmentName for a TableSegment that is part of the KeyValueTable.
      */
     public static String getQualifiedTableSegmentName(String scope, String kvTableName, long segmentId) {
-        int segmentNumber = getSegmentNumber(segmentId);
-        int epoch = getEpoch(segmentId);
-        StringBuffer sb = getScopedStreamNameInternal(scope, kvTableName);
-        sb.append('/');
-        sb.append(segmentNumber);
-        sb.append(EPOCH_DELIMITER);
-        sb.append(epoch);
-        sb.append(KVTABLE_SUFFIX);
-        return sb.toString();
+        return getQualifiedStreamSegmentName(scope, kvTableName, segmentId);
     }
 
     /**

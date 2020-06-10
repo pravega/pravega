@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.PravegaTablesScope;
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DELETED_STREAMS_TABLE;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.SegmentHelper;
@@ -39,7 +40,6 @@ import java.util.concurrent.ScheduledExecutorService;
 @Slf4j
 public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore {
     static final String SCOPES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "scopes");
-    static final String DELETED_KVTABLES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "deletedKVTables");
 
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
@@ -86,7 +86,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
 
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String kvtName) {
-        return Futures.completeOn(storeHelper.getEntry(DELETED_KVTABLES_TABLE, getScopedKVTName(scopeName, kvtName),
+        return Futures.completeOn(storeHelper.getEntry(DELETED_STREAMS_TABLE, getScopedKVTName(scopeName, kvtName),
                 x -> BitConverter.readInt(x, 0))
                 .handle((data, ex) -> {
                     if (ex == null) {
