@@ -327,7 +327,9 @@ public final class ModelHelper {
     /**
      * Helper to convert KeyValueTableConfiguration object into KeyValueTableConfig Impl.
      *
-     * @param config The KeyValueTable Configuration object
+     * @param scopeName Name for scope for KVTable.
+     * @param kvtName KeyValueTable Name.
+     * @param config The KeyValueTable Configuration object.
      * @return New instance of KeyValueTableConfig.
      */
     public static final KeyValueTableConfig decode(String scopeName, String kvtName, final KeyValueTableConfiguration config) {
