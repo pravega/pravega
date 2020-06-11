@@ -14,7 +14,7 @@ import com.google.common.collect.ImmutableSet;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
-import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
@@ -75,7 +75,7 @@ public class ReaderGroupImplTest {
     @Mock
     private Controller controller;
     @Mock
-    private ConnectionFactory connectionFactory;
+    private ConnectionPool connectionPool;
     @Mock
     private StateSynchronizer<ReaderGroupState> synchronizer;
     @Mock
@@ -93,7 +93,7 @@ public class ReaderGroupImplTest {
                                                    any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
         readerGroup = new ReaderGroupImpl(SCOPE, GROUP_NAME, synchronizerConfig, initSerializer,
-                updateSerializer, clientFactory, controller, connectionFactory);
+                updateSerializer, clientFactory, controller, connectionPool);
     }
 
     @Test(expected = IllegalArgumentException.class)

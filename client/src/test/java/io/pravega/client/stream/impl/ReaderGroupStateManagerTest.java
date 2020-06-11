@@ -15,7 +15,7 @@ import com.google.common.collect.Sets;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
-import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
@@ -66,8 +66,8 @@ public class ReaderGroupStateManagerTest {
     private static class MockControllerWithSuccessors extends MockController {
         private StreamSegmentsWithPredecessors successors;
 
-        public MockControllerWithSuccessors(String endpoint, int port, ConnectionFactory connectionFactory, StreamSegmentsWithPredecessors successors) {
-            super(endpoint, port, connectionFactory, false);
+        public MockControllerWithSuccessors(String endpoint, int port, ConnectionPool connectionPool, StreamSegmentsWithPredecessors successors) {
+            super(endpoint, port, connectionPool, false);
             this.successors = successors;
         }
 
