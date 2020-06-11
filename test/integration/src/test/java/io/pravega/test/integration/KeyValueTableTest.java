@@ -41,8 +41,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * Integration test for {@link KeyValueTable}s using real Segment Store and connection.
- * The only simulated component is the {@link Controller} which is provided via the {@link MockController}.
+ * Integration test for {@link KeyValueTable}s using real Segment Store, Controller and connection.
+ *.
  */
 @Slf4j
 public class KeyValueTableTest extends KeyValueTableTestBase {
