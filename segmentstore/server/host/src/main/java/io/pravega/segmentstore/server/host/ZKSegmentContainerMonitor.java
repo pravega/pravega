@@ -92,6 +92,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     ZKSegmentContainerMonitor(SegmentContainerRegistry containerRegistry, CuratorFramework zkClient,
                               Host pravegaServiceEndpoint, int parallelContainerStarts, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(zkClient, "zkClient");
+        Preconditions.checkArgument(parallelContainerStarts > 0, "parallelContainerStarts");
 
         this.registry = Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         this.host = Preconditions.checkNotNull(pravegaServiceEndpoint, "pravegaServiceEndpoint");
