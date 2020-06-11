@@ -43,15 +43,15 @@ import static org.junit.Assert.assertTrue;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @RunWith(SystemTestRunner.class)
 public class KeyValueTest extends AbstractSystemTest {
-    private final static String SCOPE_NAME = "SampleScope3";
-    private final static String SCOPE_NAME1 = "DiffScope1";
-    private final static String KVT_NAME = "TestKVT1";
+    private final static String SCOPE_NAME = "TestScope2";
+    private final static String SCOPE_NAME1 = "DiffScope2";
+    private final static String KVT_NAME = "TestKVT";
     //+ randomAlphanumeric(5);
     private URI controllerURI = null;
     private Controller controller = null;
     final KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(2).build();
-    private final Integer keyType = 1;
-    private final String valueType = "TestValue";
+    private Integer keyType;
+    private String valueType = "";
     public final String scope="TestScope";
     private TableSegmentFactoryImpl segmentFactory;
     private KeyValueTable<Integer, String> keyValueTable;
@@ -92,7 +92,7 @@ public class KeyValueTest extends AbstractSystemTest {
 
     @Test
     //Test case - 13: Create KVT test
-    public void test1CreateKeyValueTable() throws Exception {
+    public void testA1CreateKeyValueTable() throws Exception {
         log.info("Create Key value Table(KVT)");
         try {
             log.info("controller URL : "+controllerURI);
@@ -113,7 +113,7 @@ public class KeyValueTest extends AbstractSystemTest {
 
     @Test
     //Test case - 13: Create same KVT again
-    public void test2CreateExistingKeyValueTable() throws Exception {
+    public void testA2CreateExistingKeyValueTable() throws Exception {
         log.info("Create Key value Table(KVT)");
         try {
             @Cleanup
@@ -121,13 +121,14 @@ public class KeyValueTest extends AbstractSystemTest {
             boolean createKVT = kvtManager.createKeyValueTable(SCOPE_NAME, KVT_NAME, config);
             Assert.assertFalse(createKVT);
             if (createKVT == false) {
-                log.info("Failed to created KVT as same KVT already present");
+                log.info("KeyValueTable already exists, So can not create same KVT");
             }
         } finally {
             log.info("Can not create as KVT already present");
         }
     }
-    public void test3CreateSameKVTDiffScope() throws Exception {
+    @Test
+    public void testA3CreateSameKVTDiffScope() throws Exception {
         log.info("Create Key value Table(KVT)");
         try {
             streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
@@ -147,7 +148,7 @@ public class KeyValueTest extends AbstractSystemTest {
 
     @Test
     // Test Cases-18 List of KVT test
-    public void test4ListKeyValueTables() {
+    public void testA4ListKeyValueTables() {
         try {
             @Cleanup
             val kvtManager = KeyValueTableManager.create(controllerURI);
@@ -166,7 +167,7 @@ public class KeyValueTest extends AbstractSystemTest {
     * This might be supported in future if more configuration added in KVT configuration
 
     @Test
-    public void test5UpdateKeyValueTable(){
+    public void testA5UpdateKeyValueTable(){
         try {
             val kvtManager = KeyValueTableManager.create(controllerURI);
             boolean updateKVT = kvtManager.updateKeyValueTable(SCOPE_NAME, KVT_NAME, config);
@@ -178,7 +179,7 @@ public class KeyValueTest extends AbstractSystemTest {
     */
     @Test
     // Test Case-14: Delete KVT test
-    public void test6DeleteKeyValueTable(){
+    public void testA6DeleteKeyValueTable(){
         try {
             log.info("Deleting existing KVT");
             @Cleanup
@@ -191,9 +192,11 @@ public class KeyValueTest extends AbstractSystemTest {
     }
     //Test Case-1: Insert KVP
     @Test
-    public void test7InsertKeyValuePair(){
+    public void testA7InsertKeyValuePair(){
         try {
             log.info("Insert KVP");
+            keyType = 1;
+            valueType="TestValue";
             this.keyValueTable = new KeyValueTableImpl<>(KVT, this.segmentFactory, this.controller, KEY_SERIALIZER, VALUE_SERIALIZER);
             CompletableFuture<Version> insertEntry = this.keyValueTable.put(null,keyType,valueType);
             Version result = insertEntry.get();
@@ -203,9 +206,11 @@ public class KeyValueTest extends AbstractSystemTest {
         }
     }
     @Test
-    public void test8InsertKeyValuePairUnconditionally(){
+    public void testA8InsertKVPConditionallyWithNewKey(){
         try {
             log.info("Insert or update KVP");
+            keyType = 2;
+            valueType="TestValue1";
             this.keyValueTable = new KeyValueTableImpl<>(KVT, this.segmentFactory, this.controller, KEY_SERIALIZER, VALUE_SERIALIZER);
             CompletableFuture<Version> insertEntry = this.keyValueTable.putIfAbsent(null,keyType,valueType);
             Version result = insertEntry.get();
@@ -215,13 +220,28 @@ public class KeyValueTest extends AbstractSystemTest {
         }
     }
     @Test
-    public void test9InsertMultipleKeyValuePair(){
+    public void testA9InsertKVPConditionallyWithExistingKey(){
+        try {
+            log.info("Insert or update KVP");
+            keyType = 2;
+            valueType="TestValue1";
+            this.keyValueTable = new KeyValueTableImpl<>(KVT, this.segmentFactory, this.controller, KEY_SERIALIZER, VALUE_SERIALIZER);
+            CompletableFuture<Version> insertEntry = this.keyValueTable.putIfAbsent(null,keyType,valueType);
+            Version result = insertEntry.get();
+            log.info("result "+result);
+        }catch (ExecutionException | InterruptedException  error) {
+            log.info(error.getMessage());
+        }
+    }
+    @Test
+    public void testB1InsertMultipleKeyValuePair(){
         try {
             log.info("Insert multiple KVP");
+            String kf ="TestKeyFamily";
             Map<Integer,String> multiKVP = new HashMap<Integer,String>();
-            multiKVP.put(2,"TestValue2"); multiKVP.put(3,"TestValue3"); multiKVP.put(4,"TestValue4");
+            multiKVP.put(3,"TestValue3"); multiKVP.put(4,"TestValue4"); multiKVP.put(5,"TestValue5");
             this.keyValueTable = new KeyValueTableImpl<>(KVT, this.segmentFactory, this.controller, KEY_SERIALIZER, VALUE_SERIALIZER);
-            CompletableFuture<List<Version>> insertKVP = this.keyValueTable.putAll(null,multiKVP.entrySet());
+            CompletableFuture<List<Version>> insertKVP = this.keyValueTable.putAll(kf,multiKVP.entrySet());
             List<Version> result = insertKVP.get();
             log.info("successfully inserted key "+multiKVP.entrySet()+"And output"+result);
         }catch (ExecutionException | InterruptedException  error) {
@@ -229,8 +249,9 @@ public class KeyValueTest extends AbstractSystemTest {
         }
     }
     @Test
-    public void test10RetrieveKeyValuePairEntry(){
+    public void testB2RetrieveKeyValuePairEntry(){
         try {
+            keyType = 1;
             log.info("Retrieve Single KVP entry");
             this.keyValueTable = new KeyValueTableImpl<>(KVT, this.segmentFactory, this.controller, KEY_SERIALIZER, VALUE_SERIALIZER);
             CompletableFuture<TableEntry<Integer, String>> getKVT = this.keyValueTable.get(null,keyType);
@@ -240,22 +261,6 @@ public class KeyValueTest extends AbstractSystemTest {
             log.info(error.getMessage());
         }
     }
-    /*
-    @Test
-    public void test12RetrieveMultipleKeyValuePairEntry(){
-        try {
-            log.info("Retrieve Single KVP entry");
-            this.keyValueTable = new KeyValueTableImpl<>(KVT, this.segmentFactory, this.controller, KEY_SERIALIZER, VALUE_SERIALIZER);
-            CompletableFuture<TableEntry<Integer, String>> getKVT = this.keyValueTable.getAll(null,);
-            TableEntry<Integer, String> result = getKVT.get();
-            log.info("Successfully retrive single keyvaluepair entry : "+result);
-        }catch (ExecutionException | InterruptedException  error) {
-            log.info(error.getMessage());
-        }
-    }
-
-*/
-
     private static class IntegerSerializer implements Serializer<Integer> {
         @Override
         public ByteBuffer serialize(Integer value) {
