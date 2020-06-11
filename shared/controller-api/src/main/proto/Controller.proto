@@ -23,6 +23,7 @@ service ControllerService {
     rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
     rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
+    rpc getEpochSegments(GetEpochSegmentsRequest) returns (SegmentRanges);
     rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
     /* Deprecated RPC: https://github.com/pravega/pravega/issues/3760 */
     rpc getSegmentsImmediatlyFollowing(SegmentId) returns(SuccessorResponse);
@@ -349,6 +350,11 @@ message GetSegmentsRequest {
     int64 timestamp = 2;
 }
 
+message GetEpochSegmentsRequest {
+    StreamInfo streamInfo = 1;
+    int32 epoch = 2;
+}
+
 message SegmentValidityResponse {
     bool response = 1;
 }
@@ -391,3 +397,5 @@ message TimestampResponse {
     }
     Status result = 1;
 }
+
+

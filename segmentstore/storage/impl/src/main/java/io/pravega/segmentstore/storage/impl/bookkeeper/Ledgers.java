@@ -19,11 +19,17 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.client.BKException;
-import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.client.BKException.BKNotEnoughBookiesException;
+import org.apache.bookkeeper.client.BKException.BKUnexpectedConditionException;
+import org.apache.bookkeeper.client.api.BookKeeper;
+import org.apache.bookkeeper.client.api.Handle;
+import org.apache.bookkeeper.client.api.ReadHandle;
+import org.apache.bookkeeper.client.api.WriteHandle;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
  * General utilities pertaining to BookKeeper Ledgers.
@@ -35,12 +41,26 @@ final class Ledgers {
     static final String PROPERTY_VALUE_APPLICATION = "Pravega";
     static final String PROPERTY_LOG_ID = "BookKeeperLogId";
     static final int NO_LOG_ID = -1;
-    static final long NO_LEDGER_ID = LedgerHandle.INVALID_LEDGER_ID;
-    static final long NO_ENTRY_ID = LedgerHandle.INVALID_ENTRY_ID;
+    static final long NO_LEDGER_ID = -1; // LedgerHandle.INVALID_LEDGER_ID
+    static final long NO_ENTRY_ID = -1; // LedgerHandle.INVALID_ENTRY_ID
     /**
      * How many ledgers to fence out (from the end of the list) when acquiring lock.
      */
     static final int MIN_FENCE_LEDGER_COUNT = 2;
+
+    /**
+     * Converts exceptions to BKException. Fallback to BKUnexpectedConditionException
+     * for non BookKeeper exceptions.
+     */
+    private static final Function<Throwable, BKException> BK_EXCEPTION_HANDLER = cause -> {
+        if (cause instanceof BKException) {
+            return (BKException) cause;
+        } else {
+            BKUnexpectedConditionException wrapper = new BKUnexpectedConditionException();
+            wrapper.initCause(cause);
+            return wrapper;
+        }
+    };
 
     /**
      * Creates a new Ledger in BookKeeper.
@@ -50,24 +70,25 @@ final class Ledgers {
      *                   ledger's metadata so that it may be recovered in case we need to reconstruct the {@link BookKeeperLog}
      *                   in the future.
      *
-     * @return A LedgerHandle for the new ledger.
+     * @return A WriteHandle for the new ledger.
      * @throws DataLogNotAvailableException If BookKeeper is unavailable or the ledger could not be created because an
      *                                      insufficient number of Bookies are available. The causing exception is wrapped
      *                                      inside it.
      * @throws DurableDataLogException      If another exception occurred. The causing exception is wrapped inside it.
      */
-    static LedgerHandle create(BookKeeper bookKeeper, BookKeeperConfig config, int logId) throws DurableDataLogException {
+    static WriteHandle create(BookKeeper bookKeeper, BookKeeperConfig config, int logId) throws DurableDataLogException {
         try {
 
             return Exceptions.handleInterruptedCall(() ->
-                    bookKeeper.createLedger(
-                            config.getBkEnsembleSize(),
-                            config.getBkWriteQuorumSize(),
-                            config.getBkAckQuorumSize(),
-                            config.getDigestType(),
-                            config.getBKPassword(),
-                            createLedgerCustomMetadata(logId)));
-        } catch (BKException.BKNotEnoughBookiesException bkEx) {
+                    FutureUtils.result(bookKeeper.newCreateLedgerOp()
+                            .withEnsembleSize(config.getBkEnsembleSize())
+                            .withWriteQuorumSize(config.getBkWriteQuorumSize())
+                            .withAckQuorumSize(config.getBkAckQuorumSize())
+                            .withDigestType(config.getDigestType())
+                            .withPassword(config.getBKPassword())
+                            .withCustomMetadata(createLedgerCustomMetadata(logId))
+                            .execute(), BK_EXCEPTION_HANDLER) );
+        } catch (BKNotEnoughBookiesException bkEx) {
             throw new DataLogNotAvailableException("Unable to create new BookKeeper Ledger.", bkEx);
         } catch (BKException bkEx) {
             throw new DurableDataLogException("Unable to create new BookKeeper Ledger.", bkEx);
@@ -80,13 +101,18 @@ final class Ledgers {
      * @param ledgerId   The Id of the Ledger to open.
      * @param bookKeeper A references to the BookKeeper client to use.
      * @param config     Configuration to use.
-     * @return A LedgerHandle for the newly opened ledger.
+     * @return A ReadHandle for the newly opened ledger.
      * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
      */
-    static LedgerHandle openFence(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
+    static ReadHandle openFence(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
             return Exceptions.handleInterruptedCall(
-                    () -> bookKeeper.openLedger(ledgerId, config.getDigestType(), config.getBKPassword()));
+                    () -> FutureUtils.result(bookKeeper
+                            .newOpenLedgerOp()
+                    .withLedgerId(ledgerId)                    
+                    .withPassword(config.getBKPassword())
+                    .withRecovery(true)
+                    .execute(), BK_EXCEPTION_HANDLER));
         } catch (BKException bkEx) {
             throw new DurableDataLogException(String.format("Unable to open-fence ledger %d.", ledgerId), bkEx);
         }
@@ -98,13 +124,18 @@ final class Ledgers {
      * @param ledgerId   The Id of the Ledger to open.
      * @param bookKeeper A references to the BookKeeper client to use.
      * @param config     Configuration to use.
-     * @return A LedgerHandle for the newly opened ledger.
+     * @return A ReadHandle for the newly opened ledger.
      * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
      */
-    static LedgerHandle openRead(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
+    static ReadHandle openRead(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
             return Exceptions.handleInterruptedCall(
-                    () -> bookKeeper.openLedgerNoRecovery(ledgerId, config.getDigestType(), config.getBKPassword()));
+                    () -> FutureUtils.result(bookKeeper
+                            .newOpenLedgerOp()
+                    .withLedgerId(ledgerId)
+                    .withPassword(config.getBKPassword())
+                    .withRecovery(false)
+                    .execute(), BK_EXCEPTION_HANDLER));
         } catch (BKException bkEx) {
             throw new DurableDataLogException(String.format("Unable to open-read ledger %d.", ledgerId), bkEx);
         }
@@ -121,7 +152,7 @@ final class Ledgers {
      * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
      */
     static long readLastAddConfirmed(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
-        LedgerHandle h = null;
+        ReadHandle h = null;
         try {
             // Here we open the Ledger WITH recovery, to force BookKeeper to reconcile any appends that may have been
             // interrupted and not properly acked. Otherwise there is no guarantee we can get an accurate value for
@@ -136,15 +167,19 @@ final class Ledgers {
     }
 
     /**
-     * Closes the given LedgerHandle.
+     * Closes the given Handle.
+     * In BookKeeper <i>closing</i> a WriteHandle means to seal ledgers metadata,
+     * it is an important metadata operation (with a write to ZooKeeper).
+     * <i>closing</i> a ReadHandle means only to release the resources held directly
+     * by the Handle itself.
      *
-     * @param handle The LedgerHandle to close.
+     * @param handle The Handle to close.
      * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
      */
-    static void close(LedgerHandle handle) throws DurableDataLogException {
+    static void close(Handle handle) throws DurableDataLogException {
         try {
             Exceptions.handleInterrupted(handle::close);
-        } catch (BKException bkEx) {
+        } catch (Exception bkEx) {
             throw new DurableDataLogException(String.format("Unable to close ledger %d.", handle.getId()), bkEx);
         }
     }
@@ -158,7 +193,11 @@ final class Ledgers {
      */
     static void delete(long ledgerId, BookKeeper bookKeeper) throws DurableDataLogException {
         try {
-            Exceptions.handleInterrupted(() -> bookKeeper.deleteLedger(ledgerId));
+            Exceptions.handleInterrupted(() -> FutureUtils.result(bookKeeper
+                    .newDeleteLedgerOp()
+                    .withLedgerId(ledgerId)
+                    .execute(), BK_EXCEPTION_HANDLER)
+            );
         } catch (BKException bkEx) {
             throw new DurableDataLogException(String.format("Unable to delete Ledger %d.", ledgerId), bkEx);
         }
@@ -186,7 +225,7 @@ final class Ledgers {
         val iterator = ledgers.listIterator(ledgers.size());
         while (iterator.hasPrevious() && (nonEmptyCount < MIN_FENCE_LEDGER_COUNT)) {
             LedgerMetadata ledgerMetadata = iterator.previous();
-            LedgerHandle handle = openFence(ledgerMetadata.getLedgerId(), bookKeeper, config);
+            ReadHandle handle = openFence(ledgerMetadata.getLedgerId(), bookKeeper, config);
             if (handle.getLastAddConfirmed() != NO_ENTRY_ID) {
                 // Non-empty.
                 nonEmptyCount++;
@@ -211,7 +250,7 @@ final class Ledgers {
      * @return The Log Id stored in {@link #PROPERTY_LOG_ID}, or {@link #NO_LOG_ID} if not defined (i.e., due to an upgrade
      * from a version that did not store this information).
      */
-    static int getBookKeeperLogId(LedgerHandle handle) {
+    static int getBookKeeperLogId(Handle handle) {
         String appName = getPropertyValue(PROPERTY_APPLICATION, handle);
         if (appName == null || !appName.equalsIgnoreCase(PROPERTY_VALUE_APPLICATION)) {
             log.warn("Property '{}' on Ledger {} does not match expected value '{}' (actual '{}'). This is OK if this ledger was created prior to Pravega 0.7.1.",
@@ -234,8 +273,8 @@ final class Ledgers {
         }
     }
 
-    private static String getPropertyValue(String property, LedgerHandle handle) {
-        byte[] s = handle.getCustomMetadata().getOrDefault(property, null);
+    private static String getPropertyValue(String property, Handle handle) {
+        byte[] s = handle.getLedgerMetadata().getCustomMetadata().getOrDefault(property, null);
         return s == null ? null : new String(s, CUSTOM_PROPERTY_CHARSET);
     }
 

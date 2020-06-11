@@ -21,11 +21,14 @@ import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import lombok.extern.slf4j.Slf4j;
+
+import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -34,6 +37,7 @@ import java.util.function.Supplier;
  */
 @Slf4j
 public class EventHelper implements AutoCloseable {
+    private static final long COMPLETION_TIMEOUT_MILLIS = Duration.ofMinutes(2).toMillis();
     private String requestStreamName;
     private final CompletableFuture<Void> writerInitFuture = new CompletableFuture<>();
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
@@ -42,6 +46,7 @@ public class EventHelper implements AutoCloseable {
     private final String hostId;
     private final HostIndex hostTaskIndex;
     private final ControllerEventSerializer controllerEventSerializer = new ControllerEventSerializer();
+    private final AtomicLong completionTimeoutMillis = new AtomicLong(COMPLETION_TIMEOUT_MILLIS);
 
     public EventHelper(final EventStreamWriter<ControllerEvent> requestEventWriter,
                        final String streamName,
@@ -72,6 +77,11 @@ public class EventHelper implements AutoCloseable {
     public void setRequestEventWriter(EventStreamWriter<ControllerEvent> requestEventWriter) {
         requestEventWriterRef.set(requestEventWriter);
         writerInitFuture.complete(null);
+    }
+
+    @VisibleForTesting
+    public void setCompletionTimeoutMillis(long timeoutMillis) {
+        completionTimeoutMillis.set(timeoutMillis);
     }
 
     /**
@@ -129,11 +139,11 @@ public class EventHelper implements AutoCloseable {
     }
 
     public CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition, long delay) {
-        //TODO: use the timeout mechanism
+        // Check whether workflow is complete by adding a delay between each iteration.
+        // If the work is not complete within `completionTimeoutMillis` throw TimeoutException.
         AtomicBoolean isDone = new AtomicBoolean(false);
-        return Futures.loop(() -> !isDone.get(),
-                () -> Futures.delayedFuture(condition, delay, executor)
-                        .thenAccept(isDone::set), executor);
+        return RetryHelper.loopWithTimeout(() -> !isDone.get(), () -> condition.get().thenAccept(isDone::set),
+                delay, 5000L, completionTimeoutMillis.get(), executor);
     }
 
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {

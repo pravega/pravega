@@ -18,6 +18,7 @@ import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -57,7 +58,10 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+
+import io.pravega.shared.security.token.JsonWebToken;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
@@ -92,6 +96,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
     private final AtomicLong outstandingBytes = new AtomicLong();
+    private final ScheduledExecutorService tokenExpiryHandlerExecutor;
 
     //endregion
 
@@ -139,9 +144,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         if (this.tokenVerifier != null) {
             try {
-                tokenVerifier.verifyToken(newSegment,
+                JsonWebToken token = tokenVerifier.verifyToken(newSegment,
                         setupAppend.getDelegationToken(),
                         AuthHandler.Permissions.READ_UPDATE);
+                setupTokenExpiryTask(setupAppend, token);
             } catch (TokenException e) {
                 handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
                         "Update Segment Attribute", e);
@@ -165,6 +171,33 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
                     }
                 });
+    }
+
+    @VisibleForTesting
+    CompletableFuture<Void> setupTokenExpiryTask(@NonNull SetupAppend setupAppend, @NonNull JsonWebToken token) {
+        String segment = setupAppend.getSegment();
+        UUID writerId = setupAppend.getWriterId();
+        long requestId = setupAppend.getRequestId();
+
+        if (token.getExpirationTime() == null) {
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return Futures.delayedTask(() -> {
+                if (isSetupAppendCompleted(segment, writerId)) {
+                    // Closing the connection will result in client authenticating with Controller again
+                    // and retrying the request with a new token.
+                    log.debug("Closing client connection for writer {} due to token expiry, when processing " +
+                                "request {} for segment {}", writerId, requestId, segment);
+                    connection.close();
+                }
+                return null;
+            }, token.durationToExpiry(), this.tokenExpiryHandlerExecutor);
+        }
+    }
+
+    @VisibleForTesting
+    boolean isSetupAppendCompleted(String newSegment, UUID writer) {
+        return writerStates.containsKey(Pair.of(newSegment, writer));
     }
 
     /**
@@ -328,8 +361,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.close();
         } else if (u instanceof TokenExpiredException) {
             log.warn(requestId, "Token expired for writer {} on segment {}.", writerId, segment, u);
-            connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
-                    WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+            connection.close();
         } else if (u instanceof TokenException) {
             log.warn(requestId, "Token check failed or writer {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,

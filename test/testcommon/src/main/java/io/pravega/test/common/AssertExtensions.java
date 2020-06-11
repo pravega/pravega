@@ -300,7 +300,7 @@ public class AssertExtensions {
      * @param tester   A BiPredicate that will be used to verify the elements at the same indices in each list are equivalent.
      * @param <T>      The type of the list's elements.
      */
-    public static <T> void assertListEquals(String message, List<T> expected, List<T> actual, BiPredicate<T, T> tester) {
+    public static <T> void assertListEquals(String message, List<? extends T> expected, List<? extends T> actual, BiPredicate<T, T> tester) {
         Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
         for (int i = 0; i < expected.size(); i++) {
             T expectedItem = expected.get(i);
@@ -558,5 +558,18 @@ public class AssertExtensions {
             return Math.abs(a - b) <= precision;
         }
         return false;
+    }
+
+    /**
+     * Same as {@link Assert#fail(String)}, but this is a method that returns a value. Useful for more compact syntax
+     * in lambdas that should return a value but only verify that nothing is invoked.
+     *
+     * @param message Message to display.
+     * @param <T>     A type.
+     * @return Nothing. This method always throws {@link AssertionError}.
+     */
+    public static <T> T fail(String message) {
+        Assert.fail(message);
+        return null;
     }
 }

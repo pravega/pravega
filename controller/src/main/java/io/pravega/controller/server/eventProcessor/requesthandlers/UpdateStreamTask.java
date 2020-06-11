@@ -66,7 +66,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                                     return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
                                             versionedState, context, executor));
                                 } else {
-                                    throw new TaskExceptions.StartException("Update Stream not started yet.");
+                                    return CompletableFuture.completedFuture(null);
                                 }
                             } else {
                                 return processUpdate(scope, stream, versionedMetadata, versionedState, context, requestId);

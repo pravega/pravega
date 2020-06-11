@@ -28,6 +28,7 @@ public class Segment implements Comparable<Segment>, Serializable {
     @NonNull
     private final String streamName;
     private final long segmentId;
+    private transient final String scopedName;
 
     /**
      * Creates a new instance of Segment class.
@@ -40,6 +41,8 @@ public class Segment implements Comparable<Segment>, Serializable {
         this.scope = scope;
         this.streamName = streamName;
         this.segmentId = id;
+        // Cache the scoped name for performance reasons, as it is checked on the read path.
+        this.scopedName = NameUtils.getQualifiedStreamSegmentName(scope, streamName, id);
     }
 
     public String getScopedStreamName() {

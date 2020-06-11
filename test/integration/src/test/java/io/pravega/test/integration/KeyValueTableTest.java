@@ -38,7 +38,6 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -76,7 +75,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         serviceBuilder.initialize();
         this.tableStore = serviceBuilder.createTableStoreService();
 
-        this.serverListener = new PravegaConnectionListener(false, servicePort, serviceBuilder.createStreamSegmentService(), tableStore);
+        this.serverListener = new PravegaConnectionListener(false, servicePort, serviceBuilder.createStreamSegmentService(), this.tableStore, executorService());
         this.serverListener.startListening();
 
         // 3. Start Pravega Controller service
@@ -133,14 +132,6 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
         */
-    }
-
-    @Test
-    @Override
-    @Ignore
-    public void testIterators() {
-        // TODO: iterators not yet supported server-side.
-        super.testIterators();
     }
 
     @Override

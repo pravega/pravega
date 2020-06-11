@@ -9,6 +9,12 @@
  */
 package io.pravega.controller.server.v1;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
@@ -37,22 +43,33 @@ import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactoryForTests;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Predicate;
+
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.mockito.Mock;
+import org.junit.Test;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 /**
  * Zookeeper stream store configuration.
@@ -100,14 +117,14 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, helperMock);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
-        this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
+        this.streamRequestHandler = spy(new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executorService),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
-                executorService);
+                executorService));
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
 
@@ -144,5 +161,49 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         zkServer.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();
+    }
+    
+    @Test
+    public void testTimeout() {
+        streamMetadataTasks.setCompletionTimeoutMillis(500L);
+        String stream = "timeoutStream";
+        createScopeAndStream(SCOPE1, stream, ScalingPolicy.fixed(2));
+
+        doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processUpdateStream(any());
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3)).build();
+        ResultObserver<Controller.UpdateStreamStatus> result = new ResultObserver<>();
+        this.controllerService.updateStream(ModelHelper.decode(SCOPE1, stream, configuration2), result);
+        Predicate<Throwable> deadlineExceededPredicate = e -> {
+            Throwable unwrap = Exceptions.unwrap(e);
+            return unwrap instanceof StatusRuntimeException &&
+                    ((StatusRuntimeException) unwrap).getStatus().getCode().equals(Status.DEADLINE_EXCEEDED.getCode());
+        };
+        AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
+        reset(streamRequestHandler);
+        
+        doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processTruncateStream(any());
+        result = new ResultObserver<>();
+        this.controllerService.truncateStream(Controller.StreamCut.newBuilder()
+                                                                  .setStreamInfo(Controller.StreamInfo.newBuilder()
+                                                                                                      .setScope(SCOPE1)
+                                                                                                      .setStream(stream)
+                                                                                                      .build())
+                                                                  .putCut(0, 0).putCut(1, 0).build(), result);
+        AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
+        reset(streamRequestHandler);
+        
+        doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processSealStream(any());
+        result = new ResultObserver<>();
+        this.controllerService.sealStream(ModelHelper.createStreamInfo(SCOPE1, stream), result);
+        AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
+        reset(streamRequestHandler);
+        
+        streamStore.setState(SCOPE1, stream, State.SEALED, null, executorService).join();
+        doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processDeleteStream(any());
+        ResultObserver<Controller.DeleteStreamStatus> result2 = new ResultObserver<>();
+        this.controllerService.deleteStream(ModelHelper.createStreamInfo(SCOPE1, stream), result2);
+        AssertExtensions.assertThrows("Timeout did not happen", result2::get, deadlineExceededPredicate);
+        reset(streamRequestHandler);
+        streamMetadataTasks.setCompletionTimeoutMillis(Duration.ofMinutes(2).toMillis());
     }
 }

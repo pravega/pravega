@@ -128,11 +128,14 @@ public class CompositeByteArraySegmentTests {
         testProgressiveCopies((expectedData, s, offset, length) -> {
             val targetData = new byte[s.getLength()];
             val targetOffset = new AtomicInteger();
+            val count = new AtomicInteger();
             s.collect((array, arrayOffset, arrayLength) -> {
                 System.arraycopy(array, arrayOffset, targetData, targetOffset.get(), arrayLength);
                 targetOffset.addAndGet(arrayLength);
+                count.incrementAndGet();
             });
 
+            Assert.assertEquals("Unexpected number of components.", count.get(), s.getComponentCount());
             Assert.assertArrayEquals("Unexpected data collected for step " + offset, expectedData, targetData);
         });
     }
@@ -157,6 +160,35 @@ public class CompositeByteArraySegmentTests {
                     AssertExtensions.assertArrayEquals("Unexpected data sliced for step " + offset,
                             targetData, sliceOffset, actualData, 0, actualData.length);
                 }
+            }
+        });
+    }
+
+    /**
+     * Tests the {@link CompositeByteArraySegment#getBufferViewReader()} method.
+     */
+    @Test
+    public void testGetBufferViewReader() {
+        testProgressiveCopies((expectedData, s, offset, length) -> {
+            val targetData = new byte[s.getLength()];
+            s.copyTo(new FixedByteArrayOutputStream(targetData, 0, targetData.length));
+
+            for (int sliceOffset = 0; sliceOffset <= s.getLength() / 2; sliceOffset++) {
+                val sliceLength = s.getLength() - 2 * sliceOffset;
+                val slice = s.slice(sliceOffset, sliceLength);
+                val reader = slice.getBufferViewReader();
+                if (sliceLength == 0) {
+                    Assert.assertEquals("Unexpected data read for empty slice.", 0, reader.available());
+                } else {
+                    val actualData = reader.readFully(10);
+                    AssertExtensions.assertArrayEquals("Unexpected data sliced for step " + offset,
+                            targetData, sliceOffset, actualData.array(), actualData.arrayOffset(), actualData.getLength());
+                    Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
+                }
+
+                val actualComponentCount = new AtomicInteger();
+                slice.collect((a, o, l) -> actualComponentCount.incrementAndGet());
+                Assert.assertEquals("Unexpected number of components.", actualComponentCount.get(), slice.getComponentCount());
             }
         });
     }
@@ -201,7 +233,7 @@ public class CompositeByteArraySegmentTests {
 
             // Populate the buffer and check it.
             val s = emptyBuffer();
-            s.copyFrom(sourceData, offset, sourceData.getLength());
+            s.copyFrom(sourceData.getBufferViewReader(), offset, sourceData.getLength());
             check.accept(expectedData, s, offset, sourceData.getLength());
         }
     }

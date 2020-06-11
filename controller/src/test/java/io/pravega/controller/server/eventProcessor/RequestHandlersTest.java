@@ -62,8 +62,10 @@ import io.pravega.test.common.TestingServerStarter;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -71,6 +73,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -558,6 +563,48 @@ public abstract class RequestHandlersTest {
 
         // verify that mark stream is also deleted
         assertFalse(streamStore.checkStreamExists(scope, markStream).join());
+    }
+
+    @Test
+    public void testDeleteBucketReferences() {
+        String stream = "deleteReferences";
+        createStreamInStore(stream);
+        String scopedStreamName = NameUtils.getScopedStreamName(scope, stream);
+        int watermarkingBuckets = bucketStore.getBucketCount(BucketStore.ServiceType.WatermarkingService);
+        int retentionBuckets = bucketStore.getBucketCount(BucketStore.ServiceType.RetentionService);
+        
+        bucketStore.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor).join();
+        bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope, stream, executor).join();
+        
+        // seal stream. 
+        // set state to sealing and send event to the processor
+        streamStore.setState(scope, stream, State.SEALING, null, executor).join();
+        streamStore.setState(scope, stream, State.SEALED, null, executor).join();
+
+        List<String> retentionStreams = IntStream.range(0, retentionBuckets).boxed().map(x ->
+                bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, x, executor).join())
+                                                 .flatMap(Collection::stream).collect(Collectors.toList());
+        assertTrue(retentionStreams.contains(scopedStreamName));
+        List<String> watermarkStreams = IntStream.range(0, watermarkingBuckets).boxed().map(x ->
+                bucketStore.getStreamsForBucket(BucketStore.ServiceType.WatermarkingService, x, executor).join())
+                                                 .flatMap(Collection::stream).collect(Collectors.toList());
+        assertTrue(watermarkStreams.contains(scopedStreamName));
+
+        // delete the stream
+        DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor);
+
+        long creationTime = streamStore.getCreationTime(scope, stream, null, executor).join();
+        DeleteStreamEvent firstDeleteEvent = new DeleteStreamEvent(scope, stream, 0L, creationTime);
+        deleteStreamTask.execute(firstDeleteEvent).join();
+
+        watermarkStreams = IntStream.range(0, watermarkingBuckets).boxed().map(x ->
+                bucketStore.getStreamsForBucket(BucketStore.ServiceType.WatermarkingService, x, executor).join())
+                                                 .flatMap(Collection::stream).collect(Collectors.toList());
+        assertFalse(watermarkStreams.contains(scopedStreamName));
+        retentionStreams = IntStream.range(0, retentionBuckets).boxed().map(x ->
+                bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, x, executor).join())
+                                                 .flatMap(Collection::stream).collect(Collectors.toList());
+        assertFalse(retentionStreams.contains(scopedStreamName));
     }
 
     @Test

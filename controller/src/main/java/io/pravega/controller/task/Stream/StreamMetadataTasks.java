@@ -83,6 +83,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -100,9 +101,9 @@ import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
 public class StreamMetadataTasks extends TaskBase {
-
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
+
 
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
@@ -112,6 +113,7 @@ public class StreamMetadataTasks extends TaskBase {
     private final RequestTracker requestTracker;
     private final ScheduledExecutorService eventExecutor;
     private EventHelper eventHelper;
+
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
@@ -920,6 +922,8 @@ public class StreamMetadataTasks extends TaskBase {
         Throwable cause = Exceptions.unwrap(ex);
         if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
+        } else if (cause instanceof TimeoutException) {
+            throw new CompletionException(cause);
         } else {
             log.warn(requestId, "Update stream failed due to ", cause);
             return UpdateStreamStatus.Status.FAILURE;
@@ -930,6 +934,8 @@ public class StreamMetadataTasks extends TaskBase {
         Throwable cause = Exceptions.unwrap(ex);
         if (cause instanceof StoreException.DataNotFoundException) {
             return DeleteStreamStatus.Status.STREAM_NOT_FOUND;
+        } else if (cause instanceof TimeoutException) {
+            throw new CompletionException(cause);
         } else {
             log.warn(requestId, "Delete stream failed.", ex);
             return DeleteStreamStatus.Status.FAILURE;
@@ -1003,5 +1009,10 @@ public class StreamMetadataTasks extends TaskBase {
 
     public String retrieveDelegationToken() {
         return authHelper.retrieveMasterToken();
+    }
+
+    @VisibleForTesting
+    public void setCompletionTimeoutMillis(long timeoutMillis) {
+        eventHelper.setCompletionTimeoutMillis(timeoutMillis);
     }
 }

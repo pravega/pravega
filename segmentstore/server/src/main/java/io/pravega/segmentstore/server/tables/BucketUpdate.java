@@ -33,11 +33,7 @@ class BucketUpdate {
     @Getter
     private final TableBucket bucket;
 
-    /**
-     * Gets a collection of {@link KeyInfo} instances recorded in this Bucket Update.
-     */
-    @Getter
-    private final Collection<KeyInfo> existingKeys;
+    private final Map<HashedArray, KeyInfo> existingKeys;
     private final Map<HashedArray, KeyUpdate> updatedKeys;
 
     /**
@@ -60,10 +56,27 @@ class BucketUpdate {
     }
 
     /**
+     * Gets a collection of {@link KeyInfo} instances recorded in this Bucket Update.
+     */
+    Collection<KeyInfo> getExistingKeys() {
+        return this.existingKeys.values();
+    }
+
+    /**
      * Gets a collection of {@link KeyUpdate} instances recorded in this Bucket Update.
      */
     Collection<KeyUpdate> getKeyUpdates() {
         return this.updatedKeys.values();
+    }
+
+    /**
+     * Gets a value indicating whether the Key represented by the given {@link HashedArray} previously existed in the index.
+     *
+     * @param key The Key to check
+     * @return True if existed before, false otherwise.
+     */
+    boolean keyExists(HashedArray key) {
+        return this.existingKeys.containsKey(key);
     }
 
     /**
@@ -152,7 +165,7 @@ class BucketUpdate {
                         .max().orElse(-1);
             }
 
-            return new BucketUpdate(this.bucket, Collections.unmodifiableCollection(this.existingKeys.values()),
+            return new BucketUpdate(this.bucket, Collections.unmodifiableMap(this.existingKeys),
                     Collections.unmodifiableMap(this.updatedKeys), bucketOffset);
         }
     }

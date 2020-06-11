@@ -134,7 +134,7 @@ public class SegmentHelperMock {
                     mapOfTablesPosition.putIfAbsent(tableName, new HashMap<>());
                 }
             }, executor);
-        }).when(helper).createTableSegment(anyString(), anyString(), anyLong());
+        }).when(helper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean());
         // endregion
         
         // region delete table
