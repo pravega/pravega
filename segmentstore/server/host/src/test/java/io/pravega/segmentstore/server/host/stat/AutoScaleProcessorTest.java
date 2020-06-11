@@ -260,7 +260,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         };
     }
 
-    private class TestAutoScaleProcessor extends AutoScaleProcessor {
+    private static class TestAutoScaleProcessor extends AutoScaleProcessor {
         private AtomicLong timeMillis = new AtomicLong();
         
         TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor) {

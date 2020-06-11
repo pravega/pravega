@@ -262,7 +262,6 @@ public class AutoScaleProcessor implements AutoCloseable {
 
     void report(String streamSegmentName, long targetRate, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
         log.info("received traffic for {} with twoMinute rate = {} and targetRate = {}", streamSegmentName, twoMinuteRate, targetRate);
-
         // note: we are working on caller's thread. We should not do any blocking computation here and return as quickly as
         // possible.
         // So we will decide whether to scale or not and then unblock by asynchronously calling 'writeEvent'
