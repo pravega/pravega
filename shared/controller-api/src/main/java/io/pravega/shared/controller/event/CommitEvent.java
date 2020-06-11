@@ -36,7 +36,7 @@ public class CommitEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return ((StreamRequestProcessor)processor).processCommitTxnRequest(this);
+        return ((StreamRequestProcessor) processor).processCommitTxnRequest(this);
     }
 
     //region Serialization

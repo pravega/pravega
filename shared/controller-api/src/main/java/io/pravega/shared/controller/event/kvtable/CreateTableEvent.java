@@ -42,7 +42,7 @@ public class CreateTableEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return ((TableRequestProcessor)processor).processCreateKVTable(this);
+        return ((TableRequestProcessor) processor).processCreateKVTable(this);
     }
 
     //region Serialization

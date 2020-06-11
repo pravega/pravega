@@ -37,7 +37,7 @@ public class DeleteStreamEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return ((StreamRequestProcessor)processor).processDeleteStream(this);
+        return ((StreamRequestProcessor) processor).processDeleteStream(this);
     }
 
     //region Serialization

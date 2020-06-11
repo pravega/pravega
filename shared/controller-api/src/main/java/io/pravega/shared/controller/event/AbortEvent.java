@@ -38,7 +38,7 @@ public class AbortEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return ((StreamRequestProcessor)processor).processAbortTxnRequest(this);
+        return ((StreamRequestProcessor) processor).processAbortTxnRequest(this);
     }
 
     //region Serialization

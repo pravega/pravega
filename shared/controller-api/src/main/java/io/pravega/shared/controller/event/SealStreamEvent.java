@@ -36,7 +36,7 @@ public class SealStreamEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return ((StreamRequestProcessor)processor).processSealStream(this);
+        return ((StreamRequestProcessor) processor).processSealStream(this);
     }
 
     //region Serialization

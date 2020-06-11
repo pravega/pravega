@@ -44,7 +44,7 @@ public class AutoScaleEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return ((StreamRequestProcessor)processor).processAutoScaleRequest(this);
+        return ((StreamRequestProcessor) processor).processAutoScaleRequest(this);
     }
 
     @Override

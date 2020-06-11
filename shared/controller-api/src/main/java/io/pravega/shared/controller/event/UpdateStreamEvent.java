@@ -36,7 +36,7 @@ public class UpdateStreamEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return ((StreamRequestProcessor)processor).processUpdateStream(this);
+        return ((StreamRequestProcessor) processor).processUpdateStream(this);
     }
 
     //region Serialization

@@ -36,7 +36,7 @@ public class TruncateStreamEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return ((StreamRequestProcessor)processor).processTruncateStream(this);
+        return ((StreamRequestProcessor) processor).processTruncateStream(this);
     }
 
     //region Serialization

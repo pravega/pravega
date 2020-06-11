@@ -9,5 +9,5 @@
  */
 package io.pravega.shared.controller.event;
 
-public interface RequestProcessor{
+public interface RequestProcessor {
 }

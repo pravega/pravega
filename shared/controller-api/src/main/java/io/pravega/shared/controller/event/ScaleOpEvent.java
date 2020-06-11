@@ -44,7 +44,7 @@ public class ScaleOpEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return ((StreamRequestProcessor)processor).processScaleOpRequest(this);
+        return ((StreamRequestProcessor) processor).processScaleOpRequest(this);
     }
 
     //region Serialization
