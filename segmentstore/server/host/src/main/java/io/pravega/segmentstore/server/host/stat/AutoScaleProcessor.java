@@ -23,6 +23,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.Retry;
@@ -136,7 +137,7 @@ public class AutoScaleProcessor implements AutoCloseable {
         if (writer != null) {
             writer.cancel(true);
 
-            if (!writer.isCancelled() && !writer.isCompletedExceptionally()) {
+            if (Futures.isSuccessful(writer)) {
                 val w = this.writer.join();
                 if (w != null) {
                     w.close();
@@ -260,7 +261,7 @@ public class AutoScaleProcessor implements AutoCloseable {
                     }));
     }
 
-    void report(String streamSegmentName, long targetRate, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
+`    void report(String streamSegmentName, long targetRate, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
         log.info("received traffic for {} with twoMinute rate = {} and targetRate = {}", streamSegmentName, twoMinuteRate, targetRate);
         // note: we are working on caller's thread. We should not do any blocking computation here and return as quickly as
         // possible.

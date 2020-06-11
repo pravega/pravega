@@ -49,17 +49,24 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
     @Test (timeout = 10000)
     public void writerCreationTest() {
         TestAutoScaleProcessor processor = new TestAutoScaleProcessor(
-                AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0).with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
-                                .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
+                AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
                 executorService());
         String segmentStreamName = "scope/myStreamSegment/0.#epoch.0";
         processor.notifyCreated(segmentStreamName);
         assertNull(processor.getWriterFuture());
-        
+        // report but since the cooldown time hasnt elapsed, no scale event should be attempted. So no writer should be initialized yet. 
+        processor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
+        assertNull(processor.getWriterFuture());
+
         processor.setTimeMillis(20 * 60000L);
         processor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
-        
+        // the above should create a writer future. 
         assertNotNull(processor.getWriterFuture());
+
+        // report a low rate to trigger a scale down 
+        processor.setTimeMillis(20 * 60000L);
+        processor.report(segmentStreamName, 10, 0L, 1.0, 1.0, 1.0, 1.0);
+        
     }
     
     @Test (timeout = 10000)
