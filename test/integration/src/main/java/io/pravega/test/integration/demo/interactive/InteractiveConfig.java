@@ -24,11 +24,13 @@ class InteractiveConfig {
     static final String DEFAULT_SEGMENT_COUNT = "default-segment-count";
     static final String TIMEOUT_MILLIS = "timeout-millis";
     static final String MAX_LIST_ITEMS = "max-list-items";
+    static final String PRETTY_PRINT = "pretty-print";
 
     private String controllerUri;
     private int defaultSegmentCount;
     private int timeoutMillis;
     private int maxListItems;
+    private boolean prettyPrint;
 
     static InteractiveConfig getDefault() {
         return InteractiveConfig.builder()
@@ -36,6 +38,7 @@ class InteractiveConfig {
                 .defaultSegmentCount(4)
                 .timeoutMillis(60000)
                 .maxListItems(1000)
+                .prettyPrint(true)
                 .build();
     }
 
@@ -53,6 +56,9 @@ class InteractiveConfig {
             case MAX_LIST_ITEMS:
                 setMaxListItems(Integer.parseInt(value));
                 break;
+            case PRETTY_PRINT:
+                setPrettyPrint(Boolean.parseBoolean(value));
+                break;
             default:
                 throw new IllegalArgumentException(String.format("Unrecognized property name '%s'.", propertyName));
         }
@@ -65,6 +71,7 @@ class InteractiveConfig {
                 .put(DEFAULT_SEGMENT_COUNT, getDefaultSegmentCount())
                 .put(TIMEOUT_MILLIS, getTimeoutMillis())
                 .put(MAX_LIST_ITEMS, getMaxListItems())
+                .put(PRETTY_PRINT, isPrettyPrint())
                 .build();
     }
 }

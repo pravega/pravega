@@ -14,8 +14,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import io.pravega.shared.NameUtils;
 import java.io.PrintStream;
 import java.net.URI;
@@ -26,7 +24,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Scanner;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -45,8 +42,6 @@ import lombok.val;
 @RequiredArgsConstructor
 abstract class Command {
     //region Private
-
-    protected static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
 
     @Getter
     @NonNull
@@ -81,13 +76,6 @@ abstract class Command {
 
     protected void output(String messageTemplate, Object... args) {
         this.out.println(String.format(messageTemplate, args));
-    }
-
-    protected boolean confirmContinue() {
-        output("Do you want to continue?[yes|no]");
-        Scanner s = new Scanner(System.in);
-        String input = s.nextLine();
-        return input.equals("yes");
     }
 
     //endregion
@@ -128,7 +116,7 @@ abstract class Command {
     protected <T> T getJsonArg(int index, Class<T> c) {
         String jsonArg = getArg(index);
         jsonArg = removeEnvelope(jsonArg, "{", "}");
-        return GSON.fromJson(jsonArg, c);
+        return Formatter.JsonFormatter.GSON.fromJson(jsonArg, c);
     }
 
     protected String getArg(int index) {

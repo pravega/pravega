@@ -69,14 +69,6 @@ abstract class KeyValueTableCommand extends Command {
         return new String[]{k.getKey(), k.getVersion().toString()};
     }
 
-    protected String toJson(String[] keys) {
-        if (keys.length == 1) {
-            return GSON.toJson(keys[0]);
-        } else {
-            return GSON.toJson(keys);
-        }
-    }
-
     protected List<TableEntry<String, String>> toEntries(String[][] rawEntries) {
         return Arrays.stream(rawEntries).map(e -> {
             Preconditions.checkArgument(e.length == 2 || e.length == 1,
@@ -204,8 +196,31 @@ abstract class KeyValueTableCommand extends Command {
     //region DataCommand
 
     private static abstract class DataCommand extends KeyValueTableCommand {
+        private static final int[] TABLE_FORMAT_COLUMN_LENGTHS = new int[]{25, 12, 40};
+        private final Formatter formatter;
+
         DataCommand(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
+            this.formatter = getConfig().isPrettyPrint()
+                    ? new Formatter.TableFormatter(Arrays.copyOf(getTableFormatColumnLengths(), getResultColumnCount()))
+                    : new Formatter.JsonFormatter();
+        }
+
+        protected void outputResultHeader(String... columnNames) {
+            outputResult(columnNames);
+            output(this.formatter.separator());
+        }
+
+        protected void outputResult(String... resultColumns) {
+            this.formatter.format(resultColumns).forEach(this::output);
+        }
+
+        protected int getResultColumnCount() {
+            return 0;
+        }
+
+        protected int[] getTableFormatColumnLengths() {
+            return TABLE_FORMAT_COLUMN_LENGTHS;
         }
 
         protected abstract void ensurePreconditions();
@@ -242,6 +257,11 @@ abstract class KeyValueTableCommand extends Command {
         }
 
         @Override
+        protected int getResultColumnCount() {
+            return 3;
+        }
+
+        @Override
         protected void ensurePreconditions() {
             ensureArgCount(2, 3);
         }
@@ -255,10 +275,11 @@ abstract class KeyValueTableCommand extends Command {
 
             output("Get %s Key(s) from %s[%s]:", keys.length, kvtName, args.getKeyFamily());
             assert keys.length == result.size() : String.format("Bad result length. Expected %s, actual %s", keys.length, result.size());
+            outputResultHeader("Key", "Version", "Value");
             int count = 0;
             for (val e : result) {
                 if (e != null) {
-                    output("\t%s", toJson(toArray(e)));
+                    outputResult(toArray(e));
                     if (++count >= getConfig().getMaxListItems()) {
                         output("Only showing first %s items (of %s). Change this using '%s' config value.",
                                 getConfig().getMaxListItems(), result.size(), InteractiveConfig.MAX_LIST_ITEMS);
@@ -421,6 +442,11 @@ abstract class KeyValueTableCommand extends Command {
         }
 
         @Override
+        protected int getResultColumnCount() {
+            return 2;
+        }
+
+        @Override
         protected void ensurePreconditions() {
             ensureArgCount(2, 3);
         }
@@ -437,9 +463,10 @@ abstract class KeyValueTableCommand extends Command {
             output("Updated %s Key(s) to %s[%s] (Conditional=%s, Unconditional=%s):",
                     entries.size(), kvtName, args.getKeyFamily(), conditionalCount, entries.size() - conditionalCount);
             assert entries.size() == result.size() : String.format("Bad result length. Expected %s, actual %s", entries.size(), result.size());
+            outputResultHeader("Key", "Version");
             for (int i = 0; i < result.size(); i++) {
                 String[] output = toArray(TableKey.versioned(entries.get(i).getKey().getKey(), result.get(i)));
-                output("\t%s", toJson(output));
+                outputResult(output);
             }
         }
 
@@ -542,6 +569,7 @@ abstract class KeyValueTableCommand extends Command {
     //region Key/Entry iterators
 
     private static abstract class ListCommand<T> extends DataCommand {
+        private static final String[] RESULT_HEADER = new String[]{"Key", "Version", "Value"};
         ListCommand(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
@@ -558,8 +586,8 @@ abstract class KeyValueTableCommand extends Command {
         @Override
         protected void executeInternal(ScopedName kvtName, KeyValueTable<String, String> kvt) throws Exception {
             val keyFamily = getArg(1);
-
             val iterator = getIterator(kvt, keyFamily);
+            outputResultHeader(Arrays.copyOf(RESULT_HEADER, getResultColumnCount()));
             int count = 0;
             while (count < getConfig().getMaxListItems()) {
                 val batch = iterator.getNext().get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
@@ -569,7 +597,7 @@ abstract class KeyValueTableCommand extends Command {
 
                 int maxCount = Math.min(getConfig().getMaxListItems() - count, batch.getItems().size());
                 for (int i = 0; i < maxCount; i++) {
-                    output("\t%s", toJson(convertToArray(batch.getItems().get(i))));
+                    outputResult(convertToArray(batch.getItems().get(i)));
                 }
 
                 count += maxCount;
@@ -586,6 +614,16 @@ abstract class KeyValueTableCommand extends Command {
     static class ListKeys extends ListCommand<TableKey<String>> {
         ListKeys(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
+        }
+
+        @Override
+        protected int[] getTableFormatColumnLengths() {
+            return new int[]{Arrays.stream(super.getTableFormatColumnLengths()).sum()};
+        }
+
+        @Override
+        protected int getResultColumnCount() {
+            return 1;
         }
 
         @Override
@@ -609,6 +647,11 @@ abstract class KeyValueTableCommand extends Command {
     static class ListEntries extends ListCommand<TableEntry<String, String>> {
         ListEntries(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
+        }
+
+        @Override
+        protected int getResultColumnCount() {
+            return 3;
         }
 
         @Override
