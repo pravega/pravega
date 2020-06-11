@@ -36,7 +36,7 @@ public class SingleNodeConfig {
     public final static Property<String> KEY_FILE = Property.named("security.tls.privateKey.location", "", "keyFile");
         public final static Property<String> CERT_FILE = Property.named("security.tls.certificate.location", "", "certFile");
     public final static Property<String> KEYSTORE_JKS = Property.named("security.tls.keyStore.location", "", "keyStoreJKS");
-    public final static Property<String> KEYSTORE_JKS_PASSWORD_FILE = Property.named("security.tls.keyStore.pwd.location", "keyStoreJKSPasswordFile", "");
+    public final static Property<String> KEYSTORE_JKS_PASSWORD_FILE = Property.named("security.tls.keyStore.pwd.location", "", "keyStoreJKSPasswordFile");
     public final static Property<String> TRUSTSTORE_JKS = Property.named("security.tls.trustStore.location", "", "trustStoreJKS");
 
     private static final String COMPONENT_CODE = "singlenode";
