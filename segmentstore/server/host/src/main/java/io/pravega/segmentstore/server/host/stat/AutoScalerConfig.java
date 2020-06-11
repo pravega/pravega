@@ -32,7 +32,7 @@ public class AutoScalerConfig {
     public static final Property<Boolean> AUTH_ENABLED = Property.named("controller.connect.security.auth.enable", false, "authEnabled");
     public static final Property<String> TOKEN_SIGNING_KEY = Property.named("security.auth.token.signingKey.basis", "secret", "tokenSigningKey");
     public static final Property<Boolean> VALIDATE_HOSTNAME = Property.named("controller.connect.security.tls.validateHostName.enable", true, "validateHostName");
-    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 10, "threadPool.size");
+    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPool.size", 10, "threadPoolSize");
 
     public static final String COMPONENT_CODE = "autoScale";
 
