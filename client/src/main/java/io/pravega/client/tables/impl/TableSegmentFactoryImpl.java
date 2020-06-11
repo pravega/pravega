@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
  * Implementation for {@link TableSegmentFactory}.
  */
 @RequiredArgsConstructor
-class TableSegmentFactoryImpl implements TableSegmentFactory {
+public class TableSegmentFactoryImpl implements TableSegmentFactory {
     @NonNull
     private final Controller controller;
     @NonNull
