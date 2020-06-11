@@ -78,8 +78,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     private final ScheduledExecutorService executor;
     private AtomicReference<ScheduledFuture<?>> assignmentTask;
     private final AtomicLong lastReportTime;
-    // We start Segment Containers sequentially, given that starting them in parallel may lead to the cache being full
-    // if there is too much data to recover.
+
+    // Throttle the max number of parallel container starts/recoveries.
     private final Semaphore parallelContainerStartsSemaphore;
 
     /**
@@ -103,7 +103,6 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         this.hostContainerMapNode = new NodeCache(zkClient, clusterPath);
         this.assignmentTask = new AtomicReference<>();
         this.lastReportTime = new AtomicLong(CURRENT_TIME_MILLIS.get());
-        // Throttle the max number of parallel container recoveries.
         this.parallelContainerStartsSemaphore = new Semaphore(parallelContainerStarts);
     }
 
