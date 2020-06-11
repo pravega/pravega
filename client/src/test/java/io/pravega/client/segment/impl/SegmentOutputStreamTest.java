@@ -13,7 +13,7 @@ import com.google.common.collect.ImmutableList;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ClientConnection.CompletedCallback;
-import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
@@ -1162,13 +1162,13 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     private static class MockControllerWithTokenTask extends MockController {
-        final ConnectionFactory cf;
+        final ConnectionPool cp;
         final CompletableFuture<Void> signal;
 
-        public MockControllerWithTokenTask(String endpoint, int port, ConnectionFactory connectionFactory,
+        public MockControllerWithTokenTask(String endpoint, int port, ConnectionPool connectionPool,
                                            boolean callServer, CompletableFuture<Void> signal) {
-            super(endpoint, port, connectionFactory, callServer);
-            this.cf = connectionFactory;
+            super(endpoint, port, connectionPool, callServer);
+            this.cp = connectionPool;
             this.signal = signal;
         }
 
@@ -1177,7 +1177,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
             return CompletableFuture.supplyAsync(() -> {
                 signal.complete(null);
                 return "my-test-token";
-            }, cf.getInternalExecutor());
+            }, cp.getInternalExecutor());
         }
     }
 }
