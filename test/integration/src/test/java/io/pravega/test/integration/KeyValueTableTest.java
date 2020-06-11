@@ -15,7 +15,6 @@ import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;

@@ -47,12 +47,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     private final ScheduledExecutorService executor;
 
     @VisibleForTesting
-    PravegaTablesKVTMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, ScheduledExecutorService executor, GrpcAuthHelper authHelper) {
-        this(segmentHelper, client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS), authHelper);
-    }
-
-    @VisibleForTesting
-    PravegaTablesKVTMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod, GrpcAuthHelper authHelper) {
+    PravegaTablesKVTMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, ScheduledExecutorService executor, GrpcAuthHelper authHelper) {
         super(new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
         this.executor = executor;
