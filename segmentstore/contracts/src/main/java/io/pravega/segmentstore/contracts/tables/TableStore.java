@@ -238,7 +238,7 @@ public interface TableStore {
      * Please refer to {@link #keyIterator} for notes about consistency and the ability to resume.
      *
      * @param segmentName       The name of the Table Segment to iterate over.
-     * @param fromVersion       The offset/version to begin iteration at.
+     * @param fromPosition      The offset/version to begin iteration at.
      * @param fetchTimeout      Timeout for each invocation to {@link AsyncIterator#getNext()}.
      * @return A CompletableFuture that, when completed, will return a {@link List} of {@link TableEntry}, occuring after
      * the given . If the operation failed, the Future will be failed with the
@@ -249,5 +249,5 @@ public interface TableStore {
      * </ul>
      * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
-    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, long fromVersion, Duration fetchTimeout);
+    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, long fromPosition, Duration fetchTimeout);
 }
