@@ -76,11 +76,11 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     // we don't initiate conflicting tasks for the same containerId.
     private final Set<Integer> pendingTasks;
     private final ScheduledExecutorService executor;
-    private AtomicReference<ScheduledFuture<?>> assigmentTask;
+    private AtomicReference<ScheduledFuture<?>> assignmentTask;
     private final AtomicLong lastReportTime;
     // We start Segment Containers sequentially, given that starting them in parallel may lead to the cache being full
     // if there is too much data to recover.
-    private final Semaphore parallelConcurrentRecoveries;
+    private final Semaphore parallelContainerStartsSemaphore;
 
     /**
      * Creates an instance of ZKSegmentContainerMonitor.
@@ -101,10 +101,10 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         this.pendingTasks = new ConcurrentSkipListSet<>();
         String clusterPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
         this.hostContainerMapNode = new NodeCache(zkClient, clusterPath);
-        this.assigmentTask = new AtomicReference<>();
+        this.assignmentTask = new AtomicReference<>();
         this.lastReportTime = new AtomicLong(CURRENT_TIME_MILLIS.get());
         // Throttle the max number of parallel container recoveries.
-        this.parallelConcurrentRecoveries = new Semaphore(parallelContainerStarts);
+        this.parallelContainerStartsSemaphore = new Semaphore(parallelContainerStarts);
     }
 
     /**
@@ -126,7 +126,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         // 1. On any segment container ownership changes notified via zookeeper. We will ensure the local containers
         //      are stopped/started according to the new ownership mapping.
         // 2. At scheduled intervals to perform retries on local segment container start failures.
-        this.assigmentTask.set(this.executor.scheduleWithFixedDelay(
+        this.assignmentTask.set(this.executor.scheduleWithFixedDelay(
                 this::checkAssignment, 0L, monitorInterval.getSeconds(), TimeUnit.SECONDS));
         this.hostContainerMapNode.getListenable().addListener(this::checkAssignment, this.executor);
     }
@@ -141,7 +141,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
             log.warn("Failed to close hostContainerMapNode", e);
         }
 
-        val task = this.assigmentTask.getAndSet(null);
+        val task = this.assignmentTask.getAndSet(null);
         if (task != null) {
             task.cancel(true);
         }
@@ -249,7 +249,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         log.info("Starting Container {}.", containerId);
         this.pendingTasks.add(containerId);
         try {
-            return CompletableFuture.runAsync(() -> Exceptions.handleInterrupted(parallelConcurrentRecoveries::acquire))
+            return CompletableFuture.runAsync(() -> Exceptions.handleInterrupted(parallelContainerStartsSemaphore::acquire))
                     .thenCompose(v -> this.registry.startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER))
                     .whenComplete((handle, ex) -> {
                         try {
@@ -269,7 +269,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
                             // should be available immediately after the task is complete.
                             // Also need to ensure this is always called, hence doing this in a finally block.
                             this.pendingTasks.remove(containerId);
-                            this.parallelConcurrentRecoveries.release();
+                            this.parallelContainerStartsSemaphore.release();
                         }
                     });
         } catch (Throwable e) {
