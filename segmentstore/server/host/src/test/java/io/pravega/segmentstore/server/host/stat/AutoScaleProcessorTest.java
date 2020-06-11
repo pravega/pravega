@@ -66,7 +66,10 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         // report a low rate to trigger a scale down 
         processor.setTimeMillis(20 * 60000L);
         processor.report(segmentStreamName, 10, 0L, 1.0, 1.0, 1.0, 1.0);
-        
+
+        assertNotNull(processor.getWriterFuture());
+        processor.close();
+        assertTrue(processor.getWriterFuture().isCancelled());
     }
     
     @Test (timeout = 10000)
