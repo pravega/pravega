@@ -1684,15 +1684,7 @@ public class ControllerImplTest {
     public void testKeyValueTables() {
         AssertExtensions.assertThrows(
                 "",
-                () -> this.controllerClient.createKeyValueTable("", "", null),
-                ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "",
                 () -> this.controllerClient.deleteKeyValueTable("", ""),
-                ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.controllerClient.getCurrentSegmentsForKeyValueTable("", ""),
                 ex -> ex instanceof UnsupportedOperationException);
         AssertExtensions.assertThrows(
                 "",
