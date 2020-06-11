@@ -84,7 +84,7 @@ public class TableContext implements AutoCloseable {
         return this.container.getSegment();
     }
 
-    class TestTableExtensionImpl extends ContainerTableExtensionImpl {
+    static class TestTableExtensionImpl extends ContainerTableExtensionImpl {
         private final int maxCompactionSize;
 
         TestTableExtensionImpl(SegmentContainer segmentContainer, CacheManager cacheManager,

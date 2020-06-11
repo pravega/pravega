@@ -271,6 +271,10 @@ public class TableEntryIteratorTests extends ThreadPooledTestSuite {
 
         @SneakyThrows
         public void addEntries(List<TableEntry> entries) {
+            if (entries.isEmpty()) {
+                return;
+            }
+
             @Cleanup
             val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
             addToProcessor(
