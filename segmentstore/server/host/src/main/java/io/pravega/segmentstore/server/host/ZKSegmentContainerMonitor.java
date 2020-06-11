@@ -196,10 +196,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
                 }
 
                 // Initiate the start and stop tasks asynchronously.
-                containersToBeStarted.forEach(containerId -> {
-                    Exceptions.handleInterrupted(parallelConcurrentRecoveries::acquire);
-                    this.startContainer(containerId);
-                });
+                containersToBeStarted.forEach(this::startContainer);
                 containersToBeStopped.forEach(this::stopContainer);
             } else {
                 log.warn("No segment container assignments found");
@@ -251,8 +248,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         log.info("Starting Container {}.", containerId);
         this.pendingTasks.add(containerId);
         try {
-            return this.registry
-                    .startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER)
+            return CompletableFuture.runAsync(() -> Exceptions.handleInterrupted(parallelConcurrentRecoveries::acquire))
+                    .thenCompose(v -> this.registry.startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER))
                     .whenComplete((handle, ex) -> {
                         try {
                             if (ex == null) {
