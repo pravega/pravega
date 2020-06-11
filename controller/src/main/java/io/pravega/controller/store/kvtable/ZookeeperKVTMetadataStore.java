@@ -63,8 +63,7 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
         return Futures.completeOn(
                 CompletableFuture.completedFuture((ZKScope) getScope(scopeName))
                  .thenCompose(scope -> {
-                     scope.getKVTableInScopeZNodePath(kvtName)
-                    .thenCompose(path -> scope.addKVTableToScope(path, id));
+                     scope.addKVTableToScope(kvtName, id);
                      return CompletableFuture.completedFuture(null);
                  }), executor);
     }

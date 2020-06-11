@@ -11,10 +11,12 @@ package io.pravega.controller.store.kvtable;
 
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
-import io.pravega.controller.store.stream.*;
-import org.junit.*;
+import io.pravega.controller.store.stream.StreamMetadataStore;
+import org.junit.Rule;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.After;
 import org.junit.rules.Timeout;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -34,7 +36,6 @@ public abstract class KVTableMetadataStoreTest {
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected KVTableMetadataStore store;
     protected StreamMetadataStore streamStore;
-    protected BucketStore bucketStore;
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     protected final String scope = "scope";
     protected final String kvtable1 = "kvt1";

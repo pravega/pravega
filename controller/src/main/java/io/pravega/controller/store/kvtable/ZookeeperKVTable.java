@@ -48,7 +48,7 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     private static final String EPOCH_RECORD = KVTABLE_PATH + "/epochRecords";
     private static final String ID_PATH = KVTABLE_PATH + "/id";
 
-    private final ZKStoreHelper store;
+    private final ZKStoreHelper zkStoreHelper;
     @Getter(AccessLevel.PACKAGE)
     @VisibleForTesting
     private final String creationPath;
@@ -66,7 +66,7 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     @VisibleForTesting
     ZookeeperKVTable(final String scopeName, final String kvtName, ZKStoreHelper storeHelper, Executor executor) {
         super(scopeName, kvtName);
-        store = storeHelper;
+        zkStoreHelper = storeHelper;
         kvtablePath = String.format(KVTABLE_PATH, scopeName, kvtName);
         creationPath = String.format(CREATION_TIME_PATH, scopeName, kvtName);
         configurationPath = String.format(CONFIGURATION_PATH, scopeName, kvtName);
@@ -83,14 +83,14 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     public CompletableFuture<CreateKVTableResponse> checkKeyValueTableExists(final KeyValueTableConfiguration configuration, final long creationTime, final int startingSegmentNumber) {
         // If stream exists, but is in a partially complete state, then fetch its creation time and configuration and any
         // metadata that is available from a previous run. If the existing stream has already been created successfully earlier,
-        return store.checkExists(creationPath).thenCompose(exists -> {
+        return zkStoreHelper.checkExists(creationPath).thenCompose(exists -> {
             if (!exists) {
                 return CompletableFuture.completedFuture(new CreateKVTableResponse(CreateKVTableResponse.CreateStatus.NEW,
                         configuration, creationTime, startingSegmentNumber));
             }
 
             return getCreationTime().thenCompose(storedCreationTime ->
-                    store.checkExists(configurationPath).thenCompose(configExists -> {
+                    zkStoreHelper.checkExists(configurationPath).thenCompose(configExists -> {
                         if (configExists) {
                             return handleConfigExists(storedCreationTime, startingSegmentNumber, storedCreationTime == creationTime);
                         } else {
@@ -103,14 +103,14 @@ class ZookeeperKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<Void> createKVTableMetadata() {
-        return Futures.toVoid(store.createZNodeIfNotExist(getKvtablePath()));
+        return Futures.toVoid(zkStoreHelper.createZNodeIfNotExist(getKvtablePath()));
     }
 
     private CompletableFuture<CreateKVTableResponse> handleConfigExists(long creationTime, int startingSegmentNumber, boolean creationTimeMatched) {
         CreateKVTableResponse.CreateStatus status = creationTimeMatched ?
                 CreateKVTableResponse.CreateStatus.NEW : CreateKVTableResponse.CreateStatus.EXISTS_CREATING;
 
-        return getConfiguration().thenCompose(config -> store.checkExists(statePath)
+        return getConfiguration().thenCompose(config -> zkStoreHelper.checkExists(statePath)
                                                              .thenCompose(stateExists -> {
                                                                  if (!stateExists) {
                                                                      return CompletableFuture.completedFuture(new CreateKVTableResponse(status, config, creationTime, startingSegmentNumber));
@@ -129,7 +129,7 @@ class ZookeeperKVTable extends AbstractKVTableBase {
 
     @Override
     public CompletableFuture<Long> getCreationTime() {
-        return getId().thenCompose(id -> store.getCachedData(creationPath, id, x -> BitConverter.readLong(x, 0))
+        return getId().thenCompose(id -> zkStoreHelper.getCachedData(creationPath, id, x -> BitConverter.readLong(x, 0))
                 .thenApply(VersionedMetadata::getObject));
     }
 
@@ -139,9 +139,9 @@ class ZookeeperKVTable extends AbstractKVTableBase {
 
             CompletableFuture<VersionedMetadata<Integer>> future;
             if (ignoreCached) {
-                future = store.getData(currentEpochRecordPath, x -> BitConverter.readInt(x, 0));
+                future = zkStoreHelper.getData(currentEpochRecordPath, x -> BitConverter.readInt(x, 0));
             } else {
-                future = store.getCachedData(currentEpochRecordPath, id, x -> BitConverter.readInt(x, 0));
+                future = zkStoreHelper.getCachedData(currentEpochRecordPath, id, x -> BitConverter.readInt(x, 0));
             }
             return future.thenCompose(versionedEpochNumber -> getEpochRecord(versionedEpochNumber.getObject())
                     .thenApply(epochRecord -> new VersionedMetadata<>(epochRecord, versionedEpochNumber.getVersion())));
@@ -151,7 +151,7 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     @Override
     CompletableFuture<VersionedMetadata<KVTEpochRecord>> getEpochRecordData(int epoch) {
         String path = String.format(epochRecordPathFormat, epoch);
-        return getId().thenCompose(id -> store.getCachedData(path, id, KVTEpochRecord::fromBytes));
+        return getId().thenCompose(id -> zkStoreHelper.getCachedData(path, id, KVTEpochRecord::fromBytes));
     }
 
     @Override
@@ -159,23 +159,23 @@ class ZookeeperKVTable extends AbstractKVTableBase {
         byte[] b = new byte[Long.BYTES];
         BitConverter.writeLong(b, 0, creationTime);
 
-        return Futures.toVoid(store.createZNodeIfNotExist(creationPath, b));
+        return Futures.toVoid(zkStoreHelper.createZNodeIfNotExist(creationPath, b));
     }
 
     @Override
     CompletableFuture<VersionedMetadata<KVTConfigurationRecord>> getConfigurationData(boolean ignoreCached) {
         return getId().thenCompose(id -> {
             if (ignoreCached) {
-                return store.getData(configurationPath, KVTConfigurationRecord::fromBytes);
+                return zkStoreHelper.getData(configurationPath, KVTConfigurationRecord::fromBytes);
             }
 
-            return store.getCachedData(configurationPath, id, KVTConfigurationRecord::fromBytes);
+            return zkStoreHelper.getCachedData(configurationPath, id, KVTConfigurationRecord::fromBytes);
         });
     }
 
     @Override
     CompletableFuture<Void> createConfigurationIfAbsent(final KVTConfigurationRecord configuration) {
-        return Futures.toVoid(store.createZNodeIfNotExist(configurationPath, configuration.toBytes()));
+        return Futures.toVoid(zkStoreHelper.createZNodeIfNotExist(configurationPath, configuration.toBytes()));
     }
 
     @Override
@@ -183,20 +183,20 @@ class ZookeeperKVTable extends AbstractKVTableBase {
         byte[] epochData = new byte[Integer.BYTES];
         BitConverter.writeInt(epochData, 0, data.getEpoch());
 
-        return Futures.toVoid(store.createZNodeIfNotExist(currentEpochRecordPath, epochData));
+        return Futures.toVoid(zkStoreHelper.createZNodeIfNotExist(currentEpochRecordPath, epochData));
     }
 
     @Override
     CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data) {
         String path = String.format(epochRecordPathFormat, epoch);
-        return Futures.toVoid(store.createZNodeIfNotExist(path, data.toBytes()));
+        return Futures.toVoid(zkStoreHelper.createZNodeIfNotExist(path, data.toBytes()));
     }
 
     @Override
     CompletableFuture<Version> setStateData(final VersionedMetadata<KVTStateRecord> state) {
-        return getId().thenCompose(id -> store.setData(statePath, state.getObject().toBytes(), state.getVersion())
+        return getId().thenCompose(id -> zkStoreHelper.setData(statePath, state.getObject().toBytes(), state.getVersion())
                     .thenApply(r -> {
-                        store.invalidateCache(statePath, id);
+                        zkStoreHelper.invalidateCache(statePath, id);
                         return new Version.IntVersion(r);
                     }));
     }
@@ -205,10 +205,10 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     CompletableFuture<VersionedMetadata<KVTStateRecord>> getStateData(boolean ignoreCached) {
         return getId().thenCompose(id -> {
             if (ignoreCached) {
-                return store.getData(statePath, KVTStateRecord::fromBytes);
+                return zkStoreHelper.getData(statePath, KVTStateRecord::fromBytes);
             }
 
-            return store.getCachedData(statePath, id, KVTStateRecord::fromBytes);
+            return zkStoreHelper.getCachedData(statePath, id, KVTStateRecord::fromBytes);
         });
     }
 
@@ -217,9 +217,9 @@ class ZookeeperKVTable extends AbstractKVTableBase {
         String id = this.idRef.getAndSet(null);
         id = id == null ? "" : id;
         // invalidate all mutable records in the cache 
-        store.invalidateCache(statePath, id);
-        store.invalidateCache(configurationPath, id);
-        store.invalidateCache(currentEpochRecordPath, id);
+        zkStoreHelper.invalidateCache(statePath, id);
+        zkStoreHelper.invalidateCache(configurationPath, id);
+        zkStoreHelper.invalidateCache(currentEpochRecordPath, id);
     }
 
 
@@ -233,8 +233,8 @@ class ZookeeperKVTable extends AbstractKVTableBase {
             // This can happen if stream is being created and we access the cache. 
             // Even if we access/load the cache against empty id, eventually cache will be populated against correct id 
             // once it is created. 
-            return ZKScope.getKVTableInScopeZNodePath(this.name)
-                        .thenCompose(path -> store.getData(path,
+            return ZKScope.getKVTableInScopeZNodePath(this.scopeName, this.name)
+                        .thenCompose(path -> zkStoreHelper.getData(path,
                                 x -> BitConverter.readUUID(x, 0))
                         .thenApply(uuid -> {
                             String s = uuid.toString();
@@ -246,6 +246,6 @@ class ZookeeperKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<Void> createStateIfAbsent(KVTStateRecord state) {
-        return Futures.toVoid(store.createZNodeIfNotExist(statePath, state.toBytes()));
+        return Futures.toVoid(zkStoreHelper.createZNodeIfNotExist(statePath, state.toBytes()));
     }
 }

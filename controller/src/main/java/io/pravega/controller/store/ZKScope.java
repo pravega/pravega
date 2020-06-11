@@ -48,7 +48,7 @@ public class ZKScope implements Scope {
     private static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
     private static final String KVTABLES_IN_SCOPE = "_kvtablesinscope";
     private static final String KVTABLES_IN_SCOPE_ROOT_PATH = "/store/" + KVTABLES_IN_SCOPE + "/%s";
-    private static final String KVTABLE_METADATA_ROOT_PATH = KVTABLES_IN_SCOPE_ROOT_PATH + "/%s";
+    private static final String KVTABLES_IN_SCOPE_ROOT_PATH_FORMAT = KVTABLES_IN_SCOPE_ROOT_PATH + "/kvtables/%s";
 
     private final String scopePath;
     private final String counterPath;
@@ -320,12 +320,12 @@ public class ZKScope implements Scope {
     }
 
     public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
-        return Futures.toVoid(getKVTableInScopeZNodePath(kvt)
+        return Futures.toVoid(getKVTableInScopeZNodePath(this.scopeName, kvt)
                 .thenCompose(path -> store.createZNodeIfNotExist(path)
                 .thenCompose(x -> store.setData(path, id, new Version.IntVersion(0)))));
     }
 
-    public static CompletableFuture<String> getKVTableInScopeZNodePath(String kvtName) {
-        return CompletableFuture.completedFuture(String.format(KVTABLE_METADATA_ROOT_PATH, kvtName));
+    public static CompletableFuture<String> getKVTableInScopeZNodePath(String scopeName, String kvtName) {
+        return CompletableFuture.completedFuture(String.format(KVTABLES_IN_SCOPE_ROOT_PATH_FORMAT, scopeName, kvtName));
     }
 }
