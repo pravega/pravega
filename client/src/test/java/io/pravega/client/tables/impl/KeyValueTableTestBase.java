@@ -35,7 +35,7 @@ import org.junit.Test;
  * `io.pravega.test.integration.KeyValueTableImplTests` (using real Segment Store and Wire Protocol).
  */
 public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
-    //region Tests
+    protected boolean isScopeCreated;
 
     /**
      * Tests the ability to perform single-key conditional insertions. These methods are exercised:
@@ -44,6 +44,7 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
      */
     @Test
     public void testSingleKeyConditionalInserts() {
+        Assert.assertTrue(isScopeCreated);
         val versions = new Versions();
         @Cleanup
         val kvt = createKeyValueTable();
@@ -76,6 +77,7 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
      */
     @Test
     public void testSingleKeyUpdates() {
+        Assert.assertTrue(isScopeCreated);
         val versions = new Versions();
         @Cleanup
         val kvt = createKeyValueTable();
@@ -122,6 +124,7 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
      */
     @Test
     public void testSingleKeyUnconditionalRemovals() {
+        Assert.assertTrue(isScopeCreated);
         val versions = new Versions();
         @Cleanup
         val kvt = createKeyValueTable();
@@ -186,6 +189,7 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
      */
     @Test
     public void testMultiKeyOperations() {
+        Assert.assertTrue(isScopeCreated);
         val versions = new Versions();
         @Cleanup
         val kvt = createKeyValueTable();
@@ -299,6 +303,7 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
 
     @Test
     public void testIterators() {
+        Assert.assertTrue(isScopeCreated);
         @Cleanup
         val kvt = createKeyValueTable();
         val iteration = new AtomicInteger(0);

@@ -84,7 +84,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         this.controller = controllerWrapper.getController();
 
         //4. Create Scope
-        this.controller.createScope(SCOPE);
+        this.isScopeCreated = this.controller.createScope(SCOPE).get();
         this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         this.keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE, this.controller, this.connectionFactory);
     }
@@ -105,6 +105,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
      */
     @Test
     public void testCreateDeleteKeyValueTable() {
+        Assert.assertTrue(isScopeCreated);
         val kvt = newKeyValueTableName();
         boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join();
         Assert.assertTrue(created);

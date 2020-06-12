@@ -52,6 +52,7 @@ import static io.pravega.shared.NameUtils.getQualifiedTableSegmentName;
  */
 public class TableMetadataTasks implements AutoCloseable {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TableMetadataTasks.class));
+    private static final int CREATE_NUM_RETRIES = 10;
     private final KVTableMetadataStore kvtMetadataStore;
     private final SegmentHelper segmentHelper;
     private final ScheduledExecutorService executor;
@@ -122,7 +123,7 @@ public class TableMetadataTasks implements AutoCloseable {
                                        return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor);
                                  });
                             });
-               }, e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+               }, e -> Exceptions.unwrap(e) instanceof RetryableException, CREATE_NUM_RETRIES, executor);
     }
 
     private CompletableFuture<CreateKeyValueTableStatus.Status> isCreateProcessed(String scope, String kvtName,
