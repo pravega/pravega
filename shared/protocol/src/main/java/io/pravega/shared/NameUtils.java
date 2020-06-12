@@ -71,7 +71,7 @@ public final class NameUtils {
     /**
      * Format for chunk name with segment name , epoch and offset.
      */
-    private static final String CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET = "%s.e.%d.o.%d";
+    private static final String CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET = "%s.E-%d-O-%d.%s";
 
     /**
      * Format for Container Metadata Segment name.
@@ -255,7 +255,7 @@ public final class NameUtils {
      * @return formatted chunk name.
      */
     public static String getSegmentChunkName(String segmentName, long epoch, long offset) {
-        return String.format(CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET, segmentName, epoch, offset);
+        return String.format(CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET, segmentName, epoch, offset, UUID.randomUUID());
     }
 
     /**

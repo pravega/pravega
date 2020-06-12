@@ -95,7 +95,6 @@ public class ChunkStorageManagerMockTests extends ThreadPooledTestSuite {
 
         // Make sure 15 chunks in total were created and then 5 of them garbage collected later.
         verify(spyChunkStorageProvider, times(15)).doCreate(anyString());
-        verify(spyChunkStorageProvider, times(5)).doesExist(anyString());
         verify(spyChunkStorageProvider, times(5)).doDelete(any());
 
         // seal.

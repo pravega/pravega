@@ -251,6 +251,11 @@ public class ChunkStorageManager implements Storage {
         String lastChunkName = segmentMetadata.getLastChunk();
         if (null != lastChunkName) {
             ChunkMetadata lastChunk = (ChunkMetadata) txn.get(lastChunkName);
+            log.debug("{} claimOwnership - current last chunk - segment={}, last chunk={}, Length={}.",
+                    logPrefix,
+                    segmentMetadata.getName(),
+                    lastChunk.getName(),
+                    lastChunk.getLength());
             ChunkInfo chunkInfo = chunkStorage.getInfo(lastChunkName);
             Preconditions.checkState(chunkInfo != null);
             Preconditions.checkState(lastChunk != null);
@@ -568,10 +573,8 @@ public class ChunkStorageManager implements Storage {
     private void collectGarbage(Collection<String> chunksTodelete) {
         for (val chunkTodelete : chunksTodelete) {
             try {
-                if (chunkStorage.exists(chunkTodelete)) {
-                    chunkStorage.delete(chunkStorage.openWrite(chunkTodelete));
-                    log.debug("{} collectGarbage - chunk={}.", logPrefix, chunkTodelete);
-                }
+                chunkStorage.delete(chunkStorage.openWrite(chunkTodelete));
+                log.debug("{} collectGarbage - deleted chunk={}.", logPrefix, chunkTodelete);
             } catch (ChunkNotFoundException e) {
                 log.debug("{} collectGarbage - Could not delete garbage chunk {}.", logPrefix, chunkTodelete);
             } catch (Exception e) {
@@ -1260,7 +1263,8 @@ public class ChunkStorageManager implements Storage {
 
                 // Find the first chunk that contains the data.
                 long startOffsetForCurrentChunk = segmentMetadata.getFirstChunkStartOffset();
-
+                Timer timer1 = new Timer();
+                int cntScanned = 0;
                 // Find the name of the chunk in the cached read index that is floor to required offset.
                 val floorEntry = readIndexCache.findFloor(streamSegmentName, offset);
                 if (null != floorEntry) {
@@ -1275,7 +1279,8 @@ public class ChunkStorageManager implements Storage {
                     if (startOffsetForCurrentChunk <= currentOffset
                             && startOffsetForCurrentChunk + chunkToReadFrom.getLength() > currentOffset) {
                         // we have found a chunk that contains first byte we want to read
-                        log.debug("{} read - found chunk to read - segment={}, chunk={}.", logPrefix, streamSegmentName, chunkToReadFrom);
+                        log.debug("{} read - found chunk to read - segment={}, chunk={}, startOffset={}, length={}, readOffset={}.",
+                                logPrefix, streamSegmentName, chunkToReadFrom, startOffsetForCurrentChunk, chunkToReadFrom.getLength(), currentOffset);
                         break;
                     }
                     currentChunkName = chunkToReadFrom.getNextChunk();
@@ -1285,7 +1290,10 @@ public class ChunkStorageManager implements Storage {
                     if (null != currentChunkName) {
                         readIndexCache.addIndexEntry(streamSegmentName, currentChunkName, startOffsetForCurrentChunk);
                     }
+                    cntScanned++;
                 }
+                log.debug("{} read - chunk lookup - segment={}, offset={}, scanned={}, latency={}.",
+                        logPrefix, handle.getSegmentName(), offset, cntScanned, timer1.getElapsed().toMillis());
 
                 // Now read.
                 while (bytesRemaining > 0 && null != currentChunkName) {
