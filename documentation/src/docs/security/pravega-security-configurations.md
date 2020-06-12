@@ -47,7 +47,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the PEM-encoded file that contains a TLS certificate to use for securing the server's gRPC interface. The TLS certificate contains the public key of the server. |
    |Type:|string|
-   | Default:|  |
+   | Default:| None |
    |Sample value:|`/path/to/server/server1-cert.crt`   |
    |Old name:|`controller.auth.tlsCertFile` (deprecated) |
      
@@ -57,7 +57,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the PEM-encoded file that contains the private key associated with the server's public key bound in its TLS certificate. This file must be kept private and secured to avoid compromise of TLS security. |
    |Type:|string|
-   | Default:|  | 
+   | Default:| None | 
    |Sample value:|`/path/to/server/server1-privateKey.key`   |
    |Old name:|`controller.auth.tlsKeyFile` (deprecated) |
   
@@ -67,7 +67,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the `.jks` file that contains the TLS material used for securing the Controller's REST interface. It contains the server's public key certificate and the associated pivate key, as well as the CA's certificate.   |
    |Type:|string|
-   |Default:|  | 
+   |Default:| None | 
    |Sample value:|`/path/to/server/server1-keystore.jks`   |
    |Old name:|`controller.rest.tlsKeyStoreFile` (deprecated) |
    
@@ -77,7 +77,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the file containing the password for the keystore specified via `controller.security.tls.server.keyStore.location`. |
    |Type:|string|
-   |Default:|  | 
+   |Default:| None | 
    |Sample value:|`/path/to/server/server1-keystore.pwd`   |
    |Old name:|`controller.rest.tlsKeyStorePasswordFile` (deprecated) |
 
@@ -87,7 +87,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the PEM-encoded file that contains the certificates that the server should trust, when connecting to other services like Segment Store and instances. Typically, it contains the public key certificate of the CA that has signed the services' certificates. It may alternatively contain the service's certificates directly. |
    |Type:|string|
-   |Default:|  | 
+   |Default:| None | 
    |Sample value:|`/path/to/client/truststore.crt`    |
    |Old name:|`controller.auth.tlsTrustStore` (deprecated) |
  
@@ -117,7 +117,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the truststore file in `.jks` format for TLS connections with Apache Zookeeer.  |
    |Type:|string|
-   |Default: | |
+   |Default: | None |
    |Sample value:|`/path/to/client/zookeeper.truststore.crt`  |
    |Old name:|`controller.zk.tlsTrustStoreFile` (deprecated) |   
    
@@ -127,7 +127,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the file containing the password of the truststore specified via `controller.zk.connect.security.tls.trustStore.location`. |
    |Type:|string|
-   |Default: | |
+   |Default: | None |
    |Sample value:|`/path/to/client/zookeeper.truststore.pwd`  |
    |Old name:|`controller.zk.tlsTrustStoreFile` (deprecated) |   
  
@@ -150,7 +150,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | String used to generate the key used for signing delegation tokens.  |
    |Type:|string|
-   |Default: | |
+   |Default: | None |
    |Sample value:|`super-secret-key` |
    |Old name:|`controller.auth.tokenSigningKey` (deprecated) |   
  
@@ -160,7 +160,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the file containing a listing of user accounts and their permissions. This file is used by the Password Auth Handler (the built-in Auth Handler implementation). |
    |Type:|string|
-   |Default: | |
+   |Default: | None |
    |Sample value:|``/path/to/accountsDB` |
    |Old name:|``controller.auth.userPasswordFile` (deprecated) | 
 
@@ -192,7 +192,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the PEM-encoded file that contains a TLS certificate to use for securing the server's interface. The TLS certificate contains the public key of the server.  |
    |Type:|string|
-   |Default: | |
+   |Default: | None |
    |Sample value:|`/path/to/server/server-cert.crt` |
    |Old name:|`pravegaservice.certFile` (deprecated) | 
    
@@ -202,7 +202,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the PEM-encoded file that contains the private key associated with the server's public key bound in its TLS certificate. This file must be kept private and secured to avoid compromise of TLS security. |
    |Type:|string|
-   |Default: | |
+   |Default: | None |
    |Sample value:| `/path/to/server/server-privateKey.key`  |
    |Old name:|`pravegaservice.keyFile` (deprecated) | 
   
@@ -222,7 +222,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the PEM-encoded file that contains the certificates that the server should trust, when connecting to other services like Controller and other instances. Typically, it contains the public key certificate of the CA that has signed the services' certificates. It may alternatively contain the service's certificates directly. |
    |Type:|string|
-   |Default: | |
+   |Default: | None |
    |Sample value:| `/path/to/client/truststore.crt`  |
    |Old name:|`autoScale.tlsCertFile` (deprecated) | 
 
@@ -253,7 +253,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the truststore file in `.jks` format for TLS connections with Apache Zookeeer instances. |
    |Type:|string|
-   |Default: | |
+   |Default: | None |
    |Sample value:| `/path/to/client/zookeeper.truststore.crt`  |
    |Old name:|`pravegaservice.zkTrustStore` (deprecated) | 
    
@@ -263,7 +263,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the file containing the password of the truststore specified via `pravegaservice.zk.connect.security.tls.trustStore.location`. |
    |Type:|string|
-   |Default: | |
+   |Default: | None |
    |Sample value:| `/path/to/client/zookeeper.truststore.pwd`   |
    |Old name:|`pravegaservice.zkTrustStorePasswordPath` (deprecated) | 
   
@@ -283,7 +283,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | Path of the truststore file in `.jks` format for TLS connections with Apache Bookkeeper instances. |
    |Type:|string|
-   |Default: | |
+   |Default: | None |
    |Sample value:| `/path/to/client/zookeeper.truststore.crt`   |
    |Old name:|`bookkeeper.tlsTrustStorePath` (deprecated) | 
     
@@ -326,7 +326,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | The `auth` method to use by the Auto Scale Processor when communicating with Controller. |
    |Type:|string|
-   |Default: | |
+   |Default: | None |
    |Sample value:| `Basic`  |
    |Alternative method:|`pravega_client_auth_token` (environment variable)|
   
@@ -336,7 +336,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |---:|:----|
    |Description: | The token to used by the Auto Scale Processor for its authentication to the Controller. The format of the token depends on the `pravega.client.auth.method`. For `Basic` authentication method, the value is a Base 64 encoded string of the input string `<username>:<password>`.  |
    |Type:|string|
-   |Default: | |
+   |Default: | None |
    |Sample value:| `YXV0b1NjYWxlclVzZXIxOnN1cGVyLXNlY3JldC1wYXNzd29yZA==` (Base 64 encoded value of credentials in Basic format 'autoScalerUser1:super-secret-password')    |
    |Alternative method:|`pravega_client_auth_token` (environment variable)|
 
@@ -348,14 +348,14 @@ fewer security configuration parameters to configure.
 
 |Parameter|Details|Default Value|Feature|
 |---------|-------|-------------|-------|
-| `singlenode.security.tls.enable` | Whether to enable TLS for client-server communications. | false | TLS |
-| `singlenode.security.tls.certificate.location` | Path of the X.509 PEM-encoded server certificate file for the server. | | TLS |
-| `singlenode.security.tls.privateKey.location` | Path of the PEM-encoded private key file for the service. |  | TLS |
-| `singlenode.security.tls.keyStore.location` | Path of the keystore file in `.jks` for the REST interface. |  | TLS |
-| `singlenode.security.tls.keyStore.pwd.location` |Path of the file containing the keystore password for the REST interface. |  | TLS |
-| `singlenode.security.tls.trustStore.location` | Path of the truststore file for internal TLS connections. |  | TLS |
-| `singlenode.security.auth.enable` | Whether to enable authentication and authorization for clients. | false | Auth |
-| `singlenode.security.auth.credentials.username` | The default username used for internal communication between Segment Store and Controller. | | Auth |
-| `singlenode.security.auth.credentials.pwd` | The default password used for internal communication between Segment Store and Controller. | | Auth |
-| `singlenode.security.auth.pwdAuthHandler.accountsDb.location` | Path of the file containing user credentials and ACLs, for the PasswordAuthHandler. | | Auth |
-| `singlenode.segmentStore.tls.certificate.autoReload.enable` | Whether to automatically reload SSL/TLS context if the server certificate is updated. | false | TLS |
+| `singlenode.security.tls.enable` | Whether to enable TLS for client-server communications. | `false` | TLS |
+| `singlenode.security.tls.certificate.location` | Path of the X.509 PEM-encoded server certificate file for the server. | None | TLS |
+| `singlenode.security.tls.privateKey.location` | Path of the PEM-encoded private key file for the service. | None | TLS |
+| `singlenode.security.tls.keyStore.location` | Path of the keystore file in `.jks` for the REST interface. | None | TLS |
+| `singlenode.security.tls.keyStore.pwd.location` |Path of the file containing the keystore password for the REST interface. | None | TLS |
+| `singlenode.security.tls.trustStore.location` | Path of the truststore file for internal TLS connections. | None | TLS |
+| `singlenode.security.auth.enable` | Whether to enable authentication and authorization for clients. | `false` | Auth |
+| `singlenode.security.auth.credentials.username` | The default username used for internal communication between Segment Store and Controller. | None | Auth |
+| `singlenode.security.auth.credentials.pwd` | The default password used for internal communication between Segment Store and Controller. | None | Auth |
+| `singlenode.security.auth.pwdAuthHandler.accountsDb.location` | Path of the file containing user credentials and ACLs, for the PasswordAuthHandler. | None | Auth |
+| `singlenode.segmentStore.tls.certificate.autoReload.enable` | Whether to automatically reload SSL/TLS context if the server certificate is updated. | `false` | TLS |
