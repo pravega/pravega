@@ -34,6 +34,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLContext;
@@ -125,17 +126,18 @@ public class TcpClientConnection implements ClientConnection {
         }
     }
 
-    public static TcpClientConnection connect(PravegaNodeUri location, ClientConfig clientConfig, ReplyProcessor callback,
+    public static CompletableFuture<TcpClientConnection> connect(PravegaNodeUri location, ClientConfig clientConfig, ReplyProcessor callback,
                                               ScheduledExecutorService executor) {
-        Socket socket = createClientSocket(location, clientConfig); // TODO: Switch to
-                                                                    // AsynchronousSocketChannel.connect
-        SocketChannel channel = socket.getChannel();
-        AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
-        ConnectionReader reader = new ConnectionReader(location.toString(), channel, callback, batchSizeTracker);
-        reader.start();
-        CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, channel, 
-                                                        executor);
-        return new TcpClientConnection(socket, encoder, reader, location);
+        return CompletableFuture.supplyAsync(() -> {
+            Socket socket = createClientSocket(location, clientConfig); 
+            SocketChannel channel = socket.getChannel();
+            AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
+            ConnectionReader reader = new ConnectionReader(location.toString(), channel, callback, batchSizeTracker);
+            reader.start();
+            CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, channel, 
+                                                            executor);
+            return new TcpClientConnection(socket, encoder, reader, location);
+        }, executor);
     }
 
     private static TrustManagerFactory createFromCert(String trustStoreFilePath)
@@ -150,11 +152,13 @@ public class TcpClientConnection implements ClientConnection {
         return factory;
     }
 
-    @SneakyThrows //Called in an async context
-    private static Socket createClientSocket(PravegaNodeUri location, ClientConfig clientConfig) {
-        //TODO: Create the socket async
-        //TODO: Parse pravega URI to deturmine if using TLS.
-        
+    /**
+     * Creates a socket connected to the provided endpoint. 
+     * Note that this is a sync call even though it is called in an async context. 
+     * While this is normally frowned upon, it is simply not possible to construct an SSL socket asynchronously in Java.
+     */
+    @SneakyThrows //Is called inside a completable future.
+    private static Socket createClientSocket(PravegaNodeUri location, ClientConfig clientConfig) {        
         Socket result;
         if (clientConfig.isEnableTlsToSegmentStore()) {
             TrustManagerFactory trustMgrFactory = createFromCert(clientConfig.getTrustStore());

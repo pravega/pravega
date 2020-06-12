@@ -52,7 +52,7 @@ public class SocketConnectionFactoryImpl implements ConnectionFactory {
 
     @Override
     public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
-        return CompletableFuture.completedFuture(TcpClientConnection.connect(endpoint, clientConfig, rp, internalExecutor));
+        return TcpClientConnection.connect(endpoint, clientConfig, rp, internalExecutor).thenApply(c -> c);
     }
 
 
