@@ -346,7 +346,7 @@ For ease of use, Pravega standalone mode abstracts away some of the configuratio
 fewer security configuration parameters to configure.
 
 
-|Parameter|Details|Default Value|Feature|
+|Parameter|Details|Default |Feature|
 |---------|-------|-------------|-------|
 | `singlenode.security.tls.enable` | Whether to enable TLS for client-server communications. | `false` | TLS |
 | `singlenode.security.tls.certificate.location` | Path of the X.509 PEM-encoded server certificate file for the server. | None | TLS |
