@@ -12,8 +12,9 @@ package io.pravega.controller.store.kvtable;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
-import io.pravega.controller.store.stream.StreamStoreHelper;
+import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -21,7 +22,6 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
-import java.time.Duration;
 
 /**
  * Zookeeper based stream metadata store tests.
@@ -42,11 +42,11 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
         cli.start();
         segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         // setup Stream Store, needed for creating scopes
-        streamStore = StreamStoreHelper.getPravegaTablesStreamStore(segmentHelperMockForTables, cli,
-                                                                    executor, Duration.ofSeconds(1),
-                                                                    GrpcAuthHelper.getDisabledAuthHelper());
+        streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelperMockForTables, GrpcAuthHelper.getDisabledAuthHelper(),
+                                                                    cli, executor);
         // setup KVTable Store
-        store = new PravegaTablesKVTMetadataStore(segmentHelperMockForTables, cli, executor, GrpcAuthHelper.getDisabledAuthHelper());
+        store = KVTableStoreFactory.createPravegaTablesStore(segmentHelperMockForTables, GrpcAuthHelper.getDisabledAuthHelper(),
+                                                            cli, executor);
     }
 
     @Override
@@ -56,7 +56,12 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
         cli.close();
         zkServer.close();
     }
-    
+
+    @Override
+    Controller.CreateScopeStatus createScope() throws Exception {
+        return streamStore.createScope(scope).get();
+    }
+
     @Test
     public void testInvalidOperation() throws Exception {
         // Test operation when stream is not in active state

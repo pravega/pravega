@@ -10,8 +10,9 @@
 package io.pravega.controller.store.kvtable;
 
 
-import io.pravega.controller.store.stream.StreamStoreHelper;
+import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -38,8 +39,8 @@ public class ZookeeperKVTMetadataStoreTest extends KVTableMetadataStoreTest {
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
         // setup Stream Store, needed for creating scopes
-        streamStore = StreamStoreHelper.getZKStreamStore(cli, executor);
-        store = new ZookeeperKVTMetadataStore(cli, executor);
+        streamStore = StreamStoreFactory.createZKStore(cli, executor);
+        store = KVTableStoreFactory.createZKStore(cli, executor);
     }
 
     @Override
@@ -48,6 +49,11 @@ public class ZookeeperKVTMetadataStoreTest extends KVTableMetadataStoreTest {
         streamStore.close();
         cli.close();
         zkServer.close();
+    }
+
+    @Override
+    Controller.CreateScopeStatus createScope() throws Exception {
+        return streamStore.createScope(scope).get();
     }
 
     @Test

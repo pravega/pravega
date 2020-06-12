@@ -13,6 +13,7 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import org.junit.Rule;
 import org.junit.Before;
 import org.junit.Test;
@@ -22,8 +23,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutionException;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 
 /**
@@ -54,11 +55,14 @@ public abstract class KVTableMetadataStoreTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    @Test
-    public void testKVTableMetadataStore() throws InterruptedException, ExecutionException {
+    abstract Controller.CreateScopeStatus createScope() throws Exception;
 
-        // region createStream
-        streamStore.createScope(scope).get();
+    @Test
+    public void testKVTableMetadataStore() throws Exception {
+
+        Controller.CreateScopeStatus scopeCreateStatus = createScope();
+        assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS)
+                || scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS));
 
         byte[] newUUID1 = store.newScope(scope).newId();
         store.createEntryForKVTable(scope, kvtable1, newUUID1, executor);

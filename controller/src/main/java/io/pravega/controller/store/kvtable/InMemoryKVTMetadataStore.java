@@ -16,6 +16,7 @@ import io.pravega.controller.store.InMemoryScope;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
@@ -77,6 +78,20 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
         }
     }
 
+    @Synchronized
+    public CompletableFuture<Controller.CreateScopeStatus> createScope(final String scopeName) {
+        if (!scopes.containsKey(scopeName)) {
+            InMemoryScope scope = new InMemoryScope(scopeName);
+            scope.createScope();
+            scopes.put(scopeName, scope);
+            return CompletableFuture.completedFuture(Controller.CreateScopeStatus.newBuilder().setStatus(
+                    Controller.CreateScopeStatus.Status.SUCCESS).build());
+        } else {
+            return CompletableFuture.completedFuture(Controller.CreateScopeStatus.newBuilder().setStatus(
+                    Controller.CreateScopeStatus.Status.SCOPE_EXISTS).build());
+        }
+    }
+
     @Override
     @Synchronized
     public CompletableFuture<CreateKVTableResponse> createKeyValueTable(final String scopeName, final String kvtName,
@@ -113,7 +128,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
                                                          final String kvtName,
                                                          final byte[] id,
                                                          final Executor executor) {
-        return Futures.completeOn(((InMemoryScope) getScope(scopeName)).addKVTableToScope(kvtName), executor);
+        return Futures.completeOn(scopes.get(scopeName).addKVTableToScope(kvtName), executor);
     }
 
     private String scopedKVTName(final String scopeName, final String streamName) {
