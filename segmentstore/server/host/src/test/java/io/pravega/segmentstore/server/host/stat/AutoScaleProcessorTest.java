@@ -22,6 +22,7 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.net.URI;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -31,9 +32,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
@@ -50,46 +49,77 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
     }
 
     @Test (timeout = 10000)
-    public void writerCreationTest() {
-        TestAutoScaleProcessor processor = new TestAutoScaleProcessor(
+    public void writerCreationTest() throws Exception {
+        EventStreamClientFactory clientFactory = mock(EventStreamClientFactory.class);
+        CompletableFuture<Void> createWriterLatch = new CompletableFuture<>();
+        doAnswer(x -> {
+            createWriterLatch.complete(null);
+            throw new RuntimeException();
+        }).when(clientFactory).createEventWriter(any(), any(), any());
+
+        TestAutoScaleProcessor failingWriterProcessor = new TestAutoScaleProcessor(
                 AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
+                clientFactory,
                 executorService());
         String segmentStreamName = "scope/myStreamSegment/0.#epoch.0";
-        processor.notifyCreated(segmentStreamName);
-        assertFalse(processor.isInitializeStarted());
+        failingWriterProcessor.notifyCreated(segmentStreamName);
+        assertFalse(failingWriterProcessor.isInitializeStarted());
         // report but since the cooldown time hasnt elapsed, no scale event should be attempted. So no writer should be initialized yet. 
-        processor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
-        assertFalse(processor.isInitializeStarted());
+        failingWriterProcessor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
+        assertFalse(failingWriterProcessor.isInitializeStarted());
+        
+        failingWriterProcessor.setTimeMillis(20 * 60000L);
+        failingWriterProcessor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
+        // the above should initiate the bootstrap.
+        assertTrue(failingWriterProcessor.isInitializeStarted());
 
-        processor.setTimeMillis(20 * 60000L);
-        processor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
-        // the above should create a writer future. 
-        assertTrue(processor.isInitializeStarted());
+        // since we are throwing on writer creation, wait until the writer is invoked once at least
+        createWriterLatch.join();
 
+        // now close the processor. The writer future should get cancelled.
+        failingWriterProcessor.close();
+        assertTrue(failingWriterProcessor.getWriterFuture().isCancelled());
+
+        // create new processor and let the writer get created 
+        TestAutoScaleProcessor processor = new TestAutoScaleProcessor(
+                AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
+                clientFactory,
+                executorService());
+
+        LinkedBlockingQueue<AutoScaleEvent> queue = new LinkedBlockingQueue<>();
+        EventStreamWriter<AutoScaleEvent> writerMock = createWriter(queue::add);
+        doAnswer(x -> writerMock).when(clientFactory).createEventWriter(any(), any(), any());
+
+        processor.notifyCreated(segmentStreamName);
+        
         // report a low rate to trigger a scale down 
-        processor.setTimeMillis(20 * 60000L);
+        processor.setTimeMillis(21 * 60000L);
         processor.report(segmentStreamName, 10, 0L, 1.0, 1.0, 1.0, 1.0);
-
         assertTrue(processor.isInitializeStarted());
-        processor.close();
-        assertTrue(processor.getWriterFuture().isCancelled());
 
-        EventStreamWriter<AutoScaleEvent> writer = spy(createWriter(event -> { }));
+        AssertExtensions.assertEventuallyEquals(writerMock, () -> processor.getWriterFuture().join(), 10000L);
+        AutoScaleEvent event = queue.take();
+        assertEquals(event.getDirection(), AutoScaleEvent.DOWN);
+        
+        processor.close();
+        
+        // create third writer, this time supply the writer directly
+        EventStreamWriter<AutoScaleEvent> writer = spy(createWriter(e -> { }));
         
         // verify that when writer is set, we are able to get the processor initialized
-        processor = new TestAutoScaleProcessor(writer, 
+        TestAutoScaleProcessor processor2 = new TestAutoScaleProcessor(writer,
                 AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
                 executorService());
         
-        processor.notifyCreated(segmentStreamName);
-        assertFalse(processor.isInitializeStarted());
-        processor.setTimeMillis(20 * 60000L);
-        processor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
+        processor2.notifyCreated(segmentStreamName);
+        assertFalse(processor2.isInitializeStarted());
+        processor2.setTimeMillis(20 * 60000L);
+        processor2.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
         // the above should create a writer future. 
-        assertTrue(processor.isInitializeStarted());
+        assertTrue(processor2.isInitializeStarted());
 
-        assertTrue(Futures.isSuccessful(processor.getWriterFuture()));
-        processor.close();
+        assertTrue(Futures.isSuccessful(processor2.getWriterFuture()));
+        processor2.close();
         verify(writer, times(1)).close();
     }
     
