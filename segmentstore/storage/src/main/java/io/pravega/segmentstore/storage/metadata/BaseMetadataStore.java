@@ -10,8 +10,11 @@
 
 package io.pravega.segmentstore.storage.metadata;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -20,6 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.io.IOException;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -381,7 +386,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * @return Associated {@link io.pravega.segmentstore.storage.metadata.BaseMetadataStore.TransactionData}.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
-    @VisibleForTesting
     abstract protected TransactionData read(String key) throws StorageMetadataException;
 
     /**
@@ -389,7 +393,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * @param dataList List of transaction data to write.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
-    @VisibleForTesting
     abstract protected void writeAll(Collection<TransactionData> dataList) throws StorageMetadataException;
 
     /**
@@ -539,9 +542,15 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     @Builder(toBuilder = true)
     @Data
-    public static class TransactionData {
+    public static class TransactionData implements Serializable {
+
         /**
-         * Version
+         * Serializer for {@link StorageMetadata}.
+         */
+        private final static StorageMetadata.StorageMetadataSerializer SERIALIZER = new StorageMetadata.StorageMetadataSerializer();
+        /**
+         * Version. This version number is independent of version in the store.
+         * This is required to keep track of all modifications to data when it is changed while still in buffer without writing it to database.
          */
         private long version;
 
@@ -569,5 +578,51 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
          * Value of the record.
          */
         private StorageMetadata value;
+
+        /**
+         * Builder that implements {@link ObjectBuilder}.
+         */
+        public static class TransactionDataBuilder implements ObjectBuilder<TransactionData> {
+        }
+
+        /**
+         * Serializer that implements {@link VersionedSerializer}.
+         */
+        public static class TransactionDataSerializer
+                extends VersionedSerializer.WithBuilder<TransactionData, TransactionDataBuilder> {
+            @Override
+            protected TransactionDataBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput input, TransactionDataBuilder b) throws IOException {
+                b.version(input.readLong());
+                b.key(input.readUTF());
+                boolean hasValue = input.readBoolean();
+                if (hasValue) {
+                    b.value(SERIALIZER.deserialize(input.getBaseStream()));
+                }
+            }
+
+            private void write00(TransactionData object, RevisionDataOutput output) throws IOException {
+                output.writeLong(object.version);
+                output.writeUTF(object.key);
+                boolean hasValue = object.value != null;
+                output.writeBoolean(hasValue);
+                if (hasValue) {
+                    SERIALIZER.serialize(output, object.value);
+                }
+            }
+        }
     }
 }

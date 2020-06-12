@@ -10,8 +10,15 @@
 package io.pravega.segmentstore.storage.metadata;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+import java.io.IOException;
 
 /**
  * Represents segment metadata.
@@ -32,7 +39,8 @@ import lombok.Data;
  */
 @Data
 @Builder(toBuilder = true)
-public class SegmentMetadata implements StorageMetadata {
+@EqualsAndHashCode(callSuper = true)
+public class SegmentMetadata extends StorageMetadata {
     /**
      * Flag to indicate whether the segment is active or not.
      */
@@ -266,5 +274,61 @@ public class SegmentMetadata implements StorageMetadata {
      */
     private boolean getFlag(int mask) {
         return (status & mask) != 0;
+    }
+
+    /**
+     * Builder that implements {@link ObjectBuilder}.
+     */
+    public static class SegmentMetadataBuilder implements ObjectBuilder<SegmentMetadata> {
+    }
+
+    /**
+     * Serializer that implements {@link VersionedSerializer}.
+     */
+    public static class Serializer extends VersionedSerializer.WithBuilder<SegmentMetadata, SegmentMetadataBuilder> {
+        @Override
+        protected SegmentMetadataBuilder newBuilder() {
+            return SegmentMetadata.builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void write00(SegmentMetadata object, RevisionDataOutput output) throws IOException {
+            output.writeUTF(object.name);
+            output.writeCompactLong(object.length);
+            output.writeCompactInt(object.chunkCount);
+            output.writeCompactLong(object.startOffset);
+            output.writeCompactInt(object.status);
+            output.writeCompactLong(object.maxRollinglength);
+            output.writeUTF(fromNullableString(object.firstChunk));
+            output.writeUTF(fromNullableString(object.lastChunk));
+            output.writeCompactLong(object.lastModified);
+            output.writeCompactLong(object.firstChunkStartOffset);
+            output.writeCompactLong(object.lastChunkStartOffset);
+            output.writeCompactLong(object.ownerEpoch);
+        }
+
+        private void read00(RevisionDataInput input, SegmentMetadataBuilder b) throws IOException {
+            b.name(input.readUTF());
+            b.length(input.readCompactLong());
+            b.chunkCount(input.readCompactInt());
+            b.startOffset(input.readCompactLong());
+            b.status(input.readCompactInt());
+            b.maxRollinglength(input.readCompactLong());
+            b.firstChunk(toNullableString(input.readUTF()));
+            b.lastChunk(toNullableString(input.readUTF()));
+            b.lastModified(input.readCompactLong());
+            b.firstChunkStartOffset(input.readCompactLong());
+            b.lastChunkStartOffset(input.readCompactLong());
+            b.ownerEpoch(input.readCompactLong());
+        }
     }
 }

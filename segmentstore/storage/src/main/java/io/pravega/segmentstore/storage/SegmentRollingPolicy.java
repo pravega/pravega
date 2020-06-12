@@ -16,7 +16,10 @@ import lombok.Getter;
  * A generic rolling policy that can be applied to any Storage unit.
  */
 public final class SegmentRollingPolicy {
-    public static final SegmentRollingPolicy NO_ROLLING = new SegmentRollingPolicy(Long.MAX_VALUE);
+    /**
+     * Max rolling length is 2^62 so that we can use CompactLong in serialization everywhere.
+     */
+    public static final SegmentRollingPolicy NO_ROLLING = new SegmentRollingPolicy(Long.MAX_VALUE / 4 );
 
     /**
      * Maximum length, as allowed by this Rolling Policy.

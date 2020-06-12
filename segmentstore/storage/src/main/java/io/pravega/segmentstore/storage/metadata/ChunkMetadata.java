@@ -9,8 +9,15 @@
  */
 package io.pravega.segmentstore.storage.metadata;
 
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+import java.io.IOException;
 
 /**
  * Represents chunk metadata.
@@ -23,7 +30,8 @@ import lombok.Data;
  */
 @Builder(toBuilder = true)
 @Data
-public class ChunkMetadata implements StorageMetadata {
+@EqualsAndHashCode(callSuper = true)
+public class ChunkMetadata extends StorageMetadata {
     /**
      * Name of this chunk.
      */
@@ -55,5 +63,43 @@ public class ChunkMetadata implements StorageMetadata {
     @Override
     public StorageMetadata deepCopy() {
         return toBuilder().build();
+    }
+
+    /**
+     * Builder that implements {@link ObjectBuilder}.
+     */
+    public static class ChunkMetadataBuilder implements ObjectBuilder<ChunkMetadata> {
+    }
+
+    /**
+     * Serializer that implements {@link VersionedSerializer}.
+     */
+    public static class Serializer extends VersionedSerializer.WithBuilder<ChunkMetadata, ChunkMetadataBuilder> {
+        @Override
+        protected ChunkMetadataBuilder newBuilder() {
+            return ChunkMetadata.builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void write00(ChunkMetadata object, RevisionDataOutput output) throws IOException {
+            output.writeUTF(object.name);
+            output.writeCompactLong(object.length);
+            output.writeUTF(fromNullableString(object.nextChunk));
+        }
+
+        private void read00(RevisionDataInput input, ChunkMetadataBuilder b) throws IOException {
+            b.name(input.readUTF());
+            b.length(input.readCompactLong());
+            b.nextChunk(toNullableString(input.readUTF()));
+        }
     }
 }
