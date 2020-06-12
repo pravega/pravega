@@ -31,6 +31,9 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
@@ -53,23 +56,41 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 executorService());
         String segmentStreamName = "scope/myStreamSegment/0.#epoch.0";
         processor.notifyCreated(segmentStreamName);
-        assertNull(processor.getWriterFuture());
+        assertFalse(processor.isInitializeStarted());
         // report but since the cooldown time hasnt elapsed, no scale event should be attempted. So no writer should be initialized yet. 
         processor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
-        assertNull(processor.getWriterFuture());
+        assertFalse(processor.isInitializeStarted());
 
         processor.setTimeMillis(20 * 60000L);
         processor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
         // the above should create a writer future. 
-        assertNotNull(processor.getWriterFuture());
+        assertTrue(processor.isInitializeStarted());
 
         // report a low rate to trigger a scale down 
         processor.setTimeMillis(20 * 60000L);
         processor.report(segmentStreamName, 10, 0L, 1.0, 1.0, 1.0, 1.0);
 
-        assertNotNull(processor.getWriterFuture());
+        assertTrue(processor.isInitializeStarted());
         processor.close();
         assertTrue(processor.getWriterFuture().isCancelled());
+
+        EventStreamWriter<AutoScaleEvent> writer = spy(createWriter(event -> { }));
+        
+        // verify that when writer is set, we are able to get the processor initialized
+        processor = new TestAutoScaleProcessor(writer, 
+                AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
+                executorService());
+        
+        processor.notifyCreated(segmentStreamName);
+        assertFalse(processor.isInitializeStarted());
+        processor.setTimeMillis(20 * 60000L);
+        processor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
+        // the above should create a writer future. 
+        assertTrue(processor.isInitializeStarted());
+
+        assertTrue(Futures.isSuccessful(processor.getWriterFuture()));
+        processor.close();
+        verify(writer, times(1)).close();
     }
     
     @Test (timeout = 10000)

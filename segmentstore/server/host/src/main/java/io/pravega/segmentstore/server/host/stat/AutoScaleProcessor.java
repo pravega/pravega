@@ -37,16 +37,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import lombok.NonNull;
-import lombok.Synchronized;
 import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
-
-import javax.annotation.concurrent.GuardedBy;
 
 /**
  * This looks at segment aggregates and determines if a scale operation has to be triggered.
@@ -66,12 +64,11 @@ public class AutoScaleProcessor implements AutoCloseable {
 
     private final EventStreamClientFactory clientFactory;
     private final Cache<String, Pair<Long, Long>> cache;
-    @GuardedBy("$lock")
-    private CompletableFuture<EventStreamWriter<AutoScaleEvent>> writer;
+    private final CompletableFuture<EventStreamWriter<AutoScaleEvent>> writer;
+    private final AtomicBoolean startInitWriter;
     private final AutoScalerConfig configuration;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
     private final ScheduledFuture<?> cacheCleanup;
-    private final ScheduledExecutorService executor;
 
     /**
      * Creates a new instance of the {@link AutoScaleProcessor} class. This sets up its own {@link EventStreamClientFactory}
@@ -95,7 +92,7 @@ public class AutoScaleProcessor implements AutoCloseable {
     AutoScaleProcessor(@NonNull EventStreamWriter<AutoScaleEvent> writer, @NonNull AutoScalerConfig configuration,
                        @NonNull ScheduledExecutorService executor) {
         this(configuration, null, executor);
-        this.writer = CompletableFuture.completedFuture(writer);
+        this.writer.complete(writer);
     }
 
     /**
@@ -109,9 +106,9 @@ public class AutoScaleProcessor implements AutoCloseable {
     AutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory,
                        @NonNull ScheduledExecutorService executor) {
         this.configuration = configuration;
-        this.writer = null;
+        this.writer = new CompletableFuture<>();
         this.clientFactory = clientFactory;
-
+        this.startInitWriter = new AtomicBoolean(false);
         this.cache = CacheBuilder.newBuilder()
                 .initialCapacity(INITIAL_CAPACITY)
                 .maximumSize(MAX_CACHE_SIZE)
@@ -123,49 +120,55 @@ public class AutoScaleProcessor implements AutoCloseable {
                 }, executor))
                 .build();
 
-        this.executor = executor;
-        
         // Even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
         // caches do not perform clean up if there is no activity. This is because they do not maintain their
         // own background thread.
         this.cacheCleanup = executor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
+        if (clientFactory != null) {
+            bootstrapRequestWriters(clientFactory, executor);
+        }
     }
 
     @Override
-    @Synchronized
     public void close() {
-        if (writer != null) {
-            writer.cancel(true);
+        writer.cancel(true);
 
-            if (Futures.isSuccessful(writer)) {
-                val w = this.writer.join();
-                if (w != null) {
-                    w.close();
-                }
+        if (Futures.isSuccessful(writer)) {
+            val w = this.writer.join();
+            if (w != null) {
+                w.close();
             }
         }
 
-        this.clientFactory.close();
+        if (clientFactory != null) {
+            this.clientFactory.close();
+        }
         this.cacheCleanup.cancel(true);
     }
+    
+    private void bootstrapRequestWriters(EventStreamClientFactory clientFactory, ScheduledExecutorService executor) {
+        AtomicReference<EventStreamWriter<AutoScaleEvent>> w = new AtomicReference<>();
 
-    @Synchronized
-    private CompletableFuture<EventStreamWriter<AutoScaleEvent>> getWriter() {
-        if (writer == null) {
-            AtomicReference<EventStreamWriter<AutoScaleEvent>> w = new AtomicReference<>();
-            EventWriterConfig writerConfig = EventWriterConfig.builder().build();
-            writer = Retry.indefinitelyWithExpBackoff(100, 10, 10000, this::handleBootstrapException)
-                        .runInExecutor(() -> {
-                            w.set(clientFactory.createEventWriter(configuration.getInternalRequestStream(), SERIALIZER, writerConfig));
-                            log.info("AutoScale Processor Initialized. RequestStream={}", configuration.getInternalRequestStream());
-                        }, executor)
-                        .thenApply(v -> w.get());
-        }
-        return writer;
+        Futures.completeAfter(() -> Retry.indefinitelyWithExpBackoff(100, 10, 10000, this::handleBootstrapException)
+                                         .runInExecutor(() -> bootstrapOnce(clientFactory, w), 
+                                                 executor).thenApply(v -> w.get()), writer);
     }
 
     private void handleBootstrapException(Throwable e) {
         log.warn("Unable to create writer for requeststream: {}.", LoggerHelpers.exceptionSummary(log, e));
+    }
+
+    private void bootstrapOnce(EventStreamClientFactory clientFactory, AtomicReference<EventStreamWriter<AutoScaleEvent>> writerRef) {
+        if (!writer.isDone()) {
+            if (!startInitWriter.get()) {
+                throw new RuntimeException("Init not requested");
+            }
+            EventWriterConfig writerConfig = EventWriterConfig.builder().build();
+            writerRef.set(clientFactory.createEventWriter(configuration.getInternalRequestStream(),
+                    SERIALIZER, writerConfig));
+            log.info("AutoScale Processor Initialized. RequestStream={}",
+                    configuration.getInternalRequestStream());
+        }
     }
 
     private static EventStreamClientFactory createFactory(AutoScalerConfig configuration) {
@@ -249,13 +252,14 @@ public class AutoScaleProcessor implements AutoCloseable {
     }
 
     private void writeRequest(AutoScaleEvent event, Runnable successCallback) {
-        getWriter().thenCompose(w -> w.writeEvent(event.getKey(), event)
+        startInitWriter.set(true);
+        writer.thenCompose(w -> w.writeEvent(event.getKey(), event)
                     .whenComplete((r, e) -> {
                         if (e != null) {
                             log.error(event.getRequestId(), "Unable to post Scale Event to RequestStream '{}'.",
                                     this.configuration.getInternalRequestStream(), e);
                         } else {
-                            log.info(event.getRequestId(), "Scale Event posted successfully: {}.", event);
+                            log.debug(event.getRequestId(), "Scale Event posted successfully: {}.", event);
                             successCallback.run();
                         }
                     }));
@@ -312,9 +316,13 @@ public class AutoScaleProcessor implements AutoCloseable {
     }
     
     @VisibleForTesting
-    @Synchronized
     CompletableFuture<EventStreamWriter<AutoScaleEvent>> getWriterFuture() {
         return writer;
+    }
+
+    @VisibleForTesting
+    boolean isInitializeStarted() {
+        return startInitWriter.get();
     }
 
     private static class EventSerializer implements Serializer<AutoScaleEvent> {
