@@ -26,6 +26,7 @@ import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -166,7 +167,7 @@ public class SystemJournal {
         stringBuffer.append(END_TOKEN);
 
         // Persist
-        byte[] bytes = stringBuffer.toString().getBytes();
+        byte[] bytes = stringBuffer.toString().getBytes(StandardCharsets.UTF_8);
         synchronized (lock) {
             val bytesWritten = chunkStorage.write(h, systemJournalOffset, bytes.length, new ByteArrayInputStream(bytes));
             Preconditions.checkState(bytesWritten == bytes.length);
@@ -243,7 +244,7 @@ public class SystemJournal {
                     remaining -= bytesRead;
                     fromOffset += bytesRead;
                 }
-                BufferedReader reader = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(contents)));
+                BufferedReader reader = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(contents), StandardCharsets.UTF_8));
                 String line;
 
                 while ((line = reader.readLine()) != null) {

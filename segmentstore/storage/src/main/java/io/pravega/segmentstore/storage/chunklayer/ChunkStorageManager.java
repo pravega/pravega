@@ -244,6 +244,7 @@ public class ChunkStorageManager implements Storage {
     private void claimOwnership(MetadataTransaction txn, SegmentMetadata segmentMetadata) throws Exception {
         // Claim ownership.
         // This is safe because the previous instance is definitely not an owner anymore. (even if this instance is no more owner)
+        // If this instance is no more owner, then transaction commit will fail.So it is still safe.
         segmentMetadata.setOwnerEpoch(this.epoch);
         segmentMetadata.setOwnershipChanged(true);
 
@@ -263,7 +264,7 @@ public class ChunkStorageManager implements Storage {
             if (chunkInfo.getLength() != lastChunk.getLength()) {
                 Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength());
                 // Whatever length you see right now is the final "sealed" length of the last chunk.
-                lastChunk.setLength((int) chunkInfo.getLength());
+                lastChunk.setLength(chunkInfo.getLength());
                 segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + lastChunk.getLength());
                 txn.update(lastChunk);
                 log.debug("{} claimOwnership - Length of last chunk adjusted - segment={}, last chunk={}, Length={}.",
@@ -1185,6 +1186,8 @@ public class ChunkStorageManager implements Storage {
                 // This segment was created by an older segment store. Then claim ownership and adjust length.
                 if (segmentMetadata.getOwnerEpoch() < this.epoch) {
                     log.debug("{} openRead - Segment needs ownership change. segment={}.", logPrefix, segmentMetadata.getName());
+                    // In case of a failover, length recorded in metadata will be lagging behind its actual length in the storage.
+                    // This can happen with lazy commits that were still not committed at the time of failover.
                     claimOwnership(txn, segmentMetadata);
                 }
                 val retValue = SegmentStorageHandle.readHandle(streamSegmentName);
