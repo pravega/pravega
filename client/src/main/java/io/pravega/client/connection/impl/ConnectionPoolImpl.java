@@ -186,42 +186,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private CompletableFuture<FlowHandler> establishConnection(PravegaNodeUri location) {
         return FlowHandler.openConnection(location, clientConfig, metricNotifier, connectionFactory);
         //TODO: set handler as callback 
-        //TODO: Switch to AsynchronousSocketChannel.connect
-        //TODO: Add ssl
+
         //  log.info("Connection established with endpoint {} on channel {}", connectionName, ch);
         //  ch.writeAndFlush(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), ch.voidPromise()); 
         // return FlowHandler
     }
-
-//    /**
-//     * Obtain {@link SslContext} based on {@link ClientConfig}.
-//     */
-//    @VisibleForTesting
-//    SslContext getSslContext() {
-//        final SslContext sslCtx;
-//        if (clientConfig.isEnableTlsToSegmentStore()) {
-//            log.debug("Setting up an SSL/TLS Context");
-//            try {
-//                SslContextBuilder clientSslCtxBuilder = SslContextBuilder.forClient();
-//
-//                if (Strings.isNullOrEmpty(clientConfig.getTrustStore())) {
-//                    log.debug("Client truststore wasn't specified.");
-//                    File clientTruststore = null; // variable for disambiguating method call
-//                    clientSslCtxBuilder.trustManager(clientTruststore);
-//                } else {
-//                    clientSslCtxBuilder.trustManager(new File(clientConfig.getTrustStore()));
-//                    log.debug("Client truststore: {}", clientConfig.getTrustStore());
-//                }
-//
-//                sslCtx = clientSslCtxBuilder.build();
-//            } catch (SSLException e) {
-//                throw new RuntimeException(e);
-//            }
-//        } else {
-//            sslCtx = null;
-//        }
-//        return sslCtx;
-//    }
 
     @Override
     public void close() {
