@@ -26,6 +26,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.AccessLevel;
@@ -61,13 +62,17 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
 
     static CompletableFuture<FlowHandler> openConnection(PravegaNodeUri location, ClientConfig clientConfig, MetricNotifier updateMetric, ConnectionFactory connectionFactory) {
         FlowHandler flowHandler = new FlowHandler(location, updateMetric);
+        KeepAliveTask keepAliveTask = flowHandler.new KeepAliveTask(); 
         return connectionFactory.establishConnection(location, flowHandler).thenApply(connection -> {            
             flowHandler.channel = connection;
+            connectionFactory.getInternalExecutor().scheduleWithFixedDelay(keepAliveTask, 20, 10, TimeUnit.SECONDS);
+            try {
+                connection.send(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
+            } catch (ConnectionFailedException e) {
+                throw Exceptions.sneakyThrow(e);
+            }
             return flowHandler;
-        });       
-        //TODO: hello
-        //TODO: start keepalive
-        //TODO: ch.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS)
+        });
     }
     
     /**
