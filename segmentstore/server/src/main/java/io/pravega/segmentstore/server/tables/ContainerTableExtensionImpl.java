@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
+import io.pravega.segmentstore.contracts.tables.IteratorState;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -282,9 +283,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
         logRequest("entryIterator", segmentName);
-        return newIterator(segmentName, fromPosition, fetchTimeout);
+        return newDeltaIterator(segmentName, fromPosition, fetchTimeout);
     }
 
     //endregion
@@ -323,7 +324,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, long fromPosition, @NonNull Duration fetchTimeout) {
+    public <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newDeltaIterator(@NonNull String segmentName, long fromPosition, @NonNull Duration fetchTimeout) {
         return this.segmentContainer
                 .forSegment(segmentName, fetchTimeout)
                 .thenComposeAsync(segment -> {
@@ -336,29 +337,31 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     // Max length of the batch size.
                     int maxLength = (int) (properties.getLength() - startOffset);
 
-                    TableEntryIterator.ConvertResult<IteratorItem<T>> converter = item -> {
-                        return CompletableFuture.completedFuture(new EntryIteratorItemImpl<>(
+                    TableEntryDeltaIterator.ConvertResult<IteratorItem<T>> converter = item -> {
+                        return CompletableFuture.completedFuture(new IteratorItemImpl<T>(
                                 item.getKey(),
                                 Collections.singletonList((T) item.getValue())));
                     };
-
-                    return TableEntryIterator.<IteratorItem<T>>builder()
+                    val iterator = TableEntryDeltaIterator.<IteratorItem<T>>builder()
                             .segment(segment)
                             .entrySerializer(serializer)
                             .executor(executor)
                             .maxLength(maxLength)
                             .startOffset(startOffset)
+                            .currentBatchOffset(startOffset)
                             .fetchTimeout(fetchTimeout)
                             .resultConverter(converter)
                             .shouldClear(shouldClear)
                             .build();
+
+                    return CompletableFuture.completedFuture(iterator);
                 });
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, byte[] serializedState, @NonNull Duration fetchTimeout, @NonNull GetBucketReader<T> createBucketReader) {
         UUID fromHash;
         try {
-            fromHash = KeyHasher.getNextHash(serializedState == null ? null : IteratorState.deserialize(serializedState).getKeyHash());
+            fromHash = KeyHasher.getNextHash(serializedState == null ? null : IteratorStateImpl.deserialize(serializedState).getKeyHash());
         } catch (IOException ex) {
             // Bad IteratorState serialization.
             throw new IllegalDataFormatException("Unable to deserialize `serializedState`.", ex);
@@ -381,7 +384,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
         TableIterator.ConvertResult<IteratorItem<T>> converter = bucket ->
                 bucketReader.findAllExisting(bucket.getSegmentOffset(), new TimeoutTimer(fetchTimeout))
-                            .thenApply(result -> new IteratorItemImpl<>(new IteratorState(bucket.getHash()), result));
+                            .thenApply(result -> new IteratorItemImpl<>(new IteratorStateImpl(bucket.getHash()), result));
 
         // Fetch the Tail (Unindexed) Hashes, then create the TableIterator.
         return this.keyIndex.getUnindexedKeyHashes(segment)
@@ -505,27 +508,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     // endregion
-
-    // region EntryIteratorItemImpl
-
-    @RequiredArgsConstructor
-    private class EntryIteratorItemImpl<T> implements IteratorItem<T> {
-        private final EntryIteratorState state;
-        @Getter
-        private final Collection<T> entries;
-
-        @Override
-        public ArrayView getState() {
-            return this.state.serialize();
-        }
-
-        @Override
-        public String toString() {
-            return String.format("State = %s", this.state);
-        }
-    }
-
-    //endregion
 
     @FunctionalInterface
     private interface GetBucketReader<T> {

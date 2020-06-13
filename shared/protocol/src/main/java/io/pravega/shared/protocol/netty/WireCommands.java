@@ -2230,12 +2230,11 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.TABLE_ENTRIES_DELTA_READ;
         final long requestId;
         final String segment;
-        final TableEntries tableEntries;
+        final TableEntries entries;
         final boolean shouldClear;
         final boolean reachedEnd;
         final long lastPosition;
 
-        // TODO: Will be implemented as apart of: https://github.com/pravega/pravega/issues/4677
         @Override
         public void process(ReplyProcessor cp) throws UnsupportedOperationException {
             cp.tableEntriesDeltaRead(this);
@@ -2245,7 +2244,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            tableEntries.writeFields(out);
+            entries.writeFields(out);
             out.writeBoolean(shouldClear);
             out.writeBoolean(reachedEnd);
             out.writeLong(lastPosition);

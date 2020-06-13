@@ -15,28 +15,28 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
+import io.pravega.segmentstore.contracts.tables.IteratorState;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.SneakyThrows;
+import lombok.ToString;
 
 import java.io.IOException;
 
 /**
  * Represents the state of a resumable iterator.
  */
-public class EntryIteratorState {
+@ToString
+@Builder
+public class DeltaIteratorState implements IteratorState {
     private static final Serializer SERIALIZER = new Serializer();
-
     private static final int BOOLEAN_BYTES = 1;
-
     @Getter
     private final long position;
-
     @Getter
     private final boolean reachedEnd;
-
     @Getter
     private final boolean shouldClear;
-
     @Getter
     private final boolean deletionRecord;
 
@@ -48,7 +48,7 @@ public class EntryIteratorState {
      * @param shouldClear Marks if the client should clear their state (provided start position has been truncated).
      * @param deletionRecord The Entry read is marked for deletion.
      */
-    EntryIteratorState(long position, boolean reachedEnd, boolean shouldClear, boolean deletionRecord) {
+    DeltaIteratorState(long position, boolean reachedEnd, boolean shouldClear, boolean deletionRecord) {
         Preconditions.checkArgument(isValid(position), "Position must be at least 0 (a non-negative integer).");
         this.position = position;
         this.reachedEnd = reachedEnd;
@@ -58,11 +58,6 @@ public class EntryIteratorState {
 
     boolean isValid(long position) {
         return position >= 0;
-    }
-
-    @Override
-    public String toString() {
-        return String.format("Position = %s Reached End = %s Should Clear = %s", this.position, this.reachedEnd, this.shouldClear);
     }
 
     //region Serialization
@@ -75,7 +70,7 @@ public class EntryIteratorState {
      * @return As new instance of the IteratorState class.
      */
     @SneakyThrows(IOException.class)
-    public static EntryIteratorState deserialize(byte[] data) {
+    public static DeltaIteratorState deserialize(byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
@@ -89,22 +84,13 @@ public class EntryIteratorState {
         return SERIALIZER.serialize(this);
     }
 
-    private static class IteratorStateBuilder implements ObjectBuilder<EntryIteratorState> {
-        private long position;
-        private boolean reachedEnd;
-        private boolean shouldClear;
-        private boolean deletionRecord;
-
-        @Override
-        public EntryIteratorState build() {
-            return new EntryIteratorState(position, reachedEnd, shouldClear, deletionRecord);
-        }
+    private static class DeltaIteratorStateBuilder implements ObjectBuilder<DeltaIteratorState> {
     }
 
-    private static class Serializer extends VersionedSerializer.WithBuilder<EntryIteratorState, IteratorStateBuilder> {
+    private static class Serializer extends VersionedSerializer.WithBuilder<DeltaIteratorState, DeltaIteratorStateBuilder> {
         @Override
-        protected IteratorStateBuilder newBuilder() {
-            return new IteratorStateBuilder();
+        protected DeltaIteratorStateBuilder newBuilder() {
+            return new DeltaIteratorStateBuilder();
         }
 
         @Override
@@ -117,14 +103,14 @@ public class EntryIteratorState {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void read00(RevisionDataInput revisionDataInput, IteratorStateBuilder builder) throws IOException {
+        private void read00(RevisionDataInput revisionDataInput, DeltaIteratorStateBuilder builder) throws IOException {
             builder.position = revisionDataInput.readCompactLong();
             builder.reachedEnd = revisionDataInput.readBoolean();
             builder.shouldClear = revisionDataInput.readBoolean();
             builder.deletionRecord = revisionDataInput.readBoolean();
         }
 
-        private void write00(EntryIteratorState state, RevisionDataOutput revisionDataOutput) throws IOException {
+        private void write00(DeltaIteratorState state, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.length(revisionDataOutput.getCompactLongLength(state.position) + 3 * BOOLEAN_BYTES);
             revisionDataOutput.writeCompactLong(state.position);
             revisionDataOutput.writeBoolean(state.reachedEnd);
