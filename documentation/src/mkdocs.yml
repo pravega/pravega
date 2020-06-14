@@ -73,6 +73,7 @@ nav:
       - 'Pravega Security Authorization/Authentication': 'security/pravega-security-authorization-authentication.md'
       - 'Pravega Security Configurations': 'security/pravega-security-configurations.md'
       - 'Pravega Security Encryption': 'security/pravega-security-encryption.md'
+      - 'Securing Pravega in Standalone Mode': 'security/securing-standalone-mode-cluster.md'
       - 'Securing Pravega in Distributed Mode': 'security/securing-distributed-mode-cluster.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
