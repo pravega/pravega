@@ -65,7 +65,7 @@ import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class FlowHandlerTest {
-
+    /*
     @Rule
     public Timeout globalTimeout = Timeout.seconds(15);
 

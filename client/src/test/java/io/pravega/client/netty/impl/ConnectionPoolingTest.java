@@ -65,6 +65,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ConnectionPoolingTest {
+    /*
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10);
 
@@ -304,5 +305,5 @@ public class ConnectionPoolingTest {
             return factory.getActiveChannelCount();
         }, 10000);
     }
-
+    */
 }
