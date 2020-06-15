@@ -48,7 +48,7 @@ public final class Futures {
      * Returns a new {@link CompletableFuture} that completes with the same outcome as the given one, but on the given {@link Executor}.
      * This helps transfer the downstream callback executions on another executor.
      *
-     * @param future The future to execute.
+     * @param future The future whose result is wanted.
      * @param <T> The Type of the future's result.
      * @param executor The executor to transfer callback execution onto.
      * @return A new {@link CompletableFuture} that will complete with the same outcome as the given one, but on the given {@link Executor}.
