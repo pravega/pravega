@@ -160,7 +160,8 @@ public class AutoScaleProcessor implements AutoCloseable {
         }
     }
 
-    private void bootstrapOnce(EventStreamClientFactory clientFactory, AtomicReference<EventStreamWriter<AutoScaleEvent>> writerRef) {
+    @VisibleForTesting
+    void bootstrapOnce(EventStreamClientFactory clientFactory, AtomicReference<EventStreamWriter<AutoScaleEvent>> writerRef) {
         if (!writer.isDone()) {
             if (!startInitWriter.get()) {
                 throw new RuntimeException("Init not requested");

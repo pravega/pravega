@@ -13,6 +13,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
@@ -25,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import lombok.NonNull;
@@ -64,6 +66,12 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         String segmentStreamName = "scope/myStreamSegment/0.#epoch.0";
         failingWriterProcessor.notifyCreated(segmentStreamName);
         assertFalse(failingWriterProcessor.isInitializeStarted());
+        AtomicReference<EventStreamWriter<AutoScaleEvent>> w = new AtomicReference<>();
+
+        AssertExtensions.assertThrows("Bootstrap should not be initiated until isInitializeStarted is true", 
+                () -> failingWriterProcessor.bootstrapOnce(clientFactory, w),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+
         // report but since the cooldown time hasnt elapsed, no scale event should be attempted. So no writer should be initialized yet. 
         failingWriterProcessor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
         assertFalse(failingWriterProcessor.isInitializeStarted());
