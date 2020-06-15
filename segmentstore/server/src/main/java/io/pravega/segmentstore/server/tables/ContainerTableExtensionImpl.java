@@ -355,7 +355,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                             .build();
 
                     return CompletableFuture.completedFuture(iterator);
-                });
+                }, this.executor);
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, byte[] serializedState, @NonNull Duration fetchTimeout, @NonNull GetBucketReader<T> createBucketReader) {

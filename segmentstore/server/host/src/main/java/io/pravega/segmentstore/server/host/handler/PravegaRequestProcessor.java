@@ -49,7 +49,7 @@ import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifi
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
-import io.pravega.segmentstore.server.tables.EntryIteratorState;
+import io.pravega.segmentstore.server.tables.DeltaIteratorState;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -856,14 +856,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         final AtomicInteger msgSize = new AtomicInteger(0);
         final Map<ArrayView, TableEntry> entries = new HashMap<>();
-        final AtomicReference<EntryIteratorState> lastState = new AtomicReference<>();
+        final AtomicReference<DeltaIteratorState> lastState = new AtomicReference<>();
         val timer = new Timer();
-        tableStore.entryIterator(segment, fromPosition, TIMEOUT)
+        tableStore.entryDeltaIterator(segment, fromPosition, TIMEOUT)
                 .thenCompose(itr -> itr.collectRemaining(
                         e -> {
                             synchronized (entries) {
                                 if (entries.size() < suggestedEntryCount && msgSize.get() < MAX_READ_SIZE) {
-                                    EntryIteratorState state = EntryIteratorState.deserialize(e.getState().array());
+                                    DeltaIteratorState state = DeltaIteratorState.deserialize(e.getState().array());
                                     // Store all TableEntries.
                                     TableEntry entry = e.getEntries().iterator().next();
                                     entries.computeIfPresent(entry.getKey().getKey(), (key, value) -> {
@@ -905,7 +905,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             new WireCommands.TableEntries(wireCommandEntries),
                             lastState.get().isShouldClear(),
                             lastState.get().isReachedEnd(),
-                            lastState.get().getPosition()));
+                            lastState.get().getFromPosition()));
                     this.tableStatsRecorder.iterateEntries(readTableEntriesDelta.getSegment(), entries.size(), timer.getElapsed());
                 }).exceptionally(e -> handleException(readTableEntriesDelta.getRequestId(), segment, operation, e));
 

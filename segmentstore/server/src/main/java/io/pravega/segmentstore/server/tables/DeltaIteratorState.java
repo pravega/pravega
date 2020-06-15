@@ -32,7 +32,7 @@ public class DeltaIteratorState implements IteratorState {
     private static final Serializer SERIALIZER = new Serializer();
     private static final int BOOLEAN_BYTES = 1;
     @Getter
-    private final long position;
+    private final long fromPosition;
     @Getter
     private final boolean reachedEnd;
     @Getter
@@ -43,14 +43,14 @@ public class DeltaIteratorState implements IteratorState {
     /**
      * Creates a new instance of the EntryIteratorState class.
      *
-     * @param position The position of the TableEntry
+     * @param fromPosition The next position to start iteration from.
      * @param reachedEnd If the Entry is at the end of the segment (more recently appended).
      * @param shouldClear Marks if the client should clear their state (provided start position has been truncated).
-     * @param deletionRecord The Entry read is marked for deletion.
+     * @param deletionRecord The Entry most recently read has been marked for deletion.
      */
-    DeltaIteratorState(long position, boolean reachedEnd, boolean shouldClear, boolean deletionRecord) {
-        Preconditions.checkArgument(isValid(position), "Position must be at least 0 (a non-negative integer).");
-        this.position = position;
+    DeltaIteratorState(long fromPosition, boolean reachedEnd, boolean shouldClear, boolean deletionRecord) {
+        Preconditions.checkArgument(isValid(fromPosition), "Position must be at least 0 (a non-negative integer).");
+        this.fromPosition = fromPosition;
         this.reachedEnd = reachedEnd;
         this.shouldClear = shouldClear;
         this.deletionRecord = deletionRecord;
@@ -104,15 +104,15 @@ public class DeltaIteratorState implements IteratorState {
         }
 
         private void read00(RevisionDataInput revisionDataInput, DeltaIteratorStateBuilder builder) throws IOException {
-            builder.position = revisionDataInput.readCompactLong();
+            builder.fromPosition = revisionDataInput.readCompactLong();
             builder.reachedEnd = revisionDataInput.readBoolean();
             builder.shouldClear = revisionDataInput.readBoolean();
             builder.deletionRecord = revisionDataInput.readBoolean();
         }
 
         private void write00(DeltaIteratorState state, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.length(revisionDataOutput.getCompactLongLength(state.position) + 3 * BOOLEAN_BYTES);
-            revisionDataOutput.writeCompactLong(state.position);
+            revisionDataOutput.length(revisionDataOutput.getCompactLongLength(state.fromPosition) + 3 * BOOLEAN_BYTES);
+            revisionDataOutput.writeCompactLong(state.fromPosition);
             revisionDataOutput.writeBoolean(state.reachedEnd);
             revisionDataOutput.writeBoolean(state.shouldClear);
             revisionDataOutput.writeBoolean(state.deletionRecord);

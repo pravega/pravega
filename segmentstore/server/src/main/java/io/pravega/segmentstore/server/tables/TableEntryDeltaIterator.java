@@ -146,10 +146,10 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
                 boolean reachedEnd = currentOffset + entry.getHeader().getTotalLength() >= this.maxLength + startOffset;
                 // We must preserve deletions to accurately construct a delta.
                 byte[] value = entry.getValue() == null ? new byte[0] : entry.getValue();
+                currentOffset += entry.getHeader().getTotalLength();
                 entries.add(new AbstractMap.SimpleEntry<>(
                         new DeltaIteratorState(currentOffset, reachedEnd, this.shouldClear, entry.getHeader().isDeletion()),
                         TableEntry.versioned(new ByteArraySegment(entry.getKey()), new ByteArraySegment(value), entry.getVersion())));
-                currentOffset += entry.getHeader().getTotalLength();
             }
 
         } catch (EOFException ex) {

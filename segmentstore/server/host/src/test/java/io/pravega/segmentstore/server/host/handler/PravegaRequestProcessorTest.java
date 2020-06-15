@@ -58,7 +58,6 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Data;
@@ -1020,8 +1019,6 @@ public class PravegaRequestProcessorTest {
 
         // 1. Now read the table entries where suggestedEntryCount is equal to number of entries in the Table Store.
         processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(3, tableSegmentName, "", 0, 3));
-        // Does not work without some delay.
-        TimeUnit.SECONDS.sleep(1);
 
         // Capture the WireCommands sent.
         ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
@@ -1041,58 +1038,35 @@ public class PravegaRequestProcessorTest {
             return testValue.equals(new HashedArray(bytes));
         }));
 
-//        @Cleanup
-//        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
-//        serviceBuilder.initialize();
-//        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-//        TableStore tableStore = serviceBuilder.createTableStoreService();
-//        ServerConnection connection = mock(ServerConnection.class);
-//        InOrder order = inOrder(connection);
-//        val recorderMock = mock(TableSegmentStatsRecorder.class);
-//        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
-//                recorderMock, new PassingTokenVerifier(), false);
-//
-//        // Generate keys.
-//        ArrayList<HashedArray> keys = generateKeys(3, rnd);
-//        HashedArray testValue = generateValue(rnd);
-//        TableEntry e1 = TableEntry.unversioned(keys.get(0), testValue);
-//        TableEntry e2 = TableEntry.unversioned(keys.get(1), testValue);
-//        TableEntry e3 = TableEntry.unversioned(keys.get(2), testValue);
-//
-//        // Create a table segment and add data.
-//        processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, ""));
-//        order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
-//        verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
-//        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "",
-//                getTableEntries(asList(e1, e2, e3)), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
-//        verify(recorderMock).updateEntries(eq(tableSegmentName), eq(3), eq(false), any());
-//
-//        // 1. Now read the table entries where suggestedEntryCount is equal to number of entries in the Table Store.
-//        processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(3, tableSegmentName, "", 0L, 3));
-//
-//        // Capture the WireCommands sent.
-//        ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
-//        order.verify(connection, times(2)).send(wireCommandsCaptor.capture());
-//        verify(recorderMock).iterateEntries(eq(tableSegmentName), eq(3), any());
-//
-//        // Verify the WireCommands.
-//        WireCommands.TableEntries entries = ((WireCommands.TableEntriesDeltaRead) wireCommandsCaptor.getAllValues().get(1)).getTableEntries();
-//        assertTrue(entries.getEntries().stream().allMatch(e -> {
-//            ByteBuf buf = e.getValue().getData();
-//            byte[] bytes = new byte[buf.readableBytes()];
-//            buf.getBytes(buf.readerIndex(), bytes);
-//            return testValue.equals(new HashedArray(bytes));
-//        }));
+        // 2. Now read the table entries where suggestedEntryCount is less than the number of entries in the Table Store.
+        processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(3, tableSegmentName, "", 0L, 1));
 
-        // New Keys, Updates, Deletions
-        // Test Scenarios:
-        // 1. No Compaction - Append new keys to entry and append update keys (existing version).
-        // Add new keys, using
-        // 2. Compaction - Append new keys to entry and append update keys (existing version).
-        // 3. Deletion
-        // 4. Offset Truncated Out
-        // 5. End of Segment Reached.
+        // Capture the WireCommands sent.
+        ArgumentCaptor<WireCommands.TableEntriesDeltaRead> tableEntriesCaptor =
+                ArgumentCaptor.forClass(WireCommands.TableEntriesDeltaRead.class);
+        order.verify(connection, times(1)).send(tableEntriesCaptor.capture());
 
+        // Verify the WireCommands.
+        getTableEntriesIteratorsResp =  tableEntriesCaptor.getAllValues().get(0);
+        assertEquals(1, getTableEntriesIteratorsResp.getEntries().getEntries().size());
+        assertTrue(keyVersions.contains(getTableEntriesIteratorsResp.getEntries().getEntries().get(0).getKey().getKeyVersion()));
+
+        assertFalse(getTableEntriesIteratorsResp.isShouldClear());
+        assertTrue(getTableEntriesIteratorsResp.isReachedEnd());
+        // Get the last position.
+        long lastPosition = getTableEntriesIteratorsResp.getLastPosition();
+
+        // 3. Now read the remaining table entries by providing a higher suggestedKeyCount and the state to the iterator.
+        processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(3, tableSegmentName, "",  lastPosition, 3));
+        // Capture the WireCommands sent.
+        tableEntriesCaptor = ArgumentCaptor.forClass(WireCommands.TableEntriesDeltaRead.class);
+        order.verify(connection, times(1)).send(tableEntriesCaptor.capture());
+        verify(recorderMock).iterateEntries(eq(tableSegmentName), eq(1), any());
+
+        // Verify the WireCommands.
+        getTableEntriesIteratorsResp =  tableEntriesCaptor.getAllValues().get(0);
+        assertEquals(2, getTableEntriesIteratorsResp.getEntries().getEntries().size());
+        assertTrue(keyVersions.containsAll(getTableEntriesIteratorsResp.getEntries().getEntries().stream().map(e -> e.getKey().getKeyVersion()).collect(Collectors.toList())));
     }
 
     private HashedArray generateData(int length, Random rnd) {
