@@ -38,7 +38,6 @@ import java.util.function.Supplier;
 @Slf4j
 public class EventHelper implements AutoCloseable {
     private static final long COMPLETION_TIMEOUT_MILLIS = Duration.ofMinutes(2).toMillis();
-    private String requestStreamName;
     private final CompletableFuture<Void> writerInitFuture = new CompletableFuture<>();
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
     private final ScheduledExecutorService executor;
@@ -49,11 +48,9 @@ public class EventHelper implements AutoCloseable {
     private final AtomicLong completionTimeoutMillis = new AtomicLong(COMPLETION_TIMEOUT_MILLIS);
 
     public EventHelper(final EventStreamWriter<ControllerEvent> requestEventWriter,
-                       final String streamName,
                        final ScheduledExecutorService executor,
                        final ScheduledExecutorService eventExecutor,
                        final String hostId, final HostIndex hostIndex) {
-        this.requestStreamName = streamName;
         this.executor = executor;
         this.eventExecutor = eventExecutor;
         this.hostId = hostId;

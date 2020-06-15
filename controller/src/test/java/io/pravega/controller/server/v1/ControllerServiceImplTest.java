@@ -15,6 +15,7 @@ import io.grpc.stub.StreamObserver;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -36,6 +37,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -322,7 +324,7 @@ public abstract class ControllerServiceImplTest {
         status = result6.get();
         assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
     }
-    
+
     @Test
     public void updateStreamTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
@@ -816,6 +818,24 @@ public abstract class ControllerServiceImplTest {
         shutdownResultObserver = new ResultObserver<>();
         this.controllerService.removeWriter(writerShutdownRequest, shutdownResultObserver);
         assertEquals(shutdownResultObserver.get().getResult(), Controller.RemoveWriterResponse.Status.UNKNOWN_WRITER);
+    }
+
+    @Test
+    public void createKeyValueTableTests() {
+        String scope = "kvtscope";
+        String kvtable = "kvtable100";
+        KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(5).build();
+        // Create a test scope.
+        ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
+        this.controllerService.createScope(ModelHelper.createScopeInfo(scope), result1);
+        CreateScopeStatus createScopeStatus = result1.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        // Create a test kvtable.
+        ResultObserver<CreateKeyValueTableStatus> result2 = new ResultObserver<>();
+        this.controllerService.createKeyValueTable(ModelHelper.decode(scope, kvtable, config), result2);
+        CreateKeyValueTableStatus createStatus = result2.get();
+        assertEquals("Create KeyValueTable", CreateKeyValueTableStatus.Status.SUCCESS, createStatus.getStatus());
     }
 
     protected void createScopeAndStream(String scope, String stream, ScalingPolicy scalingPolicy) {

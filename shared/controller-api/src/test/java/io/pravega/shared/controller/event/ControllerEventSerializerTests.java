@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -25,6 +26,7 @@ import org.junit.Test;
 public class ControllerEventSerializerTests {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
+    private static final String KVTABLE = "kvtable";
 
     @Test
     public void testAbortEvent() {
@@ -66,6 +68,12 @@ public class ControllerEventSerializerTests {
     @Test
     public void testUpdateStreamEvent() {
         testClass(() -> new UpdateStreamEvent(SCOPE, STREAM, 123L));
+    }
+
+    @Test
+    public void testCreateTableEvent() {
+        testClass(() -> new CreateTableEvent(SCOPE, KVTABLE, 3, System.currentTimeMillis(),
+                                            123L, UUID.randomUUID()));
     }
 
     private <T extends ControllerEvent> void testClass(Supplier<T> generateInstance) {

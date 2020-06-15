@@ -38,7 +38,7 @@ import java.util.concurrent.Executor;
  * In-memory stream store.
  */
 @Slf4j
-class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
+public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @GuardedBy("$lock")
     private final Map<String, InMemoryStream> streams = new HashMap<>();
@@ -59,10 +59,14 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private final Executor executor;
 
-    InMemoryStreamMetadataStore(Executor executor) {
+    public InMemoryStreamMetadataStore(Executor executor) {
         super(new InMemoryHostIndex(), new InMemoryHostIndex());
         this.executor = executor;
         this.counter = new AtomicInt96();
+    }
+
+    public Map<String, InMemoryScope> getScopes() {
+        return scopes;
     }
 
     @Override

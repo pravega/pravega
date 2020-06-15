@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.task.KeyValueTable;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -75,14 +76,28 @@ public class TableMetadataTasks implements AutoCloseable {
         this.requestTracker = requestTracker;
     }
 
+    @VisibleForTesting
+    public TableMetadataTasks(final KVTableMetadataStore kvtMetadataStore,
+                              final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
+                              final ScheduledExecutorService eventExecutor, final String hostId,
+                              GrpcAuthHelper authHelper, RequestTracker requestTracker, EventHelper helper) {
+        this.kvtMetadataStore = kvtMetadataStore;
+        this.segmentHelper = segmentHelper;
+        this.executor = executor;
+        this.eventExecutor = eventExecutor;
+        this.hostId = hostId;
+        this.authHelper = authHelper;
+        this.requestTracker = requestTracker;
+        this.eventHelper = helper;
+    }
+
     @Synchronized
     public void initializeStreamWriters(final EventStreamClientFactory clientFactory,
                                         final String streamName) {
 
         this.eventHelper = new EventHelper(clientFactory.createEventWriter(streamName,
                 ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
-                EventWriterConfig.builder().build()), streamName,
-                                            this.executor, this.eventExecutor, hostId,
+                EventWriterConfig.builder().build()), this.executor, this.eventExecutor, hostId,
                 ((AbstractKVTableMetadataStore) this.kvtMetadataStore).getHostTaskIndex());
     }
 
@@ -173,9 +188,9 @@ public class TableMetadataTasks implements AutoCloseable {
     private String retrieveDelegationToken() {
         return authHelper.retrieveMasterToken();
     }
-    
+
     public CompletableFuture<Void> createNewSegments(String scope, String kvt,
-                                                     List<Long> segmentIds, long requestId) {
+                                                      List<Long> segmentIds, long requestId) {
         return Futures.toVoid(Futures.allOfWithResults(segmentIds
                 .stream()
                 .parallel()

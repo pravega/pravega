@@ -24,9 +24,10 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
-import io.pravega.controller.mocks.EventHelperMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.mocks.ControllerEventTableWriterMock;
+import io.pravega.controller.mocks.EventHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -36,11 +37,15 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
+import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.State;
@@ -66,13 +71,12 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
-import org.mockito.Mock;
 import org.junit.Test;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
- * Zookeeper stream store configuration.
+ * PravegaTables stream store configuration.
  */
 public class PravegaTablesControllerServiceImplTest extends ControllerServiceImplTest {
 
@@ -88,10 +92,10 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
     private Cluster cluster;
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
-    @Mock
+
     private KVTableMetadataStore kvtStore;
-    @Mock
     private TableMetadataTasks kvtMetadataTasks;
+    private TableRequestHandler tableRequestHandler;
 
     @Override
     public void setup() throws Exception {
@@ -129,6 +133,17 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
 
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
+
+        // KVTable classes...
+        this.kvtStore = KVTableStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
+                zkClient, executorService);
+        EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
+                ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
+        this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
+                                "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, tableEventHelper);
+        this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
+                executorService), this.kvtStore, executorService);
+        tableEventHelper.setRequestEventWriter(new ControllerEventTableWriterMock(tableRequestHandler, executorService));
 
         cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
         final CountDownLatch latch = new CountDownLatch(1);

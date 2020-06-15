@@ -23,10 +23,12 @@ import javax.annotation.concurrent.GuardedBy;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class InMemoryKVTable extends AbstractKVTableBase {
+    private final UUID id;
     private final AtomicLong creationTime = new AtomicLong(Long.MIN_VALUE);
     private final Object lock = new Object();
     @GuardedBy("lock")
@@ -39,13 +41,14 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     @GuardedBy("lock")
     private Map<Integer, VersionedMetadata<KVTEpochRecord>> epochRecords = new HashMap<>();
 
-    public InMemoryKVTable(String scope, String name) {
+    public InMemoryKVTable(String scope, String name, UUID id) {
         super(scope, name);
+        this.id = id;
     }
 
     @Override
     public CompletableFuture<String> getId() {
-        return null;
+        return CompletableFuture.completedFuture(id.toString());
     }
 
     @Override

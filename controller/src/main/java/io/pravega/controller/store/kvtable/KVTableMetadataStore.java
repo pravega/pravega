@@ -73,21 +73,21 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * Api to get creation time for the stream. 
      * 
      * @param scopeName       scope name
-     * @param streamName      stream name
+     * @param kvtName         name of KeyValueTable
      * @param context         operation context
      * @param executor        callers executor
      * @return CompletableFuture, which when completed, will contain the creation time of the stream. 
      */
     CompletableFuture<Long> getCreationTime(final String scopeName,
-                                            final String streamName,
+                                            final String kvtName,
                                             final KVTOperationContext context,
                                             final Executor executor);
 
     /**
      * Api to set the state for stream in metadata.
      * @param scope scope name
-     * @param name stream name
-     * @param state stream state
+     * @param name kvtable name
+     * @param state kvtable state
      * @param context operation context
      * @param executor callers executor
      * @return Future of boolean if state update succeeded.
@@ -99,10 +99,10 @@ public interface KVTableMetadataStore extends AutoCloseable {
 
 
     /**
-     * Api to get the state for stream from metadata.
+     * Api to get the state for kvtable from metadata.
      *
      * @param scope scope name
-     * @param name stream name
+     * @param name kvtable name
      * @param ignoreCached ignore cached value and fetch from store.
      * @param context operation context
      * @param executor callers executor
@@ -114,7 +114,7 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * Api to get the current state with its current version.
      *
      * @param scope scope
-     * @param name stream
+     * @param name kvtable
      * @param context operation context
      * @param executor executor
      * @return Future which when completed has the versioned state.

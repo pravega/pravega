@@ -12,6 +12,7 @@ package io.pravega.controller.store;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BitConverter;
 import lombok.Synchronized;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -21,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -38,8 +40,7 @@ public class InMemoryScope implements Scope {
     private HashMap<String, Integer> streamsPositionMap;
 
     @GuardedBy("$lock")
-    private TreeMap<Integer, String> sortedKVTablesInScope;
-    private HashMap<String, Integer> kvTablesPositionMap;
+    private HashMap<String, UUID> kvTablesPositionMap;
 
 
     public InMemoryScope(String scopeName) {
@@ -56,8 +57,7 @@ public class InMemoryScope implements Scope {
     public CompletableFuture<Void> createScope() {
         this.sortedStreamsInScope = new TreeMap<>(Integer::compare);
         this.streamsPositionMap = new HashMap<>();
-        this.sortedKVTablesInScope = new TreeMap<>(Integer::compare);
-        this.kvTablesPositionMap =  new HashMap<>();
+        this.kvTablesPositionMap =  new HashMap<String, UUID>();
         return CompletableFuture.completedFuture(null);
     }
 
@@ -69,8 +69,6 @@ public class InMemoryScope implements Scope {
         this.streamsPositionMap.clear();
         this.streamsPositionMap = null;
 
-        this.sortedKVTablesInScope.clear();
-        this.sortedKVTablesInScope = null;
         this.kvTablesPositionMap.clear();
         this.kvTablesPositionMap = null;
 
@@ -88,13 +86,14 @@ public class InMemoryScope implements Scope {
     }
 
     @Synchronized
-    public CompletableFuture<Void> addKVTableToScope(String kvt) {
-        int next = kvTablesPositionMap.size();
-        kvTablesPositionMap.putIfAbsent(kvt, next);
-        Integer position = kvTablesPositionMap.get(kvt);
-        sortedKVTablesInScope.put(position, kvt);
-
+    public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
+        kvTablesPositionMap.putIfAbsent(kvt, BitConverter.readUUID(id, 0));
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Synchronized
+    public UUID getIdForKVTable(String kvt) {
+        return kvTablesPositionMap.get(kvt);
     }
 
     @Synchronized

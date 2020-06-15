@@ -9,7 +9,13 @@
  */
 package io.pravega.controller.store.kvtable;
 
+import io.pravega.controller.store.InMemoryScope;
+import io.pravega.controller.store.stream.InMemoryStreamMetadataStore;
+import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+
+import java.util.Map;
+
 /**
  * In-memory stream metadata store tests.
  */
@@ -18,6 +24,9 @@ public class InMemoryKVTMetadataStoreTest extends KVTableMetadataStoreTest {
     @Override
     public void setupStore() throws Exception {
         store = KVTableStoreFactory.createInMemoryStore(executor);
+        this.streamStore = StreamStoreFactory.createInMemoryStore(executor);
+        Map<String, InMemoryScope> scopeMap = ((InMemoryStreamMetadataStore) streamStore).getScopes();
+        ((InMemoryKVTMetadataStore) store).setScopes(scopeMap);
     }
 
     @Override
@@ -27,7 +36,6 @@ public class InMemoryKVTMetadataStoreTest extends KVTableMetadataStoreTest {
 
     @Override
     Controller.CreateScopeStatus createScope() throws Exception {
-        return ((InMemoryKVTMetadataStore) store).createScope(scope).get();
-
+        return streamStore.createScope(scope).get();
     }
 }

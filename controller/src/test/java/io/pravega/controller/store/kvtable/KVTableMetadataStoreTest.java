@@ -38,7 +38,7 @@ public abstract class KVTableMetadataStoreTest {
     protected KVTableMetadataStore store;
     protected StreamMetadataStore streamStore;
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
-    protected final String scope = "scope";
+    protected final String scope = "storescope";
     protected final String kvtable1 = "kvt1";
     protected final String kvtable2 = "kvt2";
     protected final KeyValueTableConfiguration configuration1 = KeyValueTableConfiguration.builder().partitionCount(2).build();
@@ -59,7 +59,6 @@ public abstract class KVTableMetadataStoreTest {
 
     @Test
     public void testKVTableMetadataStore() throws Exception {
-
         Controller.CreateScopeStatus scopeCreateStatus = createScope();
         assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS)
                 || scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS));
@@ -84,7 +83,6 @@ public abstract class KVTableMetadataStoreTest {
 
         segments = store.getActiveSegments(scope, kvtable2, null, executor).get();
         assertEquals(3, segments.size());
-
         // endregion
     }
 }

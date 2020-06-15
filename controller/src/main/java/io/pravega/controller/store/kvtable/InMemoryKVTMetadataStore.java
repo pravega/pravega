@@ -9,14 +9,12 @@
  */
 package io.pravega.controller.store.kvtable;
 
-import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.controller.store.InMemoryScope;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.index.InMemoryHostIndex;
-import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
+import lombok.Setter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,6 +22,7 @@ import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -39,8 +38,9 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     @GuardedBy("$lock")
     private final Map<String, Integer> deletedKVTables = new HashMap<>();
 
+    @Setter
     @GuardedBy("$lock")
-    private final Map<String, InMemoryScope> scopes = new HashMap<>();
+    private Map<String, InMemoryScope> scopes = new HashMap<>();
 
     private final AtomicInt96 counter;
 
@@ -58,7 +58,9 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
         if (kvTables.containsKey(scopedKVTName(scope, name))) {
             return kvTables.get(scopedKVTName(scope, name));
         } else {
-            return new InMemoryKVTable(scope, name);
+            InMemoryScope kvtScope = scopes.get(scope);
+            UUID id = kvtScope.getIdForKVTable(name);
+            return new InMemoryKVTable(scope, name, id);
         }
     }
 
@@ -78,41 +80,6 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
         }
     }
 
-    @Synchronized
-    public CompletableFuture<Controller.CreateScopeStatus> createScope(final String scopeName) {
-        if (!scopes.containsKey(scopeName)) {
-            InMemoryScope scope = new InMemoryScope(scopeName);
-            scope.createScope();
-            scopes.put(scopeName, scope);
-            return CompletableFuture.completedFuture(Controller.CreateScopeStatus.newBuilder().setStatus(
-                    Controller.CreateScopeStatus.Status.SUCCESS).build());
-        } else {
-            return CompletableFuture.completedFuture(Controller.CreateScopeStatus.newBuilder().setStatus(
-                    Controller.CreateScopeStatus.Status.SCOPE_EXISTS).build());
-        }
-    }
-
-    @Override
-    @Synchronized
-    public CompletableFuture<CreateKVTableResponse> createKeyValueTable(final String scopeName, final String kvtName,
-                                                                final KeyValueTableConfiguration configuration,
-                                                                final long timeStamp,
-                                                                final KVTOperationContext context,
-                                                                final Executor executor) {
-        if (scopes.containsKey(scopeName)) {
-            InMemoryKVTable kvt = (InMemoryKVTable) getKVTable(scopeName, kvtName, context);
-            return getSafeStartingSegmentNumberFor(scopeName, kvtName)
-                    .thenCompose(startingSegmentNumber -> kvt.create(configuration, timeStamp, startingSegmentNumber)
-                    .thenCompose(status -> {
-                        kvTables.put(scopedKVTName(scopeName, kvtName), kvt);
-                        return scopes.get(scopeName).addStreamToScope(kvtName).thenApply(v -> status);
-                    }));
-        } else {
-            return Futures.
-                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
-        }
-    }
-
     @Override
     @Synchronized
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
@@ -128,7 +95,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
                                                          final String kvtName,
                                                          final byte[] id,
                                                          final Executor executor) {
-        return Futures.completeOn(scopes.get(scopeName).addKVTableToScope(kvtName), executor);
+        return Futures.completeOn(scopes.get(scopeName).addKVTableToScope(kvtName, id), executor);
     }
 
     private String scopedKVTName(final String scopeName, final String streamName) {

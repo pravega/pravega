@@ -63,10 +63,13 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
 
         return RetryHelper.withRetriesAsync(() -> getKeyValueTable(scope, kvt).thenCompose(table -> table.getId()).thenCompose(id -> {
             if (!id.equals(kvTableId)) {
+                log.info("KVTABLE IDs do not match!!!");
                 return CompletableFuture.completedFuture(null);
             } else {
+                log.info("KVTABLE IDs MATCH!!!");
                 return this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, null, executor)
                         .thenComposeAsync(response -> {
+                            log.info("createKeyValueTable::State:{}", response.getStatus());
                             // only if its a new kvtable or an already existing non-active kvtable then we will create
                             // segments and change the state of the kvtable to active.
                             if (response.getStatus().equals(CreateKVTableResponse.CreateStatus.NEW) ||
