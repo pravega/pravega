@@ -16,6 +16,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.ImmediateEventExecutor;
 import io.netty.util.concurrent.PromiseCombiner;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
@@ -158,7 +159,7 @@ public class ClientConnectionImpl implements ClientConnection {
             callback.complete(new ConnectionFailedException("Connection to " + connectionName + " is not established."));
             return;
         }
-        PromiseCombiner combiner = new PromiseCombiner();
+        PromiseCombiner combiner = new PromiseCombiner(ImmediateEventExecutor.INSTANCE);
         for (Append append : appends) {
             combiner.add(ch.write(append));
         }
