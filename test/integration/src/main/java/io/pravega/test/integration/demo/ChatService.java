@@ -130,6 +130,7 @@ public class ChatService {
         printHelp();
         try {
             executeCommand("connect", DEFAULT_CONTROLLER_URI);
+            System.out.println();
             run();
         } finally {
             closeChatClient();
@@ -138,7 +139,7 @@ public class ChatService {
     }
 
     private static void printHelp() {
-        System.out.println(String.format("Please refer to %s Javadoc for instructions and examples."));
+        System.out.println("Please refer to Javadoc for instructions and examples.\n");
     }
 
     private static void run() {
@@ -190,16 +191,13 @@ public class ChatService {
             arg = line.substring(commandDelimPos).trim();
         }
 
-        if (command.startsWith("!")) {
-            command = command.substring(1);
-            return executeCommand(command, arg);
-        } else if (command.startsWith("@")) {
+        if (command.startsWith("@")) {
             command = command.substring(1);
             getChatClient().getUserSession().sendMessage(command, arg);
             return true;
+        } else {
+            return executeCommand(command, arg);
         }
-
-        throw new IllegalArgumentException("Illegal start of command.");
     }
 
     private static boolean executeCommand(String command, String arg) {
@@ -244,6 +242,8 @@ public class ChatService {
             case "list-users":
                 getChatClient().listAllUsers();
                 break;
+            default:
+                System.out.println(String.format("Unknown command '%s'.", command));
         }
         return true;
     }
