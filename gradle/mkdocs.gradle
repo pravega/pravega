@@ -20,23 +20,3 @@ mkdocs {
     updateSiteUrl = false
     strict = false
 }
-
-remotes {
-    webServer {
-        host = hostname
-        user = username
-        identity = file("$rootDir/pravegaio.pem")
-    }
-}
-
-task deploy {
-    dependsOn 'mkdocsBuild'
-    doLast {
-        ssh.run {
-            session(remotes.webServer) {
-                put from: "$rootDir/documentation/generated/$pravegaVersion", into: '/var/www/pravega.io/docs'
-            }
-        }
-    }
-}
-
