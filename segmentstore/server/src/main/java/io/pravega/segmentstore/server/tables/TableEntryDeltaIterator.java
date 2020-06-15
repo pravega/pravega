@@ -35,9 +35,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
-import lombok.AccessLevel;
 import lombok.Builder;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -47,7 +45,6 @@ import lombok.val;
  * @param <T> Type of the final, converted result.
  */
 @Slf4j
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @ThreadSafe
 @Builder
 class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
@@ -64,8 +61,9 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
     private final EntrySerializer entrySerializer;
     private final ConvertResult<T> resultConverter;
     private final Executor executor;
+
     @GuardedBy("this")
-    private Iterator<Map.Entry<DeltaIteratorState, TableEntry>> currentEntry = null;
+    private Iterator<Map.Entry<DeltaIteratorState, TableEntry>> currentEntry;
     @GuardedBy("this")
     private long currentBatchOffset;
 
@@ -86,10 +84,8 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
                 });
     }
 
-    public boolean endOfSegment() {
-        synchronized (this) {
-            return this.currentBatchOffset >= (this.startOffset + this.maxLength);
-        }
+    public synchronized boolean endOfSegment() {
+        return this.currentBatchOffset >= (this.startOffset + this.maxLength);
     }
 
     private CompletableFuture<Map.Entry<DeltaIteratorState, TableEntry>> getNextEntry() {
@@ -179,7 +175,9 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
                 Duration.ofMillis(0),
                 new EntrySerializer(),
                 ignored -> CompletableFuture.completedFuture(null),
-                ForkJoinPool.commonPool());
+                ForkJoinPool.commonPool(),
+                null,
+                0L);
     }
 
     //endregion

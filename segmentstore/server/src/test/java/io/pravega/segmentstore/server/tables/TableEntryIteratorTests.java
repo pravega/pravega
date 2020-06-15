@@ -46,7 +46,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * Unit tests for the {@link TableEntryIterator} class. It tests various scenarios, without consideration of compaction.
+ * Unit tests for the {@link TableEntryDeltaIterator} class. It tests various scenarios, without consideration of compaction.
  */
 @Slf4j
 public class TableEntryIteratorTests extends ThreadPooledTestSuite {
@@ -78,7 +78,7 @@ public class TableEntryIteratorTests extends ThreadPooledTestSuite {
 
     @Test
     public void testEmptyIterator() throws Exception {
-        val empty = TableEntryIterator.empty();
+        val empty = TableEntryDeltaIterator.empty();
         val next = empty.getNext().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertNull("Empty iterator should return null from getNext().", next);
     }
@@ -300,7 +300,7 @@ public class TableEntryIteratorTests extends ThreadPooledTestSuite {
             // If TableKey DNE, start from 0.
             TableEntry entry = startEntry.iterator().next();
             long startOffset = (entry == null) ? 0 : entry.getKey().getVersion();
-            val iterator = context.ext.entryIterator(SEGMENT_NAME, startOffset, TIMEOUT).get();
+            val iterator = context.ext.entryDeltaIterator(SEGMENT_NAME, startOffset, TIMEOUT).get();
 
             List<TableEntry> observed = new ArrayList<>();
             val iteration = iterator.forEachRemaining(item -> {
