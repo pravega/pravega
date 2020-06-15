@@ -155,7 +155,9 @@ public class AutoScaleProcessor implements AutoCloseable {
     }
 
     private void handleBootstrapException(Throwable e) {
-        log.warn("Unable to create writer for requeststream: {}.", LoggerHelpers.exceptionSummary(log, e));
+        if (startInitWriter.get()) {
+            log.warn("Unable to create writer for requeststream: {}.", LoggerHelpers.exceptionSummary(log, e));
+        }
     }
 
     private void bootstrapOnce(EventStreamClientFactory clientFactory, AtomicReference<EventStreamWriter<AutoScaleEvent>> writerRef) {
