@@ -13,7 +13,6 @@ import com.google.common.annotations.Beta;
 import java.io.Serializable;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Getter;
 
 /**
  * The configuration of a Key-Value Table.
@@ -27,11 +26,5 @@ public class KeyValueTableConfiguration implements Serializable {
      * The number of Partitions for a Key-Value Table. This value cannot be adjusted after the Key-Value Table has been
      * created.
      */
-    @Getter
     private final int partitionCount;
-
-    public KeyValueTableConfiguration(int partitionCount) {
-        this.partitionCount = partitionCount;
-    }
-
 }

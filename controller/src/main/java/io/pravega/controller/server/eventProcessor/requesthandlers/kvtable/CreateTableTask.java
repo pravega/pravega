@@ -59,7 +59,8 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
         long creationTime = request.getTimestamp();
         long requestId = request.getRequestId();
         String kvTableId = request.getTableId().toString();
-        KeyValueTableConfiguration config = new KeyValueTableConfiguration(partitionCount);
+        KeyValueTableConfiguration config = KeyValueTableConfiguration.builder()
+                                            .partitionCount(partitionCount).build();
 
         return RetryHelper.withRetriesAsync(() -> getKeyValueTable(scope, kvt).thenCompose(table -> table.getId()).thenCompose(id -> {
             if (!id.equals(kvTableId)) {

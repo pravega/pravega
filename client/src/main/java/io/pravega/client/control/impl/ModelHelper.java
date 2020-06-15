@@ -129,7 +129,7 @@ public final class ModelHelper {
         Preconditions.checkNotNull(config.getScope(), "scope");
         Preconditions.checkNotNull(config.getKvtName(), "kvtName");
         Preconditions.checkArgument(config.getPartitionCount() > 0, "Number of partitions should be > 0.");
-        return new KeyValueTableConfiguration(config.getPartitionCount());
+        return KeyValueTableConfiguration.builder().partitionCount(config.getPartitionCount()).build();
     }
 
     /**

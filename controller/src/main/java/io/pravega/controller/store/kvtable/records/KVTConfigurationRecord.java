@@ -73,7 +73,7 @@ public class KVTConfigurationRecord {
                 throws IOException {
             configurationRecordBuilder.scope(revisionDataInput.readUTF())
                                       .kvtName(revisionDataInput.readUTF());
-            KeyValueTableConfiguration config = new KeyValueTableConfiguration(revisionDataInput.readInt());
+            KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(revisionDataInput.readInt()).build();
             configurationRecordBuilder.kvtConfiguration(config);
 
         }
