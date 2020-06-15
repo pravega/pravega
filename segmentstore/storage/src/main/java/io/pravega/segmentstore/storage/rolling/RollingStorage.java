@@ -33,11 +33,16 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -516,6 +521,12 @@ public class RollingStorage implements SyncStorage {
         return true;
     }
 
+    @Override
+    public Iterator<SegmentProperties> listSegments() throws IOException {
+        return new RollingStorageSegmentIterator(this, this.baseStorage.listSegments(),
+                props -> NameUtils.isHeaderSegment(props.getName()));
+    }
+
     //endregion
 
     //region SegmentChunk Operations
@@ -834,5 +845,53 @@ public class RollingStorage implements SyncStorage {
         }
     }
 
+    /**
+     * Iterator for segments in Rolling storage.
+     */
+    private static class RollingStorageSegmentIterator implements Iterator<SegmentProperties> {
+        private final RollingStorage instance;
+        private final Iterator<SegmentProperties> results;
+
+        RollingStorageSegmentIterator(RollingStorage instance, Iterator<SegmentProperties> results, java.util.function.Predicate<SegmentProperties> patternMatchPredicate) {
+            this.instance = instance;
+            this.results = StreamSupport.stream(Spliterators.spliteratorUnknownSize(results, 0), false)
+                    .filter(patternMatchPredicate)
+                    .map(this::toSegmentProperties)
+                    .iterator();
+        }
+
+        public SegmentProperties toSegmentProperties(SegmentProperties segmentProperties) {
+            try {
+                String segmentName = NameUtils.getSegmentNameFromHeader(segmentProperties.getName());
+                val handle = instance.openHandle(segmentName, true);
+                return StreamSegmentInformation.builder()
+                        .name(segmentName)
+                        .length(handle.length())
+                        .sealed(handle.isSealed()).build();
+            } catch (StreamSegmentException e) {
+                log.error("Exception occurred while transforming the object into SegmentProperties.");
+                return null;
+            }
+        }
+
+        /**
+         * Method to check the presence of next element in the iterator.
+         * @return true if the next element is there, else false.
+         */
+        @Override
+        public boolean hasNext() {
+            return results.hasNext();
+        }
+
+        /**
+         * Method to return the next element in the iterator.
+         * @return A newly created StreamSegmentInformation class.
+         * @throws NoSuchElementException in case of an unexpected failure.
+         */
+        @Override
+        public SegmentProperties next() throws NoSuchElementException {
+            return results.next();
+        }
+    }
     //endregion
 }
