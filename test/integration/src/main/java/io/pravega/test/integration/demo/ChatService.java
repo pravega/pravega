@@ -81,36 +81,37 @@ import org.slf4j.LoggerFactory;
  * How to use this:
  * - This is a command-line demo. The user types in instructions on the command line and they get executed.
  * - Syntax: {command-name} {arguments}
- * -- {command-name} is prefixed by "!" for actions and by {@code @} for messages that need to be sent.
+ * -- If {command-name} is prefixed by {@code @}, that will indicate it's a message to send to a user/channel.
+ * -- Any other {command-name}s will be interpreted as actions. See below.
  * <p>
- * The following are a list of commands
+ * The following are a list of commands:
  * <p>
- * - !exit: Exits the demo application.
- * - !create-user {username}: Creates a new user with the given username.
- * - !create-channel {channelname}: Creates a new Public Channel with the given name.
- * - !list-users: List all the users in the system.
- * - !list-channels: Lists all channels in the system.
- * - !login: {username}: The user by the specified user name is now active in this session.
- * - !subscribe {channelname}: Subscribes the currently logged in user to the given channel. Until unsubscribed, all messages
+ * - exit: Exits the demo application.
+ * - create-user {username}: Creates a new user with the given username.
+ * - create-channel {channelname}: Creates a new Public Channel with the given name.
+ * - list-users: List all the users in the system.
+ * - list-channels: Lists all channels in the system.
+ * - login: {username}: The user by the specified user name is now active in this session.
+ * - subscribe {channelname}: Subscribes the currently logged in user to the given channel. Until unsubscribed, all messages
  * published to this channel will be displayed as soon as they are published.
- * - !unsubscribe {channelname}: Unsubscribes the currently logged in user from the given channel.
- * - !list-subscriptions: Lists all subscriptions the currently logged in user has.
+ * - unsubscribe {channelname}: Unsubscribes the currently logged in user from the given channel.
+ * - list-subscriptions: Lists all subscriptions the currently logged in user has.
  * <p>
  * Example:
  * {@code
- * !create-user user1
- * !create-user user2
- * !create-channel ch1
- * !list-users
- * !list-channels
- * !login user1
- * !subscribe #ch1
+ * create-user user1
+ * create-user user2
+ * create-channel ch1
+ * list-users
+ * list-channels
+ * login user1
+ * subscribe #ch1
  * @user2 Hey user2! How are you?
  * @#ch1 Hey everyone. This is the first message ever on this channel.
- * !login user2
+ * login user2
  * @#ch1 Hey there. Everything is good.
- * !login user1
- * !exit
+ * login user1
+ * exit
  * }
  */
 public class ChatService {
