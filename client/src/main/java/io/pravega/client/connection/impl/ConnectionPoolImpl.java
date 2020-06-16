@@ -52,7 +52,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
      * attributes. (e.g: FlowCount, WriterCount)
      */
     @Data
-    private class Connection implements Comparable<Connection>{
+    private class Connection implements Comparable<Connection> {
         private final PravegaNodeUri uri;
         /**
          * A future that completes when the connection is first established.
