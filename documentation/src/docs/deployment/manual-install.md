@@ -142,12 +142,12 @@ In the file `conf/config.properties`, make the following changes as mentioned:
 Replace `<zk-ip>`, `<controller-ip>` and `<hdfs-ip>` with the IPs of the respective services.
 
 ```
-pravegaservice.zkURL=<zk-ip>:2181
-bookkeeper.zkAddress=<zk-ip>:2181
-autoScale.controllerUri=tcp://<controller-ip>:9090
+pravegaservice.zk.connect.uri=<zk-ip>:2181
+bookkeeper.zk.connect.uri=<zk-ip>:2181
+autoScale.controller.connect.uri=tcp://<controller-ip>:9090
 
 # Settings required for HDFS
-hdfs.hdfsUrl=<hdfs-ip>:8020
+hdfs.connect.uri=<hdfs-ip>:8020
 ```
 
 After making the configuration changes, the segment store can be run using the following command:

@@ -402,9 +402,9 @@ expressed through the `pravega/options` part of the resource specification. All 
 spec:
   pravega:
     options:
-      metrics.enableStatistics: "true"
-      metrics.statsdHost: "telegraph.default"
-      metrics.statsdPort: "8125"
+      metrics.statistics.enable: "true"
+      metrics.statsD.connect.host: "telegraph.default"
+      metrics.statsD.connect.port: "8125"
 ...
 ```
 ### Enable External Access

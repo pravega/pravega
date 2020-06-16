@@ -274,8 +274,8 @@ Controller services can be configured in three different ways:
 1. By specifying the configuration parameter values directly in the `controller.config.properties` file. For example,
 
    ```
-   controller.auth.tlsEnabled=true
-   controller.auth.tlsCertFile=/etc/secrets/controller01.pem
+   controller.security.tls.enable=true
+   controller.security.tls.server.certificate.location=/etc/secrets/controller01.pem
    ```
 2. By specifying configuration values via corresponding environment variables. For example,
 
@@ -289,8 +289,8 @@ Controller services can be configured in three different ways:
    `controller.config.properties` file and locate the variables.
 
    ```
-   controller.auth.tlsEnabled=${TLS_ENABLED}
-   controller.auth.tlsCertFile=${TLS_CERT_FILE}
+   controller.security.tls.enable=${TLS_ENABLED}
+   controller.security.tls.server.certificate.location=${TLS_CERT_FILE}
    ```
 
 3. By specifying configuration parameters as JVM system properties. This way of configuring Controller service is more relevant for container application deployment tools and orchestrators such as Docker Compose, Swarm and Kubernetes.
@@ -304,8 +304,8 @@ Controller services can be configured in three different ways:
          environment:
              ...
              JAVA_OPTS:
-                -dcontroller.auth.tlsEnabled=true
-                -dcontroller.auth.tlsCertFile=...
+                -dcontroller.security.tls.enable=true
+                -dcontroller.security.tls.server.certificate.location=...
                 ...
       ...          
    ```
@@ -314,18 +314,18 @@ The following table lists the Controller's TLS and auth parameters and represent
 
  | Configuration Parameter| Example Value |
  |:-----------------------:|:-------------|
- | `controller.auth.tlsEnabled` | true |
- | `controller.auth.tlsCertFile` | /etc/secrets/controller01.pem |
- | `controller.auth.tlsKeyFile` | /etc/secrets/controller01.key.pem |
- | `controller.auth.tlsTrustStore` | /etc/secrets/ca-cert |
- | `controller.rest.tlsKeyStoreFile` | /etc/secrets/controller01.server.jks |
- | `controller.rest.tlsKeyStorePasswordFile` | /etc/secrets/controller01.server.jks.password <sup>1</sup> |
- | `controller.zk.secureConnection` | false <sup>2</sup> |
- | `controller.zk.tlsTrustStoreFile` | /etc/secrets/client.truststore.jks |
- | `controller.zk.tlsTrustStorePasswordFile` | /etc/secrets/client.truststore.jks.password |
- | `controller.auth.enabled` | true |
- | `controller.auth.userPasswordFile` <sup>3</sup> | /etc/secrets/password-auth-handler.inputfile |
- | `controller.auth.tokenSigningKey | a-secret-value |
+ | `controller.security.tls.enable` | true |
+ | `controller.security.tls.server.certificate.location` | /etc/secrets/controller01.pem |
+ | `controller.security.tls.server.privateKey.location` | /etc/secrets/controller01.key.pem |
+ | `controller.security.tls.trustStore.location` | /etc/secrets/ca-cert |
+ | `controller.security.tls.server.keyStore.location` | /etc/secrets/controller01.server.jks |
+ | `controller.security.tls.server.keyStore.pwd.location` | /etc/secrets/controller01.server.jks.password <sup>1</sup> |
+ | `controller.zk.connect.security.enable` | false <sup>2</sup> |
+ | `controller.zk.connect.security.tls.trustStore.location` | /etc/secrets/client.truststore.jks |
+ | `controller.zk.connect.security.tls.trustStore.pwd.location` | /etc/secrets/client.truststore.jks.password |
+ | `controller.security.auth.enable` | true |
+ | `controller.security.pwdAuthHandler.accountsDb.location` <sup>3</sup> | /etc/secrets/password-auth-handler.inputfile |
+ | `controller.security.auth.delegationToken.signingKey.basis | a-secret-value |
 
  [1]: This and other `.password` files are text files containing the password for the corresponding store.
 
@@ -339,17 +339,17 @@ Segment store supports configuration via a properties file (`config.properties`)
 
  | Configuration Parameter| Example Value |
  |:-----------------------:|:-------------|
- | `pravegaservice.enableTls` | true |
- | `pravegaservice.certFile` | /etc/secrets/segmentstore01.pem |
- | `pravegaservice.keyFile` | /etc/secrets/segmentstore01.key.pem |
- | `pravegaservice.secureZK` | false <sup>2</sup> |
- | `pravegaservice.zkTrustStore` | /etc/secrets/client.truststore.jks |
- | `pravegaservice.zkTrustStorePasswordPath` | /etc/secrets/client.truststore.jks.password |
- | `autoScale.tlsEnabled` | true |
- | `autoScale.tlsCertFile` | /etc/secrets/segmentstore01.key.pem |
- | `autoScale.authEnabled` | true |
- | `autoScale.tokenSigningKey` | a-secret-value <sup>1</sup>|
- | `autoScale.validateHostName` | true |
+ | `pravegaservice.security.tls.enable` | true |
+ | `pravegaservice.security.tls.server.certificate.location` | /etc/secrets/segmentstore01.pem |
+ | `pravegaservice.security.tls.server.privateKey.location` | /etc/secrets/segmentstore01.key.pem |
+ | `pravegaservice.zk.connect.security.enable` | false <sup>2</sup> |
+ | `pravegaservice.zk.connect.security.tls.trustStore.location` | /etc/secrets/client.truststore.jks |
+ | `pravegaservice.zk.connect.security.tls.trustStore.pwd.location` | /etc/secrets/client.truststore.jks.password |
+ | `autoScale.controller.connect.security.tls.enable` | true |
+ | `autoScale.controller.connect.security.tls.truststore.location` | /etc/secrets/segmentstore01.key.pem |
+ | `autoScale.controller.connect.security.auth.enable` | true |
+ | `autoScale.security.auth.token.signingKey.basis` | a-secret-value <sup>1</sup>|
+ | `autoScale.controller.connect.security.tls.validateHostName.enable` | true |
 
 [1]: It is assumed here that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS configuration properties via the `pravegaservice.zk.*` properties.
 
