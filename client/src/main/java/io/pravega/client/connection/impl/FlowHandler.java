@@ -90,7 +90,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
             throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flowID);
         }
         createAppendBatchSizeTrackerIfNeeded(flowID);
-        return new FlowClientConnection(location.toString(), flowID, this);
+        return new FlowClientConnection(location.toString(), channel, flowID, this);
     }
 
     /**
@@ -105,7 +105,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         log.info("Creating a new connection with flow disabled for endpoint {}.", location);
         flowIdReplyProcessorMap.put(FLOW_DISABLED, rp);
         createAppendBatchSizeTrackerIfNeeded(FLOW_DISABLED);
-        return new FlowClientConnection(location.toString(), FLOW_DISABLED, this);
+        return new FlowClientConnection(location.toString(), channel, FLOW_DISABLED, this);
     }
 
     /**
