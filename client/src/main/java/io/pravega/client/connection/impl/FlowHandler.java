@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -232,12 +231,6 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            
-            
-            
-            
-            
-            
             ScheduledFuture<?> future = keepAliveFuture.get();
             if (future != null) {
                 future.cancel(false);
@@ -248,29 +241,16 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
                     log.debug("Connection dropped for flow id {}", flowId);
                     rp.connectionDropped();
                 } catch (Exception e) {
-                    // Suppressing exception which prevents all ReplyProcessor.connectionDropped from being invoked.
+                    // Suppressing exception which prevents all ReplyProcessor.connectionDropped
+                    // from being invoked.
                     log.warn("Encountered exception invoking ReplyProcessor for flow id {}", flowId, e);
                 }
             });
-            
-            
-            //TODO: verify
-            
-            
-            
-           
-                log.info("Closing connection with endpoint {}", location);
-                final int openFlowCount = flowIdReplyProcessorMap.size();
-                if (openFlowCount != 0) {
-                    log.debug("{} flows are not closed", openFlowCount);
-                    // ensure all the ReplyProcessors are informed immediately about the channel being closed.
-                    invokeProcessingFailureForAllFlows(new ConnectionClosedException());
-                }
-                final int appendTrackerCount = flowIDBatchSizeTrackerMap.size();
-                if (appendTrackerCount != 0) {
-                    log.warn("{} AppendBatchSizeTrackers are not closed", appendTrackerCount);
-                }
-                channel.close();
+            final int appendTrackerCount = flowIDBatchSizeTrackerMap.size();
+            if (appendTrackerCount != 0) {
+                log.warn("{} AppendBatchSizeTrackers are not closed", appendTrackerCount);
+            }
+            channel.close();
         }
     }
     
