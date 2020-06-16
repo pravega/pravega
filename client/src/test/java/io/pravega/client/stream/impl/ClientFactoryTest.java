@@ -11,8 +11,15 @@ package io.pravega.client.stream.impl;
 
 
 import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import lombok.val;
@@ -22,6 +29,9 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,6 +43,14 @@ public class ClientFactoryTest {
     private ConnectionFactory connectionFactory;
     @Mock
     private Controller controllerClient;
+    @Mock
+    private SegmentInputStreamFactory inFactory;
+    @Mock
+    private SegmentOutputStreamFactory outFactory;
+    @Mock
+    private ConditionalOutputStreamFactory condFactory;
+    @Mock
+    private SegmentMetadataClientFactory metaFactory;
 
     @Test
     public void testCloseWithExternalController() {
@@ -55,6 +73,26 @@ public class ClientFactoryTest {
         String stream = "stream1";
         // setup mocks
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controllerClient, connectionFactory);
+        NavigableMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        Segment segment = new Segment(scope, stream, 0L);
+        segments.put(1.0, new SegmentWithRange(segment, 0.0, 1.0));
+        StreamSegments currentSegments = new StreamSegments(segments, "");
+        SegmentOutputStream outStream = mock(SegmentOutputStream.class);
+        when(controllerClient.getCurrentSegments(scope, stream))
+                .thenReturn(CompletableFuture.completedFuture(currentSegments));
+        when(outFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outStream);
+
+        EventWriterConfig writerConfig = EventWriterConfig.builder().build();
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<String>(), writerConfig);
+        assertEquals(writerConfig, writer.getConfig());
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testEventWriterSealedStream() {
+        String scope = "scope";
+        String stream = "stream1";
+        // setup mocks
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controllerClient, connectionFactory);
         StreamSegments currentSegments = new StreamSegments(new TreeMap<>(), "");
         when(controllerClient.getCurrentSegments(scope, stream))
                 .thenReturn(CompletableFuture.completedFuture(currentSegments));
@@ -73,4 +111,5 @@ public class ClientFactoryTest {
         val txnWriter2 = clientFactory.createTransactionalEventWriter( "stream1", new JavaSerializer<String>(), writerConfig);
         assertEquals(writerConfig, txnWriter2.getConfig());
     }
+    
 }

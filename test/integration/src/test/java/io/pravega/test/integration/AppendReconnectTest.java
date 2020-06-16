@@ -73,7 +73,8 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
+                serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -113,7 +114,8 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
+                serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());

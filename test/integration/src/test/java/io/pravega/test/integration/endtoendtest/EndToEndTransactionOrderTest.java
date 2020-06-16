@@ -118,7 +118,8 @@ public class EndToEndTransactionOrderTest {
                                 .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
 
         server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
-                autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null, true);
+                autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null,
+                true, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         controllerWrapper.awaitRunning();

@@ -31,6 +31,20 @@ public interface SegmentInputStreamFactory {
      * @return New instance of SegmentInputStream for reading.
      */
     SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider);
+
+    /**
+     * Opens an existing segment for reading bytes. This operation will fail if the
+     * segment does not exist.
+     * This operation may be called multiple times on the same stream from the
+     * same client (i.e., there can be concurrent Stream Readers in the same
+     * process space).
+     *
+     * @param segment The segment to create an input for.
+     * @param tokenProvider The {@link DelegationTokenProvider} instance to be used for obtaining a delegation token.
+     * @param startOffset The start offset of the segment.
+     * @return New instance of SegmentInputStream for reading.
+     */
+    SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider, long startOffset);
     
     /**
      * Opens an existing segment for reading events. This operation will fail if the
