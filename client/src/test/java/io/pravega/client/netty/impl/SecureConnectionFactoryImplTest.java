@@ -9,15 +9,14 @@
  */
 package io.pravega.client.netty.impl;
 
-import org.junit.Before;
-
-public class SecureConnectionFactoryImplTest extends ConnectionFactoryImplTest {
-    /*
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        this.ssl = true;
-        super.setUp();
-    }
-    */
-}
+//import org.junit.Before;
+//
+//public class SecureConnectionFactoryImplTest extends ConnectionFactoryImplTest {
+//    
+//    @Override
+//    @Before
+//    public void setUp() throws Exception {
+//        this.ssl = true;
+//        super.setUp();
+//    }
+//}
