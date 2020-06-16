@@ -17,6 +17,7 @@ import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventWriterConfig;
@@ -53,14 +54,17 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
                                                                 RuntimeException::new);
 
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
-        return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, tokenProvider),
-                                        metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider));
+        SegmentMetadataClient metaClient = metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider);
+        long startOffset = metaClient.getSegmentInfo().getStartingOffset();
+        return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, tokenProvider, startOffset),
+                metaClient);
     }
 
     @Override
     public ByteStreamWriter createByteStreamWriter(String streamName) {
         StreamSegments segments = Futures.getThrowingException(controller.getCurrentSegments(scope, streamName));
-        Preconditions.checkArgument(segments.getSegments().size() == 1, "Stream is configured with more than one segment");
+        Preconditions.checkState(segments.getNumberOfSegments() > 0, "Stream is sealed");
+        Preconditions.checkState(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
         Segment segment = segments.getSegments().iterator().next();
         EventWriterConfig config = EventWriterConfig.builder().build();
         String delegationToken = segments.getDelegationToken();

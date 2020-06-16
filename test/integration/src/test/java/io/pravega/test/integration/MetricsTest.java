@@ -121,7 +121,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
         this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
-                null, null, true);
+                null, null, true, this.serviceBuilder.getLowPriorityExecutor());
         this.server.startListening();
 
         // 4. Start Pravega Controller service

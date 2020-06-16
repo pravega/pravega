@@ -66,13 +66,15 @@ import lombok.extern.slf4j.Slf4j;
 public class ServiceBuilder implements AutoCloseable {
     //region Members
 
-    private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(45);
     private final SegmentStoreMetrics.ThreadPool threadPoolMetrics;
     private final SegmentToContainerMapper segmentToContainerMapper;
     private final ServiceBuilderConfig serviceBuilderConfig;
     @Getter(AccessLevel.PROTECTED)
     private final ScheduledExecutorService coreExecutor;
     private final ScheduledExecutorService storageExecutor;
+    @Getter(AccessLevel.PUBLIC)
+    private final ScheduledExecutorService lowPriorityExecutor;
     private final CacheManager cacheManager;
     private final AtomicReference<OperationLogFactory> operationLogFactory;
     private final AtomicReference<ReadIndexFactory> readIndexFactory;
@@ -122,8 +124,10 @@ public class ServiceBuilder implements AutoCloseable {
 
         // Setup Thread Pools.
         String instancePrefix = getInstanceIdPrefix(serviceConfig);
-        this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), instancePrefix + "core");
-        this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), instancePrefix + "storage-io");
+        this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), instancePrefix + "core", Thread.NORM_PRIORITY);
+        this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), instancePrefix + "storage-io", Thread.NORM_PRIORITY);
+        this.lowPriorityExecutor = executorBuilder.apply(serviceConfig.getLowPriorityThreadPoolSize(),
+                instancePrefix + "low-priority-cleanup", Thread.MIN_PRIORITY);
         this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor);
 
         this.cacheManager = new CacheManager(serviceConfig.getCachePolicy(), this.coreExecutor);
@@ -146,7 +150,8 @@ public class ServiceBuilder implements AutoCloseable {
         closeComponent(this.readIndexFactory);
         this.cacheManager.close();
         this.threadPoolMetrics.close();
-        ExecutorServiceHelpers.shutdown(SHUTDOWN_TIMEOUT, this.storageExecutor, this.coreExecutor);
+        ExecutorServiceHelpers.shutdown(SHUTDOWN_TIMEOUT, this.storageExecutor, this.coreExecutor,
+                this.lowPriorityExecutor);
     }
 
     //endregion
@@ -386,7 +391,7 @@ public class ServiceBuilder implements AutoCloseable {
     @FunctionalInterface
     @VisibleForTesting
     public interface ExecutorBuilder {
-        ScheduledExecutorService apply(int threadPoolSize, String name);
+        ScheduledExecutorService apply(int threadPoolSize, String name, Integer threadPriority);
     }
 
     //endregion

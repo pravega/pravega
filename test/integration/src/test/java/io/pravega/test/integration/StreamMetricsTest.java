@@ -56,6 +56,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import static io.pravega.shared.MetricsTags.streamTags;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 @Slf4j
 public class StreamMetricsTest {
@@ -104,7 +105,7 @@ public class StreamMetricsTest {
 
         this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
-                null, null, true);
+                null, null, true, this.serviceBuilder.getLowPriorityExecutor());
         this.server.startListening();
 
         // 4. Start Pravega Controller service
@@ -228,5 +229,48 @@ public class StreamMetricsTest {
         AssertExtensions.assertEventuallyEquals(true, () -> transaction2.checkStatus().equals(Transaction.Status.ABORTED), 10000);
         AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getCounter(MetricsNames.ABORT_TRANSACTION, streamTags(txScopeName, txStreamName)) != null, 10000);
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.ABORT_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
+    }
+
+    @Test(timeout = 30000)
+    public void testRollingTxnMetrics() throws Exception {
+        String scaleRollingTxnScopeName = "scaleRollingTxnScope";
+        String scaleRollingTxnStreamName = "scaleRollingTxnStream";
+
+        controllerWrapper.getControllerService().createScope(scaleRollingTxnScopeName).get();
+        if (!controller.createStream(scaleRollingTxnScopeName, scaleRollingTxnStreamName, config).get()) {
+            fail("Stream " + scaleRollingTxnScopeName + "/" + scaleRollingTxnStreamName + " for scale testing already existed, test failed");
+        }
+
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scaleRollingTxnScopeName, ClientConfig.builder()
+                .controllerURI(URI.create("tcp://localhost:" + controllerPort)).build());
+        @Cleanup
+        TransactionalEventStreamWriter<String> writer = clientFactory.createTransactionalEventWriter(Stream.of(scaleRollingTxnScopeName, scaleRollingTxnStreamName).getStreamName(),
+                new JavaSerializer<>(), EventWriterConfig.builder().build());
+        Transaction<String> transaction = writer.beginTxn();
+        transaction.writeEvent("Transactional content");
+
+        //split to 3 segments
+        Map<Double, Double> keyRanges = new HashMap<>();
+        keyRanges.put(0.0, 0.25);
+        keyRanges.put(0.25, 0.75);
+        keyRanges.put(0.75, 1.0);
+
+        Stream scaleRollingTxnStream = new StreamImpl(scaleRollingTxnScopeName, scaleRollingTxnStreamName);
+        if (!controller.scaleStream(scaleRollingTxnStream, Collections.singletonList(0L), keyRanges, executor).getFuture().get()) {
+            fail("Scale stream: splitting segment into three failed, exiting");
+        }
+
+        assertEquals(3, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
+        assertEquals(1, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
+        assertEquals(0, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
+
+        transaction.flush();
+        transaction.commit();
+
+        String message = "Inconsistency found between metadata and metrics";
+        AssertExtensions.assertEventuallyEquals(message, 3L, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 500, 30000);
+        AssertExtensions.assertEventuallyEquals(message, 2L, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 200, 30000);
+        AssertExtensions.assertEventuallyEquals(message, 1L, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 200, 30000);
     }
 }

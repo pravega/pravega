@@ -11,6 +11,7 @@ package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+
 import java.util.Properties;
 import java.util.function.Function;
 
@@ -141,6 +142,9 @@ public class TypedProperties {
         // Get value from config.
         String value = this.properties.getProperty(fullKeyName, null);
 
+        if (value == null && property.hasLegacyName()) {
+            value = this.properties.getProperty(this.keyPrefix + property.getLegacyName(), null);
+        }
         if (value == null) {
             // 2. Nothing in the configuration for this Property.
             if (property.hasDefaultValue()) {

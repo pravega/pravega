@@ -56,6 +56,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
     private final static int TEST_TIMEOUT = 60000;
     private final static int RETRY_SLEEP_MS = 100;
     private final static int MAX_RETRY = 5;
+    private final static int MAX_PARALLEL_CONTAINER_STARTS = 2;
     private static final int PORT = TestUtils.getAvailableListenPort();
     private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT, null);
     private final static String PATH = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
@@ -315,7 +316,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
 
     private ZKSegmentContainerMonitor createContainerMonitor(
             SegmentContainerRegistry registry, CuratorFramework zkClient) {
-        return new ZKSegmentContainerMonitor(registry, zkClient, PRAVEGA_SERVICE_ENDPOINT, executorService());
+        return new ZKSegmentContainerMonitor(registry, zkClient, PRAVEGA_SERVICE_ENDPOINT, MAX_PARALLEL_CONTAINER_STARTS, executorService());
     }
 
     private void initializeHostContainerMapping(CuratorFramework zkClient) throws Exception {

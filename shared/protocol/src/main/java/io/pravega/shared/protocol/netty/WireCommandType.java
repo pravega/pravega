@@ -102,6 +102,9 @@ public enum WireCommandType {
     READ_TABLE_ENTRIES(85, WireCommands.ReadTableEntries::readFrom),
     TABLE_ENTRIES_READ(86, WireCommands.TableEntriesRead::readFrom),
 
+    TABLE_ENTRIES_DELTA_READ(87, WireCommands.TableEntriesDeltaRead::readFrom),
+    READ_TABLE_ENTRIES_DELTA(88, WireCommands.ReadTableEntriesDelta::readFrom),
+
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
     private final int code;
