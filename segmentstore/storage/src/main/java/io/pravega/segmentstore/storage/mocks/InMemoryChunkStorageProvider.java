@@ -144,7 +144,7 @@ public class InMemoryChunkStorageProvider extends AbstractInMemoryChunkStoragePr
         int bytesRead = 0;
         try {
             while ((bytesRead = data.read(bytes)) != -1) {
-                out.write(bytes, totalBytesRead, bytesRead);
+                out.write(bytes, 0, bytesRead);
                 totalBytesRead += bytesRead;
             }
         } catch (IOException e) {

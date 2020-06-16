@@ -42,7 +42,7 @@ public abstract class StorageMetadata implements Serializable {
      * @param toConvert String to convert.
      * @return If toConvert is null then it returns empty string. Otherwise returns original string.
      */
-    protected static String toNullableString(String toConvert) {
+    public  static String toNullableString(String toConvert) {
         if (toConvert.length() == 0) {
             return null;
         }
@@ -54,7 +54,7 @@ public abstract class StorageMetadata implements Serializable {
      * @param toConvert String to convert.
      * @return If toConvert is null then it returns empty string. Otherwise returns original string.
      */
-    protected static String fromNullableString(String toConvert) {
+    public static String fromNullableString(String toConvert) {
         if (null == toConvert) {
             return "";
         }
