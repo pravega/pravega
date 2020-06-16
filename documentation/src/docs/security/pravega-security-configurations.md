@@ -30,6 +30,9 @@ The following sub-sections describe
 their Transport Layer Security (TLS) and auth (short for authentication and authorization) parameters.
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4856: Update documentation to reflect new configuration property names (#4862)
 ### Controller TLS Configuration Parameters
 
 * __<ins>controller.security.tls.enable</ins>__
@@ -332,6 +335,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |Alternative method:|`pravega_client_auth_token` (environment variable)|
   
 * __<ins>pravega.client.auth.token</ins>__
+<<<<<<< HEAD
 =======
 ### Controller
 
@@ -373,6 +377,8 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
 |`pravega.client.auth.token` (`pravega_client_auth_method`)| The token to use by the Auto Scale Processor when communicating with Controller.  | Empty | Auth |
 |`pravega.client.auth.method` (`pravega_client_auth_token`)| The `auth` method to use by the Auto Scale Processor when communicating with Controller. | Empty | Auth |
 >>>>>>> Issue 4712: Make configuration keys consistent and uniform (#4713)
+=======
+>>>>>>> Issue 4856: Update documentation to reflect new configuration property names (#4862)
 
    |Property| Value | 
    |---:|:----|
@@ -391,6 +397,9 @@ fewer security configuration parameters to configure.
 |Parameter|Details|Default |Feature|
 |---------|-------|-------------|-------|
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4856: Update documentation to reflect new configuration property names (#4862)
 | `singlenode.security.tls.enable` | Whether to enable TLS for client-server communications. | `false` | TLS |
 | `singlenode.security.tls.certificate.location` | Path of the X.509 PEM-encoded server certificate file for the server. | None | TLS |
 | `singlenode.security.tls.privateKey.location` | Path of the PEM-encoded private key file for the service. | None | TLS |
@@ -402,6 +411,7 @@ fewer security configuration parameters to configure.
 | `singlenode.security.auth.credentials.pwd` | The default password used for internal communication between Segment Store and Controller. | None | Auth |
 | `singlenode.security.auth.pwdAuthHandler.accountsDb.location` | Path of the file containing user credentials and ACLs, for the PasswordAuthHandler. | None | Auth |
 | `singlenode.segmentStore.tls.certificate.autoReload.enable` | Whether to automatically reload SSL/TLS context if the server certificate is updated. | `false` | TLS |
+<<<<<<< HEAD
 =======
 | `singlenode.security.tls.enable` | Whether to enable TLS for client-server communications. | False | TLS |
 | `singlenode.security.tls.certificate.location` | Path of the X.509 PEM-encoded server certificate file for the server. |Empty| TLS |
@@ -415,3 +425,5 @@ fewer security configuration parameters to configure.
 | `singlenode.security.auth.pwdAuthHandler.accountsDb.location` | Path of the file containing user credentials and ACLs, for the PasswordAuthHandler. |Empty| Auth |
 | `singlenode.segmentStore.tls.certificate.autoReload.enable` | Whether to automatically reload SSL/TLS context if the server certificate is updated. | False | TLS |
 >>>>>>> Issue 4712: Make configuration keys consistent and uniform (#4713)
+=======
+>>>>>>> Issue 4856: Update documentation to reflect new configuration property names (#4862)
