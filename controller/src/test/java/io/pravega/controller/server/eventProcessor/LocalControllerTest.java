@@ -13,6 +13,7 @@ import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -342,5 +343,52 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 () -> this.testController.updateKeyValueTable("", "", null),
                 ex -> ex instanceof UnsupportedOperationException);
 
+    }
+
+    @Test
+    public void testCreateKeyValueTable() {
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.createKeyValueTable("scope", "kvtable",
+                KeyValueTableConfiguration.builder().partitionCount(1).build()).join());
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.TABLE_EXISTS).build()));
+        Assert.assertFalse(this.testController.createKeyValueTable("scope", "kvtable",
+                KeyValueTableConfiguration.builder().partitionCount(1).build()).join());
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.createKeyValueTable("scope", "kvtable",
+                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.INVALID_TABLE_NAME).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.createKeyValueTable("scope", "kvtable",
+                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.createKeyValueTable("scope", "kvtable",
+                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.createKeyValueTable("scope", "kvtable1",
+                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                ex -> ex instanceof ControllerFailureException);
     }
 }
