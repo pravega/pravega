@@ -22,7 +22,7 @@ import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -31,9 +31,6 @@ import java.util.concurrent.Executor;
  */
 @Slf4j
 public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
-
-    @GuardedBy("$lock")
-    private final Map<String, InMemoryKVTable> kvTables = new HashMap<>();
 
     @GuardedBy("$lock")
     private final Map<String, Integer> deletedKVTables = new HashMap<>();
@@ -53,15 +50,23 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     }
 
     @Override
-    @Synchronized
-    KeyValueTable newKeyValueTable(String scope, String name) {
-        if (kvTables.containsKey(scopedKVTName(scope, name))) {
-            return kvTables.get(scopedKVTName(scope, name));
+    KeyValueTable newKeyValueTable(String scope, String kvTableName) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public KeyValueTable getKVTable(String scope, final String name, KVTOperationContext context) {
+        KeyValueTable kvt;
+        if (context != null) {
+            kvt = context.getKvTable();
+            assert kvt.getScopeName().equals(scope);
+            assert kvt.getName().equals(name);
         } else {
             InMemoryScope kvtScope = scopes.get(scope);
-            UUID id = kvtScope.getIdForKVTable(name);
-            return new InMemoryKVTable(scope, name, id);
+            Optional<InMemoryKVTable> kvTable = kvtScope.getKVTableFromScope(name);
+            kvt = kvTable.orElse(new InMemoryKVTable(scope, name));
         }
+        return kvt;
     }
 
     @Override
@@ -82,8 +87,8 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
-        final Integer safeStartingSegmentNumber = deletedKVTables.get(scopedKVTName(scopeName, streamName));
+    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String kvtName) {
+        final Integer safeStartingSegmentNumber = deletedKVTables.get(scopedKVTName(scopeName, kvtName));
         return CompletableFuture.completedFuture((safeStartingSegmentNumber != null) ? safeStartingSegmentNumber + 1 : 0);
     }
 

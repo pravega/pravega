@@ -201,6 +201,7 @@ public class TableMetadataTasks implements AutoCloseable {
     private CompletableFuture<Void> createNewSegment(String scope, String kvt, long segmentId, String controllerToken,
                                                      long requestId) {
         final String qualifiedTableSegmentName = getQualifiedTableSegmentName(scope, kvt, segmentId);
+        log.info("Creating segment {}", qualifiedTableSegmentName);
         return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(qualifiedTableSegmentName, controllerToken, requestId, true), executor));
     }
 

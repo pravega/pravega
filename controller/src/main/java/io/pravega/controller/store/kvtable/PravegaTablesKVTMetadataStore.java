@@ -53,7 +53,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
 
     @Override
     PravegaTablesKVTable newKeyValueTable(final String scope, final String name) {
-        log.info("Fetching KV Table from pravega tables store {}/{}", scope, name);
+        log.info("Fetching KV Table from PravegaTables store {}/{}", scope, name);
         return new PravegaTablesKVTable(scope, name, storeHelper,
                 () -> ((PravegaTablesScope) getScope(scope)).getKVTablesInScopeTableName(), executor);
     }

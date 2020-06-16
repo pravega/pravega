@@ -38,6 +38,8 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
@@ -70,6 +72,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -898,6 +902,59 @@ public class ControllerImplTest {
                     responseObserver.onCompleted();
                 }
             }
+
+            @Override
+            public void createKeyValueTable(KeyValueTableConfig request,
+                                            StreamObserver<CreateKeyValueTableStatus> responseObserver) {
+                if (request.getKvtName().equals("kvtable1")) {
+                    responseObserver.onNext(CreateKeyValueTableStatus.newBuilder()
+                            .setStatus(CreateKeyValueTableStatus.Status.SUCCESS)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getKvtName().equals("kvtable2")) {
+                    responseObserver.onNext(CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(CreateKeyValueTableStatus.Status.FAILURE)
+                        .build());
+                    responseObserver.onCompleted();
+                } else if (request.getKvtName().equals("kvtable3")) {
+                    responseObserver.onNext(CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND)
+                        .build());
+                    responseObserver.onCompleted();
+                } else if (request.getKvtName().equals("kvtable4")) {
+                    responseObserver.onNext(CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(CreateKeyValueTableStatus.Status.TABLE_EXISTS)
+                        .build());
+                    responseObserver.onCompleted();
+                } else if (request.getKvtName().equals("kvtable5")) {
+                    responseObserver.onNext(CreateKeyValueTableStatus.newBuilder()
+                            .setStatus(CreateKeyValueTableStatus.Status.INVALID_TABLE_NAME)
+                            .build());
+                    responseObserver.onCompleted();
+                }
+            }
+
+            @Override
+            public void getCurrentSegmentsKeyValueTable(Controller.KeyValueTableInfo request,
+                                                        StreamObserver<SegmentRanges> responseObserver) {
+                if (request.getKvtName().equals("kvtable1")) {
+                    responseObserver.onNext(SegmentRanges.newBuilder()
+                            .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
+                                    "kvtable1",
+                                    4,
+                                    0.0,
+                                    0.4))
+                            .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
+                                    "kvtable1",
+                                    5,
+                                    0.4,
+                                    1.0))
+                            .build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
         };
 
         serverPort = TestUtils.getAvailableListenPort();
@@ -1694,5 +1751,44 @@ public class ControllerImplTest {
                 "",
                 () -> this.controllerClient.updateKeyValueTable("", "", null),
                 ex -> ex instanceof UnsupportedOperationException);
+    }
+
+    @Test
+    public void testCreateKeyValueTable() throws Exception {
+        CompletableFuture<Boolean> createKVTableStatus;
+        createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable1",
+                KeyValueTableConfiguration.builder().partitionCount(1).build());
+        assertTrue(createKVTableStatus.get());
+
+        createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable2",
+                KeyValueTableConfiguration.builder().partitionCount(1).build());
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createKVTableStatus, Throwable -> true);
+
+        createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable3",
+                KeyValueTableConfiguration.builder().partitionCount(1).build());
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createKVTableStatus, Throwable -> true);
+
+        createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable4",
+                KeyValueTableConfiguration.builder().partitionCount(1).build());
+        assertFalse(createKVTableStatus.get());
+
+        createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable5",
+                KeyValueTableConfiguration.builder().partitionCount(1).build());
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createKVTableStatus, Throwable -> true);
+    }
+
+    @Test
+    public void testGetCurrentSegmentsKeyValueTable() throws Exception {
+        CompletableFuture<KeyValueTableSegments> kvtSegments;
+        kvtSegments = controllerClient.getCurrentSegmentsForKeyValueTable("scope1", "kvtable1");
+        assertTrue(kvtSegments.get().getSegments().size() == 2);
+        assertEquals(new Segment("scope1", "kvtable1", 4), kvtSegments.get().getSegmentForKey(0.2));
+        assertEquals(new Segment("scope1", "kvtable1", 5), kvtSegments.get().getSegmentForKey(0.6));
+
+        kvtSegments = controllerClient.getCurrentSegmentsForKeyValueTable("scope1", "kvtable2");
+        AssertExtensions.assertFutureThrows("Should throw Exception", kvtSegments, throwable -> true);
     }
 }

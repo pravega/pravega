@@ -18,6 +18,7 @@ import io.pravega.controller.store.kvtable.records.KVTConfigurationRecord;
 import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
 import io.pravega.controller.store.kvtable.records.KVTStateRecord;
 import io.pravega.controller.store.stream.StoreException;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.Map;
@@ -27,6 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
+@Slf4j
 public class InMemoryKVTable extends AbstractKVTableBase {
     private final UUID id;
     private final AtomicLong creationTime = new AtomicLong(Long.MIN_VALUE);
@@ -44,6 +46,10 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     public InMemoryKVTable(String scope, String name, UUID id) {
         super(scope, name);
         this.id = id;
+    }
+
+    public InMemoryKVTable(String scope, String name) {
+        this(scope, name, UUID.randomUUID());
     }
 
     @Override
@@ -154,7 +160,6 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     @Override
     CompletableFuture<Version> setStateData(VersionedMetadata<KVTStateRecord> newState) {
         Preconditions.checkNotNull(newState);
-
         CompletableFuture<Version> result = new CompletableFuture<>();
         synchronized (lock) {
             if (Objects.equals(this.state.getVersion(), newState.getVersion())) {

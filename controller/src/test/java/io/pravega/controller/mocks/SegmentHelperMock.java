@@ -86,6 +86,8 @@ public class SegmentHelperMock {
         doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(0L, "", true, true, false, 0L, 0L, 0L))).when(helper).getSegmentInfo(
                 anyString(), anyString(), anyLong(), anyString());
 
+        doReturn(CompletableFuture.completedFuture(null)).when(helper).createTableSegment(
+                anyString(), anyString(), anyLong(), anyBoolean());
         return helper;
     }
 
@@ -115,6 +117,9 @@ public class SegmentHelperMock {
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());
+
+        doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTableSegment(
+                anyString(), anyString(), anyLong(), anyBoolean());
 
         return helper;
     }

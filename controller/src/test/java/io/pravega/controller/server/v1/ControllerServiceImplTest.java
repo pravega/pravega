@@ -820,7 +820,7 @@ public abstract class ControllerServiceImplTest {
         assertEquals(shutdownResultObserver.get().getResult(), Controller.RemoveWriterResponse.Status.UNKNOWN_WRITER);
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void createKeyValueTableTests() {
         String scope = "kvtscope";
         String kvtable = "kvtable100";
