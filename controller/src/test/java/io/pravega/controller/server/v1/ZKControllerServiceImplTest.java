@@ -232,4 +232,10 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         //TODO: Place holder till we fix the test
         assertTrue(true);
     }
+
+    @Test
+    public void getCurrentSegmentsKeyValueTableTest() {
+        //TODO: Place holder till we fix the test
+        assertTrue(true);
+    }
 }

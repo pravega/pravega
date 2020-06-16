@@ -14,6 +14,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -390,5 +391,27 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 () -> this.testController.createKeyValueTable("scope", "kvtable1",
                         KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
                 ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testGetCurrentSegmentsKeyValueTable() throws Exception {
+        Controller.StreamInfo info = Controller.StreamInfo.newBuilder().setScope("scope").setStream("kvtable").build();
+        Controller.SegmentId segment1 = Controller.SegmentId.newBuilder().setSegmentId(1).setStreamInfo(info).build();
+        Controller.SegmentId segment2 = Controller.SegmentId.newBuilder().setSegmentId(2).setStreamInfo(info).build();
+        Controller.SegmentId segment3 = Controller.SegmentId.newBuilder().setSegmentId(3).setStreamInfo(info).build();
+
+        Controller.SegmentRange segmentRange1 = Controller.SegmentRange.newBuilder().setSegmentId(segment1).setMinKey(0.1).setMaxKey(0.3).build();
+        Controller.SegmentRange segmentRange2 = Controller.SegmentRange.newBuilder().setSegmentId(segment2).setMinKey(0.4).setMaxKey(0.6).build();
+        Controller.SegmentRange segmentRange3 = Controller.SegmentRange.newBuilder().setSegmentId(segment3).setMinKey(0.7).setMaxKey(1.0).build();
+
+        List<Controller.SegmentRange> segmentsList = new ArrayList<Controller.SegmentRange>(3);
+        segmentsList.add(segmentRange1);
+        segmentsList.add(segmentRange2);
+        segmentsList.add(segmentRange3);
+
+        when(this.mockControllerService.getCurrentSegmentsKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(segmentsList));
+        KeyValueTableSegments segments = this.testController.getCurrentSegmentsForKeyValueTable("scope", "kvtable").get();
+        Assert.assertEquals(3, segments.getSegments().size());
     }
 }
