@@ -12,32 +12,29 @@ public class FlowClientConnection implements ClientConnection {
 
     @Getter
     private final String connectionName;
+    private final ClientConnection channel;
     @Getter
     private final int flowId;
     private final FlowHandler handler;
 
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
-        // TODO Auto-generated method stub
-
+        channel.send(cmd);
     }
 
     @Override
     public void send(Append append) throws ConnectionFailedException {
-        // TODO Auto-generated method stub
-
+        channel.send(append);
     }
 
     @Override
     public void sendAsync(List<Append> appends, CompletedCallback callback) {
-        // TODO Auto-generated method stub
-
+        channel.sendAsync(appends, callback);
     }
 
     @Override
     public void close() {
-        // TODO Auto-generated method stub
-
+        handler.closeFlow(this);
     }
 
 }
