@@ -206,8 +206,8 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
     }
 
     @Override
-    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT {
-        collectBuffer.accept(ByteBuffer.wrap(this.array, this.startOffset, this.length));
+    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT {
+        bufferCollector.accept(ByteBuffer.wrap(this.array, this.startOffset, this.length));
     }
 
     //endregion

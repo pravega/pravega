@@ -140,14 +140,14 @@ public interface BufferView {
      * Iterates through each of the buffers that make up this {@link BufferView}, in order, and invokes the given
      * {@link Collector} on each.
      *
-     * @param collectBuffer A {@link Collector} function that will be invoked for each component. Each {@link ByteBuffer}
-     *                      passed as an argument to this function is a direct pointer to the data contained within the
-     *                      {@link BufferView} (i.e., they are not copies of the data).
-     * @param <ExceptionT>  Type of exception that the {@link Collector} function throws, if any.
+     * @param bufferCollector A {@link Collector} function that will be invoked for each component. Each {@link ByteBuffer}
+     *                        passed as an argument to this function is a direct pointer to the data contained within the
+     *                        {@link BufferView} (i.e., they are not copies of the data).
+     * @param <ExceptionT>    Type of exception that the {@link Collector} function throws, if any.
      * @throws ExceptionT If the {@link Collector} function throws an exception of this type, the iteration will end
      *                    and the exception will be bubbled up.
      */
-    <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT;
+    <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT;
 
     /**
      * Wraps the given {@link BufferView} into a single instance.

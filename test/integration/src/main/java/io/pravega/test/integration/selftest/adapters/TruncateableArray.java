@@ -157,7 +157,7 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
-    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT {
+    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT {
         throw new UnsupportedOperationException("collect() not supported.");
     }
 

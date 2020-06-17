@@ -116,7 +116,7 @@ public class HashHelper {
     }
 
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    public class HashBuilder {
+    public final class HashBuilder {
         private final Hasher hasher;
 
         public void put(ByteBuffer bb) {

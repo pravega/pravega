@@ -151,8 +151,8 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
     }
 
     @Override
-    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT {
-        collect((array, offset, len) -> collectBuffer.accept(ByteBuffer.wrap(array, offset, len)), this.length);
+    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT {
+        collect((array, offset, len) -> bufferCollector.accept(ByteBuffer.wrap(array, offset, len)), this.length);
     }
 
     private <ExceptionT extends Exception> void collect(ArrayCollector<ExceptionT> collectArray, int length) throws ExceptionT {

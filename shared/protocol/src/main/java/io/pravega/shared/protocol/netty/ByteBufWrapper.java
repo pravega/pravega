@@ -83,9 +83,9 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
     }
 
     @Override
-    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) throws ExceptionT {
+    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT {
         for (ByteBuffer bb : this.buf.duplicate().nioBuffers()) {
-            collectBuffer.accept(bb);
+            bufferCollector.accept(bb);
         }
     }
 

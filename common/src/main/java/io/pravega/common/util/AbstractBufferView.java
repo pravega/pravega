@@ -158,7 +158,7 @@ public abstract class AbstractBufferView implements BufferView {
         }
 
         @Override
-        public <ExceptionT extends Exception> void collect(Collector<ExceptionT> collectBuffer) {
+        public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) {
             // This method intentionally left blank (nothing to do).
         }
 
