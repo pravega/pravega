@@ -97,7 +97,6 @@ public class KeyValueTableManagerImplTest {
     /**
      * Tests the following methods:
      * - {@link KeyValueTableManagerImpl#createKeyValueTable}
-     * - {@link KeyValueTableManagerImpl#updateKeyValueTable}
      * - {@link KeyValueTableManagerImpl#deleteKeyValueTable}
      */
     @Test
@@ -111,19 +110,14 @@ public class KeyValueTableManagerImplTest {
                 ex -> ex instanceof IllegalArgumentException);
 
         Assert.assertFalse(manager.deleteKeyValueTable(DEFAULT_SCOPE, name));
-        Assert.assertFalse(manager.updateKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
 
         Assert.assertTrue(manager.createKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
         Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), this.segments.size());
         Assert.assertFalse(manager.createKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
-        Assert.assertTrue(manager.updateKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
-        Assert.assertFalse(manager.updateKeyValueTable(DEFAULT_SCOPE, name,
-                KeyValueTableConfiguration.builder().partitionCount(DEFAULT_CONFIG.getPartitionCount() + 1).build()));
 
         Assert.assertTrue(manager.deleteKeyValueTable(DEFAULT_SCOPE, name));
         Assert.assertEquals(0, this.segments.size());
         Assert.assertFalse(manager.deleteKeyValueTable(DEFAULT_SCOPE, name));
-        Assert.assertFalse(manager.updateKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
         Assert.assertTrue(manager.createKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
         Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), this.segments.size());
         manager.close(); // Closing twice to verify operation is idempotent.

@@ -1747,10 +1747,6 @@ public class ControllerImplTest {
                 "",
                 () -> this.controllerClient.listKeyValueTables(""),
                 ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.controllerClient.updateKeyValueTable("", "", null),
-                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test

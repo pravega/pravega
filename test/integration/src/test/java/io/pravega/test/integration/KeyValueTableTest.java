@@ -41,7 +41,7 @@ import org.junit.Test;
 
 /**
  * Integration test for {@link KeyValueTable}s using real Segment Store, Controller and connection.
- *.
+ *
  */
 @Slf4j
 public class KeyValueTableTest extends KeyValueTableTestBase {

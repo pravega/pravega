@@ -473,11 +473,6 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
-        throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
-    }
-
-    @Override
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
         throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
     }
