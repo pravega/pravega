@@ -1047,12 +1047,12 @@ public class PravegaRequestProcessorTest {
         order.verify(connection, times(1)).send(tableEntriesCaptor.capture());
 
         // Verify the WireCommands.
-        getTableEntriesIteratorsResp =  tableEntriesCaptor.getAllValues().get(0);
+        getTableEntriesIteratorsResp = tableEntriesCaptor.getAllValues().get(0);
         assertEquals(1, getTableEntriesIteratorsResp.getEntries().getEntries().size());
         assertTrue(keyVersions.contains(getTableEntriesIteratorsResp.getEntries().getEntries().get(0).getKey().getKeyVersion()));
 
         assertFalse(getTableEntriesIteratorsResp.isShouldClear());
-        assertTrue(getTableEntriesIteratorsResp.isReachedEnd());
+        assertFalse(getTableEntriesIteratorsResp.isReachedEnd());
         // Get the last position.
         long lastPosition = getTableEntriesIteratorsResp.getLastPosition();
 
@@ -1065,6 +1065,8 @@ public class PravegaRequestProcessorTest {
 
         // Verify the WireCommands.
         getTableEntriesIteratorsResp =  tableEntriesCaptor.getAllValues().get(0);
+        // We read through all the entries, so this should report as having reached the end.
+        assertTrue(getTableEntriesIteratorsResp.isReachedEnd());
         assertEquals(2, getTableEntriesIteratorsResp.getEntries().getEntries().size());
         assertTrue(keyVersions.containsAll(getTableEntriesIteratorsResp.getEntries().getEntries().stream().map(e -> e.getKey().getKeyVersion()).collect(Collectors.toList())));
     }
