@@ -14,6 +14,7 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
@@ -246,6 +247,14 @@ public class ModelHelperTest {
                 () -> ModelHelper.encode(invalidMaxSegrange1),
                 ex -> ex instanceof IllegalArgumentException);
 
+    }
+
+    @Test
+    public void encodeKeyValueTableConfig() {
+        Controller.KeyValueTableConfig config = Controller.KeyValueTableConfig.newBuilder()
+                .setScope("scope").setKvtName("kvtable").setPartitionCount(2).build();
+        KeyValueTableConfiguration configuration = ModelHelper.encode(config);
+        assertEquals(config.getPartitionCount(), configuration.getPartitionCount());
     }
 
     private Controller.SegmentRange createSegmentRange(double minKey, double maxKey) {

@@ -7,15 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store;
 
-import lombok.Data;
+public interface SegmentRecord {
 
-/**
- * Wrapper data class that wraps a generic object with a version.
- */
-@Data
-public class VersionedMetadata<OBJECT> {
-    private final OBJECT object;
-    private final Version version;
+    long segmentId();
+
+    double getKeyStart();
+
+    double getKeyEnd();
 }

@@ -7,11 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.kvtable.InMemoryKVTable;
 import lombok.Synchronized;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -21,9 +23,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
+import io.pravega.controller.store.stream.StoreException;
 
 /**
  * InMemory implementation of Scope.
@@ -36,7 +40,10 @@ public class InMemoryScope implements Scope {
     private TreeMap<Integer, String> sortedStreamsInScope;
     private HashMap<String, Integer> streamsPositionMap;
 
-    InMemoryScope(String scopeName) {
+    @GuardedBy("$lock")
+    private HashMap<String, InMemoryKVTable> kvTablesMap;
+
+    public InMemoryScope(String scopeName) {
         this.scopeName = scopeName;
     }
 
@@ -50,6 +57,7 @@ public class InMemoryScope implements Scope {
     public CompletableFuture<Void> createScope() {
         this.sortedStreamsInScope = new TreeMap<>(Integer::compare);
         this.streamsPositionMap = new HashMap<>();
+        this.kvTablesMap =  new HashMap<String, InMemoryKVTable>();
         return CompletableFuture.completedFuture(null);
     }
 
@@ -60,6 +68,10 @@ public class InMemoryScope implements Scope {
         this.sortedStreamsInScope = null;
         this.streamsPositionMap.clear();
         this.streamsPositionMap = null;
+
+        this.kvTablesMap.clear();
+        this.kvTablesMap = null;
+
         return CompletableFuture.completedFuture(null);
     }
 
@@ -119,8 +131,20 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(new ImmutablePair<>(result, newContinuationToken));
     }
 
+    @Synchronized
+    public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
+        kvTablesMap.putIfAbsent(kvt, new InMemoryKVTable(this.scopeName, kvt, BitConverter.readUUID(id, 0)));
+        return CompletableFuture.completedFuture(null);
+    }
+
+    public Optional<InMemoryKVTable> getKVTableFromScope(String kvt) throws StoreException {
+        if (kvTablesMap.containsKey(kvt)) {
+            return Optional.of(kvTablesMap.get(kvt));
+        }
+        return Optional.empty();
+    }
+
     @Override
     public void refresh() {
-
     }
 }

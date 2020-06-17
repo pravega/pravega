@@ -312,11 +312,7 @@ public class LocalController implements Controller {
     }
 
     private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
-        NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
-        for (SegmentRange r : ranges) {
-            rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
-        }
-        return new StreamSegments(rangeMap, retrieveDelegationToken());
+        return new StreamSegments(getRangeMap(ranges), retrieveDelegationToken());
     }
 
     @Override
@@ -452,17 +448,28 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
-        throw new UnsupportedOperationException("createKeyValueTable not implemented.");
+        return this.controller.createKeyValueTable(scope, kvtName, kvtConfig, System.currentTimeMillis()).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to create KeyValueTable: " + kvtName);
+                case INVALID_TABLE_NAME:
+                    throw new IllegalArgumentException("Illegal KeyValueTable name: " + kvtName);
+                case SCOPE_NOT_FOUND:
+                    throw new IllegalArgumentException("Scope does not exist: " + scope);
+                case TABLE_EXISTS:
+                    return false;
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status creating kvtable " + kvtName
+                            + " " + x.getStatus());
+            }
+        });
     }
 
     @Override
     public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
         throw new UnsupportedOperationException("listKeyValueTables not implemented.");
-    }
-
-    @Override
-    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
-        throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
     }
 
     @Override
@@ -472,8 +479,20 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
-        throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");
+        return controller.getCurrentSegmentsKeyValueTable(scope, kvtName)
+                .thenApply(this::getKeyValueTableSegments);
     }
 
+    private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {
+        return new KeyValueTableSegments(getRangeMap(ranges), retrieveDelegationToken());
+    }
+
+    private NavigableMap<Double, SegmentWithRange> getRangeMap(List<SegmentRange> ranges) {
+        NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
+        for (SegmentRange r : ranges) {
+            rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
+        }
+        return rangeMap;
+    }
     //endregion
 }

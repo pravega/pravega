@@ -92,7 +92,12 @@ public final class NameUtils {
      * This is used in composing table names as `scope`/_tables
      */
     private static final String TABLES = "_tables";
-    
+
+    /**
+     * This is used in composing segment name for a table segment used for a KeyValueTable
+     */
+    private static final String KVTABLE_SUFFIX = "_kvt";
+
     /**
      * Prefix for identifying system created mark segments for storing watermarks. 
      */
@@ -303,6 +308,25 @@ public final class NameUtils {
      */
     public static String getScopedKeyValueTableName(String scope, String streamName) {
         return getScopedStreamNameInternal(scope, streamName).toString();
+    }
+
+    /**
+     * Method to generate Fully Qualified TableSegmentName using scope, stream and segment id.
+     *
+     * @param scope scope to be used in the ScopedTableSegment name
+     * @param kvTableName kvTable name to be used in ScopedTableSegment name.
+     * @param segmentId segment id to be used in ScopedStreamSegment name.
+     * @return fully qualified TableSegmentName for a TableSegment that is part of the KeyValueTable.
+     */
+    public static String getQualifiedTableSegmentName(String scope, String kvTableName, long segmentId) {
+        int segmentNumber = getSegmentNumber(segmentId);
+        int epoch = getEpoch(segmentId);
+        StringBuffer sb = getScopedStreamNameInternal(scope, kvTableName + KVTABLE_SUFFIX);
+        sb.append('/');
+        sb.append(segmentNumber);
+        sb.append(EPOCH_DELIMITER);
+        sb.append(epoch);
+        return sb.toString();
     }
 
     /**

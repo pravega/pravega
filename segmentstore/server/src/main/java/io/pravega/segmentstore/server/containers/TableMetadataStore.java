@@ -51,7 +51,6 @@ class TableMetadataStore extends MetadataStore {
     private final TableStore tableStore;
     private final String metadataSegmentName;
     private final AtomicBoolean initialized;
-
     //endregion
 
     /**

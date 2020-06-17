@@ -30,12 +30,13 @@ import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.stream.Version;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -44,6 +45,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
@@ -66,6 +68,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mock;
 
 /**
  * Test class for TimeoutService.
@@ -91,6 +94,10 @@ public abstract class TimeoutServiceTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StoreClient storeClient;
     private RequestTracker requestTracker = new RequestTracker(true);
+    @Mock
+    private KVTableMetadataStore kvtStore;
+    @Mock
+    private TableMetadataTasks kvtMetadataTasks;
 
     @Before
     public void setUp() throws Exception {
@@ -126,7 +133,7 @@ public abstract class TimeoutServiceTest {
         timeoutService = (TimerWheelTimeoutService) streamTransactionMetadataTasks.getTimeoutService();
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
 
-        controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+        controllerService = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, SegmentHelperMock.getSegmentHelperMock(), executor, null);
 
         // Create scope and stream
@@ -278,7 +285,7 @@ public abstract class TimeoutServiceTest {
         // Create TimeoutService
         TimerWheelTimeoutService timeoutService2 = (TimerWheelTimeoutService) streamTransactionMetadataTasks2.getTimeoutService();
 
-        ControllerService controllerService2 = new ControllerService(streamStore2, bucketStore, streamMetadataTasks2,
+        ControllerService controllerService2 = new ControllerService(kvtStore, kvtMetadataTasks, streamStore2, bucketStore, streamMetadataTasks2,
                 streamTransactionMetadataTasks2, helperMock, executor, null);
 
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE)

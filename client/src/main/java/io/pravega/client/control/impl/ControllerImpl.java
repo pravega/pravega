@@ -90,6 +90,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -1198,17 +1200,52 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
-        throw new UnsupportedOperationException("createKeyValueTable not implemented.");
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(kvtConfig, "KeyValueTableConfig");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "createKeyValueTable", kvtConfig, requestId);
+
+        final CompletableFuture<CreateKeyValueTableStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<CreateKeyValueTableStatus> callback = new RPCAsyncCallback<>(requestId, "createKeyValueTable", scope, kvtName, kvtConfig);
+            new ControllerClientTagger(client, timeoutMillis)
+                    .withTag(requestId, "createKeyValueTable", scope, kvtName)
+                    .createKeyValueTable(ModelHelper.decode(scope, kvtName, kvtConfig), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to create KeyValueTable: {}", kvtName);
+                    throw new ControllerFailureException("Failed to create KeyValueTable: " + kvtConfig);
+                case INVALID_TABLE_NAME:
+                    log.warn(requestId, "Illegal KeyValueTable name: {}", kvtName);
+                    throw new IllegalArgumentException("Illegal KeyValueTable name: " + kvtName);
+                case SCOPE_NOT_FOUND:
+                    log.warn(requestId, "Scope not found: {}", scope);
+                    throw new IllegalArgumentException("Scope does not exist: " + scope);
+                case TABLE_EXISTS:
+                    log.warn(requestId, "KeyValueTable already exists: {}", kvtName);
+                    return false;
+                case SUCCESS:
+                    log.info(requestId, "KeyValueTable created successfully: {}/{}", scope, kvtName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status creating KeyValueTable " + kvtConfig
+                            + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "createKeyValueTable {}/{} failed: ", scope, kvtName, e);
+            }
+            LoggerHelpers.traceLeave(log, "createKeyValueTable", traceId, kvtName, requestId);
+        });
     }
 
     @Override
     public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
         throw new UnsupportedOperationException("listKeyValueTables not implemented.");
-    }
-
-    @Override
-    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
-        throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
     }
 
     @Override
@@ -1218,8 +1255,34 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
-        throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");
-    }
+            Exceptions.checkNotClosed(closed.get(), this);
+            Exceptions.checkNotNullOrEmpty(scope, "scope");
+            Exceptions.checkNotNullOrEmpty(kvtName, "stream");
+            long traceId = LoggerHelpers.traceEnter(log, "getCurrentSegmentsForKeyValueTable", scope, kvtName);
+
+            final CompletableFuture<SegmentRanges> result = this.retryConfig.runAsync(() -> {
+                RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(traceId, "getCurrentSegmentsKeyValueTable", scope, kvtName);
+                client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                        .getCurrentSegmentsKeyValueTable(ModelHelper.createKeyValueTableInfo(scope, kvtName), callback);
+                return callback.getFuture();
+            }, this.executor);
+            return result.thenApply(ranges -> {
+                log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
+                NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
+                for (SegmentRange r : ranges.getSegmentRangesList()) {
+                    Preconditions.checkState(r.getMinKey() <= r.getMaxKey(),
+                            "Min keyrange %s was not less than maximum keyRange %s for segment %s",
+                            r.getMinKey(), r.getMaxKey(), r.getSegmentId());
+                    rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
+                }
+                return new KeyValueTableSegments(rangeMap, ranges.getDelegationToken());
+            }).whenComplete((x, e) -> {
+                if (e != null) {
+                    log.warn("getCurrentSegmentsForKeyValueTable for {}/{} failed: ", scope, kvtName, e);
+                }
+                LoggerHelpers.traceLeave(log, "getCurrentSegmentsForKeyValueTable", traceId);
+            });
+        }
 
     //endregion
 
@@ -1342,6 +1405,11 @@ public class ControllerImpl implements Controller {
         public void deleteStream(StreamInfo streamInfo, RPCAsyncCallback<DeleteStreamStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                       .deleteStream(streamInfo, callback);
+        }
+
+        public void createKeyValueTable(KeyValueTableConfig kvtConfig, RPCAsyncCallback<CreateKeyValueTableStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .createKeyValueTable(kvtConfig, callback);
         }
     }
 }

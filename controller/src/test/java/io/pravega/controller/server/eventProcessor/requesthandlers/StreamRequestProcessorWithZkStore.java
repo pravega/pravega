@@ -19,7 +19,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 
-public class RequestProcessorWithZkStore extends RequestProcessorTest {
+public class StreamRequestProcessorWithZkStore extends StreamRequestProcessorTest {
     private StreamMetadataStore store;
     private CuratorFramework client;
     private TestingServer zkServer;
