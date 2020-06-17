@@ -22,7 +22,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -541,8 +542,7 @@ public class FuturesTests {
     @Test
     public void testCompleteOn() {
         val successfulFuture = new CompletableFuture<Integer>();
-        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(3, "test-competeon");
-
+        Executor executor = Executors.newSingleThreadExecutor();
         CompletableFuture<Integer> result = Futures.completeOn(successfulFuture, executor);
         successfulFuture.complete(1);
         Assert.assertEquals("Expected completion value for successful future.", Integer.valueOf(1), result.join());

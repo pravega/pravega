@@ -134,7 +134,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
 
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
-        // KVTable classes...
+        // KVTable
         this.kvtStore = KVTableStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
                 zkClient, executorService);
         EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",

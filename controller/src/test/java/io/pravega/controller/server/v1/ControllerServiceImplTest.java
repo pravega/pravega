@@ -893,7 +893,7 @@ public abstract class ControllerServiceImplTest {
 
         ResultObserver<SegmentRanges> result2 = new ResultObserver<>();
         this.controllerService.getCurrentSegmentsKeyValueTable(ModelHelper.createKeyValueTableInfo(SCOPE5, KVTABLE3), result2);
-        final SegmentRanges segmentRanges = result2.get();
+        SegmentRanges segmentRanges = result2.get();
         Assert.assertEquals(2, segmentRanges.getSegmentRangesCount());
     }
 

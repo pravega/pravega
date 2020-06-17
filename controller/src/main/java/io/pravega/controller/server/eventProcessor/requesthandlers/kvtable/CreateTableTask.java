@@ -68,7 +68,7 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                 return CompletableFuture.completedFuture(null);
             } else {
                 return this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, null, executor)
-                        .thenCompose(response -> {
+                        .thenComposeAsync(response -> {
                             // only if its a new kvtable or an already existing non-active kvtable then we will create
                             // segments and change the state of the kvtable to active.
                             if (response.getStatus().equals(CreateKVTableResponse.CreateStatus.NEW) ||
@@ -95,7 +95,7 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                                         });
                             }
                             return CompletableFuture.completedFuture(null);
-                        });
+                        }, executor);
              }
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
     }

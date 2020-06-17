@@ -14,6 +14,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.mocks.EventHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
@@ -56,6 +57,7 @@ public abstract class TableMetadataTasksTest {
     protected StreamMetadataStore streamStore;
     protected KVTableMetadataStore kvtStore;
     protected TableMetadataTasks kvtMetadataTasks;
+    protected SegmentHelper segmentHelperMock;
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final String kvtable1 = "kvtable1";
@@ -74,7 +76,7 @@ public abstract class TableMetadataTasksTest {
             this.isScopeCreated = true;
         }
 
-        SegmentHelper segmentHelperMock = getSegmentHelper();
+        segmentHelperMock = getSegmentHelper();
         EventHelper helper = new EventHelper(executor, "host", ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
         helper.setRequestEventWriter(requestEventWriter);
         kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
@@ -101,8 +103,8 @@ public abstract class TableMetadataTasksTest {
         Assert.assertTrue(isScopeCreated);
         long creationTime = System.currentTimeMillis();
         KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).build();
-        CompletableFuture<Controller.CreateKeyValueTableStatus.Status> createOperationFuture = kvtMetadataTasks.createKeyValueTable(SCOPE, kvtable1,
-                                                    kvtConfig, creationTime);
+        CompletableFuture<Controller.CreateKeyValueTableStatus.Status> createOperationFuture
+                = kvtMetadataTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime);
 
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
         assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
@@ -114,6 +116,14 @@ public abstract class TableMetadataTasksTest {
 
         KeyValueTableConfiguration storedConfig = kvtStore.getConfiguration(SCOPE, kvtable1, null, executor).get();
         assertEquals(storedConfig.getPartitionCount(), kvtConfig.getPartitionCount());
+
+        // check retry failures...
+        EventHelper mockHelper = EventHelperMock.getFailingEventHelperMock();
+        TableMetadataTasks kvtFailingMetaTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
+                "host", GrpcAuthHelper.getDisabledAuthHelper(),
+                requestTracker, mockHelper));
+        CreateKeyValueTableStatus.Status status = kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime).get();
+        assertEquals(CreateKeyValueTableStatus.Status.FAILURE, status);
     }
 
     private CompletableFuture<Void> processEvent(TableMetadataTasksTest.WriterMock requestEventWriter) throws InterruptedException {

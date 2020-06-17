@@ -138,7 +138,15 @@ public class TableMetadataTasks implements AutoCloseable {
                                        return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor);
                                  });
                             });
-               }, e -> Exceptions.unwrap(e) instanceof RetryableException, CREATE_NUM_RETRIES, executor);
+               }, e -> Exceptions.unwrap(e) instanceof RetryableException, CREATE_NUM_RETRIES, executor)
+                .handle((result, ex) -> {
+                    if (ex != null) {
+                        log.warn(requestId, "Create kvtable failed due to ", ex);
+                        return CreateKeyValueTableStatus.Status.FAILURE;
+                    } else {
+                        return result;
+                    }
+                });
     }
 
     private CompletableFuture<CreateKeyValueTableStatus.Status> isCreateProcessed(String scope, String kvtName,
