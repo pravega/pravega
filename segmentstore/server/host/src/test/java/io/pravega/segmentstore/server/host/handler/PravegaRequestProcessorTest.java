@@ -651,28 +651,42 @@ public class PravegaRequestProcessorTest {
         // Test with unversioned data.
         TableEntry e1 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
         WireCommands.TableEntries cmd = getTableEntries(singletonList(e1));
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", cmd, 0L));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", cmd, WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         order.verify(connection).send(new WireCommands.TableEntriesUpdated(2, singletonList(0L)));
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(false), any());
 
         // Test with versioned data.
         e1 = TableEntry.versioned(keys.get(0), generateValue(rnd), 0L);
         cmd = getTableEntries(singletonList(e1));
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, tableSegmentName, "", cmd, 0L));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, tableSegmentName, "", cmd, WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         order.verify(connection).send(any());
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(true), any());
 
         // Test with key not present. The table store throws KeyNotExistsException.
         TableEntry e2 = TableEntry.versioned(keys.get(1), generateValue(rnd), 0L);
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(4, tableSegmentName, "", getTableEntries(singletonList(e2)), 0L));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(4, tableSegmentName, "", getTableEntries(singletonList(e2)), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         order.verify(connection).send(new WireCommands.TableKeyDoesNotExist(4, tableSegmentName, ""));
         verifyNoMoreInteractions(recorderMock);
 
         // Test with invalid key version. The table store throws BadKeyVersionException.
         TableEntry e3 = TableEntry.versioned(keys.get(0), generateValue(rnd), 10L);
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(5, tableSegmentName, "", getTableEntries(singletonList(e3)), 0L));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(5, tableSegmentName, "", getTableEntries(singletonList(e3)), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         order.verify(connection).send(new WireCommands.TableKeyBadVersion(5, tableSegmentName, ""));
         verifyNoMoreInteractions(recorderMock);
+
+        // Test with valid tableSegmentOffset.
+        long tableSegmentOffset = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
+        TableEntry e4 = TableEntry.versioned(keys.get(0), generateValue(rnd), 10L);
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(6, tableSegmentName, "", getTableEntries(singletonList(e4)), tableSegmentOffset));
+        order.verify(connection).send(any());
+        verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(true), any());
+
+        // Test with invalid tableSegmentOffset.
+        TableEntry e5 = TableEntry.versioned(keys.get(0), generateValue(rnd), 10L);
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(7, tableSegmentName, "", getTableEntries(singletonList(e5)), tableSegmentOffset - 1));
+        order.verify(connection).send(new WireCommands.SegmentIsTruncated(7, tableSegmentName, tableSegmentOffset, "", tableSegmentOffset - 1));
+        //verify(recorderMock, times(0)).updateEntries(eq(tableSegmentName), eq(1), eq(true), any());
+
     }
 
     @Test(timeout = 30000)
@@ -692,28 +706,44 @@ public class PravegaRequestProcessorTest {
                 recorderMock, new PassingTokenVerifier(), false);
 
         // Generate keys.
-        ArrayList<HashedArray> keys = generateKeys(2, rnd);
+        ArrayList<HashedArray> keys = generateKeys(3, rnd);
 
         // Create a table segment and add data.
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
         TableEntry e1 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", getTableEntries(singletonList(e1)), 0L));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", getTableEntries(singletonList(e1)), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         order.verify(connection).send(new WireCommands.TableEntriesUpdated(2, singletonList(0L)));
         verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(false), any());
 
         // Remove a Table Key
         WireCommands.TableKey key = new WireCommands.TableKey(wrappedBuffer(e1.getKey().getKey().array()), 0L);
-        processor.removeTableKeys(new WireCommands.RemoveTableKeys(3, tableSegmentName, "", singletonList(key), 0L));
+        processor.removeTableKeys(new WireCommands.RemoveTableKeys(3, tableSegmentName, "", singletonList(key), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         order.verify(connection).send(new WireCommands.TableKeysRemoved(3, tableSegmentName));
         verify(recorderMock).removeKeys(eq(tableSegmentName), eq(1), eq(true), any());
 
         // Test with non-existent key.
         key = new WireCommands.TableKey(wrappedBuffer(e1.getKey().getKey().array()), 0L);
-        processor.removeTableKeys(new WireCommands.RemoveTableKeys(4, tableSegmentName, "", singletonList(key), 0L));
+        processor.removeTableKeys(new WireCommands.RemoveTableKeys(4, tableSegmentName, "", singletonList(key), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         order.verify(connection).send(new WireCommands.TableKeyBadVersion(4, tableSegmentName, ""));
-        verifyNoMoreInteractions(recorderMock);
+
+        long segmentLength = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
+        // Test when providing a matching tableSegmentOffset.
+        TableEntry e2 = TableEntry.unversioned(keys.get(1), generateValue(rnd));
+        key = new WireCommands.TableKey(wrappedBuffer(e2.getKey().getKey().array()), e2.getKey().getVersion());
+        processor.removeTableKeys(new WireCommands.RemoveTableKeys(5, tableSegmentName, "", singletonList(key), segmentLength));
+        order.verify(connection).send(new WireCommands.TableKeysRemoved(5, tableSegmentName));
+        verify(recorderMock).removeKeys(eq(tableSegmentName), eq(1), eq(true), any());
+
+        //// Test when providing a mismatching tableSegmentOffset.
+        long badOffset = segmentLength - 1;
+        TableEntry e3 = TableEntry.unversioned(keys.get(2), generateValue(rnd));
+        key = new WireCommands.TableKey(wrappedBuffer(e3.getKey().getKey().array()), e3.getKey().getVersion());
+        processor.removeTableKeys(new WireCommands.RemoveTableKeys(6, tableSegmentName, "", singletonList(key), badOffset));
+        segmentLength = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
+        // BadOffsetException should be thrown, prompting a SegmentIsTruncated response.
+        order.verify(connection).send(new WireCommands.SegmentIsTruncated(6, tableSegmentName, segmentLength, "", badOffset));
     }
 
     @Test(timeout = 30000)
@@ -766,7 +796,7 @@ public class PravegaRequestProcessorTest {
         verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
 
         TableEntry e1 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(4, tableSegmentName, "", getTableEntries(singletonList(e1)), 0L));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(4, tableSegmentName, "", getTableEntries(singletonList(e1)), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         order.verify(connection).send(new WireCommands.TableEntriesUpdated(4, singletonList(0L)));
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(false), any());
 
@@ -815,7 +845,7 @@ public class PravegaRequestProcessorTest {
         recorderMockOrder.verify(recorderMock).getKeys(eq(tableSegmentName), eq(1), any());
 
         // Update a value to a key.
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, tableSegmentName, "", getTableEntries(singletonList(entry)), 0L));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, tableSegmentName, "", getTableEntries(singletonList(entry)), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         order.verify(connection).send(new WireCommands.TableEntriesUpdated(3, singletonList(0L)));
         recorderMockOrder.verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(false), any());
 
@@ -854,7 +884,7 @@ public class PravegaRequestProcessorTest {
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
         verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", getTableEntries(asList(e1, e2, e3)), 0L));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", getTableEntries(asList(e1, e2, e3)), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(3), eq(false), any());
 
         // 1. Now read the table keys where suggestedKeyCount is equal to number of entries in the Table Store.
@@ -925,7 +955,7 @@ public class PravegaRequestProcessorTest {
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
         verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", getTableEntries(asList(e1, e2, e3)), 0L));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", getTableEntries(asList(e1, e2, e3)), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(3), eq(false), any());
 
         // 1. Now read the table entries where suggestedEntryCount is equal to number of entries in the Table Store.

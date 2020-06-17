@@ -1662,7 +1662,7 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
-            long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
+            long tableSegmentOffset = (in.available() >= 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
             return new UpdateTableEntries(requestId, segment, delegationToken, entries, tableSegmentOffset);
         }

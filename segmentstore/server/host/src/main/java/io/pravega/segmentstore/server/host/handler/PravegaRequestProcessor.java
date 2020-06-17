@@ -93,6 +93,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -113,6 +114,7 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
+import static io.pravega.shared.protocol.netty.WireCommands.NULL_TABLE_SEGMENT_OFFSET;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -635,6 +637,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         if (!verifyToken(segment, updateTableEntries.getRequestId(), updateTableEntries.getDelegationToken(), operation)) {
             return;
         }
+        val segmentInfo = segmentStore.getStreamSegmentInfo(segment, TIMEOUT);
 
         log.info(updateTableEntries.getRequestId(), "Updating table segment {}.", updateTableEntries);
         val entries = new ArrayList<TableEntry>(updateTableEntries.getTableEntries().getEntries().size());
@@ -648,12 +651,19 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         val timer = new Timer();
-        tableStore.put(segment, entries, TIMEOUT)
-                .thenAccept(versions -> {
-                    connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions));
-                    this.tableStatsRecorder.updateEntries(updateTableEntries.getSegment(), entries.size(), conditional.get(), timer.getElapsed());
-                })
-                .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, operation, e));
+        long tableSegmentOffset = updateTableEntries.getTableSegmentOffset();
+        segmentInfo.thenCompose(properties -> {
+            if (tableSegmentOffset == NULL_TABLE_SEGMENT_OFFSET || tableSegmentOffset == properties.getLength()) {
+                return tableStore.put(segment, entries, TIMEOUT);
+            } else {
+                CompletableFuture<List<Long>> future = new CompletableFuture<>();
+                future.completeExceptionally(new BadOffsetException(segment, properties.getLength(), tableSegmentOffset));
+                return future;
+            }
+        }).thenAccept(versions -> {
+            connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions));
+            this.tableStatsRecorder.updateEntries(updateTableEntries.getSegment(), entries.size(), conditional.get(), timer.getElapsed());
+        }).exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, tableSegmentOffset, operation, e));
     }
 
     @Override
@@ -664,6 +674,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         if (!verifyToken(segment, removeTableKeys.getRequestId(), removeTableKeys.getDelegationToken(), operation)) {
             return;
         }
+        val segmentInfo = segmentStore.getStreamSegmentInfo(segment, TIMEOUT);
 
         log.info(removeTableKeys.getRequestId(), "Removing table keys {}.", removeTableKeys);
         val keys = new ArrayList<TableKey>(removeTableKeys.getKeys().size());
@@ -677,12 +688,19 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         val timer = new Timer();
-        tableStore.remove(segment, keys, TIMEOUT)
-                .thenRun(() -> {
-                    connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment));
-                    this.tableStatsRecorder.removeKeys(removeTableKeys.getSegment(), keys.size(), conditional.get(), timer.getElapsed());
-                })
-                .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e));
+        long tableSegmentOffset = removeTableKeys.getTableSegmentOffset();
+        segmentInfo.thenCompose(properties -> {
+            if (tableSegmentOffset == NULL_TABLE_SEGMENT_OFFSET || tableSegmentOffset == properties.getLength()) {
+                return tableStore.remove(segment, keys, TIMEOUT);
+            } else {
+                CompletableFuture<Void> future = new CompletableFuture<>();
+                future.completeExceptionally(new BadOffsetException(segment, properties.getLength(), tableSegmentOffset));
+                return future;
+            }
+        }).thenRun(() -> {
+            connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment));
+            this.tableStatsRecorder.removeKeys(removeTableKeys.getSegment(), keys.size(), conditional.get(), timer.getElapsed());
+        }).exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, tableSegmentOffset, operation, e));
     }
 
     @Override
