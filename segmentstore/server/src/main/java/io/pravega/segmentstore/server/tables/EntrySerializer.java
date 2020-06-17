@@ -151,7 +151,7 @@ class EntrySerializer {
      * @throws IOException If an invalid header was detected.
      */
     Header readHeader(@NonNull BufferView.Reader input) throws IOException {
-        byte version = (byte) input.readByte();
+        byte version = input.readByte();
         int keyLength = input.readInt();
         int valueLength = input.readInt();
         long entryVersion = input.readLong();

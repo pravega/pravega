@@ -334,12 +334,12 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
         }
 
         @Override
-        public int readByte() throws EOFException {
+        public byte readByte() throws EOFException {
             if (position >= ByteArraySegment.this.length) {
                 throw new EOFException();
             }
 
-            int result = ByteArraySegment.this.array[ByteArraySegment.this.startOffset + this.position];
+            byte result = ByteArraySegment.this.array[ByteArraySegment.this.startOffset + this.position];
             this.position++;
             return result;
         }

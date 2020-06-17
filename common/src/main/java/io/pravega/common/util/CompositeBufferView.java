@@ -202,13 +202,13 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
         }
 
         @Override
-        public int readByte() throws EOFException {
+        public byte readByte() throws EOFException {
             BufferView.Reader current = getCurrent();
             if (current == null) {
                 throw new EOFException();
             }
 
-            int result = current.readByte();
+            byte result = current.readByte();
             this.available--;
             assert this.available >= 0;
             return result;

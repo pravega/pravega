@@ -323,7 +323,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
         }
 
         @Override
-        public int readByte() throws EOFException {
+        public byte readByte() throws EOFException {
             try {
                 return get(this.position++);
             } catch (IndexOutOfBoundsException ex) {

@@ -181,7 +181,7 @@ public abstract class AbstractBufferView implements BufferView {
             }
 
             @Override
-            public int readByte() throws EOFException {
+            public byte readByte() throws EOFException {
                 throw new EOFException("Cannot read from Empty BufferView.");
             }
 

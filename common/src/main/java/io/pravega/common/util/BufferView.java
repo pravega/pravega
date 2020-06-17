@@ -225,7 +225,7 @@ public interface BufferView {
          * @return The read byte.
          * @throws EOFException If {@link #available()} is 0.
          */
-        int readByte() throws EOFException;
+        byte readByte() throws EOFException;
 
         /**
          * Reads 4 bytes (and advances the reader position by 4) and composes a 32-bit Integer (Big-Endian).

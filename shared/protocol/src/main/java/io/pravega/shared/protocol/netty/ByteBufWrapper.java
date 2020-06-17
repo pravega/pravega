@@ -186,7 +186,7 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
         }
 
         @Override
-        public int readByte() throws EOFException {
+        public byte readByte() throws EOFException {
             try {
                 return this.buf.readByte();
             } catch (IndexOutOfBoundsException ex) {

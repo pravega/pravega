@@ -185,7 +185,7 @@ public abstract class BufferViewTestBase {
             val readByteReader = bufferView.slice(offset, length).getBufferViewReader();
             val readByteResult = new byte[length];
             for (int i = 0; i < length; i++) {
-                readByteResult[i] = (byte) readByteReader.readByte();
+                readByteResult[i] = readByteReader.readByte();
                 Assert.assertEquals(length - i - 1, readByteReader.available());
             }
 
