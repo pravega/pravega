@@ -14,7 +14,7 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import org.junit.After;
 import org.junit.Before;
 
-public class RequestProcessorWithInMemoryStore extends RequestProcessorTest {
+public class StreamRequestProcessorWithInMemoryStore extends StreamRequestProcessorTest {
     private StreamMetadataStore store;
 
     @Before

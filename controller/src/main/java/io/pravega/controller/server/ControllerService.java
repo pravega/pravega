@@ -11,6 +11,7 @@ package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
@@ -21,6 +22,7 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
+import io.pravega.controller.store.SegmentRecord;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
@@ -29,7 +31,9 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -45,6 +49,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -55,6 +60,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -69,7 +75,8 @@ import org.apache.commons.lang3.tuple.Pair;
 @AllArgsConstructor
 @Slf4j
 public class ControllerService {
-
+    private final KVTableMetadataStore kvtMetadataStore;
+    private final TableMetadataTasks kvtMetadataTasks;
     private final StreamMetadataStore streamStore;
     private final BucketStore bucketStore;
     private final StreamMetadataTasks streamMetadataTasks;
@@ -93,6 +100,35 @@ public class ControllerService {
                 throw Exceptions.sneakyThrow(e);
             }
         }, executor);
+    }
+
+    public CompletableFuture<CreateKeyValueTableStatus> createKeyValueTable(String scope, String kvtName,
+                                                                            final KeyValueTableConfiguration kvtConfig,
+                                                                            final long createTimestamp) {
+        Preconditions.checkNotNull(kvtConfig, "kvTableConfig");
+        Preconditions.checkArgument(createTimestamp >= 0);
+        Timer timer = new Timer();
+        try {
+            NameUtils.validateUserKeyValueTableName(kvtName);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create KeyValueTable failed due to invalid name {}", kvtName);
+            return CompletableFuture.completedFuture(
+                    CreateKeyValueTableStatus.newBuilder().setStatus(CreateKeyValueTableStatus.Status.INVALID_TABLE_NAME).build());
+        }
+        return kvtMetadataTasks.createKeyValueTable(scope, kvtName, kvtConfig, createTimestamp)
+                .thenApplyAsync(status -> {
+                    reportCreateKVTableMetrics(scope, kvtName, kvtConfig.getPartitionCount(), status, timer.getElapsed());
+                    return CreateKeyValueTableStatus.newBuilder().setStatus(status).build();
+                }, executor);
+    }
+
+    public CompletableFuture<List<SegmentRange>> getCurrentSegmentsKeyValueTable(final String scope, final String kvtName) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTable");
+
+        // Fetch active segments from segment store.
+        return kvtMetadataStore.getActiveSegments(scope, kvtName, null, executor)
+                .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, kvtName), executor);
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
@@ -284,7 +320,7 @@ public class ControllerService {
 
     private SegmentRange convert(final String scope,
                                  final String stream,
-                                 final StreamSegmentRecord segment) {
+                                 final SegmentRecord segment) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(segment, "segment");
@@ -330,7 +366,7 @@ public class ControllerService {
                 });
     }
 
-    private List<SegmentRange> getSegmentRanges(List<StreamSegmentRecord> activeSegments, String scope, String stream) {
+    private List<SegmentRange> getSegmentRanges(List<? extends SegmentRecord> activeSegments, String scope, String stream) {
         List<SegmentRange> listOfSegment = activeSegments
                 .stream()
                 .map(segment -> convert(scope, stream, segment))
@@ -492,6 +528,14 @@ public class ControllerService {
     }
 
     // Metrics reporting region
+    private void reportCreateKVTableMetrics(String scope, String kvtName, int initialSegments, CreateKeyValueTableStatus.Status status,
+                                           Duration latency) {
+        if (status.equals(CreateKeyValueTableStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().createKeyValueTable(scope, kvtName, initialSegments, latency);
+        } else if (status.equals(CreateKeyValueTableStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().createKeyValueTableFailed(scope, kvtName);
+        }
+    }
 
     private void reportCreateStreamMetrics(String scope, String streamName, int initialSegments, CreateStreamStatus.Status status,
                                            Duration latency) {

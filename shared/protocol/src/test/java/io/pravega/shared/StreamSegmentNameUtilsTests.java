@@ -104,6 +104,14 @@ public class StreamSegmentNameUtilsTests {
     }
 
     @Test
+    public void testQualifiedTableSegmentName() {
+        long segmentId = NameUtils.computeSegmentId(10, 100);
+        String qualifiedName = NameUtils.getQualifiedTableSegmentName("scope", "kvtable", segmentId);
+        String expectedName = "scope/kvtable_kvt/10.#epoch.100";
+        assertEquals(expectedName, qualifiedName);
+    }
+
+    @Test
     public void testSegmentTokens() {
         long segmentId = NameUtils.computeSegmentId(10, 100);
         String qualifiedName = NameUtils.getQualifiedStreamSegmentName("scope", "stream", segmentId);

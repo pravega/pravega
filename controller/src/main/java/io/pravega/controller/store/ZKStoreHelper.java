@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store;
 
 import java.util.Collections;
 import java.util.List;
@@ -17,6 +17,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.controller.store.stream.Cache;
+import io.pravega.controller.store.stream.StoreException;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
@@ -33,11 +35,11 @@ import org.apache.zookeeper.KeeperException;
 
 @Slf4j
 public class ZKStoreHelper {
-    @Getter(AccessLevel.PACKAGE)
+    @Getter(AccessLevel.PUBLIC)
     private final CuratorFramework client;
     private final Executor executor;
     @VisibleForTesting
-    @Getter(AccessLevel.PACKAGE)
+    @Getter(AccessLevel.PUBLIC)
     private final Cache cache;
 
     public ZKStoreHelper(final CuratorFramework cf, Executor executor) {
@@ -73,7 +75,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Void> deleteNode(final String path) {
+    public CompletableFuture<Void> deleteNode(final String path) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             client.delete().inBackground(
@@ -84,7 +86,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Void> deleteNode(final String path, final Version version) {
+    public CompletableFuture<Void> deleteNode(final String path, final Version version) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             client.delete().withVersion(version.asIntVersion().getIntValue()).inBackground(
@@ -104,7 +106,7 @@ public class ZKStoreHelper {
 
     // region curator client store access
 
-    CompletableFuture<Void> deletePath(final String path, final boolean deleteEmptyContainer) {
+    public CompletableFuture<Void> deletePath(final String path, final boolean deleteEmptyContainer) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final CompletableFuture<Void> deleteNode = new CompletableFuture<>();
 
@@ -149,7 +151,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Void> deleteTree(final String path) {
+    public CompletableFuture<Void> deleteTree(final String path) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             client.delete()
@@ -194,7 +196,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<List<String>> getChildren(final String path) {
+    public CompletableFuture<List<String>> getChildren(final String path) {
         return getChildren(path, true);
     }
 
@@ -218,7 +220,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Integer> setData(final String path, final byte[] data, final Version version) {
+    public CompletableFuture<Integer> setData(final String path, final byte[] data, final Version version) {
         final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
             if (version == null) {
@@ -236,7 +238,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Integer> createZNode(final String path, final byte[] data) {
+    public CompletableFuture<Integer> createZNode(final String path, final byte[] data) {
         final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
             CreateBuilder createBuilder = client.create();
@@ -250,11 +252,11 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Integer> createZNodeIfNotExist(final String path, final byte[] data) {
+    public CompletableFuture<Integer> createZNodeIfNotExist(final String path, final byte[] data) {
         return createZNodeIfNotExist(path, data, true);
     }
 
-    CompletableFuture<Integer> createZNodeIfNotExist(final String path, final byte[] data, final boolean createParent) {
+    public CompletableFuture<Integer> createZNodeIfNotExist(final String path, final byte[] data, final boolean createParent) {
         final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
             CreateBuilder createBuilder = client.create();
@@ -278,7 +280,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Integer> createZNodeIfNotExist(final String path) {
+    public CompletableFuture<Integer> createZNodeIfNotExist(final String path) {
         return createZNodeIfNotExist(path, true);
     }
 
@@ -307,7 +309,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Boolean> createEphemeralZNode(final String path, byte[] data) {
+    public CompletableFuture<Boolean> createEphemeralZNode(final String path, byte[] data) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
 
         try {
@@ -345,7 +347,7 @@ public class ZKStoreHelper {
         return result;
     }
     
-    CompletableFuture<String> createPersistentSequentialZNode(final String path, final byte[] data) {
+    public CompletableFuture<String> createPersistentSequentialZNode(final String path, final byte[] data) {
         final CompletableFuture<String> result = new CompletableFuture<>();
 
         try {
@@ -361,7 +363,7 @@ public class ZKStoreHelper {
         return result;
     }
     
-    CompletableFuture<Void> sync(final String path) {
+    public CompletableFuture<Void> sync(final String path) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
 
         try {
@@ -421,11 +423,11 @@ public class ZKStoreHelper {
     }
     // endregion
     
-    PathChildrenCache getPathChildrenCache(String path, boolean cacheData) {
+    public PathChildrenCache getPathChildrenCache(String path, boolean cacheData) {
         return new PathChildrenCache(client, path, cacheData);
     }
 
-    <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String path, String id, Function<byte[], T> fromBytes) {
+    public <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String path, String id, Function<byte[], T> fromBytes) {
         return cache.getCachedData(new ZkCacheKey<>(path, id, fromBytes))
                 .thenApply(this::getVersionedMetadata);
     }
@@ -437,7 +439,7 @@ public class ZKStoreHelper {
         return new VersionedMetadata<>((T) v.getObject(), v.getVersion());
     }
 
-    void invalidateCache(String path, String id) {
+    public void invalidateCache(String path, String id) {
         cache.invalidateCache(new ZkCacheKey<>(path, id, x -> null));
     }
 
@@ -448,7 +450,7 @@ public class ZKStoreHelper {
      * Only Id and ZkPath are used in equals and hashcode in the cache key. 
      */
     @Data
-    static class ZkCacheKey<T> implements Cache.CacheKey {
+    public static class ZkCacheKey<T> implements Cache.CacheKey {
         // ZkPath is the path at which the entity is stored in zookeeper.
         private final String path;
         // Id is the unique id that callers can use for entities that are deleted and recreated. Using a unique id upon recreation 

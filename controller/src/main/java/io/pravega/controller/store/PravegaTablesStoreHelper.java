@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
@@ -27,6 +27,8 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostStoreException;
+import io.pravega.controller.store.stream.Cache;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.util.RetryHelper;
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -129,7 +131,7 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Void> createTable(String tableName) {
         log.debug("create table called for table: {}", tableName);
 
-        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(tableName, authToken.get(), RequestTag.NON_EXISTENT_ID),
+        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(tableName, authToken.get(), RequestTag.NON_EXISTENT_ID, false),
                 () -> String.format("create table: %s", tableName)))
                 .whenCompleteAsync((r, e) -> {
                     if (e != null) {
@@ -496,7 +498,7 @@ public class PravegaTablesStoreHelper {
                 IteratorStateImpl.EMPTY.getToken());
     }
 
-    <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
+    public <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
         return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, toReturn);
     }
 

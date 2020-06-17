@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store;
 
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.common.ObjectBuilder;
@@ -63,6 +63,10 @@ public interface Version {
 
         public static class IntVersionBuilder implements ObjectBuilder<IntVersion> {
 
+        }
+
+        public IntVersion(int version) {
+            this.intValue = version;
         }
 
         @Override
@@ -122,6 +126,10 @@ public interface Version {
 
         public static class LongVersionBuilder implements ObjectBuilder<LongVersion> {
 
+        }
+
+        public LongVersion(long version) {
+            this.longValue = version;
         }
 
         @Override

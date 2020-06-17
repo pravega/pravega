@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store;
 
 import com.google.common.collect.Lists;
 import io.netty.buffer.ByteBuf;
@@ -18,11 +18,15 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mock;
 
 import java.util.ArrayList;
 import java.util.Base64;
@@ -46,6 +50,10 @@ public class PravegaTablesStoreHelperTest {
     private SegmentHelper segmentHelper;
     private GrpcAuthHelper authHelper;
     private PravegaTablesStoreHelper storeHelper;
+    @Mock
+    private KVTableMetadataStore kvtStore;
+    @Mock
+    private TableMetadataTasks kvtMetadataTasks;
 
     @Before
     public void setup() throws Exception {
@@ -181,19 +189,19 @@ public class PravegaTablesStoreHelperTest {
 
         CompletableFuture<Void> connectionDropped = Futures.failedFuture(
                 new WireCommandFailedException(WireCommandType.CREATE_TABLE_SEGMENT, WireCommandFailedException.Reason.ConnectionDropped));
-        doAnswer(x -> connectionDropped).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong());
+        doAnswer(x -> connectionDropped).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean());
         AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.createTable("table"),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
 
         CompletableFuture<Void> connectionFailed = Futures.failedFuture(
                 new WireCommandFailedException(WireCommandType.CREATE_TABLE_SEGMENT, WireCommandFailedException.Reason.ConnectionFailed));
-        doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong());
+        doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean());
         AssertExtensions.assertFutureThrows("ConnectionFailed", storeHelper.createTable("table"),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
 
         CompletableFuture<Void> authFailed = Futures.failedFuture(
                 new WireCommandFailedException(WireCommandType.CREATE_TABLE_SEGMENT, WireCommandFailedException.Reason.AuthFailed));
-        doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong());
+        doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean());
         AssertExtensions.assertFutureThrows("AuthFailed", storeHelper.createTable("table"),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
     }
