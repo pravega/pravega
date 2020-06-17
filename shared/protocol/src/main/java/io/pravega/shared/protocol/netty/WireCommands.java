@@ -493,7 +493,7 @@ public final class WireCommands {
             ByteBuf header = Unpooled.buffer(TYPE_PLUS_LENGTH_SIZE, TYPE_PLUS_LENGTH_SIZE);
             header.writeInt(type.getCode());
             header.writeInt(data.readableBytes());
-            return Unpooled.wrappedBuffer(header, data);
+            return Unpooled.wrappedUnmodifiableBuffer(header, data);
         }
     }
 

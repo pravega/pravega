@@ -119,7 +119,7 @@ public class EndToEndTruncationTest {
         controllerPort = TestUtils.getAvailableListenPort();
         controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
         int servicePort = TestUtils.getAvailableListenPort();
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, this.serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -151,7 +151,8 @@ public class EndToEndTruncationTest {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
+                this.serviceBuilder.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -321,6 +322,51 @@ public class EndToEndTruncationTest {
         
         //subsequent writes will throw an exception to the application.
         assertThrows(RuntimeException.class, () -> writer.writeEvent("test"));
+    }
+
+    @Test(timeout = 50000)
+    public void testWriteOnSealedStream() throws Exception {
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        EventWriterConfig writerConfig = EventWriterConfig.builder().build();
+        String scope = "testSeal";
+        String streamName = "test";
+        StreamConfiguration config = StreamConfiguration.builder()
+                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
+                                                        .build();
+        LocalController controller = (LocalController) controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(scope).get();
+        controller.createStream(scope, streamName, config).get();
+
+        config = StreamConfiguration.builder()
+                                    .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                    .build();
+        controller.updateStream(scope, streamName, config).get();
+
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                    .controllerURI(URI.create("tcp://" + serviceHost))
+                                                                                    .build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer, writerConfig);
+
+        // write an event.
+        writer.writeEvent("0", "data").get();
+
+        //Seal Stream.
+        assertTrue(controller.sealStream(scope, streamName).get());
+
+        //Write by an existing writer to a sealed stream should complete exceptionally.
+        assertFutureThrows("Should throw IllegalStateException",
+                writer.writeEvent("2", "Write to sealed stream"),
+                e -> IllegalStateException.class.isAssignableFrom(e.getClass()));
+
+        //Subsequent writes will throw an exception.
+        assertThrows(IllegalStateException.class, () -> writer.writeEvent("testEvent"));
+
+        //Creating a writer against a sealed stream throws an exception.
+        assertThrows(IllegalStateException.class, () -> clientFactory.createEventWriter(streamName, serializer, writerConfig));
     }
 
     @Test(timeout = 50000)

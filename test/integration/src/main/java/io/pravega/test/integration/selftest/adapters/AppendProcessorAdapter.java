@@ -320,6 +320,11 @@ public class AppendProcessorAdapter extends StoreAdapter {
         }
 
         @Override
+        public boolean isClosed() {
+            return false;
+        }
+
+        @Override
         public void setRequestProcessor(RequestProcessor cp) {
             // Not used.
         }

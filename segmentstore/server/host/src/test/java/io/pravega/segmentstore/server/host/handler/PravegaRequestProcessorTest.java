@@ -938,7 +938,7 @@ public class PravegaRequestProcessorTest {
 
         // 1. Now read the table entries where suggestedEntryCount is equal to number of entries in the Table Store.
         processor.readTableEntries(new WireCommands.ReadTableEntries(3, tableSegmentName, "", 3, wrappedBuffer(new byte[0])));
-        log.info("Processor::ReadTableKeys");
+
         // Capture the WireCommands sent.
         ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
         order.verify(connection, times(2)).send(wireCommandsCaptor.capture());
@@ -1136,7 +1136,7 @@ public class PravegaRequestProcessorTest {
     }
 
     private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
-        return ServiceBuilder.newInMemoryBuilder(config, (size, name) -> new InlineExecutor())
+        return ServiceBuilder.newInMemoryBuilder(config, (size, name, threadPriority) -> new InlineExecutor())
                              .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
                                      setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
     }

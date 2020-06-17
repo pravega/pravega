@@ -27,7 +27,9 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
@@ -44,17 +46,22 @@ import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.security.token.JsonWebToken;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -73,13 +80,17 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -112,8 +123,10 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
 
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, "");
+        processor.setupAppend(setupAppendCommand);
         processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac, data);
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
@@ -124,6 +137,98 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyNoMoreInteractions(store);
 
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
+        assertTrue(processor.isSetupAppendCompleted(setupAppendCommand.getSegment(), setupAppendCommand.getWriterId()));
+    }
+
+    @Test
+    public void testSetupAppendClosesConnectionIfTokenHasExpired() {
+        String streamSegmentName = "scope/stream/0.#epoch.0";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
+
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                .store(store)
+                .connection(connection)
+                .connectionTracker(tracker)
+                .statsRecorder(mockedRecorder)
+                .tokenVerifier(new TokenVerifierImpl("secret"))
+                .build();
+
+        setupGetAttributes(streamSegmentName, clientId, store);
+        val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
+
+        Date expiryDate = Date.from(Instant.now().minusSeconds(100));
+        JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(), expiryDate, null);
+
+        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
+        processor.setupAppend(setupAppend);
+        verify(connection).close();
+    }
+
+    @Test
+    public void testSetupTokenExpiryTaskClosesConnectionIfTokenHasExpired() {
+        // Arrange
+        String streamSegmentName = "scope/stream/0.#epoch.0";
+        UUID clientId = UUID.randomUUID();
+
+        StreamSegmentStore mockStore = mock(StreamSegmentStore.class);
+        ServerConnection mockConnection = mock(ServerConnection.class);
+
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = new InlineExecutor();
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                .store(mockStore)
+                .connection(mockConnection)
+                .tokenExpiryHandlerExecutor(executor)
+                .build();
+
+        // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
+        AppendProcessor mockProcessor = spy(processor);
+        doReturn(true).when(mockProcessor).isSetupAppendCompleted(streamSegmentName, clientId);
+
+        JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(),
+                Date.from(Instant.now().minusSeconds(5)), null);
+        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
+
+        // Act
+        mockProcessor.setupTokenExpiryTask(setupAppend, token).join();
+
+        // Assert
+        verify(mockConnection).close();
+    }
+
+    @Test
+    public void testSetupTokenExpiryWhenConnectionSendThrowsException() {
+        // Arrange
+        String streamSegmentName = "scope/stream/0.#epoch.0";
+        UUID clientId = UUID.randomUUID();
+
+        StreamSegmentStore mockStore = mock(StreamSegmentStore.class);
+        ServerConnection mockConnection = mock(ServerConnection.class);
+        @Cleanup("shutdown")
+        ScheduledExecutorService executor = new InlineExecutor();
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                .store(mockStore)
+                .connection(mockConnection)
+                .tokenExpiryHandlerExecutor(executor)
+                .build();
+
+        // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
+        AppendProcessor mockProcessor = spy(processor);
+        doReturn(true).when(mockProcessor).isSetupAppendCompleted(streamSegmentName, clientId);
+        doThrow(new RuntimeException()).when(mockConnection).send(any());
+
+        Date expiryDate = Date.from(Instant.now().plusMillis(300));
+        JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(), expiryDate, null);
+
+        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
+
+        // Act
+        mockProcessor.setupTokenExpiryTask(setupAppend, token).join();
     }
 
     @Test
@@ -796,7 +901,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
     private EmbeddedChannel createChannel(StreamSegmentStore store) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
-                new CommandEncoder(null),
+                new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
                 new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                 new CommandDecoder(),
                 new AppendDecoder(),

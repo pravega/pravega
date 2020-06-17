@@ -21,9 +21,9 @@ import lombok.Getter;
  */
 public class ReadIndexConfig {
     //region Config Names
-    public static final Property<Integer> STORAGE_READ_ALIGNMENT = Property.named("storageReadAlignment", 1024 * 1024);
-    public static final Property<Integer> MEMORY_READ_MIN_LENGTH = Property.named("memoryReadMinLength", 4 * 1024);
-    public static final Property<Integer> STORAGE_READ_DEFAULT_TIMEOUT = Property.named("storageReadDefaultTimeoutMillis", 30 * 1000);
+    public static final Property<Integer> STORAGE_READ_ALIGNMENT = Property.named("storageRead.alignment", 1024 * 1024, "storageReadAlignment");
+    public static final Property<Integer> MEMORY_READ_MIN_LENGTH = Property.named("memoryRead.length.min", 4 * 1024, "memoryReadMinLength");
+    public static final Property<Integer> STORAGE_READ_DEFAULT_TIMEOUT = Property.named("storageRead.timeout.default.millis", 30 * 1000, "storageReadDefaultTimeoutMillis");
     private static final String COMPONENT_CODE = "readindex";
 
     //endregion
