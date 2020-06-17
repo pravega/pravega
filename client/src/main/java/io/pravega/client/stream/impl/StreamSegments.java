@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,6 +83,10 @@ public class StreamSegments {
             result.add(seg.getSegment());
         }
         return result;
+    }
+
+    public int getNumberOfSegments() {
+        return segments.size();
     }
     
     public StreamSegments withReplacementRange(Segment segment, StreamSegmentsWithPredecessors replacementRanges) {

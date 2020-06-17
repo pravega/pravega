@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,16 @@ public interface SegmentInputStream extends AutoCloseable {
      *
      * @param offset The offset to set.
      */
-    public abstract void setOffset(long offset);
+    default void setOffset( long offset) {
+        setOffset(offset, false);
+    }
+
+    /**
+     * Sets the offset for reading from the segment.
+     * @param offset The offset to set.
+     * @param resendRequest Resend the read request in-case there is an already pending read request for the offset.
+     */
+    public abstract void setOffset(long offset, boolean resendRequest);
 
     /**
      * Gets the current offset. (Passing this to setOffset in the future will reset reads to the

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+  Copyright (c) Dell Inc., or its subsidiaries.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -8,7 +8,7 @@
 
       http://www.apache.org/licenses/LICENSE-2.0
 -->
-<configuration scan="true">
+<configuration scan="true" scanPeriod="30 seconds">
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <charset>UTF-8</charset>

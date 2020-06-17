@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,12 +13,13 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -37,17 +38,15 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentService;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
-import java.io.ByteArrayInputStream;
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -140,7 +139,7 @@ public class PravegaRequestProcessorTest {
         }
 
         @Override
-        protected void complete(ReadResultEntryContents readResultEntryContents) {
+        protected void complete(BufferView readResultEntryContents) {
             super.complete(readResultEntryContents);
         }
 
@@ -167,7 +166,7 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection);
 
         TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.Cache, 0, readLength);
-        entry1.complete(new ReadResultEntryContents(new ByteArrayInputStream(data), data.length));
+        entry1.complete(new ByteArraySegment(data));
         TestReadResultEntry entry2 = new TestReadResultEntry(ReadResultEntryType.Future, data.length, readLength);
 
         List<ReadResultEntry> results = new ArrayList<>();
@@ -180,10 +179,10 @@ public class PravegaRequestProcessorTest {
         // Execute and Verify readSegment calling stack in connection and store is executed as design.
         processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
-        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(data), requestId));
+        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, Unpooled.wrappedBuffer(data), requestId));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
-        entry2.complete(new ReadResultEntryContents(new ByteArrayInputStream(data), data.length));
+        entry2.complete(new ByteArraySegment(data));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -209,7 +208,7 @@ public class PravegaRequestProcessorTest {
         // Execute and Verify readSegment calling stack in connection and store is executed as design.
         processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
-        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, false, true, ByteBuffer.wrap(new byte[0]), requestId));
+        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, false, true, Unpooled.EMPTY_BUFFER, requestId));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -233,7 +232,7 @@ public class PravegaRequestProcessorTest {
         processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
         // Since the underlying store cancels the read request verify if an empty SegmentRead Wirecommand is sent as a response.
-        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(new byte[0]), requestId));
+        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, Unpooled.EMPTY_BUFFER, requestId));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -317,11 +316,11 @@ public class PravegaRequestProcessorTest {
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
 
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
         order.verify(connection).send(Mockito.argThat(t -> {
             return t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists();
@@ -330,13 +329,13 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, 2));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
+                .send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
         txnid = UUID.randomUUID();
-        transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection).send(Mockito.argThat(t -> {
@@ -346,27 +345,27 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentDeleted(requestId, transactionName));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
+                .send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
         // Verify the case when the transaction segment is already sealed. This simulates the case when the process
         // crashed after sealing, but before issuing the merge.
         txnid = UUID.randomUUID();
-        transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
-        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
+        assertTrue(append(NameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
 
         // Seal the transaction in the SegmentStore.
-        String txnName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        String txnName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
         store.sealStreamSegment(txnName, Duration.ZERO).join();
 
         processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
         order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, 4));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
+                .send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
         order.verifyNoMoreInteractions();
     }
@@ -392,7 +391,7 @@ public class PravegaRequestProcessorTest {
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
 
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
@@ -400,7 +399,7 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, 0));
 
         txnid = UUID.randomUUID();
-        transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).sealStreamSegment(
                 anyString(), any());
@@ -411,7 +410,7 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
         processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
 
-        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName,
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName,
                                                                                                                        txnid), "", -1L));
     }
 
@@ -435,7 +434,7 @@ public class PravegaRequestProcessorTest {
                 TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnId);
+        String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
         processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         processor.mergeSegments(new WireCommands.MergeSegments(2, streamSegmentName, transactionName, ""));
         verify(recorderMock).merge(streamSegmentName, 100L, 10, (long) streamSegmentName.hashCode());
@@ -652,26 +651,26 @@ public class PravegaRequestProcessorTest {
         // Test with unversioned data.
         TableEntry e1 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
         WireCommands.TableEntries cmd = getTableEntries(singletonList(e1));
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", cmd));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", cmd, 0L));
         order.verify(connection).send(new WireCommands.TableEntriesUpdated(2, singletonList(0L)));
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(false), any());
 
         // Test with versioned data.
         e1 = TableEntry.versioned(keys.get(0), generateValue(rnd), 0L);
         cmd = getTableEntries(singletonList(e1));
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, tableSegmentName, "", cmd));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, tableSegmentName, "", cmd, 0L));
         order.verify(connection).send(any());
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(true), any());
 
         // Test with key not present. The table store throws KeyNotExistsException.
         TableEntry e2 = TableEntry.versioned(keys.get(1), generateValue(rnd), 0L);
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(4, tableSegmentName, "", getTableEntries(singletonList(e2))));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(4, tableSegmentName, "", getTableEntries(singletonList(e2)), 0L));
         order.verify(connection).send(new WireCommands.TableKeyDoesNotExist(4, tableSegmentName, ""));
         verifyNoMoreInteractions(recorderMock);
 
         // Test with invalid key version. The table store throws BadKeyVersionException.
         TableEntry e3 = TableEntry.versioned(keys.get(0), generateValue(rnd), 10L);
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(5, tableSegmentName, "", getTableEntries(singletonList(e3))));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(5, tableSegmentName, "", getTableEntries(singletonList(e3)), 0L));
         order.verify(connection).send(new WireCommands.TableKeyBadVersion(5, tableSegmentName, ""));
         verifyNoMoreInteractions(recorderMock);
     }
@@ -699,20 +698,20 @@ public class PravegaRequestProcessorTest {
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
         TableEntry e1 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", getTableEntries(singletonList(e1))));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", getTableEntries(singletonList(e1)), 0L));
         order.verify(connection).send(new WireCommands.TableEntriesUpdated(2, singletonList(0L)));
         verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(false), any());
 
         // Remove a Table Key
         WireCommands.TableKey key = new WireCommands.TableKey(wrappedBuffer(e1.getKey().getKey().array()), 0L);
-        processor.removeTableKeys(new WireCommands.RemoveTableKeys(3, tableSegmentName, "", singletonList(key)));
+        processor.removeTableKeys(new WireCommands.RemoveTableKeys(3, tableSegmentName, "", singletonList(key), 0L));
         order.verify(connection).send(new WireCommands.TableKeysRemoved(3, tableSegmentName));
         verify(recorderMock).removeKeys(eq(tableSegmentName), eq(1), eq(true), any());
 
         // Test with non-existent key.
         key = new WireCommands.TableKey(wrappedBuffer(e1.getKey().getKey().array()), 0L);
-        processor.removeTableKeys(new WireCommands.RemoveTableKeys(4, tableSegmentName, "", singletonList(key)));
+        processor.removeTableKeys(new WireCommands.RemoveTableKeys(4, tableSegmentName, "", singletonList(key), 0L));
         order.verify(connection).send(new WireCommands.TableKeyBadVersion(4, tableSegmentName, ""));
         verifyNoMoreInteractions(recorderMock);
     }
@@ -767,7 +766,7 @@ public class PravegaRequestProcessorTest {
         verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
 
         TableEntry e1 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(4, tableSegmentName, "", getTableEntries(singletonList(e1))));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(4, tableSegmentName, "", getTableEntries(singletonList(e1)), 0L));
         order.verify(connection).send(new WireCommands.TableEntriesUpdated(4, singletonList(0L)));
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(false), any());
 
@@ -816,7 +815,7 @@ public class PravegaRequestProcessorTest {
         recorderMockOrder.verify(recorderMock).getKeys(eq(tableSegmentName), eq(1), any());
 
         // Update a value to a key.
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, tableSegmentName, "", getTableEntries(singletonList(entry))));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, tableSegmentName, "", getTableEntries(singletonList(entry)), 0L));
         order.verify(connection).send(new WireCommands.TableEntriesUpdated(3, singletonList(0L)));
         recorderMockOrder.verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(false), any());
 
@@ -855,7 +854,7 @@ public class PravegaRequestProcessorTest {
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
         verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", getTableEntries(asList(e1, e2, e3))));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", getTableEntries(asList(e1, e2, e3)), 0L));
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(3), eq(false), any());
 
         // 1. Now read the table keys where suggestedKeyCount is equal to number of entries in the Table Store.
@@ -926,7 +925,7 @@ public class PravegaRequestProcessorTest {
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
         verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", getTableEntries(asList(e1, e2, e3))));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "", getTableEntries(asList(e1, e2, e3)), 0L));
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(3), eq(false), any());
 
         // 1. Now read the table entries where suggestedEntryCount is equal to number of entries in the Table Store.
@@ -1045,7 +1044,7 @@ public class PravegaRequestProcessorTest {
     }
 
     private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
-        return ServiceBuilder.newInMemoryBuilder(config, (size, name) -> new InlineExecutor())
+        return ServiceBuilder.newInMemoryBuilder(config, (size, name, threadPriority) -> new InlineExecutor())
                              .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
                                      setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
     }

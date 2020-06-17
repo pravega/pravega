@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -9,9 +9,11 @@
 package io.pravega.client.netty.impl;
 
 import io.netty.buffer.Unpooled;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -22,6 +24,8 @@ import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+
+import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -75,6 +79,46 @@ public class RawClientTest {
         processor.process(reply);
         assertTrue(future.isDone());
         assertEquals(reply, future.get());
+    }
+
+    @Test
+    public void testExceptionHandling() {
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
+        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, connection);
+        Segment segment = new Segment("scope", "test", 0);
+        @Cleanup
+        RawClient rawClient = new RawClient(controller, connectionFactory, segment);
+
+        WireCommands.ReadSegment request1 = new WireCommands.ReadSegment(segment.getScopedName(), 0, 10, "",
+               requestId);
+
+        CompletableFuture<Reply> future = rawClient.sendRequest(requestId, request1);
+        // Verify if the request was sent over the connection.
+        Mockito.verify(connection).sendAsync(Mockito.eq(request1), Mockito.any(ClientConnection.CompletedCallback.class));
+        assertFalse("Since there is no response the future should not be completed", future.isDone());
+        ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
+        processor.processingFailure(new ConnectionFailedException("Custom error"));
+
+        assertTrue(future.isCompletedExceptionally());
+        AssertExtensions.assertFutureThrows("The future should be completed exceptionally", future,
+                t -> t instanceof ConnectionFailedException);
+
+        WireCommands.ReadSegment request2 = new WireCommands.ReadSegment(segment.getScopedName(), 0, 10, "", 2L);
+        future = rawClient.sendRequest(2L, request2);
+        // Verify if the request was sent over the connection.
+        Mockito.verify(connection).sendAsync(Mockito.eq(request2), Mockito.any(ClientConnection.CompletedCallback.class));
+        assertFalse("Since there is no response the future should not be completed", future.isDone());
+        processor = connectionFactory.getProcessor(endpoint);
+        processor.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(2L, "", WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
+
+        assertTrue(future.isCompletedExceptionally());
+        AssertExtensions.assertFutureThrows("The future should be completed exceptionally", future,
+                t -> t instanceof AuthenticationException);
     }
 
     @Test

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -53,7 +54,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -517,6 +518,18 @@ public abstract class ControllerServiceImplTest {
         ResultObserver<SegmentRanges> result2 = new ResultObserver<>();
         this.controllerService.getCurrentSegments(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result2);
         final SegmentRanges segmentRanges = result2.get();
+        Assert.assertEquals(2, segmentRanges.getSegmentRangesCount());
+    }
+
+    @Test
+    public void getSegmentsInEpochTest() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+
+        ResultObserver<SegmentRanges> result = new ResultObserver<>();
+        val request = Controller.GetEpochSegmentsRequest.newBuilder().setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                                                        .setEpoch(0).build();
+        this.controllerService.getEpochSegments(request, result);
+        final SegmentRanges segmentRanges = result.get();
         Assert.assertEquals(2, segmentRanges.getSegmentRangesCount());
     }
 

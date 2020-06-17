@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,17 +9,17 @@
  */
 package io.pravega.test.system;
 
+import com.google.common.primitives.Longs;
 import io.pravega.client.ByteStreamClientFactory;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -38,6 +38,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.LongStream;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -50,13 +52,16 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ByteClientTest extends AbstractSystemTest {
 
     private static final String STREAM = "testByteClientStream";
+    private static final String STREAM_TRUNCATION = "testByteStreamTruncation";
     private static final String SCOPE = "testByteClientScope" + RandomFactory.getSeed();
     private static final int PARALLELISM = 1;
     private static final int MAX_PAYLOAD_SIZE = 100000000;
@@ -111,7 +116,7 @@ public class ByteClientTest extends AbstractSystemTest {
     }
 
     /**
-     * This test verifies the correctness of basic read/write functionality of {@link ByteStreamClient}.
+     * This test verifies the correctness of basic read/write functionality of {@link ByteStreamReader} and {@link ByteStreamWriter}.
      */
     @Test
     public void byteClientTest() throws IOException {
@@ -122,8 +127,7 @@ public class ByteClientTest extends AbstractSystemTest {
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
                                                                            .clientConfig(Utils.buildClientConfig(controllerURI)).build(),
                 connectionFactory.getInternalExecutor());
-        @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
+
         log.info("Invoking byteClientTest test with Controller URI: {}", controllerURI);
         @Cleanup
         ByteStreamClientFactory byteStreamClient = new ByteStreamClientImpl(SCOPE, controller, connectionFactory);
@@ -182,5 +186,75 @@ public class ByteClientTest extends AbstractSystemTest {
         log.debug("Data correctly written/read from Stream: byte client test passed.");
     }
 
-    // End utils region
+    /**
+     * This test verifies the correctness of truncation in a ByteStream using {@link ByteStreamReader} and {@link ByteStreamWriter}.
+     */
+    @Test
+    public void byteClientTruncationTest() throws IOException {
+        log.info("byteClientTruncationTest:: with security enabled: {}", Utils.AUTH_ENABLED);
+
+        assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM_TRUNCATION, config));
+
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
+        ControllerImplConfig controllerConfig = ControllerImplConfig.builder().clientConfig(Utils.buildClientConfig(controllerURI)).build();
+        ControllerImpl controller = new ControllerImpl(controllerConfig, connectionFactory.getInternalExecutor());
+        log.info("Invoking byteClientTruncationTest test with Controller URI: {}", controllerURI);
+        @Cleanup
+        ByteStreamClientFactory factory = new ByteStreamClientImpl(SCOPE, controller, connectionFactory);
+        @Cleanup("closeAndSeal")
+        ByteStreamWriter writer = factory.createByteStreamWriter(STREAM);
+        @Cleanup
+        ByteStreamReader reader = factory.createByteStreamReader(STREAM);
+
+        // Write events.
+        long limit = 10000L;
+        LongStream.rangeClosed(1, limit).forEachOrdered(val -> {
+            try {
+                // write as bytes.
+                writer.write(Longs.toByteArray(val));
+            } catch (IOException e) {
+                log.error("Failed to write to the byte stream ", e);
+                fail("IO Error while write to byte stream");
+            }
+        });
+
+        //read 8 bytes at a time.
+        byte[] readBuffer = new byte[Long.BYTES];
+
+        // Number of bytes already fetched by the reader
+        assertEquals("The initial offset of reader is zero", 0, reader.getOffset());
+        // Number of events that can be read from the byte stream without talking to SegmentStore.
+        int eventsToRead = reader.available() / Long.BYTES;
+        assertTrue(eventsToRead < limit - 1);
+
+        // Set the truncation offset to a event boundary greater than the prefetched events.
+        int truncationOffset = (eventsToRead + 1) * Long.BYTES;
+
+        log.info("Truncation data before offset {}", truncationOffset);
+        writer.truncateDataBefore(truncationOffset);
+
+        long lastRead = -1;
+        while (reader.getOffset() < limit * Long.BYTES ) {
+            try {
+                int bytesRead = reader.read(readBuffer); // read 8 bytes
+                assertEquals(Long.BYTES, bytesRead);
+                long eventRead = Longs.fromByteArray(readBuffer);
+
+                // validate the read data and ensure data before trunation offset cannot be read.
+                if (lastRead >= eventRead || (eventRead > eventsToRead && eventRead < eventsToRead + 1) ) {
+                    log.error("Invalid event read {} while last event that was read is {}", eventRead, lastRead);
+                    fail("Invalid event read");
+                }
+                lastRead = eventRead;
+
+            } catch (SegmentTruncatedException e) {
+                log.info("Segment truncation observed at offset {}", reader.getOffset());
+                reader.seekToOffset(truncationOffset);
+            }
+        }
+
+        log.info("Data correctly written/read from Stream with truncation");
+    }
+
 }

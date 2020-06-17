@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -56,27 +58,29 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
-import javax.annotation.concurrent.GuardedBy;
-import javax.annotation.concurrent.ThreadSafe;
+
+import io.pravega.shared.security.token.JsonWebToken;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.LoggerFactory;
+
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
  */
-@Slf4j
 @Builder
 public class AppendProcessor extends DelegatingRequestProcessor {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final String EMPTY_STACK_TRACE = "";
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AppendProcessor.class));
     @NonNull
     private final StreamSegmentStore store;
     @NonNull
@@ -92,6 +96,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
     private final AtomicLong outstandingBytes = new AtomicLong();
+    private final ScheduledExecutorService tokenExpiryHandlerExecutor;
 
     //endregion
 
@@ -120,7 +125,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         log.info("Received hello from connection: {}", connection);
         connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
         if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
-            log.warn("Incompatible wire protocol versions {} from connection {}", hello, connection);
+            log.warn(hello.getRequestId(), "Incompatible wire protocol versions {} from connection {}", hello, connection);
             connection.close();
         }
     }
@@ -139,9 +144,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         if (this.tokenVerifier != null) {
             try {
-                tokenVerifier.verifyToken(newSegment,
+                JsonWebToken token = tokenVerifier.verifyToken(newSegment,
                         setupAppend.getDelegationToken(),
                         AuthHandler.Permissions.READ_UPDATE);
+                setupTokenExpiryTask(setupAppend, token);
             } catch (TokenException e) {
                 handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
                         "Update Segment Attribute", e);
@@ -167,6 +173,33 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 });
     }
 
+    @VisibleForTesting
+    CompletableFuture<Void> setupTokenExpiryTask(@NonNull SetupAppend setupAppend, @NonNull JsonWebToken token) {
+        String segment = setupAppend.getSegment();
+        UUID writerId = setupAppend.getWriterId();
+        long requestId = setupAppend.getRequestId();
+
+        if (token.getExpirationTime() == null) {
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return Futures.delayedTask(() -> {
+                if (isSetupAppendCompleted(segment, writerId)) {
+                    // Closing the connection will result in client authenticating with Controller again
+                    // and retrying the request with a new token.
+                    log.debug("Closing client connection for writer {} due to token expiry, when processing " +
+                                "request {} for segment {}", writerId, requestId, segment);
+                    connection.close();
+                }
+                return null;
+            }, token.durationToExpiry(), this.tokenExpiryHandlerExecutor);
+        }
+    }
+
+    @VisibleForTesting
+    boolean isSetupAppendCompleted(String newSegment, UUID writer) {
+        return writerStates.containsKey(Pair.of(newSegment, writer));
+    }
+
     /**
      * Append data to the store.
      */
@@ -175,14 +208,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         long traceId = LoggerHelpers.traceEnter(log, "append", append);
         UUID id = append.getWriterId();
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
-        Preconditions.checkState(state != null, "Data from unexpected connection: %s.", id);
+        Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
         adjustOutstandingBytes(appendLength);
         Timer timer = new Timer();
         storeAppend(append, previousEventNumber)
                 .whenComplete((newLength, ex) -> {
-                    handleAppendResult(append, newLength, ex, timer);
+                    handleAppendResult(append, newLength, ex, state, timer);
                     LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, ex);
                 })
                 .whenComplete((v, e) -> {
@@ -208,14 +241,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
-    private void handleAppendResult(final Append append, Long newWriteOffset, Throwable exception, Timer elapsedTimer) {
+    private void handleAppendResult(final Append append, Long newWriteOffset, Throwable exception, WriterState state, Timer elapsedTimer) {
+        Preconditions.checkNotNull(state, "state");
         boolean success = exception == null;
         try {
             boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
 
-            WriterState state = this.writerStates.getOrDefault(Pair.of(append.getSegment(), append.getWriterId()), null);
             if (success) {
-                Preconditions.checkState(state != null, "Synchronization error while processing append: %s. Unable to send ack.", append);
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
                     long previousLastAcked = state.appendSuccessful(append.getEventNumber());
@@ -226,22 +258,33 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         connection.send(dataAppendedAck);
                     }
                 }
+
+                if (append.getEventNumber() > state.getLowestFailedEventNumber()) {
+                    // The Store should not be successfully completing an Append that followed a failed one. If somehow
+                    // this happened, record it in the log.
+                    log.warn(append.getRequestId(), "Acknowledged a successful append after a failed one. Segment={}, WriterId={}, FailedEventNumber={}, AppendEventNumber={}",
+                            append.getSegment(), append.getWriterId(), state.getLowestFailedEventNumber(), append.getEventNumber());
+                }
             } else {
                 if (conditionalFailed) {
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
-                    if (state != null) {
+                    synchronized (state.getAckLock()) {
                         // Revert the state to the last known good one. This is needed because we do not close the connection
                         // for offset-conditional append failures, hence we must revert the effects of the failed append.
-                        state.conditionalAppendFailed();
+                        state.conditionalAppendFailed(append.getEventNumber());
+                        connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber(), append.getRequestId()));
                     }
-                    connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber(), append.getRequestId()));
                 } else {
-                    // Clear the state in case of error.
-                    this.writerStates.remove(Pair.of(append.getSegment(), append.getWriterId()));
-                    handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
-                            "appending data", exception);
+                    // Record the exception handling into the Writer State. It will be executed  once all the current
+                    // in-flight appends are completed.
+                    state.appendFailed(append.getEventNumber(), () ->
+                            handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
+                                    "appending data", exception));
                 }
             }
+
+            // After every append completes, check the WriterState and trigger any error handlers that are now eligible for execution.
+            executeDelayedErrorHandler(state, append.getSegment(), append.getWriterId());
         } catch (Throwable e) {
             success = false;
             handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "handling append result", e);
@@ -253,6 +296,37 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
+    /**
+     * Inquires the {@link WriterState} for any eligible {@link WriterState.DelayedErrorHandler} that can be executed
+     * right now. If so, invokes all eligible handlers synchronously. If there are no more handlers remaining after this,
+     * the {@link WriterState} is unregistered, which would essentially force the client to reinvoke {@link #setupAppend}.
+     *
+     * @param state       The {@link WriterState} to query.
+     * @param segmentName The name of the Segment for which the append failed.
+     * @param writerId    The Writer Id of the Append.
+     */
+    private void executeDelayedErrorHandler(WriterState state, String segmentName, UUID writerId) {
+        WriterState.DelayedErrorHandler h = state.fetchEligibleDelayedErrorHandler();
+        if (h == null) {
+            // This WriterState is healthy - nothing to do.
+            return;
+        }
+
+        synchronized (state.getAckLock()) {
+            try {
+                // Execute all eligible delayed handlers. Note that this may be an empty list, which is OK - it means
+                // the WriterState is not healthy but there's nothing yet to execute.
+                h.getHandlersToExecute().forEach(Runnable::run);
+            } finally {
+                if (h.getHandlersRemaining() == 0) {
+                    // We've executed all handlers and have none remaining. Time to clean up this WriterState and force
+                    // the Client to reinitialize it via setupAppend().
+                    this.writerStates.remove(Pair.of(segmentName, writerId));
+                }
+            }
+        }
+    }
+
     private void handleException(UUID writerId, long requestId, String segment, String doingWhat, Throwable u) {
         handleException(writerId, requestId, segment, -1L, doingWhat, u);
     }
@@ -260,7 +334,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private void handleException(UUID writerId, long requestId, String segment, long eventNumber, String doingWhat, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
-            log.error("Append processor: Error {} on segment = '{}'", doingWhat, segment, exception);
+            log.error(requestId, "Append processor: Error {} on segment = '{}'", doingWhat, segment, exception);
             throw exception;
         }
 
@@ -268,33 +342,32 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         String clientReplyStackTrace = replyWithStackTraceOnError ? Throwables.getStackTraceAsString(u) : EMPTY_STACK_TRACE;
 
         if (u instanceof StreamSegmentExistsException) {
-            log.warn("Segment '{}' already exists and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
+            log.warn(requestId, "Segment '{}' already exists and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
             connection.send(new SegmentAlreadyExists(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof StreamSegmentNotExistsException) {
-            log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
+            log.warn(requestId, "Segment '{}' does not exist and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
             connection.send(new NoSuchSegment(requestId, segment, clientReplyStackTrace, -1L));
         } else if (u instanceof StreamSegmentSealedException) {
             log.info("Segment '{}' is sealed and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
             connection.send(new SegmentIsSealed(requestId, segment, clientReplyStackTrace, eventNumber));
         } else if (u instanceof ContainerNotFoundException) {
             int containerId = ((ContainerNotFoundException) u).getContainerId();
-            log.warn("Wrong host. Segment '{}' (Container {}) is not owned and {} cannot perform operation '{}'.",
+            log.warn(requestId, "Wrong host. Segment '{}' (Container {}) is not owned and {} cannot perform operation '{}'.",
                     segment, containerId, writerId, doingWhat);
             connection.send(new WrongHost(requestId, segment, "", clientReplyStackTrace));
         } else if (u instanceof BadAttributeUpdateException) {
-            log.warn("Bad attribute update by {} on segment {}.", writerId, segment, u);
+            log.warn(requestId, "Bad attribute update by {} on segment {}.", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId, clientReplyStackTrace));
             connection.close();
         } else if (u instanceof TokenExpiredException) {
-            log.warn("Token expired for writer {} on segment {}.", writerId, segment, u);
-            connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
-                    WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+            log.warn(requestId, "Token expired for writer {} on segment {}.", writerId, segment, u);
+            connection.close();
         } else if (u instanceof TokenException) {
-            log.warn("Token check failed or writer {} on segment {}.", writerId, segment, u);
+            log.warn(requestId, "Token check failed or writer {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
                     WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
         } else if (u instanceof UnsupportedOperationException) {
-            log.warn("Unsupported Operation '{}'.", doingWhat, u);
+            log.warn(requestId, "Unsupported Operation '{}'.", doingWhat, u);
             connection.send(new OperationUnsupported(requestId, doingWhat, clientReplyStackTrace));
         } else if (u instanceof CancellationException) {
             // Cancellation exception is thrown when the Operation processor is shutting down.
@@ -311,83 +384,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Error (Segment = '{}', Operation = 'append'): {}.", segment, u.toString());
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
-        }
-    }
-
-    //endregion
-
-    //region WriterState
-
-    @ThreadSafe
-    private static class WriterState {
-        @Getter
-        private final Object ackLock = new Object();
-        @GuardedBy("this")
-        private long lastStoredEventNumber;
-        @GuardedBy("this")
-        private long lastAckedEventNumber;
-        @GuardedBy("this")
-        private long inFlightCount;
-
-        WriterState(long initialEventNumber) {
-            this.inFlightCount = 0;
-            this.lastStoredEventNumber = initialEventNumber;
-            this.lastAckedEventNumber = initialEventNumber;
-        }
-
-        /**
-         * Invoked when a new append is initiated.
-         *
-         * @param eventNumber The Append's Event Number.
-         * @return The previously attempted Event Number.
-         */
-        synchronized long beginAppend(long eventNumber) {
-            long previousEventNumber = this.lastStoredEventNumber;
-            Preconditions.checkState(eventNumber >= previousEventNumber, "Event was already appended.");
-            this.lastStoredEventNumber = eventNumber;
-            this.inFlightCount++;
-            return previousEventNumber;
-        }
-
-        /**
-         * Invoked when a conditional append has failed due to {@link BadOffsetException}. If no more appends are in the
-         * pipeline, then the Last Stored Event Number is reverted to the Last (Successfully) Acked Event Number.
-         */
-        synchronized void conditionalAppendFailed() {
-            this.inFlightCount--;
-            if (this.inFlightCount == 0) {
-                this.lastStoredEventNumber = this.lastAckedEventNumber;
-            }
-        }
-
-        /**
-         * Invoked when an append has been successfully stored and is about to be ack-ed to the Client.
-         *
-         * This method is designed to be invoked immediately before sending a {@link DataAppended} ack to the client,
-         * however both its invocation and the ack must be sent atomically as the Client expects acks to arrive in order.
-         *
-         * When composing a {@link DataAppended} ack, the value passed to eventNumber should be passed as
-         * {@link DataAppended#getEventNumber()} and the return value from this method should be passed as
-         * {@link DataAppended#getPreviousEventNumber()}.
-         *
-         * @param eventNumber The Append's Event Number. This should correspond to the last successful append in the Store
-         *                    and will be sent in the {@link DataAppended} ack back to the Client. This value will be
-         *                    remembered and returned upon the next invocation of this method. If this value is less
-         *                    than that of a previous invocation of this method (due to out-of-order acks from the Store),
-         *                    it will have no effect as it has already been ack-ed as part of a previous call.
-         * @return The last successful Append's Event Number (prior to this one). This is the value of eventNumber for
-         * the previous invocation of this method.
-         */
-        synchronized long appendSuccessful(long eventNumber) {
-            this.inFlightCount--;
-            long previousLastAcked = this.lastAckedEventNumber;
-            this.lastAckedEventNumber = Math.max(previousLastAcked, eventNumber);
-            return previousLastAcked;
-        }
-
-        @Override
-        public synchronized String toString() {
-            return String.format("Stored=%s, Acked=%s", this.lastStoredEventNumber, this.lastAckedEventNumber);
         }
     }
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.BlockingDrainingQueue;
+import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
@@ -26,6 +27,7 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
+import io.pravega.segmentstore.storage.cache.CacheFullException;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -69,6 +71,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     @Getter
     private final SegmentStoreMetrics.OperationProcessor metrics;
     private final Throttler throttler;
+    private final CacheUtilizationProvider cacheUtilizationProvider;
 
     //endregion
 
@@ -96,14 +99,16 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
         this.dataFrameBuilder = new DataFrameBuilder<>(durableDataLog, OperationSerializer.DEFAULT, args);
         this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
+        this.cacheUtilizationProvider = stateUpdater.getCacheUtilizationProvider();
         val throttlerCalculator = ThrottlerCalculator
                 .builder()
-                .cacheThrottler(stateUpdater::getCacheUtilization, stateUpdater.getCacheTargetUtilization(), stateUpdater.getCacheMaxUtilization())
-                .commitBacklogThrottler(this.commitQueue::size)
+                .cacheThrottler(this.cacheUtilizationProvider::getCacheUtilization, this.cacheUtilizationProvider.getCacheTargetUtilization(), this.cacheUtilizationProvider.getCacheMaxUtilization())
                 .batchingThrottler(durableDataLog::getQueueStatistics)
+                .durableDataLogThrottler(durableDataLog.getWriteSettings(), durableDataLog::getQueueStatistics)
                 .build();
         this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, executor, this.metrics);
-        this.stateUpdater.registerCleanupListener(this.throttler);
+        this.cacheUtilizationProvider.registerCleanupListener(this.throttler);
+        durableDataLog.registerQueueStateChangeListener(this.throttler);
     }
 
     //endregion
@@ -122,7 +127,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         val queueProcessor = Futures
                 .loop(this::isRunning,
                         () -> this.throttler.throttle()
-                                .thenComposeAsync(v -> this.operationQueue.take(MAX_READ_AT_ONCE), this.executor)
+                                .thenComposeAsync(v -> this.operationQueue.take(getFetchCount()), this.executor)
                                 .thenAcceptAsync(this::processOperations, this.executor),
                         this.executor);
 
@@ -138,7 +143,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 .whenComplete((r, ex) -> {
                     // The CommitProcessor is done. Safe to close its queue now, regardless of whether it failed or
                     // shut down normally.
-                    this.commitQueue.close();
+                    val uncommittedOperations = this.commitQueue.close();
+
+                    // Update the cacheUtilizationProvider with the fact that these operations are no longer pending for the cache.
+                    uncommittedOperations.stream().flatMap(Collection::stream).forEach(this.state::notifyOperationCommitted);
                     if (ex != null) {
                         throw new CompletionException(ex);
                     }
@@ -229,6 +237,17 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     }
 
     /**
+     * Gets the maximum number of Operations to fetch from the operation queue. This is calculated based on the estimated
+     * cache insertion capacity and its goal is to reduce the number of operations we have in flight as we near the
+     * maximum configured cache capacity.
+     *
+     * @return The maximum number of Operations to fetch from the operation queue.
+     */
+    private int getFetchCount() {
+        return Math.max(1, (int) (this.cacheUtilizationProvider.getCacheInsertionCapacity() * MAX_READ_AT_ONCE));
+    }
+
+    /**
      * Processes a set of pending operations (essentially a single iteration of the QueueProcessor).
      * Steps:
      * <ol>
@@ -281,7 +300,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     if (!this.throttler.isThrottlingRequired()) {
                         // Only pull in new operations if we do not require throttling. If we do, we need to go back to
                         // the main OperationProcessor loop and delay processing the next batch of operations.
-                        operations = this.operationQueue.poll(MAX_READ_AT_ONCE);
+                        operations = this.operationQueue.poll(getFetchCount());
                     }
 
                     if (operations.isEmpty()) {
@@ -384,14 +403,16 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private static boolean isFatalException(Throwable ex) {
         return ex instanceof DataCorruptionException
                 || ex instanceof DataLogWriterNotPrimaryException
-                || ex instanceof ObjectClosedException;
+                || ex instanceof ObjectClosedException
+                || ex instanceof CacheFullException;
     }
 
     private void processCommits(Collection<List<CompletableOperation>> items) {
         try {
             do {
                 Timer memoryCommitTimer = new Timer();
-                this.stateUpdater.process(items.stream().flatMap(List::stream).map(CompletableOperation::getOperation).iterator());
+                this.stateUpdater.process(items.stream().flatMap(List::stream).map(CompletableOperation::getOperation).iterator(),
+                        this.state::notifyOperationCommitted);
                 this.metrics.memoryCommit(items.size(), memoryCommitTimer.getElapsed());
                 items = this.commitQueue.poll(MAX_COMMIT_QUEUE_SIZE);
             } while (!items.isEmpty());
@@ -442,10 +463,31 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          * @param operation The operation to append.
          */
         void addPending(CompletableOperation operation) {
+            cacheUtilizationProvider.adjustPendingBytes(operation.getOperation().getCacheLength());
             synchronized (stateLock) {
                 this.nextFrameOperations.add(operation);
                 this.pendingOperationCount++;
             }
+        }
+
+        /**
+         * Records the fact that the given {@link CompletableOperation} is no longer pending (it has either been committed
+         * or rejected) and as such, we need to subtract it from the Cache Utilization Provider's accounting.
+         *
+         * @param o The operation.
+         */
+        void notifyOperationCommitted(CompletableOperation o) {
+            cacheUtilizationProvider.adjustPendingBytes(-o.getOperation().getCacheLength());
+        }
+
+        /**
+         * Records the fact that the given {@link Operation} is no longer pending (it has either been committed
+         * or rejected) and as such, we need to subtract it from the Cache Utilization Provider's accounting.
+         *
+         * @param o The operation.
+         */
+        void notifyOperationCommitted(Operation o) {
+            cacheUtilizationProvider.adjustPendingBytes(-o.getCacheLength());
         }
 
         /**
@@ -553,7 +595,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 }
             } finally {
                 if (toFail != null) {
-                    toFail.forEach(o -> failOperation(o, ex));
+                    toFail.forEach(o -> {
+                        failOperation(o, ex);
+                        notifyOperationCommitted(o);
+                    });
                     metrics.operationsFailed(toFail);
                 }
             }

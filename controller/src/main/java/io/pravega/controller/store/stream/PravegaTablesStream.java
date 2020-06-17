@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedTableName;
+import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 /**
  * Pravega Table Stream.
@@ -94,6 +94,10 @@ class PravegaTablesStream extends PersistentStreamBase {
     // completed transactions key
     private static final String STREAM_KEY_PREFIX = "Key" + SEPARATOR + "%s" + SEPARATOR + "%s" + SEPARATOR; // scoped stream name
     private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_KEY_PREFIX + "/%s";
+    
+    // non existent records
+    private static final VersionedMetadata<ActiveTxnRecord> NON_EXISTENT_TXN = 
+            new VersionedMetadata<>(ActiveTxnRecord.EMPTY, new Version.LongVersion(Long.MIN_VALUE));
 
     private final PravegaTablesStoreHelper storeHelper;
 
@@ -608,6 +612,14 @@ class PravegaTablesStream extends PersistentStreamBase {
     @VisibleForTesting
     CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns() {
         return super.getAllOrderedCommittingTxnsHelper(txnCommitOrderer);
+    }
+
+    @Override
+    CompletableFuture<List<ActiveTxnRecord>> getTransactionRecords(int epoch, List<String> txnIds) {
+        return getTransactionsInEpochTable(epoch)
+                .thenCompose(epochTxnTable -> storeHelper.getEntries(epochTxnTable, txnIds, 
+                        ActiveTxnRecord::fromBytes, NON_EXISTENT_TXN))
+        .thenApply(res -> res.stream().map(VersionedMetadata::getObject).collect(Collectors.toList()));
     }
 
     @Override

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,10 @@ import java.io.InputStream;
 public final class StreamHelpers {
     /**
      * Reads at most 'maxLength' bytes from the given input stream, as long as the stream still has data to serve.
+     * A note about performance:
+     * - This uses the default implementation of {@link InputStream#read(byte[], int, int)}, which means in most cases
+     * it will copy byte-by-byte into the target array, which is rather inefficient.
+     * - See https://github.com/pravega/pravega/issues/2924 for more details.
      *
      * @param stream      The InputStream to read from.
      * @param target      The target array to write data to.

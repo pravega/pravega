@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,8 +39,7 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
-
+import io.pravega.shared.NameUtils;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -69,8 +68,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
+import static io.pravega.shared.NameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.getSegmentNumber;
 import static java.util.stream.Collectors.groupingBy;
 
 @Slf4j
@@ -335,7 +334,7 @@ public abstract class PersistentStreamBase implements Stream {
         // extract epoch from segment id.
         // fetch epoch record for the said epoch
         // extract segment record from it.
-        int epoch = StreamSegmentNameUtils.getEpoch(segmentId);
+        int epoch = NameUtils.getEpoch(segmentId);
         return getEpochRecord(epoch)
                 .thenApply(epochRecord -> {
                     Optional<StreamSegmentRecord> segmentRecord = epochRecord.getSegments().stream()
@@ -614,8 +613,8 @@ public abstract class PersistentStreamBase implements Stream {
     CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> computeStreamCutSpan(Map<Long, Long> streamCut) {
         long mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
         long oldest = streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
-        int epochLow = StreamSegmentNameUtils.getEpoch(oldest);
-        int epochHigh = StreamSegmentNameUtils.getEpoch(mostRecent);
+        int epochLow = NameUtils.getEpoch(oldest);
+        int epochHigh = NameUtils.getEpoch(mostRecent);
 
         return fetchEpochs(epochLow, epochHigh, true).thenApply(epochs ->  {
             List<Long> toFind = new ArrayList<>(streamCut.keySet());
@@ -639,7 +638,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut) {
-        Map<Integer, List<Long>> groupByEpoch = streamCut.keySet().stream().collect(groupingBy(StreamSegmentNameUtils::getEpoch));
+        Map<Integer, List<Long>> groupByEpoch = streamCut.keySet().stream().collect(groupingBy(NameUtils::getEpoch));
 
         CompletableFuture<List<List<Map.Entry<Double, Double>>>> segmentRangesByEpoch = Futures.allOfWithResults(groupByEpoch.entrySet().stream().map(epochGroup -> {
             return getEpochRecord(epochGroup.getKey())
@@ -691,7 +690,8 @@ public abstract class PersistentStreamBase implements Stream {
             } else {
                 return CompletableFuture.completedFuture(existing);
             }
-        }).thenCompose(record -> getActiveEpochRecord(true).thenCompose(currentEpoch -> {
+        }).thenCompose(record -> getActiveEpochRecord(true).thenCompose(currentEpoch -> 
+                getConfiguration().thenCompose(config -> {
             if (!record.getObject().equals(EpochTransitionRecord.EMPTY)) {
                 // verify that it's the same as the supplied input (--> segments to be sealed
                 // and new ranges are identical). else throw scale conflict exception
@@ -714,6 +714,12 @@ public abstract class PersistentStreamBase implements Stream {
                     throw new EpochTransitionOperationExceptions.InputInvalidException();
                 }
 
+                int numberOfSegmentsPostScale = currentEpoch.getSegments().size() - segmentsToSeal.size() + newRanges.size();
+                if (numberOfSegmentsPostScale < config.getScalingPolicy().getMinNumSegments()) {
+                    log.warn("Scale cannot be performed as Min Segment Count will not hold {} {}", segmentsToSeal, newRanges);
+                    throw new EpochTransitionOperationExceptions.PreConditionFailureException();
+                }
+                
                 EpochTransitionRecord epochTransition = RecordHelper.computeEpochTransition(
                         currentEpoch, segmentsToSeal, newRanges, scaleTimestamp);
 
@@ -724,7 +730,7 @@ public abstract class PersistentStreamBase implements Stream {
                             return new VersionedMetadata<>(epochTransition, version);
                         });
             }
-        }));
+        })));
     }
 
     private CompletableFuture<Void> verifyNotSealed() {
@@ -1658,40 +1664,51 @@ public abstract class PersistentStreamBase implements Stream {
                                                                ConcurrentSkipListSet<Long> toPurge,
                                                                ConcurrentHashMap<UUID, ActiveTxnRecord> transactionsMap) {
         int epoch = nextEpoch.getKey();
-        List<Map.Entry<Long, String>> txnIds = nextEpoch.getValue();
+        List<Long> orders = new ArrayList<>();
+        List<String> txnIds = new ArrayList<>();
+        nextEpoch.getValue().forEach(x -> {
+            orders.add(x.getKey());
+            txnIds.add(x.getValue());
+        });
 
-        return Futures.allOf(txnIds.stream().map(txnIdOrder -> {
-            UUID txnId = UUID.fromString(txnIdOrder.getValue());
-            long order = txnIdOrder.getKey();
+        return getTransactionRecords(epoch, txnIds).thenAccept(txns -> {
+            for (int i = 0; i < txns.size(); i++) {
+                ActiveTxnRecord txnRecord = txns.get(i);
+                UUID txnId = UUID.fromString(txnIds.get(i));
+                long order = orders.get(i);
+                switch (txnRecord.getTxnStatus()) {
+                    case COMMITTING:
+                        if (txnRecord.getCommitOrder() == order) {
+                            // if entry matches record's position then include it
+                            transactionsMap.put(txnId, txnRecord);
+                        } else {
+                            log.debug("duplicate txn {} at position {}. removing {}", txnId, txnRecord.getCommitOrder(), order);
+                            toPurge.add(order);
+                        }
+                        break;
+                    case OPEN:  // do nothing
+                        // since we first add reference to transaction order followed by updating transaction
+                        // metadata record, which may or may not have happened. So we will ignore all open 
+                        // transactions for which references are found. 
+                        break;
+                    case COMMITTED:
+                    case ABORTING:
+                    case ABORTED:
+                    case UNKNOWN:
+                        // Aborting, aborted, unknown and committed 
+                        log.debug("stale txn {} with status. removing {}", txnId, txnRecord.getTxnStatus(), order);
+                        toPurge.add(order);
+                        break;
+                }
+            }
+        });
+    }
+
+    CompletableFuture<List<ActiveTxnRecord>> getTransactionRecords(int epoch, List<String> txnIds) {
+        return Futures.allOfWithResults(txnIds.stream().map(txnIdStr -> {
+            UUID txnId = UUID.fromString(txnIdStr);
             return Futures.exceptionallyExpecting(getActiveTx(epoch, txnId).thenApply(VersionedMetadata::getObject),
-                    ZKStreamMetadataStore.DATA_NOT_FOUND_PREDICATE, ActiveTxnRecord.EMPTY)
-                          .thenAccept(txnRecord -> {
-                              switch (txnRecord.getTxnStatus()) {
-                                  case COMMITTING:
-                                      if (txnRecord.getCommitOrder() == order) {
-                                          // if entry matches record's position then include it
-                                          transactionsMap.put(txnId, txnRecord);
-                                      } else {
-                                          log.debug("duplicate txn {} at position {}. removing {}", txnId, txnRecord.getCommitOrder(), order);
-                                          toPurge.add(order);
-                                      }
-                                      break;
-                                  case OPEN:  // do nothing
-                                      // since we first add reference to transaction order followed by updating transaction
-                                      // metadata record, which may or may not have happened. So we will ignore all open 
-                                      // transactions for which references are found. 
-                                      break;
-                                  case COMMITTED:
-                                  case ABORTING:
-                                  case ABORTED:
-                                  case UNKNOWN:
-                                      // Aborting, aborted, unknown and committed 
-                                      log.debug("stale txn {} with status. removing {}", txnId, txnRecord.getTxnStatus(), order);
-                                      toPurge.add(order);
-                                      break;
-                              }
-                          });
-
+                    ZKStreamMetadataStore.DATA_NOT_FOUND_PREDICATE, ActiveTxnRecord.EMPTY);
         }).collect(Collectors.toList()));
     }
 
@@ -1762,7 +1779,7 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     private int getShardNumber(long segmentId) {
-        return StreamSegmentNameUtils.getEpoch(segmentId) / shardSize.get();
+        return NameUtils.getEpoch(segmentId) / shardSize.get();
     }
 
     private ImmutableMap<StreamSegmentRecord, Integer> convertToSpan(EpochRecord epochRecord) {
@@ -1846,7 +1863,7 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     private StreamSegmentRecord newSegmentRecord(long segmentId, long time, Double low, Double high) {
-        return newSegmentRecord(StreamSegmentNameUtils.getEpoch(segmentId), StreamSegmentNameUtils.getSegmentNumber(segmentId),
+        return newSegmentRecord(NameUtils.getEpoch(segmentId), NameUtils.getSegmentNumber(segmentId),
                 time, low, high);
     }
 

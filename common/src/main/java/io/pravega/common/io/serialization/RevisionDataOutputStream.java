@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,7 @@
  */
 package io.pravega.common.io.serialization;
 
+import io.pravega.common.io.BufferViewSink;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
@@ -310,7 +311,12 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         writeCompactInt(buf.getLength());
 
         // Copy the buffer contents to this OutputStream. This will write all its bytes.
-        buf.copyTo(this);
+        if (this.out instanceof BufferViewSink) {
+            ((BufferViewSink) this.out).writeBuffer(buf);
+            super.written += buf.getLength();
+        } else {
+            buf.copyTo(this);
+        }
     }
 
     @Override

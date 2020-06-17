@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,8 +9,12 @@
  */
 package io.pravega.segmentstore.storage;
 
+import io.pravega.segmentstore.contracts.SegmentProperties;
+
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -167,6 +171,13 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * @return True or false.
      */
     boolean supportsTruncation();
+
+    /**
+     * Lists all the segments stored on the storage device.
+     * @return Iterator that can be used to enumerate and retrieve properties of all the segments.
+     * @throws IOException if exception occurred while listing segments.
+     */
+    Iterator<SegmentProperties> listSegments() throws IOException;
 
     @Override
     void close();

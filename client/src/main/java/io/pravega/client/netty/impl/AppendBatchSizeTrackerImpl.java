@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,8 +12,6 @@ package io.pravega.client.netty.impl;
 import io.pravega.common.ExponentialMovingAverage;
 import io.pravega.common.MathHelpers;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
-import io.pravega.shared.protocol.netty.WireCommands;
-
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -31,7 +29,6 @@ import java.util.function.Supplier;
  */
 class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private static final int MAX_BATCH_TIME_MILLIS = 100;
-    private static final int MAX_BATCH_SIZE = WireCommands.MAX_WIRECOMMAND_SIZE / 2;
 
     private final Supplier<Long> clock;
     private final AtomicLong lastAppendNumber;

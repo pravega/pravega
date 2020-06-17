@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,31 +10,31 @@
 package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.models.V1Container;
-import io.kubernetes.client.models.V1ContainerBuilder;
-import io.kubernetes.client.models.V1ContainerPortBuilder;
-import io.kubernetes.client.models.V1Deployment;
-import io.kubernetes.client.models.V1DeploymentBuilder;
-import io.kubernetes.client.models.V1DeploymentSpecBuilder;
-import io.kubernetes.client.models.V1EnvVarBuilder;
-import io.kubernetes.client.models.V1EnvVarSourceBuilder;
-import io.kubernetes.client.models.V1LabelSelectorBuilder;
-import io.kubernetes.client.models.V1ObjectFieldSelectorBuilder;
-import io.kubernetes.client.models.V1ObjectMetaBuilder;
-import io.kubernetes.client.models.V1PodSpecBuilder;
-import io.kubernetes.client.models.V1PodTemplateSpecBuilder;
-import io.kubernetes.client.models.V1beta1ClusterRole;
-import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
-import io.kubernetes.client.models.V1beta1ClusterRoleBindingBuilder;
-import io.kubernetes.client.models.V1beta1ClusterRoleBuilder;
-import io.kubernetes.client.models.V1beta1CustomResourceDefinition;
-import io.kubernetes.client.models.V1beta1CustomResourceDefinitionBuilder;
-import io.kubernetes.client.models.V1beta1CustomResourceDefinitionNamesBuilder;
-import io.kubernetes.client.models.V1beta1CustomResourceDefinitionSpecBuilder;
-import io.kubernetes.client.models.V1beta1CustomResourceDefinitionStatus;
-import io.kubernetes.client.models.V1beta1PolicyRuleBuilder;
-import io.kubernetes.client.models.V1beta1RoleRefBuilder;
-import io.kubernetes.client.models.V1beta1SubjectBuilder;
+import io.kubernetes.client.openapi.models.V1Container;
+import io.kubernetes.client.openapi.models.V1ContainerBuilder;
+import io.kubernetes.client.openapi.models.V1ContainerPortBuilder;
+import io.kubernetes.client.openapi.models.V1Deployment;
+import io.kubernetes.client.openapi.models.V1DeploymentBuilder;
+import io.kubernetes.client.openapi.models.V1DeploymentSpecBuilder;
+import io.kubernetes.client.openapi.models.V1EnvVarBuilder;
+import io.kubernetes.client.openapi.models.V1EnvVarSourceBuilder;
+import io.kubernetes.client.openapi.models.V1LabelSelectorBuilder;
+import io.kubernetes.client.openapi.models.V1ObjectFieldSelectorBuilder;
+import io.kubernetes.client.openapi.models.V1ObjectMetaBuilder;
+import io.kubernetes.client.openapi.models.V1PodSpecBuilder;
+import io.kubernetes.client.openapi.models.V1PodTemplateSpecBuilder;
+import io.kubernetes.client.openapi.models.V1beta1ClusterRole;
+import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBinding;
+import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBindingBuilder;
+import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBuilder;
+import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinition;
+import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionBuilder;
+import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionNamesBuilder;
+import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionSpecBuilder;
+import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionStatus;
+import io.kubernetes.client.openapi.models.V1beta1PolicyRuleBuilder;
+import io.kubernetes.client.openapi.models.V1beta1RoleRefBuilder;
+import io.kubernetes.client.openapi.models.V1beta1SubjectBuilder;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
 import lombok.extern.slf4j.Slf4j;
@@ -239,7 +239,7 @@ public class ZookeeperK8sService extends AbstractService {
                 .put("kind", CUSTOM_RESOURCE_KIND)
                 .put("metadata", ImmutableMap.of("name", deploymentName))
                 .put("spec", ImmutableMap.builder().put("image",  getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + ZOOKEEPER_IMAGE_NAME, PRAVEGA_ZOOKEEPER_IMAGE_VERSION))
-                                         .put("size", clusterSize)
+                                         .put("replicas", clusterSize)
                                          .build())
                 .build();
     }

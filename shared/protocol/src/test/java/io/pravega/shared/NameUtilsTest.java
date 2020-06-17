@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class NameUtilsTest {
@@ -88,5 +90,11 @@ public class NameUtilsTest {
         String name = NameUtils.getMarkStreamForStream(myStream);
         assertTrue(name.endsWith(myStream));
         assertTrue(name.startsWith(NameUtils.getMARK_PREFIX()));
+    }
+
+    @Test
+    public void testGetEpoch() {
+        UUID txnId = UUID.fromString("00000065-0000-000a-0000-000000000064");
+        assertEquals(101, NameUtils.getEpoch(txnId));
     }
 }

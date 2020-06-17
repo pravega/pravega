@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,7 +74,6 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor, Duration gcPeriod) {
         super(new ZKHostIndex(client, "/hostTxnIndex", executor), new ZKHostIndex(client, "/hostRequestIndex", executor));
-
         this.storeHelper = new ZKStoreHelper(client, executor);
         this.orderer = new ZkOrderedStore("txnCommitOrderer", storeHelper, executor);
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,12 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
@@ -88,7 +90,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -217,9 +219,90 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
                 e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
 
         EventWriterConfig highTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(200 * 1000).build();
-        AssertExtensions.assertThrows("high timeouot period not honoured",
+        AssertExtensions.assertThrows("high timeout period not honoured",
                 () -> createTxn(clientFactory, highTimeoutConfig, "test"),
                 e -> Exceptions.unwrap(e.getCause()) instanceof IllegalArgumentException);
+    }
+
+    @Test(timeout = 20000)
+    public void testGetTxnWithScale() throws Exception {
+        final StreamConfiguration config = StreamConfiguration.builder()
+                                                        .scalingPolicy(ScalingPolicy.fixed(1))
+                                                        .build();
+        final Serializer<String> serializer = new UTF8StringSerializer();
+        final EventWriterConfig writerConfig = EventWriterConfig.builder().transactionTimeoutTime(10000).build();
+
+        final Controller controller = controllerWrapper.getController();
+
+        controllerWrapper.getControllerService().createScope("test").get();
+        controller.createStream("test", "test", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+
+        @Cleanup
+        EventStreamWriter<String> streamWriter = clientFactory.createEventWriter("test", serializer, writerConfig);
+        streamWriter.writeEvent("key", "e").join();
+
+        @Cleanup
+        TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter( "test", serializer, writerConfig);
+
+        Transaction<String> txn = txnWriter.beginTxn();
+        txn.writeEvent("key", "1");
+        txn.flush();
+        // the txn is not yet committed here.
+        UUID txnId =  txn.getTxnId();
+
+        // scale up stream
+        scaleUpStream();
+
+        // write event using stream writer
+        streamWriter.writeEvent("key", "e").join();
+
+        Transaction<String> txn1 = txnWriter.getTxn(txnId);
+        txn1.writeEvent("key", "2");
+        txn1.flush();
+        // commit the transaction
+        txn1.commit();
+        assertEventuallyEquals(Transaction.Status.COMMITTED, txn1::checkStatus, 5000);
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
+        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0).stream("test/test").build());
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new UTF8StringSerializer(),
+                ReaderConfig.builder().build());
+        EventRead<String> event = reader.readNextEvent(5000);
+        assertEquals("e", event.getEvent());
+
+        assertNull(reader.readNextEvent(100).getEvent());
+        groupManager.getReaderGroup("reader").initiateCheckpoint("cp1", executorService());
+        event = reader.readNextEvent(5000);
+        assertEquals("Checkpoint event expected", "cp1", event.getCheckpointName());
+
+        event = reader.readNextEvent(5000);
+        assertEquals("second event post scale up", "e", event.getEvent());
+
+        assertNull(reader.readNextEvent(100).getEvent());
+        groupManager.getReaderGroup("reader").initiateCheckpoint("cp2", executorService());
+        event = reader.readNextEvent(5000);
+        assertEquals("Checkpoint event expected", "cp2", event.getCheckpointName());
+
+        event = reader.readNextEvent(5000);
+        assertEquals("txn events", "1", event.getEvent());
+        event = reader.readNextEvent(5000);
+        assertEquals("txn events", "2", event.getEvent());
+
+    }
+
+    private void scaleUpStream() throws InterruptedException, java.util.concurrent.ExecutionException {
+        Stream stream = new StreamImpl("test", "test");
+        Map<Double, Double> map = new HashMap<>();
+        map.put(0.0, 0.5);
+        map.put(0.5, 1.0);
+        Boolean result = controllerWrapper.getController().scaleStream(stream, Collections.singletonList(0L), map, executorService()).getFuture().get();
+        assertTrue(result);
     }
 
     private UUID createTxn(EventStreamClientFactory clientFactory, EventWriterConfig config, String streamName) {

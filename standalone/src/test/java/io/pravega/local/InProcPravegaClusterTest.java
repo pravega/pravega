@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -174,7 +174,7 @@ public class InProcPravegaClusterTest {
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(
                 "readerId", readerGroup,
-                new JavaSerializer<String>(), ReaderConfig.builder().build());
+                new JavaSerializer<String>(), ReaderConfig.builder().initialAllocationDelay(0).build());
 
         // Keeping the read timeout large so that there is ample time for reading the event even in
         // case of abnormal delays in test environments.

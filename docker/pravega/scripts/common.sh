@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,4 +17,28 @@ add_system_property() {
     if [ -n "${value}" ]; then
         export JAVA_OPTS="${JAVA_OPTS} -D${name}=${value}"
     fi
+}
+
+# Add system property for ECS configUri with ECS credentials
+add_system_property_ecs_config_uri() {
+    local name=$1
+    local configUri=$2
+    local identity=$3
+    local secret=$4
+
+    if ! echo ${configUri} | grep -q "identity"; then
+        configUri=${configUri}"%26identity="${identity}"%26secretKey="${secret}
+    fi
+
+    echo "${name}" "${configUri}"
+    add_system_property "${name}" "${configUri}"
+}
+
+# Add ECS certificates into Java truststore
+add_certs_into_truststore() {
+    CERTS=/etc/secret-volume/ca-bundle/*
+    for cert in $CERTS
+    do
+      yes | keytool -importcert -storepass changeit -file "${cert}" -alias "${cert}" -keystore /etc/ssl/certs/java/cacerts || true
+    done
 }

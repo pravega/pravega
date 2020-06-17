@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamingException;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.net.URI;
@@ -155,7 +155,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     @Override
     public CompletableFuture<Void> deleteStream(String streamName, Duration timeout) {
         ensureRunning();
-        String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamName);
+        String parentName = NameUtils.getParentStreamSegmentName(streamName);
         if (isTransaction(streamName, parentName)) {
             // We have a transaction to abort.
             return abortTransaction(streamName, timeout);
@@ -176,7 +176,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
         ArrayView s = event.getSerialization();
         byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
         String routingKey = Integer.toString(event.getRoutingKey());
-        String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamName);
+        String parentName = NameUtils.getParentStreamSegmentName(streamName);
         if (isTransaction(streamName, parentName)) {
             // Dealing with a Transaction.
             return CompletableFuture.runAsync(() -> {
@@ -215,7 +215,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
         return CompletableFuture.supplyAsync(() -> {
             TransactionalEventStreamWriter<byte[]> writer = getTransactionalWriter(parentStream, 0);
             UUID txnId = writer.beginTxn().getTxnId();
-            String txnName = StreamSegmentNameUtils.getTransactionNameFromId(parentStream, txnId);
+            String txnName = NameUtils.getTransactionNameFromId(parentStream, txnId);
             this.transactionIds.put(txnName, txnId);
             return txnName;
         }, this.testExecutor);
@@ -224,7 +224,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     @Override
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         ensureRunning();
-        String parentStream = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
+        String parentStream = NameUtils.getParentStreamSegmentName(transactionName);
         return CompletableFuture.runAsync(() -> {
             try {
                 TransactionalEventStreamWriter<byte[]> writer = getTransactionalWriter(parentStream, 0);
@@ -242,7 +242,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     @Override
     public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) {
         ensureRunning();
-        String parentStream = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
+        String parentStream = NameUtils.getParentStreamSegmentName(transactionName);
         return CompletableFuture.runAsync(() -> {
             try {
                 TransactionalEventStreamWriter<byte[]> writer = getTransactionalWriter(parentStream, 0);

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -116,6 +117,12 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         store.createScope(scope).get();
         store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // set minimum number of segments to 1 so that we can also test scale downs
+        configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        store.startUpdateConfiguration(scope, stream, configuration, null, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = store.getConfigurationRecord(scope, stream, null, executor).join();
+        store.completeUpdateConfiguration(scope, stream, configRecord, null, executor).join();
 
         List<ScaleMetadata> scaleIncidents = store.getScaleMetadata(scope, stream, 0, Long.MAX_VALUE, null, executor).get();
         assertTrue(scaleIncidents.size() == 1);

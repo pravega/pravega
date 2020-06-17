@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
 package io.pravega.common.util;
 
 import io.pravega.test.common.AssertExtensions;
+import org.junit.Assert;
 import org.junit.Test;
 
 public class ReusableLatchTests {
@@ -17,6 +18,7 @@ public class ReusableLatchTests {
     @Test(timeout = 5000)
     public void testRelease() {
         ReusableLatch latch = new ReusableLatch(false);
+        Assert.assertEquals(0, latch.getQueueLength());
         AssertExtensions.assertBlocks(() -> latch.awaitUninterruptibly(), () -> latch.release());
     }
     

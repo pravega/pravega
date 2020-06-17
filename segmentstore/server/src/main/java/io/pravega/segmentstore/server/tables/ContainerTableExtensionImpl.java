@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
@@ -21,6 +22,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -32,7 +34,6 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
-import io.pravega.segmentstore.storage.CacheFactory;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -66,7 +67,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * We need to return a value that is large enough to encompass the largest possible Table Entry (otherwise
      * compaction will stall), but not too big, as that will introduce larger indexing pauses when compaction is running.
      */
-    private static final int DEFAULT_MAX_COMPACTION_SIZE = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
+    private static final int DEFAULT_MAX_COMPACTION_SIZE = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH; // Approx 4MB.
+    /**
+     * The default Segment Attributes to set for every new Table Segment. These values will override the corresponding
+     * defaults from {@link TableAttributes#DEFAULT_VALUES}.
+     */
+    private static final Map<UUID, Long> DEFAULT_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
+            Attributes.ROLLOVER_SIZE, 4L * DEFAULT_MAX_COMPACTION_SIZE);
     private final SegmentContainer segmentContainer;
     private final ScheduledExecutorService executor;
     private final KeyHasher hasher;
@@ -83,31 +90,28 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * Creates a new instance of the ContainerTableExtensionImpl class.
      *
      * @param segmentContainer The {@link SegmentContainer} to associate with.
-     * @param cacheFactory     The {@link CacheFactory} to use in order to create Key Index Caches.
      * @param cacheManager     The {@link CacheManager} to use to manage the cache.
      * @param executor         An Executor to use for async tasks.
      */
-    public ContainerTableExtensionImpl(SegmentContainer segmentContainer, CacheFactory cacheFactory,
-                                       CacheManager cacheManager, ScheduledExecutorService executor) {
-        this(segmentContainer, cacheFactory, cacheManager, KeyHasher.sha256(), executor);
+    public ContainerTableExtensionImpl(SegmentContainer segmentContainer, CacheManager cacheManager, ScheduledExecutorService executor) {
+        this(segmentContainer, cacheManager, KeyHasher.sha256(), executor);
     }
 
     /**
      * Creates a new instance of the ContainerTableExtensionImpl class with custom {@link KeyHasher}.
      *
      * @param segmentContainer The {@link SegmentContainer} to associate with.
-     * @param cacheFactory     The {@link CacheFactory} to use in order to create Key Index Caches.
      * @param cacheManager     The {@link CacheManager} to use to manage the cache.
      * @param hasher           The {@link KeyHasher} to use.
      * @param executor         An Executor to use for async tasks.
      */
     @VisibleForTesting
-    ContainerTableExtensionImpl(@NonNull SegmentContainer segmentContainer, @NonNull CacheFactory cacheFactory,
-                                @NonNull CacheManager cacheManager, @NonNull KeyHasher hasher, @NonNull ScheduledExecutorService executor) {
+    ContainerTableExtensionImpl(@NonNull SegmentContainer segmentContainer, @NonNull CacheManager cacheManager,
+                                @NonNull KeyHasher hasher, @NonNull ScheduledExecutorService executor) {
         this.segmentContainer = segmentContainer;
         this.executor = executor;
         this.hasher = hasher;
-        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheFactory, cacheManager, this.hasher, this.executor);
+        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheManager, this.hasher, this.executor);
         this.serializer = new EntrySerializer();
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("TableExtension[%d]", this.segmentContainer.getId());
@@ -147,12 +151,17 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        val attributes = TableAttributes.DEFAULT_VALUES
+
+        // Fetch defaults for all attributes, but check our own DEFAULT_ATTRIBUTES for any meaningful overrides.
+        // NOTE: At the moment, all TableSegments are internal to Pravega and are used for metadata storage. As such, all
+        // these defaults make sense for such use cases. If TableSegments are exposed to the end-user, then this method
+        // will need to accept external configuration that defines at least MIN_UTILIZATION.
+        val attributeUpdates = TableAttributes.DEFAULT_VALUES
                 .entrySet().stream()
-                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
+                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, DEFAULT_ATTRIBUTES.getOrDefault(e.getKey(), e.getValue())))
                 .collect(Collectors.toList());
         logRequest("createSegment", segmentName);
-        return this.segmentContainer.createStreamSegment(segmentName, attributes, timeout);
+        return this.segmentContainer.createStreamSegment(segmentName, attributeUpdates, timeout);
     }
 
     @Override

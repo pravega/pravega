@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,12 +27,13 @@ public class EventProcessorConfig<T extends ControllerEvent> {
     private final ExceptionHandler exceptionHandler;
     private final Serializer<T> serializer;
     private final Supplier<EventProcessor<T>> supplier;
+    private final long rebalancePeriodMillis;
 
     private EventProcessorConfig(final EventProcessorGroupConfig config,
                                  final ExceptionHandler exceptionHandler,
                                  final Serializer<T> serializer,
-                                 final Supplier<EventProcessor<T>> supplier) {
-
+                                 final Supplier<EventProcessor<T>> supplier, 
+                                 final long rebalancePeriodMillis) {
         Preconditions.checkNotNull(config);
         Preconditions.checkNotNull(serializer);
         Preconditions.checkNotNull(supplier);
@@ -44,6 +45,7 @@ public class EventProcessorConfig<T extends ControllerEvent> {
         }
         this.serializer = serializer;
         this.supplier = supplier;
+        this.rebalancePeriodMillis = rebalancePeriodMillis;
     }
 
     public static <T extends ControllerEvent> EventProcessorConfigBuilder<T> builder() {
@@ -59,6 +61,7 @@ public class EventProcessorConfig<T extends ControllerEvent> {
         private ExceptionHandler exceptionHandler;
         private Serializer<T> serializer;
         private Supplier<EventProcessor<T>> supplier;
+        private long rebalancePeriodMillis = Long.MIN_VALUE; // default is rebalancing disabled
 
         EventProcessorConfigBuilder() {
         }
@@ -82,15 +85,20 @@ public class EventProcessorConfig<T extends ControllerEvent> {
             this.supplier = supplier;
             return this;
         }
+        
+        public EventProcessorConfigBuilder<T> minRebalanceIntervalMillis(long rebalancePeriodMillis) {
+            this.rebalancePeriodMillis = rebalancePeriodMillis;
+            return this;
+        }
 
         public EventProcessorConfig<T> build() {
-            return new EventProcessorConfig<>(this.config, this.exceptionHandler, this.serializer, this.supplier);
+            return new EventProcessorConfig<>(this.config, this.exceptionHandler, this.serializer, this.supplier, this.rebalancePeriodMillis);
         }
 
         @Override
         public String toString() {
             return "Props.PropsBuilder(config=" + this.config + ", exceptionHandler=" + this.exceptionHandler + ", serializer=" +
-                    this.serializer + ", supplier=" + this.supplier + ")";
+                    this.serializer + ", supplier=" + this.supplier + ", rebalancePeriodMillis=" + this.rebalancePeriodMillis + ")";
         }
     }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,6 +83,24 @@ public class CircularBuffer {
             fillHelper(fillFrom);
         }
         return fillFrom.position() - origionalPos;
+    }
+
+    /**
+     * Copies from the given ByteBuffers.
+     *
+     * @param fillFrom An array of ByteBuffer to read from.
+     * @return the number of bytes read from fillFrom
+     */
+    public int fill(ByteBuffer[] fillFrom) {
+        int result = 0;
+        for (ByteBuffer bb : fillFrom) {
+            int copied = fill(bb);
+            result += copied;
+            if (copied == 0) {
+                break;
+            }
+        }
+        return result;
     }
 
     private void fillHelper(ByteBuffer fillFrom) {

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ public class CheckpointTest {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, this.serviceBuilder.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -170,7 +170,7 @@ public class CheckpointTest {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, this.serviceBuilder.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -239,7 +239,7 @@ public class CheckpointTest {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, this.serviceBuilder.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -326,7 +326,7 @@ public class CheckpointTest {
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class), this.serviceBuilder.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);

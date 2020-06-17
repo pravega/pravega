@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,12 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Main entry point for Integration tests that need an in-process Pravega cluster.
+ * This class is intended to be used both by internal test suites
+ * and by test suites of applications that want to run tests against
+ * a real Pravega cluster.
+ */
 @Slf4j
 @Builder
 public class LocalPravegaEmulator implements AutoCloseable {
@@ -143,7 +149,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
      * Start controller and host.
      * @throws Exception passes on the exception thrown by `inProcPravegaCluster`
      */
-    void start() throws Exception {
+    public void start() throws Exception {
         inProcPravegaCluster.start();
     }
 

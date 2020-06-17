@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ public interface Serializer<T> {
     /**
      * The maximum event size, in bytes.
      */
-    int MAX_EVENT_SIZE = 1024 * 1024;
+    int MAX_EVENT_SIZE = 8 * 1024 * 1024;
 
     /**
      * Serializes the given event.

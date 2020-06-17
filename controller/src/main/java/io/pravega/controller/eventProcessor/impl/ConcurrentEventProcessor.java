@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.Position;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.eventProcessor.RequestHandler;
 import io.pravega.controller.retryable.RetryableException;
@@ -23,8 +24,10 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.Phaser;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
@@ -61,6 +64,11 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     private final ScheduledFuture<?> periodicCheckpoint;
     private final Checkpointer checkpointer;
     private final Writer<R> internalWriter;
+    /**
+     * The phaser is used to count number of ongoing requests and act as a 
+     * barrier to complete shutdown until all ongoing requests are completed. 
+     */
+    private final Phaser phaser;
 
     public ConcurrentEventProcessor(final H requestHandler,
                                     final ScheduledExecutorService executor) {
@@ -87,6 +95,11 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         this.executor = executor;
         periodicCheckpoint = this.executor.scheduleAtFixedRate(this::periodicCheckpoint, 0, checkpointPeriod, timeUnit);
         semaphore = new Semaphore(maxConcurrent);
+        // It is initialized with 1 unarrived party for phase 0.
+        // Until all registered parties do not arrive, the phase is not advanced. 
+        // The final arriveAndAwaitAdvance is invoked from shutdown(afterstop) and blocks until all registered parties 
+        // have arrived. 
+        this.phaser = new Phaser(1);
     }
 
     @Override
@@ -95,13 +108,15 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         // and it could lead to memory overload.
         if (!stop.get()) {
             semaphore.acquireUninterruptibly();
+            // Use phaser.register to register a new party to indicate starting of a new processing.
+            phaser.register();
 
             long next = counter.incrementAndGet();
             PositionCounter pc = new PositionCounter(position, next);
             running.add(pc);
 
             // In case of a retryable exception, retry few times before putting the event back into event stream.
-            withRetries(() -> requestHandler.process(request), executor)
+            withRetries(() -> requestHandler.process(request, stop::get), executor)
                     .whenCompleteAsync((r, e) -> {
                         CompletableFuture<Void> future;
                         if (e != null) {
@@ -112,8 +127,14 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
                             future = CompletableFuture.completedFuture(null);
                         }
 
-                        future.thenAcceptAsync(x -> {
-                            checkpoint(pc);
+                        future.whenCompleteAsync((res, ex) -> {
+                            // do not update checkpoint if stop has been initiated and request has been cancelled.
+                            if (!stop.get() || ex == null || !(Exceptions.unwrap(ex) instanceof CancellationException)) {
+                                checkpoint(pc);
+                            }
+                            
+                            // Report arrival and deregister a party to indicate completion of an ongoing processing.
+                            phaser.arriveAndDeregister();
                             semaphore.release();
                         }, executor);
                     }, executor);
@@ -147,8 +168,10 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
 
             future = indefiniteRetries(() -> writeBack(request, writer), executor);
         } else {
-            log.error("ConcurrentEventProcessor Processing failed, exiting {}", e);
-            future = CompletableFuture.completedFuture(null);
+            // Fail the future with actual failure. The failure will be handled by the caller. 
+            Throwable actual = Exceptions.unwrap(e);
+            log.warn("ConcurrentEventProcessor Processing failed, {} {}", actual.getClass(), actual.getMessage());
+            future = Futures.failedFuture(actual);
         }
 
         return future;
@@ -157,7 +180,16 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     @Override
     protected void afterStop() {
         stop.set(true);
+        // Invoke arriveAndAwaitAdvance and wait for phase to advance which will happen 
+        // only when all ongoing processing is completed and all registered parties have arrived. 
+        phaser.arriveAndAwaitAdvance();
+        phaser.arriveAndDeregister();
         periodicCheckpoint.cancel(true);
+    }
+
+    @VisibleForTesting
+    boolean isStopFlagSet() {
+        return stop.get();
     }
 
     /**
@@ -187,7 +219,8 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         }
     }
 
-    private void periodicCheckpoint() {
+    @VisibleForTesting
+    void periodicCheckpoint() {
         try {
             if (checkpoint.get() != null && checkpoint.get().position != null) {
                 if (checkpointer != null) {

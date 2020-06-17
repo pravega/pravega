@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +49,15 @@ public abstract class Operation implements SequencedItemList.Element {
     @Override
     public long getSequenceNumber() {
         return this.sequenceNumber;
+    }
+
+    /**
+     * Gets a value indicating the number of bytes that this operation requires in the cache.
+     *
+     * @return The number of bytes required, or 0 if it doesn't involve any cache operations.
+     */
+    public long getCacheLength() {
+        return 0;
     }
 
     /**

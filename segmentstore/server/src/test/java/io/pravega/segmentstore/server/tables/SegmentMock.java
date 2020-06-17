@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -116,7 +116,7 @@ class SegmentMock implements DirectSegmentAccess {
         }
 
         // We get a slice of the data view, and return a ReadResultMock with entry lengths of 3.
-        return new TruncateableReadResultMock(offset, dataView.subSegment((int) offset, dataView.getLength() - (int) offset), maxLength, 3);
+        return new TruncateableReadResultMock(offset, dataView.slice((int) offset, dataView.getLength() - (int) offset), maxLength, 3);
     }
 
     @Override

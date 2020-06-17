@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,13 +29,15 @@ import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Module;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.Properties;
 import lombok.Synchronized;
+import lombok.val;
 import org.apache.commons.httpclient.HttpStatus;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.ArrayUtils;
 import org.gaul.s3proxy.AuthenticationType;
 import org.gaul.s3proxy.S3Proxy;
 import org.jclouds.ContextBuilder;
@@ -108,22 +110,22 @@ public class S3ProxyImpl extends S3ImplBase {
     @Synchronized
     @Override
     public void putObject(String bucketName, String key, Range range, Object content) {
-        byte[] totalByes = new byte[Math.toIntExact(range.getLast() + 1)];
+        byte[] existingBytes = new byte[Math.toIntExact(range.getFirst())];
         try {
             if (range.getFirst() != 0) {
-                int bytesRead = client.getObject(bucketName, key).getObject().read(totalByes, 0,
+                int bytesRead = client.getObject(bucketName, key).getObject().read(existingBytes, 0,
                         Math.toIntExact(range.getFirst()));
                 if (bytesRead != range.getFirst()) {
-                    throw new IllegalStateException("Unable to read from the object " + key);
+                    throw new S3Exception("InvalidRange", HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE, "InvalidRange", key);
                 }
             }
-            int bytesRead = ((InputStream) content).read(totalByes, Math.toIntExact(range.getFirst()),
-                    Math.toIntExact(range.getLast() + 1 - range.getFirst()));
-
-            if (bytesRead != range.getLast() + 1 - range.getFirst()) {
-                throw new IllegalStateException("Not able to read from input stream.");
+            val contentBytes  = IOUtils.toByteArray((InputStream) content);
+            if (contentBytes.length != Math.toIntExact(range.getLast()  - range.getFirst() + 1)) {
+                throw new S3Exception("InvalidRange", HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE, "InvalidRange", key);
             }
-            client.putObject(new PutObjectRequest(bucketName, key, (Object) new ByteArrayInputStream(totalByes)));
+
+            val objectAfterPut = ArrayUtils.addAll(existingBytes, contentBytes);
+            client.putObject(new PutObjectRequest(bucketName, key, (Object) objectAfterPut));
             aclMap.put(key, aclMap.get(key).withSize(range.getLast() - 1));
         } catch (IOException e) {
             throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);

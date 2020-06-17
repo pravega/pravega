@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,7 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.controller.store.client.StoreType;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import lombok.Getter;
 
 import java.util.Set;
@@ -87,6 +87,6 @@ public interface BucketStore {
     }
 
     static String getScopedStreamName(String scope, String stream) {
-        return StreamSegmentNameUtils.getScopedStreamName(scope, stream);
+        return NameUtils.getScopedStreamName(scope, stream);
     }
 }

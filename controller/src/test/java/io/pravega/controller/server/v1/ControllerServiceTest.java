@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,10 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -25,6 +27,7 @@ import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.VersionedMetadata;
@@ -32,15 +35,18 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -54,6 +60,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Controller service implementation test.
@@ -65,7 +73,7 @@ public class ControllerServiceTest {
     private final String stream2 = "stream2";
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
-    private final StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
+    private final StreamMetadataStore streamStore = spy(StreamStoreFactory.createInMemoryStore(executor));
 
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
@@ -168,7 +176,7 @@ public class ControllerServiceTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    @Test
+    @Test(timeout = 10000L)
     public void testMethods() throws InterruptedException, ExecutionException {
         Map<SegmentId, Long> segments;
 
@@ -193,5 +201,45 @@ public class ControllerServiceTest {
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 0)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 1)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 2)));
+    }
+    
+    @Test(timeout = 10000L)
+    public void testTransactions() {
+        TransactionMetrics.initialize();
+        UUID txnId = consumer.createTransaction(SCOPE, stream1, 10000L).join().getKey();
+        doThrow(StoreException.create(StoreException.Type.WRITE_CONFLICT, "Write conflict"))
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
+                any(), any());
+
+        AssertExtensions.assertFutureThrows("Write conflict should have been thrown", 
+                consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+
+        AssertExtensions.assertFutureThrows("Write conflict should have been thrown", 
+                consumer.abortTransaction(SCOPE, stream1, txnId),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+
+        doThrow(StoreException.create(StoreException.Type.CONNECTION_ERROR, "Connection failed"))
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
+                any(), any());
+
+        AssertExtensions.assertFutureThrows("Store connection exception should have been thrown",
+                consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L),
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+
+        AssertExtensions.assertFutureThrows("Store connection exception should have been thrown",
+                consumer.abortTransaction(SCOPE, stream1, txnId),
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+
+        doThrow(StoreException.create(StoreException.Type.UNKNOWN, "Connection failed"))
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
+                any(), any());
+
+        Controller.TxnStatus status = consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L).join();
+        assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
+        
+        status = consumer.abortTransaction(SCOPE, stream1, txnId).join();
+        assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
+        reset(streamStore);
     }
 }

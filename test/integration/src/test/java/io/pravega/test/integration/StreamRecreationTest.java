@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,8 +10,9 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -22,6 +23,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -44,6 +46,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -70,7 +73,7 @@ public class StreamRecreationTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -115,19 +118,23 @@ public class StreamRecreationTest {
             StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                                                                          .scalingPolicy(ScalingPolicy.fixed(i + 1))
                                                                          .build();
+            EventWriterConfig eventWriterConfig = EventWriterConfig.builder().build();
             streamManager.createStream(myScope, myStream, streamConfiguration);
 
             // Write a single event.
             @Cleanup
-            ClientFactory clientFactory = ClientFactory.withScope(myScope, ClientConfig.builder().controllerURI(controllerURI).build());
+            EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(myScope, ClientConfig.builder().controllerURI(controllerURI).build());
             EventStreamWriter<String> writer = clientFactory.createEventWriter(myStream, new JavaSerializer<>(),
-                    EventWriterConfig.builder().build());
+                                                                               eventWriterConfig);
+            TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter(myStream,
+                                                                                                            new JavaSerializer<>(),
+                                                                                                            eventWriterConfig);
 
             // Write events regularly and with transactions.
             if (i % 2 == 0) {
                 writer.writeEvent(eventContent).join();
             } else {
-                Transaction<String> myTransaction = writer.beginTxn();
+                Transaction<String> myTransaction = txnWriter.beginTxn();
                 myTransaction.writeEvent(eventContent);
                 myTransaction.commit();
                 while (myTransaction.checkStatus() != Transaction.Status.COMMITTED) {
@@ -151,7 +158,11 @@ public class StreamRecreationTest {
             assertEquals("Wrong event read in re-created stream", eventContent, readResult);
 
             // Delete the stream.
+            StreamInfo streamInfo = streamManager.getStreamInfo(myScope, myStream);
+            assertFalse(streamInfo.isSealed());
             assertTrue("Unable to seal re-created stream.", streamManager.sealStream(myScope, myStream));
+            streamInfo = streamManager.getStreamInfo(myScope, myStream);
+            assertTrue(streamInfo.isSealed());
             assertTrue("Unable to delete re-created stream.", streamManager.deleteStream(myScope, myStream));
         }
     }

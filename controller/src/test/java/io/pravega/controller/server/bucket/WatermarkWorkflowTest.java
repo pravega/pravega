@@ -12,7 +12,7 @@ package io.pravega.controller.server.bucket;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.SynchronizerClientFactory;
-import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.impl.RevisionImpl;
@@ -34,15 +34,14 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
-
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -55,6 +54,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
@@ -71,7 +71,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class WatermarkWorkflowTest {
     TestingServer zkServer;
@@ -237,7 +241,7 @@ public class WatermarkWorkflowTest {
         assertTrue(client.isWriterParticipating(5L));
 
         // verify that writer is active if we specify a higher timeout
-        assertTrue(client.isWriterActive(entry1, 1L));
+        assertTrue(client.isWriterActive(entry1, 1000L));
         assertTrue(client.isWriterTracked(entry1.getKey()));
         // now that the writer is being tracked
         assertFalse(Futures.delayedTask(() -> client.isWriterActive(entry1, 1L), Duration.ofSeconds(1), executor).join());
@@ -295,7 +299,13 @@ public class WatermarkWorkflowTest {
                 System.currentTimeMillis(), null, executor).join();
 
         streamMetadataStore.setState(scope, streamName, State.ACTIVE, null, executor).join();
-        
+
+        // set minimum number of segments to 1
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).timestampAggregationTimeout(10000L).build();
+        streamMetadataStore.startUpdateConfiguration(scope, streamName, config, null, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = streamMetadataStore.getConfigurationRecord(scope, streamName, null, executor).join();
+        streamMetadataStore.completeUpdateConfiguration(scope, streamName, configRecord, null, executor).join();
+
         // 2. note writer1, writer2, writer3 marks
         // writer 1 reports segments 0, 1. 
         // writer 2 reports segments 1, 2, 
@@ -355,8 +365,8 @@ public class WatermarkWorkflowTest {
         streamMetadataStore.noteWriterMark(scope, streamName, writer1, 302L, map1, null, executor).join();
         map2 = ImmutableMap.of(1L, 100L, 2L, 400L);
         streamMetadataStore.noteWriterMark(scope, streamName, writer2, 301L, map2, null, executor).join();
-        long segment3 = StreamSegmentNameUtils.computeSegmentId(3, 1);
-        long segment4 = StreamSegmentNameUtils.computeSegmentId(4, 1);
+        long segment3 = NameUtils.computeSegmentId(3, 1);
+        long segment4 = NameUtils.computeSegmentId(4, 1);
         map3 = ImmutableMap.of(segment3, 100L);
         // writer 3 has lowest reported time. 
         streamMetadataStore.noteWriterMark(scope, streamName, writer3, 300L, map3, null, executor).join();
@@ -426,6 +436,82 @@ public class WatermarkWorkflowTest {
         assertEquals(watermark.getStreamCut().size(), 2);
         assertEquals(getSegmentOffset(watermark, segment3), 100L);
         assertEquals(getSegmentOffset(watermark, segment4), 500L);
+    }
+
+    @Test(timeout = 30000L)
+    public void testRevisionedClientThrowsNoSuchSegmentException() {
+        String scope = "scope";
+        String streamName = "stream";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        String markStreamName = NameUtils.getMarkStreamForStream(streamName);
+        SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
+
+        ConcurrentHashMap<String, MockRevisionedStreamClient> revisionedStreamClientMap = new ConcurrentHashMap<>();
+
+        doAnswer(x -> {
+            String name = x.getArgument(0);
+            return revisionedStreamClientMap.compute(name, (s, rsc) -> new MockRevisionedStreamClient(() -> 
+                    streamMetadataStore.getActiveSegments(scope, name, null, executor).join().get(0).segmentId()));
+        }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
+        
+        Function<Stream, PeriodicWatermarking.WatermarkClient> supplier = x -> 
+                    new PeriodicWatermarking.WatermarkClient(stream, clientFactory);
+        
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, supplier, executor);
+
+        streamMetadataStore.createScope(scope).join();
+        streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).timestampAggregationTimeout(10000L).build(), 
+                System.currentTimeMillis(), null, executor).join();
+        streamMetadataStore.createStream(scope, markStreamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 
+                System.currentTimeMillis(), null, executor).join();
+        streamMetadataStore.setState(scope, markStreamName, State.ACTIVE, null, executor).join();
+        streamMetadataStore.setState(scope, streamName, State.ACTIVE, null, executor).join();
+        
+        // 1. note writer1 marks
+        // writer 1 reports segments 0, 1. 
+        String writer1 = "writer1";
+        Map<Long, Long> map1 = ImmutableMap.of(0L, 100L, 1L, 100L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer1, 100L, map1, null, executor).join();
+        
+        // 2. run watermarking workflow. 
+        periodicWatermarking.watermark(stream).join();
+        assertTrue(periodicWatermarking.checkExistsInCache(stream));
+
+        // verify that a watermark has been emitted. 
+        MockRevisionedStreamClient revisionedClient = revisionedStreamClientMap.get(markStreamName);
+        assertEquals(revisionedClient.watermarks.size(), 1);
+        Watermark watermark = revisionedClient.watermarks.get(0).getValue();
+        assertEquals(watermark.getLowerTimeBound(), 100L);
+        
+        // delete and recreate stream and its mark stream
+        streamMetadataStore.deleteStream(scope, markStreamName, null, executor).join();
+        streamMetadataStore.deleteStream(scope, streamName, null, executor).join();
+        streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).timestampAggregationTimeout(10000L).build(),
+                System.currentTimeMillis(), null, executor).join();
+        streamMetadataStore.setState(scope, streamName, State.ACTIVE, null, executor).join();
+        streamMetadataStore.createStream(scope, markStreamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                System.currentTimeMillis(), null, executor).join();
+        streamMetadataStore.setState(scope, markStreamName, State.ACTIVE, null, executor).join();
+
+        // 1. note writer1 marks
+        // writer 1 reports segments 0, 1. 
+        map1 = ImmutableMap.of(2L, 10L, 3L, 10L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer1, 10L, map1, null, executor).join();
+
+        // 2. run watermarking workflow. this should fail and revisioned stream client should be invalidated in the cache.
+        periodicWatermarking.watermark(stream).join();
+        assertFalse(periodicWatermarking.checkExistsInCache(stream));
+        
+        // 3. run watermarking workflow again.
+        periodicWatermarking.watermark(stream).join();
+        assertTrue(periodicWatermarking.checkExistsInCache(stream));
+
+        // verify that a watermark has been emitted. 
+        revisionedClient = revisionedStreamClientMap.get(markStreamName);
+        assertEquals(revisionedClient.segment, 1L);
+        assertEquals(revisionedClient.watermarks.size(), 1);
+        watermark = revisionedClient.watermarks.get(0).getValue();
+        assertEquals(watermark.getLowerTimeBound(), 10L);
     }
 
     @Test(timeout = 30000L)
@@ -573,25 +659,40 @@ public class WatermarkWorkflowTest {
     }
 
     static class MockRevisionedStreamClient implements RevisionedStreamClient<Watermark> {
+        private final long segment;
+        private final Supplier<Long> segmentSupplier;
+        
         private final AtomicInteger revCounter = new AtomicInteger(0);
         private Revision mark;
         private final List<Map.Entry<Revision, Watermark>> watermarks = new ArrayList<>();
-        
+
+        MockRevisionedStreamClient() {
+            this(() -> 0L);
+        }
+
+        MockRevisionedStreamClient(Supplier<Long> segmentSupplier) {
+            this.segmentSupplier = segmentSupplier;
+            this.segment = segmentSupplier.get();
+        }
+
         @Override
         @Synchronized
         public Revision fetchOldestRevision() {
+            checkValid();
             return watermarks.isEmpty() ? MockRevision.EMPTY : watermarks.get(0).getKey();
         }
 
         @Override
         @Synchronized
         public Revision fetchLatestRevision() {
+            checkValid();
             return watermarks.isEmpty() ? MockRevision.EMPTY : watermarks.get(watermarks.size() - 1).getKey();
         }
 
         @Override
         @Synchronized
         public Iterator<Map.Entry<Revision, Watermark>> readFrom(Revision start) throws TruncatedDataException {
+            checkValid();
             int index = start.equals(MockRevision.EMPTY) ? 0 : ((MockRevision) start).id + 1;
             return watermarks.stream().filter(x -> ((MockRevision) x.getKey()).id >= index).iterator();
         }
@@ -599,6 +700,7 @@ public class WatermarkWorkflowTest {
         @Override
         @Synchronized
         public Revision writeConditionally(Revision latestRevision, Watermark value) {
+            checkValid();
             Revision last = watermarks.isEmpty() ? MockRevision.EMPTY : watermarks.get(watermarks.size() - 1).getKey();
             boolean equal;
             Revision newRevision = null;
@@ -614,18 +716,20 @@ public class WatermarkWorkflowTest {
 
         @Override
         public void writeUnconditionally(Watermark value) {
-            
+            checkValid();
         }
 
         @Override
         @Synchronized
         public Revision getMark() {
+            checkValid();
             return mark;
         }
 
         @Override
         @Synchronized
         public boolean compareAndSetMark(Revision expected, Revision newLocation) {
+            checkValid();
             boolean equal;
             if (expected == null) {
                 equal = mark == null;
@@ -641,12 +745,19 @@ public class WatermarkWorkflowTest {
 
         @Override
         public void truncateToRevision(Revision revision) {
-
+            checkValid();
         }
 
         @Override
         public void close() {
 
+        }
+        
+        private void checkValid() {
+            long segId  = segmentSupplier.get();
+            if (segId != segment) {
+                throw new NoSuchSegmentException("" + segment);
+            }
         }
     }
     
@@ -664,12 +775,7 @@ public class WatermarkWorkflowTest {
         public RevisionImpl asImpl() {
             return null;
         }
-
-        @Override
-        public Segment getSegment() {
-            return null;
-        }
-
+        
         @Override
         public int compareTo(@NonNull Revision o) {
             return Integer.compare(id, ((MockRevision) o).id);

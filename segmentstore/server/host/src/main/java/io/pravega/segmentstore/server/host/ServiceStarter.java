@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@ package io.pravega.segmentstore.server.host;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.auth.JKSHelper;
-import io.pravega.common.auth.ZKTLSUtils;
+import io.pravega.common.security.JKSHelper;
+import io.pravega.common.security.ZKTLSUtils;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -26,8 +26,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -73,7 +71,6 @@ public final class ServiceStarter {
     private ServiceBuilder createServiceBuilder() {
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(this.builderConfig);
         attachDataLogFactory(builder);
-        attachRocksDB(builder);
         attachStorage(builder);
         attachZKSegmentManager(builder);
         return builder;
@@ -106,18 +103,22 @@ public final class ServiceStarter {
         log.info("Creating Segment Stats recorder ...");
         autoScaleMonitor = new AutoScaleMonitor(service, builderConfig.getConfig(AutoScalerConfig::builder));
 
-        TokenVerifierImpl tokenVerifier = new TokenVerifierImpl(builderConfig.getConfig(AutoScalerConfig::builder));
+        AutoScalerConfig autoScalerConfig = builderConfig.getConfig(AutoScalerConfig::builder);
+        TokenVerifierImpl tokenVerifier = null;
+        if (autoScalerConfig.isAuthEnabled()) {
+            tokenVerifier = new TokenVerifierImpl(autoScalerConfig.getTokenSigningKey());
+        }
 
         // Log the configuration
         log.info(serviceConfig.toString());
-        log.info(builderConfig.getConfig(AutoScalerConfig::builder).toString());
+        log.info(autoScalerConfig.toString());
 
         this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.isEnableTlsReload(),
                                                       this.serviceConfig.getListeningIPAddress(),
                                                       this.serviceConfig.getListeningPort(), service, tableStoreService,
                                                       autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
-                                                      this.serviceConfig.isReplyWithStackTraceOnError());
+                                                      this.serviceConfig.isReplyWithStackTraceOnError(), serviceBuilder.getLowPriorityExecutor());
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
@@ -172,10 +173,6 @@ public final class ServiceStarter {
         });
     }
 
-    private void attachRocksDB(ServiceBuilder builder) {
-        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)));
-    }
-
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             StorageLoader loader = new StorageLoader();
@@ -190,6 +187,7 @@ public final class ServiceStarter {
                         this.zkClient,
                         new Host(this.serviceConfig.getPublishedIPAddress(),
                                 this.serviceConfig.getPublishedPort(), null),
+                        this.serviceConfig.getParallelContainerStarts(),
                         setup.getCoreExecutor()));
     }
 

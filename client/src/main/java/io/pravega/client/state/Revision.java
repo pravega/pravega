@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,7 +9,6 @@
  */
 package io.pravega.client.state;
 
-import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.impl.RevisionImpl;
 
 /**
@@ -41,7 +40,5 @@ public interface Revision extends Comparable<Revision> {
     static Revision fromString(String revision) {
         return RevisionImpl.fromString(revision);
     }
-
-    Segment getSegment();
 
 }

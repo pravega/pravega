@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -115,6 +115,11 @@ public class ByteArraySegment implements ArrayView {
     }
 
     @Override
+    public Reader getBufferViewReader() {
+        return new Reader();
+    }
+
+    @Override
     public InputStream getReader() {
         return new ByteArrayInputStream(this.array, this.startOffset, this.length);
     }
@@ -123,6 +128,11 @@ public class ByteArraySegment implements ArrayView {
     public InputStream getReader(int offset, int length) {
         Exceptions.checkArrayRange(offset, length, this.length, "offset", "length");
         return new ByteArrayInputStream(this.array, this.startOffset + offset, length);
+    }
+
+    @Override
+    public ByteArraySegment slice(int offset, int length) {
+        return subSegment(offset, length, this.readOnly);
     }
 
     @Override
@@ -138,6 +148,13 @@ public class ByteArraySegment implements ArrayView {
         Exceptions.checkArrayRange(targetOffset, length, target.length, "index", "values.length");
 
         System.arraycopy(this.array, this.startOffset, target, targetOffset, length);
+    }
+
+    @Override
+    public int copyTo(ByteBuffer target) {
+        int length = Math.min(this.length, target.remaining());
+        target.put(this.array, this.startOffset, length);
+        return length;
     }
 
     /**
@@ -231,19 +248,6 @@ public class ByteArraySegment implements ArrayView {
      * Returns a new ByteArraySegment that is a sub-segment of this ByteArraySegment. The new ByteArraySegment wraps
      * the same underlying byte array that this ByteArraySegment does.
      *
-     * @param offset The offset within this ByteArraySegment where the new ByteArraySegment starts.
-     * @param length The length of the new ByteArraySegment.
-     * @return The new ByteArraySegment.
-     * @throws ArrayIndexOutOfBoundsException If offset or length are invalid.
-     */
-    public ByteArraySegment subSegment(int offset, int length) {
-        return subSegment(offset, length, this.readOnly);
-    }
-
-    /**
-     * Returns a new ByteArraySegment that is a sub-segment of this ByteArraySegment. The new ByteArraySegment wraps
-     * the same underlying byte array that this ByteArraySegment does.
-     *
      * @param offset   The offset within this ByteArraySegment where the new ByteArraySegment starts.
      * @param length   The length of the new ByteArraySegment.
      * @param readOnly Whether the resulting sub-segment should be read-only.
@@ -257,21 +261,6 @@ public class ByteArraySegment implements ArrayView {
         return new ByteArraySegment(this.array, this.startOffset + offset, length, readOnly || this.readOnly);
     }
 
-    /**
-     * Returns a new ByteArraySegment that wraps the same underlying array that this ByteSegmentDoes, except that the
-     * new instance is marked as Read-Only.
-     * If this instance is already Read-Only, this instance is returned instead.
-     *
-     * @return  A new read-only ByteArraySegment.
-     */
-    public ByteArraySegment asReadOnly() {
-        if (isReadOnly()) {
-            return this;
-        } else {
-            return new ByteArraySegment(this.array, this.startOffset, this.length, true);
-        }
-    }
-
     @Override
     public String toString() {
         if (getLength() > 128) {
@@ -280,6 +269,27 @@ public class ByteArraySegment implements ArrayView {
             return String.format("{%s}", IntStream.range(arrayOffset(), arrayOffset() + getLength()).boxed()
                     .map(i -> Byte.toString(this.array[i]))
                     .collect(Collectors.joining(",")));
+        }
+    }
+
+    //endregion
+
+    //region Reader
+
+    private class Reader implements BufferView.Reader {
+        private int position = 0;
+
+        @Override
+        public int available() {
+            return ByteArraySegment.this.length - this.position;
+        }
+
+        @Override
+        public int readBytes(ByteArraySegment segment) {
+            int len = Math.min(available(), segment.getLength());
+            System.arraycopy(array(), arrayOffset() + this.position, segment.array(), segment.arrayOffset(), len);
+            this.position += len;
+            return len;
         }
     }
 

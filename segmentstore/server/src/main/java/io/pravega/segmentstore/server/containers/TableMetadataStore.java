@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -65,7 +65,7 @@ class TableMetadataStore extends MetadataStore {
     TableMetadataStore(Connector connector, @NonNull TableStore tableStore, Executor executor) {
         super(connector, executor);
         this.tableStore = tableStore;
-        this.metadataSegmentName = StreamSegmentNameUtils.getMetadataSegmentName(connector.getContainerMetadata().getContainerId());
+        this.metadataSegmentName = NameUtils.getMetadataSegmentName(connector.getContainerMetadata().getContainerId());
         this.initialized = new AtomicBoolean(false);
     }
 
@@ -159,36 +159,6 @@ class TableMetadataStore extends MetadataStore {
         ensureInitialized();
         TableEntry entry = TableEntry.unversioned(getTableKey(segmentName), segmentInfo);
         return this.tableStore.put(this.metadataSegmentName, Collections.singletonList(entry), timeout).thenRun(Runnables.doNothing());
-    }
-
-    /**
-     * Appends an event to the stream.
-     *
-     * @param routingKey Name of routingKey to be used.
-     * @param scopeName Name of scope to be used.
-     * @param streamName Name of stream to be used.
-     * @param message raw data to be appended to stream.
-     */
-    public CompletableFuture<Void> createEvent(final String  routingKey,
-                                               final String scopeName,
-                                               final String streamName,
-                                               final String message) {
-        return null;
-    }
-
-    /**
-     * Gets an event from the stream.
-     *
-     * @param routingKey Name of routingKey to be used.
-     * @param scopeName Name of scope to be used.
-     * @param streamName Name of stream to be used.
-     * @param segmentNumber segment of the stream.
-     */
-    public CompletableFuture<String> getEvent(final String  routingKey,
-                                              final String scopeName,
-                                              final String streamName,
-                                              final Long segmentNumber) {
-        return null;
     }
 
     private void ensureInitialized() {

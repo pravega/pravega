@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReaderSegmentDistribution;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
@@ -29,9 +30,12 @@ import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -53,6 +57,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -259,5 +264,36 @@ public class ReaderGroupImplTest {
         assertFalse(result.isDone());
         result.cancel(false);
         AssertExtensions.assertEventuallyEquals(true, completed::get, 5000);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void readerGroupSegmentDistribution() {
+        ReaderGroupState state = mock(ReaderGroupState.class);
+        when(synchronizer.getState()).thenReturn(state);
+
+        Set<String> readers = new HashSet<>();
+        readers.add("1");
+        readers.add("2");
+        readers.add("3");
+        when(state.getOnlineReaders()).thenReturn(readers);
+
+        SegmentWithRange segment = mock(SegmentWithRange.class);
+        Map<SegmentWithRange, Long> map = Collections.singletonMap(segment, 0L);
+        when(state.getAssignedSegments(anyString())).thenReturn(map);
+        
+        when(state.getNumberOfUnassignedSegments()).thenReturn(2);
+        
+        ReaderSegmentDistribution readerSegmentDistribution = readerGroup.getReaderSegmentDistribution();
+
+        Map<String, Integer> distribution = readerSegmentDistribution.getReaderSegmentDistribution();
+        assertEquals(3, distribution.size());
+        assertTrue(distribution.containsKey("1"));
+        assertTrue(distribution.containsKey("2"));
+        assertTrue(distribution.containsKey("3"));
+        assertEquals(2, readerSegmentDistribution.getUnassignedSegments());
+        assertEquals(1, distribution.get("1").intValue());
+        assertEquals(1, distribution.get("2").intValue());
+        assertEquals(1, distribution.get("3").intValue());
     }
 }

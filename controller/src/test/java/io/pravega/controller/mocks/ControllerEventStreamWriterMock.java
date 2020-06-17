@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,15 +11,12 @@ package io.pravega.controller.mocks;
 
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.shared.controller.event.ControllerEvent;
-import lombok.Data;
-
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.Data;
 
 /**
  * Mock EventStreamWriter.
@@ -39,16 +36,6 @@ public class ControllerEventStreamWriterMock implements EventStreamWriter<Contro
     @Override
     public CompletableFuture<Void> writeEvent(String routingKey, ControllerEvent event) {
         return writeEvent(event);
-    }
-
-    @Override
-    public Transaction<ControllerEvent> beginTxn() {
-        return null;
-    }
-
-    @Override
-    public Transaction<ControllerEvent> getTxn(UUID transactionId) {
-        return null;
     }
 
     @Override

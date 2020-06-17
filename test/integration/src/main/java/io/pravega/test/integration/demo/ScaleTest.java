@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +57,8 @@ public class ScaleTest {
             TableStore tableStore = serviceBuilder.createTableStoreService();
             int port = Config.SERVICE_PORT;
             @Cleanup
-            PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
+            PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
+                    serviceBuilder.getLowPriorityExecutor());
             server.startListening();
 
             // Create controller object for testing against a separate controller report.

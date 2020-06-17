@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -158,13 +158,17 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
 
         long writeCountBeforeSleep  = testState.getEventWrittenCount();
-        log.info("Write count is {} after {} seconds sleep after bookie failover.", writeCountBeforeSleep, BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
+        long readCountBeforeSleep  = testState.getEventReadCount();
+        log.info("Write count is {} and read count is {} after {} seconds sleep after bookie failover.", writeCountBeforeSleep,
+                readCountBeforeSleep, BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
 
         log.info("Sleeping for {} seconds.", BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
         Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
 
         long writeCountAfterSleep  = testState.getEventWrittenCount();
-        log.info("Write count is {} after {} seconds sleep after bookie failover.", writeCountAfterSleep, 2 * (BOOKIE_FAILOVER_WAIT_MILLIS / 1000));
+        long readCountAfterSleep  = testState.getEventReadCount();
+        log.info("Write count is {} and read count is {} after {} seconds sleep after bookie failover.", writeCountAfterSleep,
+                readCountAfterSleep, 2 * (BOOKIE_FAILOVER_WAIT_MILLIS / 1000));
 
         Assert.assertEquals("Unexpected writes performed during Bookie failover.", writeCountAfterSleep, writeCountBeforeSleep);
         log.info("Writes failed when bookie is scaled down.");
@@ -181,6 +185,10 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         log.info("Final write count {}.", finalWriteCount);
         Assert.assertTrue(finalWriteCount > writeCountAfterSleep);
 
+        while (testState.getEventReadCount() < finalWriteCount) {
+            Exceptions.handleInterrupted(() -> Thread.sleep(5000));
+        }
+        log.info("Final read count {}.", testState.getEventReadCount());
         stopReaders();
 
         // Verify that there is no data loss/duplication.

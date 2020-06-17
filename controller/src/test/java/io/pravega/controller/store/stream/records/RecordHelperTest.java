@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import org.junit.Test;
 
 import java.util.AbstractMap;
@@ -33,21 +33,21 @@ public class RecordHelperTest {
     public void sealedSegmentShardingTest() {
         Map<Integer, SealedSegmentsMapShard> mapshards = new HashMap<>();
 
-        int shard = SealedSegmentsMapShard.getShardNumber(StreamSegmentNameUtils.computeSegmentId(10, 10), 100);
+        int shard = SealedSegmentsMapShard.getShardNumber(NameUtils.computeSegmentId(10, 10), 100);
         assertEquals(0, shard);
 
         Map<Long, Long> map = new HashMap<>();
-        map.put(StreamSegmentNameUtils.computeSegmentId(10, 10), 100L);
+        map.put(NameUtils.computeSegmentId(10, 10), 100L);
         mapshards.put(shard, SealedSegmentsMapShard.builder().shardNumber(shard).sealedSegmentsSizeMap(map).build());
 
-        shard = SealedSegmentsMapShard.getShardNumber(StreamSegmentNameUtils.computeSegmentId(10, 1000), 100);
+        shard = SealedSegmentsMapShard.getShardNumber(NameUtils.computeSegmentId(10, 1000), 100);
         assertEquals(10, shard);
 
         map = new HashMap<>();
-        map.put(StreamSegmentNameUtils.computeSegmentId(10, 1000), 100L);
+        map.put(NameUtils.computeSegmentId(10, 1000), 100L);
         mapshards.put(shard, SealedSegmentsMapShard.builder().shardNumber(shard).sealedSegmentsSizeMap(map).build());
 
-        long segmentId = StreamSegmentNameUtils.computeSegmentId(10000, 1000);
+        long segmentId = NameUtils.computeSegmentId(10000, 1000);
         shard = SealedSegmentsMapShard.getShardNumber(segmentId, 100);
         assertEquals(10, shard);
 
@@ -137,11 +137,11 @@ public class RecordHelperTest {
         assertEquals(1, epochTransitionRecord.getNewEpoch());
         assertEquals(ImmutableSet.copyOf(segmentsToSeal), epochTransitionRecord.getSegmentsToSeal());
         assertEquals(1, epochTransitionRecord.getNewSegmentsWithRange().size());
-        assertTrue(epochTransitionRecord.getNewSegmentsWithRange().containsKey(StreamSegmentNameUtils.computeSegmentId(5, 1)));
-        assertEquals(newRanges.get(0), epochTransitionRecord.getNewSegmentsWithRange().get(StreamSegmentNameUtils.computeSegmentId(5, 1)));
+        assertTrue(epochTransitionRecord.getNewSegmentsWithRange().containsKey(NameUtils.computeSegmentId(5, 1)));
+        assertEquals(newRanges.get(0), epochTransitionRecord.getNewSegmentsWithRange().get(NameUtils.computeSegmentId(5, 1)));
 
         assertTrue(RecordHelper.verifyRecordMatchesInput(segmentsToSeal, newRanges, true, epochTransitionRecord));
-        List<Long> duplicate = segmentsToSeal.stream().map(x -> StreamSegmentNameUtils.computeSegmentId(StreamSegmentNameUtils.getSegmentNumber(x), 3)).collect(Collectors.toList());
+        List<Long> duplicate = segmentsToSeal.stream().map(x -> NameUtils.computeSegmentId(NameUtils.getSegmentNumber(x), 3)).collect(Collectors.toList());
         assertFalse(RecordHelper.verifyRecordMatchesInput(duplicate, newRanges, false, epochTransitionRecord));
         assertTrue(RecordHelper.verifyRecordMatchesInput(duplicate, newRanges, true, epochTransitionRecord));
 
@@ -246,7 +246,7 @@ public class RecordHelperTest {
         txnId = RecordHelper.generateTxnId(100, 10, 100L);
         assertEquals(100, RecordHelper.getTransactionEpoch(txnId));
 
-        long generalized = RecordHelper.generalizedSegmentId(StreamSegmentNameUtils.computeSegmentId(100, 200), txnId);
-        assertEquals(StreamSegmentNameUtils.computeSegmentId(100, 100), generalized);
+        long generalized = RecordHelper.generalizedSegmentId(NameUtils.computeSegmentId(100, 200), txnId);
+        assertEquals(NameUtils.computeSegmentId(100, 100), generalized);
     }
 }

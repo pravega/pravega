@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -178,9 +178,9 @@ class BTreePage {
         Preconditions.checkArgument(!contents.isReadOnly(), "Cannot wrap a read-only ByteArraySegment.");
         this.config = config;
         this.contents = contents;
-        this.header = contents.subSegment(0, DATA_OFFSET);
-        this.data = contents.subSegment(DATA_OFFSET, contents.getLength() - DATA_OFFSET - FOOTER_LENGTH);
-        this.footer = contents.subSegment(contents.getLength() - FOOTER_LENGTH, FOOTER_LENGTH);
+        this.header = contents.slice(0, DATA_OFFSET);
+        this.data = contents.slice(DATA_OFFSET, contents.getLength() - DATA_OFFSET - FOOTER_LENGTH);
+        this.footer = contents.slice(contents.getLength() - FOOTER_LENGTH, FOOTER_LENGTH);
         if (validate) {
             int headerId = getHeaderId();
             int footerId = getFooterId();
@@ -252,7 +252,7 @@ class BTreePage {
      */
     ByteArraySegment getValueAt(int pos) {
         Preconditions.checkElementIndex(pos, getCount(), "pos must be non-negative and smaller than the number of items.");
-        return this.data.subSegment(pos * this.config.entryLength + this.config.keyLength, this.config.valueLength);
+        return this.data.slice(pos * this.config.entryLength + this.config.keyLength, this.config.valueLength);
     }
 
     /**
@@ -265,7 +265,7 @@ class BTreePage {
      */
     ByteArraySegment getKeyAt(int pos) {
         Preconditions.checkElementIndex(pos, getCount(), "pos must be non-negative and smaller than the number of items.");
-        return this.data.subSegment(pos * this.config.entryLength, this.config.keyLength);
+        return this.data.slice(pos * this.config.entryLength, this.config.keyLength);
     }
 
     /**
@@ -294,8 +294,8 @@ class BTreePage {
     PageEntry getEntryAt(int pos) {
         Preconditions.checkElementIndex(pos, getCount(), "pos must be non-negative and smaller than the number of items.");
         return new PageEntry(
-                this.data.subSegment(pos * this.config.entryLength, this.config.keyLength),
-                this.data.subSegment(pos * this.config.entryLength + this.config.keyLength, this.config.valueLength));
+                this.data.slice(pos * this.config.entryLength, this.config.keyLength),
+                this.data.slice(pos * this.config.entryLength + this.config.keyLength, this.config.valueLength));
     }
 
     /**
@@ -349,7 +349,7 @@ class BTreePage {
             int itemsPerPage = remainingItems / remainingPageCount;
 
             // Copy data over to the new page.
-            ByteArraySegment splitPageData = this.data.subSegment(readIndex, itemsPerPage * this.config.entryLength);
+            ByteArraySegment splitPageData = this.data.slice(readIndex, itemsPerPage * this.config.entryLength);
             result.add(new BTreePage(this.config, itemsPerPage, splitPageData));
 
             // Update pointers.

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,7 +10,6 @@
 package io.pravega.shared.protocol.netty;
 
 import com.google.common.base.Preconditions;
-import io.netty.buffer.ByteBufInputStream;
 import java.io.IOException;
 
 /**
@@ -103,6 +102,9 @@ public enum WireCommandType {
     READ_TABLE_ENTRIES(85, WireCommands.ReadTableEntries::readFrom),
     TABLE_ENTRIES_READ(86, WireCommands.TableEntriesRead::readFrom),
 
+    TABLE_ENTRIES_DELTA_READ(87, WireCommands.TableEntriesDeltaRead::readFrom),
+    READ_TABLE_ENTRIES_DELTA(88, WireCommands.ReadTableEntriesDelta::readFrom),
+
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
     private final int code;
@@ -118,7 +120,7 @@ public enum WireCommandType {
         return code;
     }
 
-    public WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+    public WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
         return factory.readFrom(in, length);
     }
 }

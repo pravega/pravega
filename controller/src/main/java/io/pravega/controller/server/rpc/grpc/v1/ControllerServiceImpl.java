@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,10 +29,6 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.GetEventRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.GetEventResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -57,6 +53,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
@@ -66,8 +63,10 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -194,6 +193,23 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                     .addAllSegmentRanges(segmentRanges)
                                     .setDelegationToken(delegationToken)
                                     .build());
+                },
+                responseObserver);
+    }
+
+    @Override
+    public void getEpochSegments(GetEpochSegmentsRequest request, StreamObserver<SegmentRanges> responseObserver) {
+        log.info("getEpochSegments called for stream {}/{} and epoch {}", request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getEpoch());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getEpochSegments", request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
+                    return controllerService.getEpochSegments(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getEpoch())
+                                            .thenApply(segmentRanges -> SegmentRanges.newBuilder()
+                                                                                     .addAllSegmentRanges(segmentRanges)
+                                                                                     .setDelegationToken(delegationToken)
+                                                                                     .build());
                 },
                 responseObserver);
     }
@@ -358,8 +374,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void commitTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("commitTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+                request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(
                         request.getStreamInfo().getScope(),
@@ -367,47 +384,50 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId(), request.getWriterId(), request.getTimestamp()),
+                        txnId, request.getWriterId(), request.getTimestamp()),
                 responseObserver);
     }
 
     @Override
     public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("abortTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+                request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults( () -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.abortTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId()),
+                        txnId),
                 responseObserver);
     }
 
     @Override
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+                request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                delegationToken  -> controllerService.pingTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId(),
+                        txnId,
                         request.getLease()),
                 responseObserver);
     }
 
     @Override
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
+        final UUID txnId = ModelHelper.encode(request.getTxnId());
         log.info("checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+                request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId()),
+                        txnId),
                 responseObserver);
     }
 
@@ -532,48 +552,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 responseObserver);
     }
     // endregion
-
-
-    // region data apis
-    @Override
-    public void getEvent(GetEventRequest request, StreamObserver<GetEventResponse> responseObserver) {
-        String routingKey = request.getRoutingKey();
-        String scopeName = request.getScopeName();
-        String streamName = request.getStreamName();
-        Long  segmentNumber = request.getSegmentNumber();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getEvent",
-                scopeName, streamName);
-        log.info(requestTag.getRequestId(), "getEvent called for stream {}/{}/{}.", scopeName, streamName, segmentNumber);
-
-        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
-                AuthResourceRepresentation.ofStreamInScope(scopeName, streamName),
-                AuthHandler.Permissions.READ),
-                delegationToken -> controllerService.getEvent(routingKey, scopeName, streamName, segmentNumber)
-                        .thenApply(none -> Controller.GetEventResponse.newBuilder()
-                                .build()),
-                responseObserver);
-    }
-
-    @Override
-    public void createEvent(CreateEventRequest request, StreamObserver<CreateEventResponse> responseObserver) {
-        String routingKey = request.getRoutingKey();
-        String scopeName = request.getScopeName();
-        String streamName = request.getStreamName();
-        String message = request.getMessage();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createEvent",
-                scopeName, streamName);
-        log.info(requestTag.getRequestId(), "createEvent called for stream {}/{}/{}.", scopeName, streamName, routingKey);
-
-        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                AuthResourceRepresentation.ofStreamInScope(scopeName, streamName),
-                AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.createEvent(routingKey, scopeName, streamName, message)
-                        .thenApply(none -> Controller.CreateEventResponse.newBuilder()
-                                .build()),
-                responseObserver);
-    }
-    // endregion
-
+    
     private void logIfEmpty(String delegationToken, String requestName, String scopeName, String streamName) {
         if (isAuthEnabled() && Strings.isNullOrEmpty(delegationToken)) {
             log.warn("Delegation token for request [{}] with scope [{}] and stream [{}], is: [{}]",
@@ -650,6 +629,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         }
         if (cause instanceof StoreException.StoreConnectionException) {
             return Status.INTERNAL;
+        }
+        if (cause instanceof TimeoutException) {
+            return Status.DEADLINE_EXCEEDED;
         }
         return Status.UNKNOWN;
     }

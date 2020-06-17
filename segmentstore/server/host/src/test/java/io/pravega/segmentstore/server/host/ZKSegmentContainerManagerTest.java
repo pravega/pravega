@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
     private final static int TEST_TIMEOUT = 60000;
     private final static int RETRY_SLEEP_MS = 100;
     private final static int MAX_RETRY = 5;
+    private final static int MAX_PARALLEL_CONTAINER_STARTS = 2;
     private static final int PORT = TestUtils.getAvailableListenPort();
     private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT, null);
     private final static String PATH = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
@@ -158,7 +159,7 @@ public class ZKSegmentContainerManagerTest extends ThreadPooledTestSuite {
     }
 
     private ZKSegmentContainerManager createContainerManager(SegmentContainerRegistry registry, CuratorFramework zkClient) {
-        return new ZKSegmentContainerManager(registry, zkClient, PRAVEGA_SERVICE_ENDPOINT, executorService());
+        return new ZKSegmentContainerManager(registry, zkClient, PRAVEGA_SERVICE_ENDPOINT, MAX_PARALLEL_CONTAINER_STARTS, executorService());
     }
 
     private void initializeHostContainerMapping(CuratorFramework zkClient) throws Exception {

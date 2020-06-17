@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@ package io.pravega.controller.store.client;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.auth.JKSHelper;
-import io.pravega.common.auth.ZKTLSUtils;
+import io.pravega.common.security.JKSHelper;
+import io.pravega.common.security.ZKTLSUtils;
 import lombok.AccessLevel;
 import lombok.Setter;
 import lombok.Synchronized;
