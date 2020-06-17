@@ -74,12 +74,16 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
         this.connectionFactory = new MockConnectionFactoryImpl();
         this.controller = new MockController("localhost", 0, this.connectionFactory, false);
 <<<<<<< HEAD
+<<<<<<< HEAD
         this.isScopeCreated = this.controller.createScope(KVT.getScope()).get().booleanValue();
         this.controller.createKeyValueTable(KVT.getScope(), KVT.getKeyValueTableName(),
                 KeyValueTableConfiguration.builder().partitionCount(getSegmentCount()).build());
         this.segmentFactory = new MockTableSegmentFactory(getSegmentCount(), executorService());
 =======
         this.controller.createScope(KVT.getScope());
+=======
+        this.isScopeCreated = this.controller.createScope(KVT.getScope()).get().booleanValue();
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         this.controller.createKeyValueTable(KVT.getScope(), KVT.getKeyValueTableName(),
                 KeyValueTableConfiguration.builder().partitionCount(getSegmentCount()).build());
 <<<<<<< HEAD

@@ -9,7 +9,10 @@
  */
 package io.pravega.controller.store.kvtable;
 
+<<<<<<< HEAD
 import com.google.common.base.Preconditions;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.controller.store.InMemoryScope;
@@ -63,9 +66,12 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
             assert kvt.getScopeName().equals(scope);
             assert kvt.getName().equals(name);
         } else {
+<<<<<<< HEAD
             if (!scopes.containsKey(scope)) {
                 return new InMemoryKVTable(scope, name);
             }
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
             InMemoryScope kvtScope = scopes.get(scope);
             Optional<InMemoryKVTable> kvTable = kvtScope.getKVTableFromScope(name);
             kvt = kvTable.orElse(new InMemoryKVTable(scope, name));
@@ -74,6 +80,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     }
 
     @Override
+<<<<<<< HEAD
     public Scope newScope(String scopeName) {
         return getScope(scopeName);
     }
@@ -96,6 +103,8 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     }
 
     @Override
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     @Synchronized
     public CompletableFuture<Boolean> checkScopeExists(String scope) {
         return CompletableFuture.completedFuture(scopes.containsKey(scope));
@@ -103,6 +112,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
 
     @Override
     @Synchronized
+<<<<<<< HEAD
     public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt) {
         return CompletableFuture.completedFuture((InMemoryScope) getScope(scopeName)).thenApply(scope -> scope.checkTableExists(kvt));
     }
@@ -110,6 +120,9 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     @Override
     @Synchronized
     public Scope getScope(final String scopeName) {
+=======
+    public Scope newScope(final String scopeName) {
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         if (scopes.containsKey(scopeName)) {
             return scopes.get(scopeName);
         } else {

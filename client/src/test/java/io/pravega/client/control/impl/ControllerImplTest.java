@@ -38,11 +38,16 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
+<<<<<<< HEAD
 <<<<<<< HEAD:client/src/test/java/io/pravega/client/control/impl/ControllerImplTest.java
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 =======
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/test/java/io/pravega/client/stream/impl/ControllerImplTest.java
+=======
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.impl.KeyValueTableSegments;
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
@@ -77,8 +82,11 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+<<<<<<< HEAD
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -960,6 +968,7 @@ public class ControllerImplTest {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
             }
+<<<<<<< HEAD
 
             @Override
             public void listKeyValueTablesInScope(Controller.KVTablesInScopeRequest request,
@@ -1022,6 +1031,8 @@ public class ControllerImplTest {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
             }
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         };
 
         serverPort = TestUtils.getAvailableListenPort();
@@ -1883,24 +1894,51 @@ public class ControllerImplTest {
     public void testKeyValueTables() {
         AssertExtensions.assertThrows(
                 "",
-                () -> this.controllerClient.createKeyValueTable("", "", null),
-                ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "",
                 () -> this.controllerClient.deleteKeyValueTable("", ""),
-                ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.controllerClient.getCurrentSegmentsForKeyValueTable("", ""),
                 ex -> ex instanceof UnsupportedOperationException);
         AssertExtensions.assertThrows(
                 "",
                 () -> this.controllerClient.listKeyValueTables(""),
                 ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.controllerClient.updateKeyValueTable("", "", null),
-                ex -> ex instanceof UnsupportedOperationException);
+    }
+
+    @Test
+    public void testCreateKeyValueTable() throws Exception {
+        CompletableFuture<Boolean> createKVTableStatus;
+        createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable1",
+                KeyValueTableConfiguration.builder().partitionCount(1).build());
+        assertTrue(createKVTableStatus.get());
+
+        createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable2",
+                KeyValueTableConfiguration.builder().partitionCount(1).build());
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createKVTableStatus, Throwable -> true);
+
+        createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable3",
+                KeyValueTableConfiguration.builder().partitionCount(1).build());
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createKVTableStatus, Throwable -> true);
+
+        createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable4",
+                KeyValueTableConfiguration.builder().partitionCount(1).build());
+        assertFalse(createKVTableStatus.get());
+
+        createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable5",
+                KeyValueTableConfiguration.builder().partitionCount(1).build());
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createKVTableStatus, Throwable -> true);
+    }
+
+    @Test
+    public void testGetCurrentSegmentsKeyValueTable() throws Exception {
+        CompletableFuture<KeyValueTableSegments> kvtSegments;
+        kvtSegments = controllerClient.getCurrentSegmentsForKeyValueTable("scope1", "kvtable1");
+        assertTrue(kvtSegments.get().getSegments().size() == 2);
+        assertEquals(new Segment("scope1", "kvtable1", 4), kvtSegments.get().getSegmentForKey(0.2));
+        assertEquals(new Segment("scope1", "kvtable1", 5), kvtSegments.get().getSegmentForKey(0.6));
+
+        kvtSegments = controllerClient.getCurrentSegmentsForKeyValueTable("scope1", "kvtable2");
+        AssertExtensions.assertFutureThrows("Should throw Exception", kvtSegments, throwable -> true);
     }
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/test/java/io/pravega/client/stream/impl/ControllerImplTest.java
 }

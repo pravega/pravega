@@ -93,8 +93,12 @@ public class IntermittentCnxnFailureTest {
     private KVTableMetadataStore kvtStore;
     @Mock
     private TableMetadataTasks kvtMetadataTasks;
+<<<<<<< HEAD
     private StatsProvider statsProvider = null;
 
+=======
+    
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     @Before
     public void setup() throws Exception {
         MetricsConfig metricsConfig = MetricsConfig.builder()

@@ -191,12 +191,20 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<Void> createKVTableMetadata() {
+<<<<<<< HEAD
         return getId().thenCompose(id -> storeHelper.createTable(getMetadataTableName(id)));
     }
 
     @Override
     public CompletableFuture<Void> delete() {
         return getId().thenCompose(id -> storeHelper.deleteTable(getMetadataTableName(id), false));
+=======
+        return getId().thenCompose(id -> {
+            String metadataTable = getMetadataTableName(id);
+            return CompletableFuture.allOf(storeHelper.createTable(metadataTable))
+                    .thenAccept(v -> log.debug("kvtable {}/{} metadata table {} created", getScopeName(), getName(), metadataTable));
+        });
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     }
 
     @Override
@@ -257,5 +265,8 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
                     return storeHelper.getCachedData(metadataTable, key, KVTEpochRecord::fromBytes);
                 });
     }
+<<<<<<< HEAD
 
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 }

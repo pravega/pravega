@@ -58,11 +58,14 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
+<<<<<<< HEAD
     public CompletableFuture<Void> delete() {
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     public void refresh() {
     }
 

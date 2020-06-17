@@ -12,9 +12,13 @@ package io.pravega.controller.server;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.client.tables.KeyValueTableConfiguration;
 =======
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
+=======
+import io.pravega.client.tables.KeyValueTableConfiguration;
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
@@ -135,6 +139,7 @@ public class ControllerService {
                 .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, kvtName), executor);
     }
 
+<<<<<<< HEAD
     /**
      * List existing KeyValueTables in specified scope.
      *
@@ -160,6 +165,8 @@ public class ControllerService {
                 }, executor);
     }
 
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
             final long createTimestamp) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
@@ -567,6 +574,7 @@ public class ControllerService {
             StreamMetrics.getInstance().createKeyValueTableFailed(scope, kvtName);
         }
     }
+<<<<<<< HEAD
 
     private void reportDeleteKVTableMetrics(String scope, String kvtName, DeleteKVTableStatus.Status status, Duration latency) {
         if (status.equals(DeleteKVTableStatus.Status.SUCCESS)) {
@@ -575,6 +583,8 @@ public class ControllerService {
             StreamMetrics.getInstance().deleteKeyValueTableFailed(scope, kvtName);
         }
     }
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 
     private void reportCreateStreamMetrics(String scope, String streamName, int initialSegments, CreateStreamStatus.Status status,
                                            Duration latency) {

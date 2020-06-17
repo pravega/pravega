@@ -10,6 +10,7 @@
 package io.pravega.controller.store.kvtable;
 
 import io.pravega.client.tables.KeyValueTableConfiguration;
+<<<<<<< HEAD
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
@@ -17,12 +18,19 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import org.apache.commons.lang3.tuple.Pair;
+=======
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
+import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import org.junit.Rule;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.After;
 import org.junit.rules.Timeout;
 import java.util.List;
+<<<<<<< HEAD
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ScheduledExecutorService;
@@ -31,6 +39,14 @@ import java.util.concurrent.Executors;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+=======
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 
 /**
  * Stream metadata test.
@@ -60,22 +76,38 @@ public abstract class KVTableMetadataStoreTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
+<<<<<<< HEAD
     abstract Controller.CreateScopeStatus createScope(String scopeName) throws Exception;
 
     @Test
     public void testKVTableMetadataStore() throws Exception {
         Controller.CreateScopeStatus scopeCreateStatus = createScope(scope);
+=======
+    abstract Controller.CreateScopeStatus createScope() throws Exception;
+
+    @Test
+    public void testKVTableMetadataStore() throws Exception {
+        Controller.CreateScopeStatus scopeCreateStatus = createScope();
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS)
                 || scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS));
 
         byte[] newUUID1 = store.newScope(scope).newId();
+<<<<<<< HEAD
         store.createEntryForKVTable(scope, kvtable1, newUUID1, executor).get();
+=======
+        store.createEntryForKVTable(scope, kvtable1, newUUID1, executor);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scope, kvtable1, configuration1, start, null, executor).get();
         store.setState(scope, kvtable1, KVTableState.ACTIVE, null, executor).get();
 
         byte[] newUUID2 = store.newScope(scope).newId();
+<<<<<<< HEAD
         store.createEntryForKVTable(scope, kvtable2, newUUID2, executor).get();
+=======
+        store.createEntryForKVTable(scope, kvtable2, newUUID2, executor);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         store.createKeyValueTable(scope, kvtable2, configuration2, start, null, executor).get();
         store.setState(scope, kvtable2, KVTableState.ACTIVE, null, executor).get();
 
@@ -90,6 +122,7 @@ public abstract class KVTableMetadataStoreTest {
         assertEquals(3, segments.size());
         // endregion
     }
+<<<<<<< HEAD
 
     @Test
     public void listTablesInScope() throws Exception {
@@ -150,4 +183,6 @@ public abstract class KVTableMetadataStoreTest {
         store.deleteKeyValueTable(scopeName, kvtName, null, executor).get();
         assertFalse(store.checkTableExists(scopeName, kvtName).join());
     }
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 }

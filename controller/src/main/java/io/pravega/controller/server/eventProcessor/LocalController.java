@@ -449,6 +449,9 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         return this.controller.createKeyValueTable(scope, kvtName, kvtConfig, System.currentTimeMillis()).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
@@ -466,6 +469,7 @@ public class LocalController implements Controller {
                             + " " + x.getStatus());
             }
         });
+<<<<<<< HEAD
     }
     
     @Override
@@ -482,6 +486,8 @@ public class LocalController implements Controller {
         return new ContinuationTokenAsyncIterator<>(function, "");
 =======
         throw new UnsupportedOperationException("createKeyValueTable not implemented.");
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     }
 
     @Override
@@ -490,12 +496,15 @@ public class LocalController implements Controller {
     }
 
     @Override
+<<<<<<< HEAD
     public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
         throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
     }
 
     @Override
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
 <<<<<<< HEAD
         return this.controller.deleteKeyValueTable(scope, kvtName).thenApply(x -> {
@@ -519,12 +528,16 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         return controller.getCurrentSegmentsKeyValueTable(scope, kvtName)
                 .thenApply(this::getKeyValueTableSegments);
     }
 
     private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {
         return new KeyValueTableSegments(getRangeMap(ranges), retrieveDelegationToken());
+<<<<<<< HEAD
     }
 
     private NavigableMap<Double, SegmentWithRange> getRangeMap(List<SegmentRange> ranges) {
@@ -539,5 +552,16 @@ public class LocalController implements Controller {
     }
 
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
+=======
+    }
+
+    private NavigableMap<Double, SegmentWithRange> getRangeMap(List<SegmentRange> ranges) {
+        NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
+        for (SegmentRange r : ranges) {
+            rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
+        }
+        return rangeMap;
+    }
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     //endregion
 }

@@ -94,11 +94,16 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 
 =======
+=======
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
@@ -1208,7 +1213,10 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+<<<<<<< HEAD
 <<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/ControllerImpl.java
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(kvtConfig, "KeyValueTableConfig");
@@ -1250,6 +1258,7 @@ public class ControllerImpl implements Controller {
             }
             LoggerHelpers.traceLeave(log, "createKeyValueTable", traceId, kvtName, requestId);
         });
+<<<<<<< HEAD
     }
 
     @Override
@@ -1290,6 +1299,8 @@ public class ControllerImpl implements Controller {
         }
 =======
         throw new UnsupportedOperationException("createKeyValueTable not implemented.");
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     }
 
     @Override
@@ -1298,12 +1309,15 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+<<<<<<< HEAD
     public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
         throw new UnsupportedOperationException("updateKeyValueTable not implemented.");
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/main/java/io/pravega/client/stream/impl/ControllerImpl.java
     }
 
     @Override
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
 <<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/ControllerImpl.java
         Exceptions.checkNotClosed(closed.get(), this);
@@ -1346,7 +1360,10 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
+<<<<<<< HEAD
 <<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/ControllerImpl.java
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
             Exceptions.checkNotClosed(closed.get(), this);
             Exceptions.checkNotNullOrEmpty(scope, "scope");
             Exceptions.checkNotNullOrEmpty(kvtName, "stream");
@@ -1375,10 +1392,13 @@ public class ControllerImpl implements Controller {
                 LoggerHelpers.traceLeave(log, "getCurrentSegmentsForKeyValueTable", traceId);
             });
         }
+<<<<<<< HEAD
 =======
         throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");
     }
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/main/java/io/pravega/client/stream/impl/ControllerImpl.java
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 
     //endregion
 
@@ -1507,6 +1527,7 @@ public class ControllerImpl implements Controller {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .createKeyValueTable(kvtConfig, callback);
         }
+<<<<<<< HEAD
 
         void listKeyValueTables(KVTablesInScopeRequest request,
                                        RPCAsyncCallback<KVTablesInScopeResponse> callback) {
@@ -1518,5 +1539,7 @@ public class ControllerImpl implements Controller {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .deleteKeyValueTable(kvtInfo, callback);
         }
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     }
 }

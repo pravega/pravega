@@ -23,26 +23,38 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
+<<<<<<< HEAD
 import io.pravega.controller.store.kvtable.KVTOperationContext;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.controller.store.kvtable.KVTableState;
 import io.pravega.controller.store.stream.StoreException;
 
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+<<<<<<< HEAD
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 
 import java.util.List;
+<<<<<<< HEAD
 import java.util.Set;
 import java.util.UUID;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
+<<<<<<< HEAD
 import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import lombok.Synchronized;
 import org.slf4j.LoggerFactory;
 
@@ -58,7 +70,11 @@ import static io.pravega.shared.NameUtils.getQualifiedTableSegmentName;
  */
 public class TableMetadataTasks implements AutoCloseable {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TableMetadataTasks.class));
+<<<<<<< HEAD
     private static final int NUM_RETRIES = 10;
+=======
+    private static final int CREATE_NUM_RETRIES = 10;
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     private final KVTableMetadataStore kvtMetadataStore;
     private final SegmentHelper segmentHelper;
     private final ScheduledExecutorService executor;
@@ -143,6 +159,7 @@ public class TableMetadataTasks implements AutoCloseable {
                                        return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor);
                                  });
                             });
+<<<<<<< HEAD
                }, e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
     }
 
@@ -203,6 +220,15 @@ public class TableMetadataTasks implements AutoCloseable {
                         return CompletableFuture.completedFuture(Boolean.TRUE);
                     } else {
                         return CompletableFuture.completedFuture(Boolean.FALSE);
+=======
+               }, e -> Exceptions.unwrap(e) instanceof RetryableException, CREATE_NUM_RETRIES, executor)
+                .handle((result, ex) -> {
+                    if (ex != null) {
+                        log.warn(requestId, "Create kvtable failed due to ", ex);
+                        return CreateKeyValueTableStatus.Status.FAILURE;
+                    } else {
+                        return result;
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
                     }
                 });
     }
@@ -211,7 +237,11 @@ public class TableMetadataTasks implements AutoCloseable {
                                                                                   KeyValueTableConfiguration kvtConfig,
                                                                                   final long createTimestamp,
                                                                                   Executor executor) {
+<<<<<<< HEAD
         return eventHelper.checkDone(() -> isCreated(scope, kvtName, executor))
+=======
+        return eventHelper.checkDone(() -> isCreated(scope, kvtName, kvtConfig, executor))
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
                 .thenCompose(y -> isSameCreateRequest(scope, kvtName, kvtConfig, createTimestamp, executor))
                 .thenCompose(same -> {
                     if (same) {
@@ -222,7 +252,11 @@ public class TableMetadataTasks implements AutoCloseable {
                 });
     }
 
+<<<<<<< HEAD
     private CompletableFuture<Boolean> isCreated(String scope, String kvtName, Executor executor) {
+=======
+    private CompletableFuture<Boolean> isCreated(String scope, String kvtName, KeyValueTableConfiguration kvtConfig, Executor executor) {
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                .thenApply(state -> {
@@ -251,7 +285,11 @@ public class TableMetadataTasks implements AutoCloseable {
         });
     }
 
+<<<<<<< HEAD
     public String retrieveDelegationToken() {
+=======
+    private String retrieveDelegationToken() {
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         return authHelper.retrieveMasterToken();
     }
 
@@ -267,7 +305,11 @@ public class TableMetadataTasks implements AutoCloseable {
     private CompletableFuture<Void> createNewSegment(String scope, String kvt, long segmentId, String controllerToken,
                                                      long requestId) {
         final String qualifiedTableSegmentName = getQualifiedTableSegmentName(scope, kvt, segmentId);
+<<<<<<< HEAD
         log.debug("Creating segment {}", qualifiedTableSegmentName);
+=======
+        log.info("Creating segment {}", qualifiedTableSegmentName);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(qualifiedTableSegmentName, controllerToken, requestId, true), executor));
     }
 

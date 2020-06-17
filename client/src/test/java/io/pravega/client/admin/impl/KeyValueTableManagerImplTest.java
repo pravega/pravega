@@ -130,9 +130,12 @@ public class KeyValueTableManagerImplTest {
      * Tests the following methods:
      * - {@link KeyValueTableManagerImpl#createKeyValueTable}
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
      * - {@link KeyValueTableManagerImpl#updateKeyValueTable}
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
      * - {@link KeyValueTableManagerImpl#deleteKeyValueTable}
      */
     @Test
@@ -147,27 +150,36 @@ public class KeyValueTableManagerImplTest {
 
         Assert.assertFalse(manager.deleteKeyValueTable(DEFAULT_SCOPE, name));
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         Assert.assertFalse(manager.updateKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 
         Assert.assertTrue(manager.createKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
         Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), this.segments.size());
         Assert.assertFalse(manager.createKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
         Assert.assertTrue(manager.updateKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
         Assert.assertFalse(manager.updateKeyValueTable(DEFAULT_SCOPE, name,
                 KeyValueTableConfiguration.builder().partitionCount(DEFAULT_CONFIG.getPartitionCount() + 1).build()));
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 
         Assert.assertTrue(manager.deleteKeyValueTable(DEFAULT_SCOPE, name));
         Assert.assertEquals(0, this.segments.size());
         Assert.assertFalse(manager.deleteKeyValueTable(DEFAULT_SCOPE, name));
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         Assert.assertFalse(manager.updateKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         Assert.assertTrue(manager.createKeyValueTable(DEFAULT_SCOPE, name, DEFAULT_CONFIG));
         Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), this.segments.size());
         manager.close(); // Closing twice to verify operation is idempotent.

@@ -16,7 +16,10 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
+<<<<<<< HEAD
 import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -77,11 +80,14 @@ public class ControllerEventSerializerTests {
                                             123L, UUID.randomUUID()));
     }
 
+<<<<<<< HEAD
     @Test
     public void testDeleteTableEvent() {
         testClass(() -> new DeleteTableEvent(SCOPE, KVTABLE, 3, UUID.randomUUID()));
     }
 
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     private <T extends ControllerEvent> void testClass(Supplier<T> generateInstance) {
         val s = new ControllerEventSerializer();
         T baseInstance = generateInstance.get();

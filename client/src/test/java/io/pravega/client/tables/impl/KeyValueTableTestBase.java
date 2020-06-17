@@ -67,6 +67,7 @@ import org.junit.Test;
 <<<<<<< HEAD
 public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
     protected boolean isScopeCreated;
+<<<<<<< HEAD
 =======
 public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
     //region Members
@@ -126,6 +127,8 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
 >>>>>>> Issue 4771: (Key Value Tables) Exposing KVTs as Java Maps (#4786)
     //region Tests
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 
     /**
      * Tests the ability to perform single-key conditional insertions. These methods are exercised:
@@ -135,9 +138,13 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
     @Test
     public void testSingleKeyConditionalInserts() {
 <<<<<<< HEAD
+<<<<<<< HEAD
         Assert.assertTrue(isScopeCreated);
 =======
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+        Assert.assertTrue(isScopeCreated);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         val versions = new Versions();
         @Cleanup
         val kvt = createKeyValueTable();
@@ -171,9 +178,13 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
     @Test
     public void testSingleKeyUpdates() {
 <<<<<<< HEAD
+<<<<<<< HEAD
         Assert.assertTrue(isScopeCreated);
 =======
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+        Assert.assertTrue(isScopeCreated);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         val versions = new Versions();
         @Cleanup
         val kvt = createKeyValueTable();
@@ -221,9 +232,13 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
     @Test
     public void testSingleKeyUnconditionalRemovals() {
 <<<<<<< HEAD
+<<<<<<< HEAD
         Assert.assertTrue(isScopeCreated);
 =======
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+        Assert.assertTrue(isScopeCreated);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         val versions = new Versions();
         @Cleanup
         val kvt = createKeyValueTable();
@@ -289,9 +304,13 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
     @Test
     public void testMultiKeyOperations() {
 <<<<<<< HEAD
+<<<<<<< HEAD
         Assert.assertTrue(isScopeCreated);
 =======
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+        Assert.assertTrue(isScopeCreated);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         val versions = new Versions();
         @Cleanup
         val kvt = createKeyValueTable();
@@ -416,9 +435,13 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
     @Test
     public void testIterators() {
 <<<<<<< HEAD
+<<<<<<< HEAD
         Assert.assertTrue(isScopeCreated);
 =======
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+        Assert.assertTrue(isScopeCreated);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         @Cleanup
         val kvt = createKeyValueTable();
         val iteration = new AtomicInteger(0);

@@ -442,26 +442,86 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
 
 =======
     public void testKeyValueTables() {
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.testController.createKeyValueTable("", "", null),
-                ex -> ex instanceof UnsupportedOperationException);
+
         AssertExtensions.assertThrows(
                 "",
                 () -> this.testController.deleteKeyValueTable("", ""),
                 ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.testController.getCurrentSegmentsForKeyValueTable("", ""),
-                ex -> ex instanceof UnsupportedOperationException);
+
         AssertExtensions.assertThrows(
                 "",
                 () -> this.testController.listKeyValueTables(""),
                 ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.testController.updateKeyValueTable("", "", null),
-                ex -> ex instanceof UnsupportedOperationException);
+
+    }
+
+    @Test
+    public void testCreateKeyValueTable() {
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.createKeyValueTable("scope", "kvtable",
+                KeyValueTableConfiguration.builder().partitionCount(1).build()).join());
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.TABLE_EXISTS).build()));
+        Assert.assertFalse(this.testController.createKeyValueTable("scope", "kvtable",
+                KeyValueTableConfiguration.builder().partitionCount(1).build()).join());
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.createKeyValueTable("scope", "kvtable",
+                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.INVALID_TABLE_NAME).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.createKeyValueTable("scope", "kvtable",
+                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.createKeyValueTable("scope", "kvtable",
+                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.createKeyValueTable("scope", "kvtable1",
+                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testGetCurrentSegmentsKeyValueTable() throws Exception {
+        Controller.StreamInfo info = Controller.StreamInfo.newBuilder().setScope("scope").setStream("kvtable").build();
+        Controller.SegmentId segment1 = Controller.SegmentId.newBuilder().setSegmentId(1).setStreamInfo(info).build();
+        Controller.SegmentId segment2 = Controller.SegmentId.newBuilder().setSegmentId(2).setStreamInfo(info).build();
+        Controller.SegmentId segment3 = Controller.SegmentId.newBuilder().setSegmentId(3).setStreamInfo(info).build();
+
+        Controller.SegmentRange segmentRange1 = Controller.SegmentRange.newBuilder().setSegmentId(segment1).setMinKey(0.1).setMaxKey(0.3).build();
+        Controller.SegmentRange segmentRange2 = Controller.SegmentRange.newBuilder().setSegmentId(segment2).setMinKey(0.4).setMaxKey(0.6).build();
+        Controller.SegmentRange segmentRange3 = Controller.SegmentRange.newBuilder().setSegmentId(segment3).setMinKey(0.7).setMaxKey(1.0).build();
+
+        List<Controller.SegmentRange> segmentsList = new ArrayList<Controller.SegmentRange>(3);
+        segmentsList.add(segmentRange1);
+        segmentsList.add(segmentRange2);
+        segmentsList.add(segmentRange3);
+
+        when(this.mockControllerService.getCurrentSegmentsKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(segmentsList));
+        KeyValueTableSegments segments = this.testController.getCurrentSegmentsForKeyValueTable("scope", "kvtable").get();
+        Assert.assertEquals(3, segments.getSegments().size());
     }
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
 }

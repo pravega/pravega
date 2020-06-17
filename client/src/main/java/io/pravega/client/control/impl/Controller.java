@@ -385,6 +385,7 @@ public interface Controller extends AutoCloseable {
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
 
     /**
+<<<<<<< HEAD
      * API to update the configuration of a KeyValueTable.
      *
      * @param scope     Scope
@@ -397,6 +398,8 @@ public interface Controller extends AutoCloseable {
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/main/java/io/pravega/client/stream/impl/Controller.java
 
     /**
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
      * API to delete a KeyValueTable. Only a sealed KeyValueTable can be deleted.
      *
      * @param scope   Scope name.

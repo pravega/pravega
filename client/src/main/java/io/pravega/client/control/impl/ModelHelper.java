@@ -21,10 +21,14 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.WriterPosition;
+<<<<<<< HEAD
 <<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/ModelHelper.java
 import io.pravega.client.tables.KeyValueTableConfiguration;
 =======
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/main/java/io/pravega/client/stream/impl/ModelHelper.java
+=======
+import io.pravega.client.tables.KeyValueTableConfiguration;
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.common.Exceptions;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;

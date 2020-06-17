@@ -40,7 +40,10 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+<<<<<<< HEAD
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
@@ -148,9 +151,13 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 executor);
         this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, executor);
+<<<<<<< HEAD
         this.kvtRequestHandler = new TableRequestHandler(new CreateTableTask(kvtMetadataStore, kvtMetadataTasks, executor),
                                                             new DeleteTableTask(kvtMetadataStore, kvtMetadataTasks, executor),
                                                             kvtMetadataStore, executor);
+=======
+        this.kvtRequestHandler = new TableRequestHandler(new CreateTableTask(kvtMetadataStore, kvtMetadataTasks, executor), kvtMetadataStore, executor);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         this.executor = executor;
         this.rebalanceIntervalMillis = config.getRebalanceIntervalMillis();
     }

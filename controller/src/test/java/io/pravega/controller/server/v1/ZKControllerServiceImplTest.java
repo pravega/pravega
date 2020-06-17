@@ -34,7 +34,10 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequest
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
+<<<<<<< HEAD
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
@@ -69,6 +72,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Zookeeper stream store configuration.
@@ -135,7 +139,10 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
                 "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, tableEventHelper);
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
+<<<<<<< HEAD
                 executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
                 executorService), this.kvtStore, executorService);
         tableEventHelper.setRequestEventWriter(new ControllerEventTableWriterMock(tableRequestHandler, executorService));
 
@@ -229,6 +236,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     }
 
     @Test
+<<<<<<< HEAD
     @Override
     public void createKeyValueTableTests() {
         // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
@@ -254,5 +262,16 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     public void deleteKeyValueTableTests() {
         // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
         // Key-Value Tables are not implemented in ZK Metadata.
+=======
+    public void createKeyValueTableTests() {
+        //TODO: Place holder till we fix the test
+        assertTrue(true);
+    }
+
+    @Test
+    public void getCurrentSegmentsKeyValueTableTest() {
+        //TODO: Place holder till we fix the test
+        assertTrue(true);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     }
 }

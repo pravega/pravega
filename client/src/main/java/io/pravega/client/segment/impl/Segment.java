@@ -50,6 +50,9 @@ public class Segment implements Comparable<Segment>, Serializable {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     public String getScopedName() {
         return NameUtils.getQualifiedStreamSegmentName(scope, streamName, segmentId);
     }
@@ -58,8 +61,11 @@ public class Segment implements Comparable<Segment>, Serializable {
         return NameUtils.getQualifiedTableSegmentName(scope, streamName, segmentId);
     }
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     public Stream getStream() {
         return new StreamImpl(scope, streamName);
     }

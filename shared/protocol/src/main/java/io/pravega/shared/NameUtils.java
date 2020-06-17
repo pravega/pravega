@@ -96,7 +96,11 @@ public final class NameUtils {
     /**
      * This is used in composing segment name for a table segment used for a KeyValueTable
      */
+<<<<<<< HEAD
     private static final String KVTABLE_SUFFIX = "_kvtable";
+=======
+    private static final String KVTABLE_SUFFIX = "_kvt";
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 
     /**
      * Prefix for identifying system created mark segments for storing watermarks. 
@@ -312,6 +316,9 @@ public final class NameUtils {
 
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
      * Method to generate Fully Qualified TableSegmentName using scope, stream and segment id.
      *
      * @param scope scope to be used in the ScopedTableSegment name
@@ -331,8 +338,11 @@ public final class NameUtils {
     }
 
     /**
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
      * Method to generate Fully Qualified StreamSegmentName using scope, stream and segment id.
      *
      * @param scope scope to be used in the ScopedStreamSegment name

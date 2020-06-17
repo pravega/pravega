@@ -20,15 +20,23 @@ import java.util.Set;
 public enum KVTableState {
     UNKNOWN,
     CREATING,
+<<<<<<< HEAD
     DELETING,
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     ACTIVE;
 
     private enum StateTransitions {
         UNKNOWN(KVTableState.UNKNOWN, KVTableState.CREATING),
+<<<<<<< HEAD
         CREATING(KVTableState.CREATING, KVTableState.ACTIVE, KVTableState.DELETING),
         ACTIVE(KVTableState.ACTIVE, KVTableState.DELETING),
         DELETING(KVTableState.DELETING);
 
+=======
+        CREATING(KVTableState.CREATING, KVTableState.ACTIVE),
+        ACTIVE(KVTableState.ACTIVE);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 
         private final Set<KVTableState> transitions;
 

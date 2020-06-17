@@ -10,7 +10,10 @@
 package io.pravega.controller.task.KeyValueTable;
 
 import io.pravega.client.tables.KeyValueTableConfiguration;
+<<<<<<< HEAD
 import io.pravega.common.Exceptions;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
@@ -18,7 +21,10 @@ import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.mocks.EventHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
+<<<<<<< HEAD
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
@@ -30,11 +36,17 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+<<<<<<< HEAD
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
 
 import io.pravega.test.common.AssertExtensions;
+=======
+import io.pravega.controller.task.EventHelper;
+import io.pravega.shared.controller.event.ControllerEvent;
+
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import lombok.Data;
 import lombok.Getter;
 
@@ -50,9 +62,15 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+<<<<<<< HEAD
 import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.*;
+=======
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import static org.mockito.Mockito.spy;
 
 public abstract class TableMetadataTasksTest {
@@ -86,9 +104,13 @@ public abstract class TableMetadataTasksTest {
         kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
                  "host", GrpcAuthHelper.getDisabledAuthHelper(),
                 requestTracker, helper));
+<<<<<<< HEAD
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
                                                             new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
                                                             this.kvtStore, executor);
+=======
+        this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks, executor), this.kvtStore, executor);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     }
 
     public abstract void setupStores() throws Exception;
@@ -128,6 +150,7 @@ public abstract class TableMetadataTasksTest {
         TableMetadataTasks kvtFailingMetaTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
                 "host", GrpcAuthHelper.getDisabledAuthHelper(),
                 requestTracker, mockHelper));
+<<<<<<< HEAD
 
         AssertExtensions.assertFutureThrows("addIndexAndSubmitTask throws exception",
                 kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime),
@@ -152,6 +175,10 @@ public abstract class TableMetadataTasksTest {
         assertEquals(Controller.DeleteKVTableStatus.Status.SUCCESS, future.get());
 
         assertFalse(kvtStore.checkTableExists(SCOPE, kvtable1).join());
+=======
+        CreateKeyValueTableStatus.Status status = kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime).get();
+        assertEquals(CreateKeyValueTableStatus.Status.FAILURE, status);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     }
 
     private CompletableFuture<Void> processEvent(TableMetadataTasksTest.WriterMock requestEventWriter) throws InterruptedException {
@@ -169,6 +196,7 @@ public abstract class TableMetadataTasksTest {
     }
 
     @Test(timeout = 30000)
+<<<<<<< HEAD
     public void testWorkflowCompletionTimeout() throws Exception {
         // Create a new KVTable
         String tableName = "kvtable2";
@@ -196,6 +224,70 @@ public abstract class TableMetadataTasksTest {
         AssertExtensions.assertFutureThrows("delete timedout",
                 kvtTasks.deleteKeyValueTable(SCOPE, tableName, null),
                 e -> Exceptions.unwrap(e) instanceof TimeoutException);
+=======
+    public void testWorkflowCompletionTimeout() {
+        /*
+        EventHelper helper = EventHelperMock.getEventHelperMock(executor, "host", ((AbstractStreamMetadataStore) kvtStorePartialMock).getHostTaskIndex());
+
+        StreamMetadataTasks streamMetadataTask = new StreamMetadataTasks(kvtStorePartialMock, bucketStore,
+                TaskStoreFactory.createZKStore(zkClient, executor),
+                SegmentHelperMock.getSegmentHelperMock(), executor, "host",
+                new GrpcAuthHelper(authEnabled, "key", 300), requestTracker, helper);
+        streamMetadataTask.setCompletionTimeoutMillis(500L);
+        StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+
+        String completion = "completion";
+        kvtStorePartialMock.createStream(SCOPE, completion, configuration, System.currentTimeMillis(), null, executor).join();
+        kvtStorePartialMock.setState(SCOPE, completion, State.ACTIVE, null, executor).join();
+
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTask, executor);
+        streamMetadataTask.setRequestEventWriter(requestEventWriter);
+        
+        StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3)).build();
+
+        AssertExtensions.assertFutureThrows("update timedout", 
+                streamMetadataTask.updateStream(SCOPE, completion, configuration2, null),
+                e -> Exceptions.unwrap(e) instanceof TimeoutException);
+
+        ControllerEvent event = requestEventWriter.eventQueue.poll();
+        assertTrue(event instanceof UpdateStreamEvent);
+        VersionedMetadata<StreamConfigurationRecord> configurationRecord = kvtStorePartialMock
+                .getConfigurationRecord(SCOPE, completion, null, executor).join();
+        assertTrue(configurationRecord.getObject().isUpdating());
+
+        Map<Long, Long> streamCut = Collections.singletonMap(0L, 0L);
+        AssertExtensions.assertFutureThrows("truncate timedout",
+                streamMetadataTask.truncateStream(SCOPE, completion, streamCut, null),
+                e -> Exceptions.unwrap(e) instanceof TimeoutException);
+
+        event = requestEventWriter.eventQueue.poll();
+        assertTrue(event instanceof TruncateStreamEvent);
+        
+        VersionedMetadata<StreamTruncationRecord> truncationRecord = kvtStorePartialMock
+                .getTruncationRecord(SCOPE, completion, null, executor).join();
+        assertTrue(truncationRecord.getObject().isUpdating());
+
+        AssertExtensions.assertFutureThrows("seal timedout",
+                streamMetadataTask.sealStream(SCOPE, completion, null),
+                e -> Exceptions.unwrap(e) instanceof TimeoutException);
+
+        event = requestEventWriter.eventQueue.poll();
+        assertTrue(event instanceof SealStreamEvent);
+        
+        VersionedMetadata<State> state = kvtStorePartialMock
+                .getVersionedState(SCOPE, completion, null, executor).join();
+        assertEquals(state.getObject(), State.SEALING);
+
+        kvtStorePartialMock.setState(SCOPE, completion, State.SEALED, null, executor).join();
+
+        AssertExtensions.assertFutureThrows("delete timedout",
+                streamMetadataTask.deleteStream(SCOPE, completion, null),
+                e -> Exceptions.unwrap(e) instanceof TimeoutException);
+
+        event = requestEventWriter.eventQueue.poll();
+        assertTrue(event instanceof DeleteStreamEvent);
+         */
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     }
 
     @Data

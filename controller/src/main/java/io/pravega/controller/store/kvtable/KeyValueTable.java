@@ -15,7 +15,10 @@ import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 
 import java.util.List;
+<<<<<<< HEAD
 import java.util.Set;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -121,6 +124,7 @@ public interface KeyValueTable {
      */
     CompletableFuture<KVTEpochRecord> getEpochRecord(int epoch);
 
+<<<<<<< HEAD
     /**
      * Returns the currently active KeyValueTable epoch.
      *
@@ -141,4 +145,6 @@ public interface KeyValueTable {
      */
     CompletableFuture<Void> delete();
 
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 }

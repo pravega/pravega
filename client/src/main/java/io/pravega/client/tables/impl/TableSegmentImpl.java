@@ -92,10 +92,14 @@ class TableSegmentImpl implements TableSegment {
     TableSegmentImpl(@NonNull Segment segment, @NonNull Controller controller, @NonNull ConnectionFactory connectionFactory,
                      @NonNull KeyValueTableClientConfiguration clientConfig, DelegationTokenProvider tokenProvider) {
 <<<<<<< HEAD
+<<<<<<< HEAD
         this.segmentName = segment.getKVTScopedName();
 =======
         this.segmentName = segment.getScopedName();
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+        this.segmentName = segment.getKVTScopedName();
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         this.segmentId = segment.getSegmentId();
         this.controller = controller;
         this.connectionFactory = connectionFactory;

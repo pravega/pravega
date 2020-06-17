@@ -22,7 +22,10 @@ import io.pravega.controller.store.stream.StoreException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+<<<<<<< HEAD
 import java.util.Set;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.IntStream;
@@ -126,8 +129,12 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
                 .thenCompose(v -> getActiveEpochRecord(true).thenApply(epochRecord -> epochRecord.getSegments()));
     }
 
+<<<<<<< HEAD
     @Override
     public CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached) {
+=======
+    private CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached) {
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         return getCurrentEpochRecordData(ignoreCached).thenApply(VersionedMetadata::getObject);
     }
 
@@ -157,12 +164,15 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
         return getConfigurationData(false).thenApply(x -> x.getObject().getKvtConfiguration());
     }
 
+<<<<<<< HEAD
     @Override
     public CompletableFuture<Set<Long>> getAllSegmentIds() {
         return getActiveEpochRecord(true)
                 .thenApply(epochRecord -> epochRecord.getSegmentIds());
     }
 
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     // region state
     abstract public CompletableFuture<String> getId();
 

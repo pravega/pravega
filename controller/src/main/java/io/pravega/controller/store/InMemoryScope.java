@@ -41,7 +41,11 @@ public class InMemoryScope implements Scope {
     private HashMap<String, Integer> streamsPositionMap;
 
     @GuardedBy("$lock")
+<<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/InMemoryScope.java
     private TreeMap<String, InMemoryKVTable> kvTablesMap;
+=======
+    private HashMap<String, InMemoryKVTable> kvTablesMap;
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/InMemoryScope.java
 
     public InMemoryScope(String scopeName) {
         this.scopeName = scopeName;
@@ -57,7 +61,11 @@ public class InMemoryScope implements Scope {
     public CompletableFuture<Void> createScope() {
         this.sortedStreamsInScope = new TreeMap<>(Integer::compare);
         this.streamsPositionMap = new HashMap<>();
+<<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/InMemoryScope.java
         this.kvTablesMap =  new TreeMap<String, InMemoryKVTable>();
+=======
+        this.kvTablesMap =  new HashMap<String, InMemoryKVTable>();
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/InMemoryScope.java
         return CompletableFuture.completedFuture(null);
     }
 
@@ -137,10 +145,13 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(null);
     }
 
+<<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/InMemoryScope.java
     public Boolean checkTableExists(String kvt) {
         return kvTablesMap.containsKey(kvt);
     }
 
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/InMemoryScope.java
     public Optional<InMemoryKVTable> getKVTableFromScope(String kvt) throws StoreException {
         if (kvTablesMap.containsKey(kvt)) {
             return Optional.of(kvTablesMap.get(kvt));
@@ -150,6 +161,7 @@ public class InMemoryScope implements Scope {
 
     @Override
     public void refresh() {
+<<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/InMemoryScope.java
     }
 
     @Override
@@ -173,6 +185,8 @@ public class InMemoryScope implements Scope {
     public CompletableFuture<Void> removeKVTableFromScope(String kvtName) {
         kvTablesMap.remove(kvtName);
         return CompletableFuture.completedFuture(null);
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/InMemoryScope.java
     }
 
 }

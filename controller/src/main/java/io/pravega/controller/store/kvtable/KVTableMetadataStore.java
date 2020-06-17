@@ -13,10 +13,15 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
+<<<<<<< HEAD
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
 import java.util.Set;
+=======
+
+import java.util.List;
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -39,8 +44,11 @@ public interface KVTableMetadataStore extends AutoCloseable {
 
     CompletableFuture<Boolean> checkScopeExists(String scope);
 
+<<<<<<< HEAD
     CompletableFuture<Boolean> checkTableExists(String scope, String kvt);
 
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     /**
      * Creates a new stream with the given name and configuration.
      *
@@ -171,6 +179,7 @@ public interface KVTableMetadataStore extends AutoCloseable {
                                                             final Executor executor);
 
     /**
+<<<<<<< HEAD
      * List existing KeyValueTables in scopes with pagination.
      * This api continues listing KeyValueTables from the supplied continuation token
      * and returns a count of limited list of KeyValueTables and a new continuation token.
@@ -185,12 +194,15 @@ public interface KVTableMetadataStore extends AutoCloseable {
                                                              final int limit, final Executor executor);
 
     /**
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
      * Returns a Scope object from scope identifier.
      *
      * @param scopeName scope identifier is scopeName.
      * @return Scope object.
      */
     Scope newScope(final String scopeName);
+<<<<<<< HEAD
 
     /**
      * Api to get all segments in the stream.
@@ -219,4 +231,6 @@ public interface KVTableMetadataStore extends AutoCloseable {
                                          final String kvtName,
                                          final KVTOperationContext context,
                                          final Executor executor);
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 }

@@ -1518,17 +1518,23 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void testWorkflowCompletionTimeout() {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         EventHelper helper = EventHelperMock.getEventHelperMock(executor, "host", ((AbstractStreamMetadataStore) streamStorePartialMock).getHostTaskIndex());
 
         StreamMetadataTasks streamMetadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore,
                 TaskStoreFactory.createZKStore(zkClient, executor),
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host",
                 new GrpcAuthHelper(authEnabled, "key", 300), requestTracker, helper);
+<<<<<<< HEAD
 =======
         StreamMetadataTasks streamMetadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore, TaskStoreFactory.createZKStore(zkClient, executor),
                 SegmentHelperMock.getSegmentHelperMock(), executor, executor, "host",
                 new GrpcAuthHelper(authEnabled, "key", 300), requestTracker);
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         streamMetadataTask.setCompletionTimeoutMillis(500L);
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
 

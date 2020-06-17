@@ -786,24 +786,6 @@ public class MockController implements Controller {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> updateKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration newConfig) {
-        KeyValueTableInfo kvt = new KeyValueTableInfo(scope, kvtName);
-        MockScope s = createdScopes.get(scope);
-        if (s == null) {
-            return Futures.failedFuture(new IllegalArgumentException("Scope does not exist."));
-        }
-
-        KeyValueTableConfiguration existingConfig = s.keyValueTables.get(kvt);
-        if (existingConfig == null || existingConfig.getPartitionCount() != newConfig.getPartitionCount()) {
-            return CompletableFuture.completedFuture(false);
-        }
-
-        s.keyValueTables.put(kvt, newConfig);
-        return CompletableFuture.completedFuture(true);
-    }
-
-    @Override
-    @Synchronized
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
 <<<<<<< HEAD
         throw new UnsupportedOperationException("getCurrentSegmentsForKeyValueTable not implemented.");

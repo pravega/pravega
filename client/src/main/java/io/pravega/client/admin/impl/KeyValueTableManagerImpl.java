@@ -110,6 +110,7 @@ public class KeyValueTableManagerImpl implements KeyValueTableManager {
 
     @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     public boolean updateKeyValueTable(@NonNull String scopeName, @NonNull String keyValueTableName, @NonNull KeyValueTableConfiguration config) {
         Exceptions.checkNotClosed(this.closed.get(), this);
@@ -122,6 +123,8 @@ public class KeyValueTableManagerImpl implements KeyValueTableManager {
 
     @Override
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     public boolean deleteKeyValueTable(@NonNull String scopeName, @NonNull String keyValueTableName) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         NameUtils.validateUserKeyValueTableName(keyValueTableName);

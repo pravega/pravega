@@ -10,7 +10,10 @@
 package io.pravega.controller.store.kvtable;
 
 import com.google.common.annotations.VisibleForTesting;
+<<<<<<< HEAD
 import com.google.common.base.Preconditions;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.PravegaTablesScope;
@@ -60,6 +63,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     }
 
     @Override
+<<<<<<< HEAD
     public CompletableFuture<Void> deleteFromScope(final String scope,
                                                        final String name,
                                                        final KVTOperationContext context,
@@ -96,6 +100,8 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     }
 
     @Override
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     public PravegaTablesScope newScope(final String scopeName) {
         return new PravegaTablesScope(scopeName, storeHelper);
     }
@@ -107,11 +113,14 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
                 false), executor);
     }
 
+<<<<<<< HEAD
     @Override
     public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt) {
         return Futures.completeOn(((PravegaTablesScope) getScope(scopeName)).checkKeyValueTableExistsInScope(kvt), executor);
     }
 
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     public CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                          final String kvtName,
                                                          final byte[] id,

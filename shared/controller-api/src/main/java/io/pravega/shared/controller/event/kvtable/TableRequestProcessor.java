@@ -16,13 +16,18 @@ import java.util.concurrent.CompletableFuture;
 public interface TableRequestProcessor extends RequestProcessor {
 
     /**
+<<<<<<< HEAD
      * Method to create a KeyValueTable.
+=======
+     * Method to create a KeyValueTable event.
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
      *
      * @param createKVTEvent create event
      * @return CompletableFuture that caller can use to synchronize.
      */
     CompletableFuture<Void> processCreateKVTable(CreateTableEvent createKVTEvent);
 
+<<<<<<< HEAD
     /**
      * Method to delete a KeyValueTable.
      *
@@ -31,4 +36,6 @@ public interface TableRequestProcessor extends RequestProcessor {
      */
     CompletableFuture<Void> processDeleteKVTable(DeleteTableEvent deleteEvent);
 
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 }

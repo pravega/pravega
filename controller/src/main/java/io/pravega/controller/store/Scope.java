@@ -67,6 +67,7 @@ public interface Scope {
      */
     void refresh();
 
+<<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/Scope.java
     /**
      * A paginated api on the scope to get requested number of KeyValueTables from under the scope
      * starting from the continuation token.
@@ -79,6 +80,8 @@ public interface Scope {
     CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final int limit, final String continuationToken,
                                                               final Executor executor);
 
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/Scope.java
     default byte[] newId() {
         byte[] b = new byte[2 * Long.BYTES];
         BitConverter.writeUUID(b, 0, UUID.randomUUID());

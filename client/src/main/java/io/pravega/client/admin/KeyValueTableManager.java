@@ -53,6 +53,7 @@ public interface KeyValueTableManager extends AutoCloseable {
      */
     boolean createKeyValueTable(String scopeName, String keyValueTableName, KeyValueTableConfiguration config);
 <<<<<<< HEAD
+<<<<<<< HEAD
     
 =======
 
@@ -69,6 +70,9 @@ public interface KeyValueTableManager extends AutoCloseable {
     boolean updateKeyValueTable(String scopeName, String keyValueTableName, KeyValueTableConfiguration config);
 
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
+=======
+    
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     /**
      * Deletes the provided Key-Value Table. No more updates, removals or queries may be performed.
      * Resources used by the Key-Value Table will be freed.

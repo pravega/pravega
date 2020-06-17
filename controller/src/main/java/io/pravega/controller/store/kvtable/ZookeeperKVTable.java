@@ -245,11 +245,14 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     }
 
     @Override
+<<<<<<< HEAD
     public CompletableFuture<Void> delete() {
         return zkStoreHelper.deleteTree(kvtablePath);
     }
 
     @Override
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     CompletableFuture<Void> createStateIfAbsent(KVTStateRecord state) {
         return Futures.toVoid(zkStoreHelper.createZNodeIfNotExist(statePath, state.toBytes()));
     }

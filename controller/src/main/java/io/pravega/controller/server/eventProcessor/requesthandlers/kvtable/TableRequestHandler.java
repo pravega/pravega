@@ -13,7 +13,10 @@ package io.pravega.controller.server.eventProcessor.requesthandlers.kvtable;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
+<<<<<<< HEAD
 import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -23,6 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 public class TableRequestHandler extends AbstractTableRequestProcessor<ControllerEvent> {
 
     private final CreateTableTask createTask;
+<<<<<<< HEAD
     private final DeleteTableTask deleteTask;
 
     public TableRequestHandler(CreateTableTask createTask, DeleteTableTask deleteTask,
@@ -31,6 +35,12 @@ public class TableRequestHandler extends AbstractTableRequestProcessor<Controlle
         super(store, executor);
         this.createTask = createTask;
         this.deleteTask = deleteTask;
+=======
+
+    public TableRequestHandler(CreateTableTask createTask, KVTableMetadataStore store, ScheduledExecutorService executor) {
+        super(store, executor);
+        this.createTask = createTask;
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     }
 
     @Override
@@ -39,6 +49,7 @@ public class TableRequestHandler extends AbstractTableRequestProcessor<Controlle
                 createKVTEvent.getRequestId(), createKVTEvent.getScopeName(), createKVTEvent.getKvtName());
         return createTask.execute(createKVTEvent);
     }
+<<<<<<< HEAD
 
     @Override
     public CompletableFuture<Void> processDeleteKVTable(DeleteTableEvent deleteKVTEvent) {
@@ -46,4 +57,6 @@ public class TableRequestHandler extends AbstractTableRequestProcessor<Controlle
                 deleteKVTEvent.getRequestId(), deleteKVTEvent.getScope(), deleteKVTEvent.getKvtName());
         return deleteTask.execute(deleteKVTEvent);
     }
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
 }

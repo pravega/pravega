@@ -1,11 +1,20 @@
 /**
  * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+<<<<<<< HEAD
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+=======
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers.kvtable;
 
@@ -31,7 +40,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
+<<<<<<< HEAD
  * Request handler for executing a create operation for a KeyValueTable.
+=======
+ * Request handler for performing scale operations received from requeststream.
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
  */
 @Slf4j
 public class CreateTableTask implements TableTask<CreateTableEvent> {
@@ -65,7 +78,10 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
         return RetryHelper.withRetriesAsync(() -> getKeyValueTable(scope, kvt)
                 .thenCompose(table -> table.getId()).thenCompose(id -> {
             if (!id.equals(kvTableId)) {
+<<<<<<< HEAD
                 log.debug("Skipped processing create event for KeyValueTable {}/{} with Id:{} as UUIDs did not match.", scope, kvt, id);
+=======
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
                 return CompletableFuture.completedFuture(null);
             } else {
                 return this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, null, executor)
@@ -83,6 +99,10 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                                 kvtMetadataTasks.createNewSegments(scope, kvt, newSegments, requestId)
                                         .thenCompose(y -> {
                                             final KVTOperationContext context = kvtMetadataStore.createContext(scope, kvt);
+<<<<<<< HEAD
+=======
+                                            log.info("Context Created");
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
                                             kvtMetadataStore.getVersionedState(scope, kvt, context, executor)
                                                     .thenCompose(state -> {
                                                         if (state.getObject().equals(KVTableState.CREATING)) {

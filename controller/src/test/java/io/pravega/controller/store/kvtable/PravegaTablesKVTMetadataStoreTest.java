@@ -58,8 +58,13 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
     }
 
     @Override
+<<<<<<< HEAD
     Controller.CreateScopeStatus createScope(String scopeName) throws Exception {
         return streamStore.createScope(scopeName).get();
+=======
+    Controller.CreateScopeStatus createScope() throws Exception {
+        return streamStore.createScope(scope).get();
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     }
 
     @Test
@@ -67,7 +72,11 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
         // Test operation when stream is not in active state
         streamStore.createScope(scope).get();
         byte[] newUUID = store.newScope(scope).newId();
+<<<<<<< HEAD
         store.createEntryForKVTable(scope, kvtable1, newUUID, executor).get();
+=======
+        store.createEntryForKVTable(scope, kvtable1, newUUID, executor);
+>>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
         store.createKeyValueTable(scope, kvtable1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, kvtable1, KVTableState.CREATING, null, executor).get();
 
