@@ -19,9 +19,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -534,6 +532,24 @@ public class FuturesTests {
         AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected completion for failed future whose handler also threw an exception.",
                 () -> f3,
+                ex -> ex instanceof IntentionalException);
+    }
+
+    @Test
+    public void testCompleteOn() {
+        val successfulFuture = new CompletableFuture<Integer>();
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(3, "test-competeon");
+
+        CompletableFuture<Integer> result = Futures.completeOn(successfulFuture,executor);
+        successfulFuture.complete(1);
+        Assert.assertEquals("Expected completion value for successful future.", Integer.valueOf(1), result.join());
+
+        val failedFuture = new CompletableFuture<Integer>();
+        CompletableFuture<Integer> failedResult = Futures.completeOn(failedFuture, executor);
+        failedFuture.completeExceptionally(new IntentionalException());
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Failed future throws exception.",
+                () -> failedResult,
                 ex -> ex instanceof IntentionalException);
     }
 
