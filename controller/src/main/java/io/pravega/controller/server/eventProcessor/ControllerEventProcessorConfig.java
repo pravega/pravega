@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -122,4 +122,11 @@ public interface ControllerEventProcessorConfig {
      * @return Checkpoint configuration for request stream event processors.
      */
     CheckpointConfig getRequestStreamCheckpointConfig();
+    
+    /**
+     * Fetches rebalance interval set for event processors.
+     *
+     * @return period in milliseconds.
+     */
+    long getRebalanceIntervalMillis();
 }

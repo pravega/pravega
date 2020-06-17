@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,6 @@ import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.StreamDataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -91,7 +90,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private ConnectionFactory connectionFactory;
     private StreamMetadataStore streamStore;
-    private StreamDataStore streamDataStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private BucketManager retentionService;
@@ -114,12 +112,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private Cluster cluster = null;
 
-    private StreamMetrics streamMetrics;
-    private TransactionMetrics transactionMetrics;
     private final Optional<SegmentHelper> segmentHelperRef;
     private final Optional<ConnectionFactory> connectionFactoryRef;
     private final Optional<StreamMetadataStore> streamMetadataStoreRef;
-    private final Optional<StreamDataStore> streamDataStoreRef;
     
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
@@ -137,12 +132,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
     @VisibleForTesting
     ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient, SegmentHelper segmentHelper,
                              ConnectionFactory connectionFactory, StreamMetadataStore streamStore) {
-        this(serviceConfig, storeClient, segmentHelper, connectionFactory, streamStore, null);
-    }
-
-    @VisibleForTesting
-    ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient, SegmentHelper segmentHelper,
-                             ConnectionFactory connectionFactory, StreamMetadataStore streamStore, StreamDataStore streamDataStore) {
         this.serviceConfig = serviceConfig;
         this.storeClient = storeClient;
         this.objectId = "ControllerServiceStarter";
@@ -150,7 +139,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
         this.segmentHelperRef = Optional.ofNullable(segmentHelper);
         this.connectionFactoryRef = Optional.ofNullable(connectionFactory);
         this.streamMetadataStoreRef = Optional.ofNullable(streamStore);
-        this.streamDataStoreRef = Optional.ofNullable(streamDataStore);
         this.storeClientFailureFuture = new CompletableFuture<>();
     }
 
@@ -196,6 +184,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
             log.info("Creating the checkpoint store");
             checkpointStore = CheckpointStoreFactory.create(storeClient);
 
+            // Initialize Stream and Transaction metrics.
+            StreamMetrics.initialize();
+            TransactionMetrics.initialize();
+
             // On each controller process restart, we use a fresh hostId,
             // which is a combination of hostname and random GUID.
             String hostName = getHostName();
@@ -236,7 +228,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Creating the stream store");
             streamStore = streamMetadataStoreRef.orElse(StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
-            streamDataStore = streamDataStoreRef.orElse(StreamStoreFactory.createDataStore(streamStore, storeClient, segmentHelper, authHelper, controllerExecutor));
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
@@ -281,10 +272,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
-            streamMetrics = new StreamMetrics();
-            transactionMetrics = new TransactionMetrics();
-            controllerService = new ControllerService(streamDataStore, streamStore, bucketStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, streamMetrics, transactionMetrics);
+            controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster);
 
             // Setup event processors.
             setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
@@ -474,13 +463,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamStore.close();
 
             // Close metrics.
-            if (streamMetrics != null) {
-                streamMetrics.close();
-            }
-
-            if (transactionMetrics != null) {
-                transactionMetrics.close();
-            }
+            StreamMetrics.reset();
+            TransactionMetrics.reset();
 
             log.info("Finishing controller service shutDown");
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);

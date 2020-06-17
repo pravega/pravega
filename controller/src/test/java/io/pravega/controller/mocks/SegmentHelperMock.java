@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -250,6 +250,8 @@ public class SegmentHelperMock {
             final WireCommandType type = WireCommandType.READ_TABLE;
             String tableName = x.getArgument(0);
             List<TableKey<byte[]>> entries = x.getArgument(1);
+            TableKey<byte[]> nonExistentKey = new TableKeyImpl<>(null, KeyVersion.NOT_EXISTS);
+            TableEntry<byte[], byte[]> nonExistentEntry = new TableEntryImpl<>(nonExistentKey, null);
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (lock) {
                     Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableName);
@@ -263,7 +265,7 @@ public class SegmentHelperMock {
                             ByteBuffer key = ByteBuffer.wrap(entry.getKey());
                             TableEntry<byte[], byte[]> existingEntry = table.get(key);
                             if (existingEntry == null) {
-                                throw new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist);
+                                resultList.add(nonExistentEntry);
                             } else if (existingEntry.getKey().getVersion().equals(entry.getVersion())
                                     || entry.getVersion() == null || entry.getVersion().equals(KeyVersion.NOT_EXISTS)) {
                                 resultList.add(table.get(key));

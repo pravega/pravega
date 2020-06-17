@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -211,9 +211,9 @@ public class ConnectionPoolImpl implements ConnectionPool {
             connectionComplete.completeExceptionally(new ConnectionFailedException(e));
         }
         return connectionComplete.thenCompose(v ->  {
-            CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //to track channel registration.
-            handler.completeWhenRegistered(channelRegisteredFuture);
-            return channelRegisteredFuture;
+            CompletableFuture<Void> channelReadyFuture = new CompletableFuture<>(); //to track channel registration.
+            handler.completeWhenReady(channelReadyFuture);
+            return channelReadyFuture;
         });
     }
 

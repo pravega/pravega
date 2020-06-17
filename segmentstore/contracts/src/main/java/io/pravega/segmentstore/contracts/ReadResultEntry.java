@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.contracts;
 
+import io.pravega.common.util.BufferView;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
@@ -46,10 +47,9 @@ public interface ReadResultEntry {
      * calling this method will not trigger any actions (such as data retrieval). Use the requestContent() method to do
      * that.
      *
-     * @return Future that will contain Read Result Entry contents when completed
-     *
+     * @return Future that will contain a {@link BufferView} representing the contents when completed.
      */
-    CompletableFuture<ReadResultEntryContents> getContent();
+    CompletableFuture<BufferView> getContent();
 
     /**
      * Initiates an asynchronous action to fetch the contents of this ReadResultEntry, if necessary.

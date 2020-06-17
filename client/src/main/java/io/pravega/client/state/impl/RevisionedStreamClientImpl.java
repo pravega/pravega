@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,8 +36,11 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
+
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.segment.impl.SegmentAttribute.NULL_VALUE;
@@ -46,6 +49,10 @@ import static io.pravega.client.segment.impl.SegmentAttribute.RevisionStreamClie
 @Slf4j
 public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> {
 
+    private static final long READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(30);
+    @Getter
+    @VisibleForTesting
+    private final long readTimeout;
     private final Segment segment;
     @GuardedBy("lock")
     private final EventSegmentReader in;
@@ -54,6 +61,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @GuardedBy("lock")
     private final ConditionalOutputStream conditional;
     @GuardedBy("lock")
+    @VisibleForTesting
+    @Getter
     private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
 
@@ -62,6 +71,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     public RevisionedStreamClientImpl(Segment segment, EventSegmentReader in, SegmentOutputStreamFactory outFactory,
                                       ConditionalOutputStream conditional, SegmentMetadataClient meta,
                                       Serializer<T> serializer, EventWriterConfig config, DelegationTokenProvider tokenProvider ) {
+        this.readTimeout = READ_TIMEOUT_MS;
         this.segment = segment;
         this.in = in;
         this.conditional = conditional;
@@ -163,7 +173,13 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 log.trace("Iterator reading entry at {}", offset.get());
                 in.setOffset(offset.get());
                 try {
-                    data = in.read();
+                    do {
+                        data = in.read(getReadTimeout());
+                        if (data == null) {
+                            log.warn("Timeout while attempting to read offset:{} on segment:{} where the endOffset is {}", offset, segment, endOffset);
+                            in.setOffset(offset.get(), true);
+                        }
+                    } while (data == null);
                 } catch (EndOfSegmentException e) {
                     throw new IllegalStateException("SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
                 } catch (SegmentTruncatedException e) {

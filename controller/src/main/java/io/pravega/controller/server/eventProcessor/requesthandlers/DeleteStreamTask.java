@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,8 +99,11 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
                 .thenComposeAsync(allSegments -> 
                     streamMetadataTasks.notifyDeleteSegments(scope, stream, allSegments, streamMetadataTasks.retrieveDelegationToken(), requestId)),
                             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                            .thenComposeAsync(x -> bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, 
-                                    scope, stream, executor), executor)
+                            .thenComposeAsync(x -> CompletableFuture.allOf(
+                                    bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, 
+                                    scope, stream, executor),
+                                    bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.WatermarkingService,
+                                            scope, stream, executor)), executor)
                             .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,
                                     executor), executor);
     }

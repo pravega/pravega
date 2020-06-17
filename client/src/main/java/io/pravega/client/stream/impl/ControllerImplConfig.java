@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,6 +11,8 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.ClientConfig;
 import java.io.Serializable;
+import java.time.Duration;
+
 import lombok.Builder;
 import lombok.Data;
 
@@ -22,6 +24,7 @@ public class ControllerImplConfig implements Serializable {
     private final int maxBackoffMillis;
     private final int retryAttempts;
     private final int backoffMultiple;
+    private final long timeoutMillis;
     private final ClientConfig clientConfig;
 
     public static final class ControllerImplConfigBuilder {
@@ -29,6 +32,7 @@ public class ControllerImplConfig implements Serializable {
         private int maxBackoffMillis = 20000;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
+        private long timeoutMillis = Duration.ofMinutes(5).toMillis();
         private ClientConfig config = ClientConfig.builder().controllerURI(null)
                                                   .credentials(null).trustStore("").build();
     }

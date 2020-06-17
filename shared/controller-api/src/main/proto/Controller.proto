@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,9 +23,8 @@ service ControllerService {
     rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
     rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
+    rpc getEpochSegments(GetEpochSegmentsRequest) returns (SegmentRanges);
     rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
-    rpc getEvent(GetEventRequest) returns (GetEventResponse);
-    rpc createEvent(CreateEventRequest) returns (CreateEventResponse);
     /* Deprecated RPC: https://github.com/pravega/pravega/issues/3760 */
     rpc getSegmentsImmediatlyFollowing(SegmentId) returns(SuccessorResponse);
     rpc getSegmentsImmediatelyFollowing(SegmentId) returns(SuccessorResponse);
@@ -92,16 +91,6 @@ message CreateScopeStatus {
         FAILURE = 1;
         SCOPE_EXISTS = 2;
         INVALID_SCOPE_NAME = 3;
-    }
-    Status status = 1;
-}
-
-message CreateEventStatus {
-    enum Status {
-        SUCCESS = 0;
-        FAILURE = 1;
-        EVENT_EXISTS = 2;
-        INVALID_EVENT_NAME = 3;
     }
     Status status = 1;
 }
@@ -337,6 +326,11 @@ message GetSegmentsRequest {
     int64 timestamp = 2;
 }
 
+message GetEpochSegmentsRequest {
+    StreamInfo streamInfo = 1;
+    int32 epoch = 2;
+}
+
 message SegmentValidityResponse {
     bool response = 1;
 }
@@ -380,40 +374,4 @@ message TimestampResponse {
     Status result = 1;
 }
 
-message CreateEventRequest {
-    string routingKey = 1;
-    string scopeName = 2;
-    string streamName = 3;
-    string message = 4;
-}
 
-message CreateEventResponse {
-    enum Status {
-        SUCCESS = 0;
-        FAILURE = 1;
-        EVENT_EXISTS = 2;
-        INVALID_EVENT_NAME = 3;
-    }
-    Status status = 1;
-}
-
-message GetEventRequest {
-    string routingKey = 1;
-    string scopeName = 2;
-    string streamName = 3;
-    int64 segmentNumber = 4;
-}
-
-message GetEventResponse {
-    enum Status {
-        SUCCESS = 0;
-        FAILURE = 1;
-        EVENT_EXISTS = 2;
-        INVALID_EVENT_NAME = 3;
-    }
-    Status status = 1;
-}
-
-message DataResponse {
-    string message = 1;
-}

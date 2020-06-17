@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -90,7 +90,7 @@ public class AutoScaleTask {
     }
 
     private CompletableFuture<Void> processScaleUp(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
-        String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
+        String qualifiedName = NameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
         log.info(request.getRequestId(), "Scale up request received for stream segment {}", qualifiedName);
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
@@ -116,7 +116,7 @@ public class AutoScaleTask {
     }
 
     private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
-        String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
+        String qualifiedName = NameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
         log.info(request.getRequestId(), "Scale down request received for stream segment {}", qualifiedName);
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
@@ -170,7 +170,7 @@ public class AutoScaleTask {
                 .thenCompose(toMerge -> {
                     if (toMerge != null && toMerge.size() > 1) {
                         toMerge.forEach(x -> {
-                            String segmentName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), x.segmentId());
+                            String segmentName = NameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), x.segmentId());
                             log.debug(request.getRequestId(), "Merging stream segment {} ", segmentName);
                         });
 

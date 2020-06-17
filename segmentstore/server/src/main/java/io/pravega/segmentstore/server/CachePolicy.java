@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,11 +22,11 @@ public class CachePolicy {
     /**
      * Unless specified via the constructor, defines the default value for {@link #getMaxUtilization()}.
      */
-    public static final double DEFAULT_TARGET_UTILIZATION = 0.85;
+    public static final double DEFAULT_TARGET_UTILIZATION = 0.75;
     /**
      * Unless specified via the constructor, defines the default value for {@link #getMaxUtilization()}.
      */
-    public static final double DEFAULT_MAX_UTILIZATION = 0.98;
+    public static final double DEFAULT_MAX_UTILIZATION = 0.9;
     /**
      * The maximum size of the cache.
      */
@@ -90,7 +90,7 @@ public class CachePolicy {
     public CachePolicy(long maxSize, double targetUtilization, double maxUtilization, Duration maxTime, Duration generationDuration) {
         Preconditions.checkArgument(maxSize > 0, "maxSize must be a positive integer");
         Preconditions.checkArgument(targetUtilization > 0 && targetUtilization <= 1.0,
-                "maxUtilization must be a number in the range (0.0, 1.0].");
+                "targetUtilization must be a number in the range (0.0, 1.0].");
         Preconditions.checkArgument(maxUtilization >= targetUtilization && maxUtilization <= 1.0,
                 "maxUtilization must be a number in the range (0.0, 1.0], at least equal to targetUtilization(%s).", targetUtilization);
         this.maxSize = maxSize;

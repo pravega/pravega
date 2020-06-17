@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                         if (client == null || client.isClosed()) {
                             client = new RawClient(controller, connectionFactory, segmentId);
                             long requestId = client.getFlow().getNextSequenceNumber();
-                            log.debug("Setting up append on segment: {}", segmentId);
+                            log.debug("Setting up appends on segment {} for ConditionalOutputStream.", segmentId);
 
                             CompletableFuture<Reply> reply = tokenProvider.retrieveToken().thenCompose(token -> {
                                 SetupAppend setup = new SetupAppend(requestId, writerId,

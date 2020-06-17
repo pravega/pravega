@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,8 +9,10 @@
  */
 package io.pravega.controller.metrics;
 
+import com.google.common.base.Preconditions;
 import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.shared.MetricsNames.CREATE_STREAM;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM_FAILED;
@@ -38,13 +40,42 @@ import static io.pravega.shared.MetricsTags.streamTags;
 /**
  * Class to encapsulate the logic to report Controller service metrics for Streams.
  */
-public final class StreamMetrics extends AbstractControllerMetrics implements AutoCloseable {
+public final class StreamMetrics extends AbstractControllerMetrics {
 
-    private final OpStatsLogger createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
-    private final OpStatsLogger deleteStreamLatency = STATS_LOGGER.createStats(DELETE_STREAM_LATENCY);
-    private final OpStatsLogger sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
-    private final OpStatsLogger updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
-    private final OpStatsLogger truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
+    private static final AtomicReference<StreamMetrics> INSTANCE = new AtomicReference<>();
+
+    private final OpStatsLogger createStreamLatency;
+    private final OpStatsLogger deleteStreamLatency;
+    private final OpStatsLogger sealStreamLatency;
+    private final OpStatsLogger updateStreamLatency;
+    private final OpStatsLogger truncateStreamLatency;
+
+    private StreamMetrics() {
+        createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
+        deleteStreamLatency = STATS_LOGGER.createStats(DELETE_STREAM_LATENCY);
+        sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
+        updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
+        truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
+    }
+
+    /**
+     * Mandatory call to initialize the singleton object.
+     */
+    public static synchronized void initialize() {
+        if (INSTANCE.get() == null) {
+            INSTANCE.set(new StreamMetrics());
+        }
+    }
+
+    /**
+     * Get the singleton {@link StreamMetrics} instance. It is mandatory to call initialize before invoking this method.
+     *
+     * @return StreamMetrics instance.
+     */
+    public static StreamMetrics getInstance() {
+        Preconditions.checkState(INSTANCE.get() != null, "You need call initialize before using this class.");
+        return INSTANCE.get();
+    }
 
     /**
      * This method increments the global and Stream-specific counters of Stream creations, initializes other
@@ -59,7 +90,6 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
         DYNAMIC_LOGGER.incCounterValue(CREATE_STREAM, 1);
         DYNAMIC_LOGGER.reportGaugeValue(OPEN_TRANSACTIONS, 0, streamTags(scope, streamName));
         DYNAMIC_LOGGER.reportGaugeValue(SEGMENTS_COUNT, minNumSegments, streamTags(scope, streamName));
-
         createStreamLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -215,12 +245,17 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
         DYNAMIC_LOGGER.reportGaugeValue(SEGMENTS_MERGES, merges, streamTags(scope, streamName));
     }
 
-    @Override
-    public void close() {
-        createStreamLatency.close();
-        deleteStreamLatency.close();
-        sealStreamLatency.close();
-        updateStreamLatency.close();
-        truncateStreamLatency.close();
+    /**
+     * Closes all the OpsStatLogger objects and cleans up the instance.
+     */
+    public static synchronized void reset() {
+        if (INSTANCE.get() != null) {
+            INSTANCE.get().createStreamLatency.close();
+            INSTANCE.get().deleteStreamLatency.close();
+            INSTANCE.get().sealStreamLatency.close();
+            INSTANCE.get().updateStreamLatency.close();
+            INSTANCE.get().truncateStreamLatency.close();
+            INSTANCE.set(null);
+        }
     }
 }

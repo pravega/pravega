@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class StorageExtraConfig {
 
-    public static final Property<Boolean> STORAGE_NO_OP_MODE = Property.named("storageNoOpMode", false);
-    public static final Property<Integer> STORAGE_WRITE_NO_OP_LATENCY = Property.named("storageWriteNoOpLatencyMillis", 20);
+    public static final Property<Boolean> STORAGE_NO_OP_MODE = Property.named("noOp.mode.enable", false, "storageNoOpMode");
+    public static final Property<Integer> STORAGE_WRITE_NO_OP_LATENCY = Property.named("noOp.write.latency.milliseconds", 20, "storageWriteNoOpLatencyMillis");
     private static final String COMPONENT_CODE = "storageextra";
 
     /**

@@ -9,7 +9,7 @@
  */
 package io.pravega.shared.metrics;
 
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import java.util.UUID;
 import org.junit.Test;
 
@@ -22,15 +22,15 @@ public class ClientMetricKeysTest {
 
     @Test
     public void testMetricKey() {
-        String[] tags = StreamSegmentNameUtils.segmentTags("scope/stream/10.#epoch.123");
+        String[] tags = NameUtils.segmentTags("scope/stream/10.#epoch.123");
         String metric = CLIENT_APPEND_LATENCY.metric(tags);
         assertEquals(CLIENT_APPEND_LATENCY.getMetricKey() + ".scope.stream.10.123", metric);
 
-        tags = StreamSegmentNameUtils.segmentTags("scope/stream/10");
+        tags = NameUtils.segmentTags("scope/stream/10");
         metric = CLIENT_APPEND_LATENCY.metric(tags);
         assertEquals(CLIENT_APPEND_LATENCY.getMetricKey() + ".scope.stream.10.0", metric);
 
-        tags = StreamSegmentNameUtils.segmentTags("stream/10");
+        tags = NameUtils.segmentTags("stream/10");
         metric = CLIENT_APPEND_LATENCY.metric(tags);
         assertEquals(CLIENT_APPEND_LATENCY.getMetricKey() + ".default.stream.10.0", metric);
     }
@@ -47,19 +47,19 @@ public class ClientMetricKeysTest {
     @Test
     public void testMetricKeyWriterId() {
         String writerId = UUID.randomUUID().toString();
-        String[] tags = StreamSegmentNameUtils.writerTags(writerId);
+        String[] tags = NameUtils.writerTags(writerId);
         String metric = CLIENT_APPEND_BLOCK_SIZE.metric(tags);
         assertEquals(CLIENT_APPEND_BLOCK_SIZE.getMetricKey() + "." + writerId, metric);
 
-        tags = StreamSegmentNameUtils.segmentTags("scope/stream/10.#epoch.123", writerId);
+        tags = NameUtils.segmentTags("scope/stream/10.#epoch.123", writerId);
         metric = CLIENT_APPEND_LATENCY.metric(tags);
         assertEquals(CLIENT_APPEND_LATENCY.getMetricKey() + ".scope.stream.10.123." + writerId, metric);
 
-        tags = StreamSegmentNameUtils.segmentTags("scope/stream/10", writerId);
+        tags = NameUtils.segmentTags("scope/stream/10", writerId);
         metric = CLIENT_APPEND_LATENCY.metric(tags);
         assertEquals(CLIENT_APPEND_LATENCY.getMetricKey() + ".scope.stream.10.0." + writerId, metric);
 
-        tags = StreamSegmentNameUtils.segmentTags("stream/10", writerId);
+        tags = NameUtils.segmentTags("stream/10", writerId);
         metric = CLIENT_APPEND_LATENCY.metric(tags);
         assertEquals(CLIENT_APPEND_LATENCY.getMetricKey() + ".default.stream.10.0." + writerId, metric);
 

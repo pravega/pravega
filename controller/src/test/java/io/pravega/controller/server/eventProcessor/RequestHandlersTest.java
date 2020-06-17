@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -55,14 +57,15 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -70,6 +73,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -80,13 +86,18 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public abstract class RequestHandlersTest {
     protected ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
@@ -108,6 +119,8 @@ public abstract class RequestHandlersTest {
     private SegmentHelper segmentHelper;
     @Before
     public void setup() throws Exception {
+        StreamMetrics.initialize();
+        TransactionMetrics.initialize();
         zkServer = new TestingServerStarter().start();
         zkServer.start();
 
@@ -142,6 +155,7 @@ public abstract class RequestHandlersTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
+
         long createTimestamp = System.currentTimeMillis();
 
         // add a host in zk
@@ -161,6 +175,8 @@ public abstract class RequestHandlersTest {
         streamStore.close();
         zkClient.close();
         zkServer.close();
+        StreamMetrics.reset();
+        TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
@@ -550,6 +566,48 @@ public abstract class RequestHandlersTest {
     }
 
     @Test
+    public void testDeleteBucketReferences() {
+        String stream = "deleteReferences";
+        createStreamInStore(stream);
+        String scopedStreamName = NameUtils.getScopedStreamName(scope, stream);
+        int watermarkingBuckets = bucketStore.getBucketCount(BucketStore.ServiceType.WatermarkingService);
+        int retentionBuckets = bucketStore.getBucketCount(BucketStore.ServiceType.RetentionService);
+        
+        bucketStore.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor).join();
+        bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope, stream, executor).join();
+        
+        // seal stream. 
+        // set state to sealing and send event to the processor
+        streamStore.setState(scope, stream, State.SEALING, null, executor).join();
+        streamStore.setState(scope, stream, State.SEALED, null, executor).join();
+
+        List<String> retentionStreams = IntStream.range(0, retentionBuckets).boxed().map(x ->
+                bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, x, executor).join())
+                                                 .flatMap(Collection::stream).collect(Collectors.toList());
+        assertTrue(retentionStreams.contains(scopedStreamName));
+        List<String> watermarkStreams = IntStream.range(0, watermarkingBuckets).boxed().map(x ->
+                bucketStore.getStreamsForBucket(BucketStore.ServiceType.WatermarkingService, x, executor).join())
+                                                 .flatMap(Collection::stream).collect(Collectors.toList());
+        assertTrue(watermarkStreams.contains(scopedStreamName));
+
+        // delete the stream
+        DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor);
+
+        long creationTime = streamStore.getCreationTime(scope, stream, null, executor).join();
+        DeleteStreamEvent firstDeleteEvent = new DeleteStreamEvent(scope, stream, 0L, creationTime);
+        deleteStreamTask.execute(firstDeleteEvent).join();
+
+        watermarkStreams = IntStream.range(0, watermarkingBuckets).boxed().map(x ->
+                bucketStore.getStreamsForBucket(BucketStore.ServiceType.WatermarkingService, x, executor).join())
+                                                 .flatMap(Collection::stream).collect(Collectors.toList());
+        assertFalse(watermarkStreams.contains(scopedStreamName));
+        retentionStreams = IntStream.range(0, retentionBuckets).boxed().map(x ->
+                bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, x, executor).join())
+                                                 .flatMap(Collection::stream).collect(Collectors.toList());
+        assertFalse(retentionStreams.contains(scopedStreamName));
+    }
+
+    @Test
     public void testDeleteStreamReplay() {
         String stream = "delete";
         createStreamInStore(stream);
@@ -622,7 +680,7 @@ public abstract class RequestHandlersTest {
         ScaleOpEvent scaleEvent = new ScaleOpEvent(fairness, fairness, Collections.singletonList(0L), 
                 Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), 
                 false, System.currentTimeMillis(), 0L);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent),
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent, () -> false),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
         // verify that scale was started
         assertEquals(State.SCALING, streamStore.getState(fairness, fairness, true, null, executor).join());
@@ -635,16 +693,16 @@ public abstract class RequestHandlersTest {
                 .when(segmentHelper).sealSegment(anyString(), anyString(), anyLong(), anyString(), anyLong());
         
         // 5. process again. it should succeed while ignoring waiting processor
-        streamRequestHandler.process(scaleEvent).join();
+        streamRequestHandler.process(scaleEvent, () -> false).join();
         EpochRecord activeEpoch = streamStore.getActiveEpoch(fairness, fairness, null, true, executor).join();
         assertEquals(1, activeEpoch.getEpoch());
         assertEquals(State.ACTIVE, streamStore.getState(fairness, fairness, true, null, executor).join());
         
         // 6. run a new scale. it should fail because of waiting processor.
-        ScaleOpEvent scaleEvent2 = new ScaleOpEvent(fairness, fairness, Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(1, 1)),
+        ScaleOpEvent scaleEvent2 = new ScaleOpEvent(fairness, fairness, Collections.singletonList(NameUtils.computeSegmentId(1, 1)),
                 Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0)),
                 false, System.currentTimeMillis(), 0L);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent2),
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent2, () -> false),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
     }
@@ -675,7 +733,7 @@ public abstract class RequestHandlersTest {
         assertEquals(State.UPDATING, streamStore.getState(fairness, fairness, true, null, executor).join());
         
         UpdateStreamEvent event = new UpdateStreamEvent(fairness, fairness, 0L);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event),
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         verify(segmentHelper, atLeastOnce()).updatePolicy(anyString(), anyString(), any(), anyLong(), anyString(), anyLong());
@@ -688,12 +746,12 @@ public abstract class RequestHandlersTest {
                 .when(segmentHelper).updatePolicy(anyString(), anyString(), any(), anyLong(), anyString(), anyLong());
         
         // 5. process again. it should succeed while ignoring waiting processor
-        streamRequestHandler.process(event).join();
+        streamRequestHandler.process(event, () -> false).join();
         assertEquals(State.ACTIVE, streamStore.getState(fairness, fairness, true, null, executor).join());
         
         // 6. run a new update. it should fail because of waiting processor and our state does not allow us to ignore waiting processor
         UpdateStreamEvent event2 = new UpdateStreamEvent(fairness, fairness, 0L);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event2),
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event2, () -> false),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
     }
@@ -723,7 +781,7 @@ public abstract class RequestHandlersTest {
         assertEquals(State.TRUNCATING, streamStore.getState(fairness, fairness, true, null, executor).join());
         
         TruncateStreamEvent event = new TruncateStreamEvent(fairness, fairness, 0L);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event),
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         verify(segmentHelper, atLeastOnce()).truncateSegment(anyString(), anyString(), anyLong(), anyLong(), anyString(), anyLong());
@@ -736,12 +794,12 @@ public abstract class RequestHandlersTest {
                 .when(segmentHelper).truncateSegment(anyString(), anyString(), anyLong(), anyLong(), anyString(), anyLong());
         
         // 5. process again. it should succeed while ignoring waiting processor
-        streamRequestHandler.process(event).join();
+        streamRequestHandler.process(event, () -> false).join();
         assertEquals(State.ACTIVE, streamStore.getState(fairness, fairness, true, null, executor).join());
         
         // 6. run a new update. it should fail because of waiting processor.
         TruncateStreamEvent event2 = new TruncateStreamEvent(fairness, fairness, 0L);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event2),
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event2, () -> false),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
     }
@@ -769,7 +827,7 @@ public abstract class RequestHandlersTest {
         assertEquals(State.COMMITTING_TXN, streamStore.getState(fairness, fairness, true, null, executor).join());
         
         CommitEvent event = new CommitEvent(fairness, fairness, 0);
-        AssertExtensions.assertFutureThrows("", requestHandler.process(event),
+        AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         verify(segmentHelper, atLeastOnce()).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), anyString());
@@ -782,12 +840,12 @@ public abstract class RequestHandlersTest {
                 .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), anyString());
         
         // 5. process again. it should succeed while ignoring waiting processor
-        requestHandler.process(event).join();
+        requestHandler.process(event, () -> false).join();
         assertEquals(State.ACTIVE, streamStore.getState(fairness, fairness, true, null, executor).join());
         
         // 6. run a new update. it should fail because of waiting processor.
         CommitEvent event2 = new CommitEvent(fairness, fairness, 0);
-        AssertExtensions.assertFutureThrows("", requestHandler.process(event2),
+        AssertExtensions.assertFutureThrows("", requestHandler.process(event2, () -> false),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
     }
@@ -816,7 +874,7 @@ public abstract class RequestHandlersTest {
         assertEquals(State.SEALING, streamStore.getState(fairness, fairness, true, null, executor).join());
 
         SealStreamEvent event = new SealStreamEvent(fairness, fairness, 0L);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event),
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         verify(segmentHelper, atLeastOnce())
@@ -830,12 +888,12 @@ public abstract class RequestHandlersTest {
                 .when(segmentHelper).sealSegment(anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         // 5. process again. it should succeed while ignoring waiting processor
-        streamRequestHandler.process(event).join();
+        streamRequestHandler.process(event, () -> false).join();
         assertEquals(State.SEALED, streamStore.getState(fairness, fairness, true, null, executor).join());
 
         // 6. run a new update. it should fail because of waiting processor.
         SealStreamEvent event2 = new SealStreamEvent(fairness, fairness, 0L);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event2),
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event2, () -> false),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
     }
@@ -865,7 +923,7 @@ public abstract class RequestHandlersTest {
         assertEquals(State.SEALED, streamStore.getState(fairness, fairness, true, null, executor).join());
 
         DeleteStreamEvent event = new DeleteStreamEvent(fairness, fairness, 0L, createTimestamp);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event),
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         verify(segmentHelper, atLeastOnce())
@@ -879,7 +937,7 @@ public abstract class RequestHandlersTest {
                 .when(segmentHelper).deleteSegment(anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         // 5. process again. it should succeed while ignoring waiting processor
-        streamRequestHandler.process(event).join();
+        streamRequestHandler.process(event, () -> false).join();
         AssertExtensions.assertFutureThrows("", streamStore.getState(fairness, fairness, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
     }

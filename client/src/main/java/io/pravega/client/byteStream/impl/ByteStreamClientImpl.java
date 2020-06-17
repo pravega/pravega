@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -18,6 +18,7 @@ import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -30,8 +31,7 @@ import lombok.AllArgsConstructor;
 import lombok.NonNull;
 
 @AllArgsConstructor
-@SuppressWarnings("deprecation")
-public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega.client.byteStream.ByteStreamClient {
+public class ByteStreamClientImpl implements ByteStreamClientFactory {
     @NonNull
     private final String scope;
     @NonNull
@@ -66,14 +66,17 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega
                                                                 RuntimeException::new);
 
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
-        return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, tokenProvider),
-                                        metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider));
+        SegmentMetadataClient metaClient = metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider);
+        long startOffset = metaClient.getSegmentInfo().getStartingOffset();
+        return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, tokenProvider, startOffset),
+                metaClient);
     }
 
     @Override
     public ByteStreamWriter createByteStreamWriter(String streamName) {
         StreamSegments segments = Futures.getThrowingException(controller.getCurrentSegments(scope, streamName));
-        Preconditions.checkArgument(segments.getSegments().size() == 1, "Stream is configured with more than one segment");
+        Preconditions.checkState(segments.getNumberOfSegments() > 0, "Stream is sealed");
+        Preconditions.checkState(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
         Segment segment = segments.getSegments().iterator().next();
         EventWriterConfig config = EventWriterConfig.builder().build();
         String delegationToken = segments.getDelegationToken();

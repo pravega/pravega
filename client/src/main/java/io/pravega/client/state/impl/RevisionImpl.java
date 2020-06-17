@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import org.apache.commons.lang3.SerializationException;
 public class RevisionImpl implements Revision, Serializable {
 
     private static final long serialVersionUID = 1L;
+    @Getter(value = AccessLevel.PACKAGE)
     private final Segment segment;
     @Getter(value = AccessLevel.PACKAGE)
     private final long offsetInSegment;
@@ -75,10 +76,5 @@ public class RevisionImpl implements Revision, Serializable {
         Object readResolve() throws ObjectStreamException {
             return Revision.fromString(value);
         }
-    }
-
-    @Override
-    public Segment getSegment() {
-        return segment;
     }
 }

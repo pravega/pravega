@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,9 @@ import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -35,6 +37,7 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import java.time.Duration;
@@ -48,8 +51,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -359,8 +360,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     }, executor).thenApplyAsync(v -> {
                         List<StreamSegmentRecord> segments = segmentsFuture.join().stream().map(x -> {
                             long generalizedSegmentId = RecordHelper.generalizedSegmentId(x.segmentId(), txnId);
-                            int epoch = StreamSegmentNameUtils.getEpoch(generalizedSegmentId);
-                            int segmentNumber = StreamSegmentNameUtils.getSegmentNumber(generalizedSegmentId);
+                            int epoch = NameUtils.getEpoch(generalizedSegmentId);
+                            int segmentNumber = NameUtils.getSegmentNumber(generalizedSegmentId);
                             return StreamSegmentRecord.builder().creationEpoch(epoch).segmentNumber(segmentNumber)
                                     .creationTime(x.getCreationTime()).keyStart(x.getKeyStart()).keyEnd(x.getKeyEnd()).build();
                         }).collect(Collectors.toList());
@@ -696,10 +697,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
                                                       final List<StreamSegmentRecord> segments, final UUID txnId) {
+        Timer timer = new Timer();
         return Futures.allOf(segments.stream()
                 .parallel()
                 .map(segment -> notifyTxnCreation(scope, stream, segment.segmentId(), txnId))
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()))
+                .thenRun(() -> TransactionMetrics.getInstance().createTransactionSegments(timer.getElapsed()));
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,

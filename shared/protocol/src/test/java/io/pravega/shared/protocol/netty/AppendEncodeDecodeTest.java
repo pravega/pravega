@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.protocol.netty;
 
-import com.google.common.collect.Lists;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
@@ -17,8 +16,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.EventExecutorGroup;
 import io.netty.util.concurrent.Future;
@@ -28,6 +25,8 @@ import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -37,14 +36,15 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
+import lombok.val;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -52,25 +52,23 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 import static io.pravega.shared.protocol.netty.WireCommandType.EVENT;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(MockitoJUnitRunner.class)
-public class AppendEncodeDecodeTest {
+public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
 
-    private final int appendBlockSize = 1024;  
+    private final int appendBlockSize = 1024;
     private final UUID writerId = new UUID(1, 2);
     private final String streamName = "Test Stream Name";
     private final ConcurrentHashMap<Long, AppendBatchSizeTracker> idBatchSizeTrackerMap = new ConcurrentHashMap<>();
-    private final CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+    private final CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
     private final FakeLengthDecoder lengthDecoder = new FakeLengthDecoder();
     private final AppendDecoder appendDecoder = new AppendDecoder();
-    private Level origionalLogLevel;
-
     private EventExecutor executor = new EventExecutor() {
-        private final ScheduledExecutorService scheduler  = Executors.newSingleThreadScheduledExecutor();
         @Override
         public EventExecutor next() {
             return null;
@@ -163,7 +161,7 @@ public class AppendEncodeDecodeTest {
 
         @Override
         public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-            scheduler.schedule(command, delay, unit);
+            executorService().schedule(command, delay, unit);
             return null;
         }
 
@@ -222,11 +220,17 @@ public class AppendEncodeDecodeTest {
 
         }
     };
-
     @Mock
     private ChannelHandlerContext ctx;
     @Mock
     private Channel ch;
+    private ByteBuf fakeNetwork;
+    private BufferReleaseVerifier releaseVerifier;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
 
     @Before
     public void setup() {
@@ -234,18 +238,20 @@ public class AppendEncodeDecodeTest {
         Mockito.when(ctx.executor()).thenReturn(executor);
         idBatchSizeTrackerMap.put(0L, new FixedBatchSizeTracker(appendBlockSize));
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        origionalLogLevel = ResourceLeakDetector.getLevel();
-        ResourceLeakDetector.setLevel(Level.PARANOID);
+        fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        releaseVerifier = new BufferReleaseVerifier();
     }
 
     @After
-    public void teardown() {
-        ResourceLeakDetector.setLevel(origionalLogLevel);
+    public void tearDown() {
+        releaseVerifier.close(); // This will check that all included buffers have been properly released.
+        fakeNetwork.release();
+        Assert.assertEquals(0, fakeNetwork.refCnt());
     }
 
     @RequiredArgsConstructor
     private static final class FixedBatchSizeTracker implements AppendBatchSizeTracker {
-        private final int appendBlockSize;  
+        private final int appendBlockSize;
 
         @Override
         public int getAppendBlockSize() {
@@ -265,8 +271,7 @@ public class AppendEncodeDecodeTest {
         @Override
         public int getBatchTimeout() {
             return 100;
-        }
-        
+        }        
     }
     
     private static final class FakeLengthDecoder extends LengthFieldBasedFrameDecoder {
@@ -283,8 +288,6 @@ public class AppendEncodeDecodeTest {
     @Test(expected = InvalidMessageException.class)
     public void testAppendWithoutSetup() throws Exception {
         int size = 10;
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         append(streamName, writerId, 0, 1, size, fakeNetwork);
     }
 
@@ -299,9 +302,9 @@ public class AppendEncodeDecodeTest {
         // Simulate Setup append
         appendDecoder.processCommand(setupAppend);
         // Simulate receiving an appendBlock
-        appendDecoder.processCommand((WireCommand) appendBlock);
+        appendDecoder.processCommand(appendBlock);
         // Simulate a missing appendBlockEnd by sending an appendBlock
-        appendDecoder.processCommand((WireCommand) appendBlock);
+        appendDecoder.processCommand(appendBlock);
     }
 
     @Test(expected = InvalidMessageException.class)
@@ -315,7 +318,7 @@ public class AppendEncodeDecodeTest {
         // Simulate Setup append
         appendDecoder.processCommand(setupAppend);
         // Simulate an error by directly sending AppendBlockEnd.
-        appendDecoder.processCommand((WireCommand) appendBlock);
+        appendDecoder.processCommand(appendBlock);
     }
 
     @Test(expected = InvalidMessageException.class)
@@ -330,7 +333,7 @@ public class AppendEncodeDecodeTest {
         // Simulate Setup append
         appendDecoder.processCommand(setupAppend);
         // Simulate an error by directly sending AppendBlockEnd.
-        appendDecoder.processCommand((WireCommand) appendBlock);
+        appendDecoder.processCommand(appendBlock);
     }
 
     @Test(expected = InvalidMessageException.class)
@@ -340,13 +343,16 @@ public class AppendEncodeDecodeTest {
         ByteBuf data = Unpooled.wrappedBuffer(content);
 
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
-        WireCommands.AppendBlockEnd appendBlock = new WireCommands.AppendBlockEnd(writerId, 1024, data,  1, 2, 123L);
+        WireCommands.AppendBlockEnd blockEnd = new WireCommands.AppendBlockEnd(writerId, 1024, data, 1, 2, 123L);
+        ByteBuf data2 = Unpooled.wrappedBuffer(content);
+        val blockEnd2 = new WireCommands.AppendBlockEnd(writerId, 1024, data2, 1, 1, 123L);
+        this.releaseVerifier.include(blockEnd, data).include(blockEnd2, data2);
 
         // Simulate Setup append
         appendDecoder.processCommand(setupAppend);
-        appendDecoder.processCommand((WireCommand) appendBlock);
-        appendBlock = new WireCommands.AppendBlockEnd(writerId, 1024, data,  1, 1, 123L);
-        appendDecoder.processCommand((WireCommand) appendBlock);
+        Append append = (Append) appendDecoder.processCommand(blockEnd);
+        append.getData().release(); // This append is successful and has been consumed; dispose of it.
+        appendDecoder.processCommand(blockEnd2);
     }
 
     @Test(expected = InvalidMessageException.class)
@@ -357,12 +363,15 @@ public class AppendEncodeDecodeTest {
 
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         WireCommands.AppendBlock appendBlock = new WireCommands.AppendBlock(writerId, data);
-        WireCommands.AppendBlockEnd appendBlockEnd = new WireCommands.AppendBlockEnd(writerId, 1024, null,  2, 2, 123L);
+
+        ByteBuf data2 = Unpooled.wrappedBuffer(content);
+        WireCommands.AppendBlockEnd appendBlockEnd = new WireCommands.AppendBlockEnd(writerId, 1024, data2, 2, 2, 123L);
+        this.releaseVerifier.include(appendBlock, data).include(appendBlockEnd, data2);
 
         // Simulate Setup append
         appendDecoder.processCommand(setupAppend);
-        appendDecoder.processCommand((WireCommand) appendBlock);
-        appendDecoder.processCommand((WireCommand) appendBlockEnd);
+        appendDecoder.processCommand(appendBlock);
+        appendDecoder.processCommand(appendBlockEnd);
     }
 
     @Test(expected = InvalidMessageException.class)
@@ -373,34 +382,34 @@ public class AppendEncodeDecodeTest {
 
         SetupAppend setupAppend1 = new SetupAppend(1, writerId, "segment", "");
         SetupAppend setupAppend2 = new SetupAppend(2, writerId2, "segment2", "");
-        WireCommands.AppendBlock appendBlock = new WireCommands.AppendBlock(writerId, Unpooled.wrappedBuffer(content));
-        WireCommands.AppendBlockEnd appendBlockEnd = new WireCommands.AppendBlockEnd( writerId2, 1024, Unpooled.wrappedBuffer(content),  1, 1, 123L);
+        val data1 = Unpooled.wrappedBuffer(content);
+        WireCommands.AppendBlock appendBlock = new WireCommands.AppendBlock(writerId, data1);
+        val data2 = Unpooled.wrappedBuffer(content);
+        WireCommands.AppendBlockEnd appendBlockEnd = new WireCommands.AppendBlockEnd(writerId2, 1024, data2, 1, 1, 123L);
+        this.releaseVerifier.include(appendBlock, data1).include(appendBlockEnd, data2);
 
         appendDecoder.processCommand(setupAppend1);
         appendDecoder.processCommand(setupAppend2);
-        appendDecoder.processCommand((WireCommand) appendBlock);
-        appendDecoder.processCommand((WireCommand) appendBlockEnd);
+        appendDecoder.processCommand(appendBlock);
+        appendDecoder.processCommand(appendBlockEnd);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testIllegalWireCommand() throws Exception {
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
-        CommandEncoder commandEncoder = new CommandEncoder(null);
+        CommandEncoder commandEncoder = new CommandEncoder(null, NO_OP_METRIC_NOTIFIER);
         commandEncoder.encode(ctx, null, fakeNetwork);
     }
 
     @Test(expected = InvalidMessageException.class)
     public void testAppendInvalidCount() throws Exception {
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[10];
         Arrays.fill(content, (byte) 1);
         ByteBuf data = Unpooled.wrappedBuffer(content);
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
-        ArrayList<Object> received = new ArrayList<>();
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
+        @Cleanup("release")
+        val received = new ReceivedCommands();
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
@@ -410,20 +419,19 @@ public class AppendEncodeDecodeTest {
 
     @Test
     public void testVerySmallBlockSize() throws Exception {
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[100];
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
-        
-        ArrayList<Object> received = new ArrayList<>();
+
+        @Cleanup("release")
+        val received = new ReceivedCommands();
         commandEncoder.encode(ctx, msg, fakeNetwork);
         read(fakeNetwork, received);
         assertEquals(2, received.size());
@@ -449,8 +457,8 @@ public class AppendEncodeDecodeTest {
     private void sendAndVerifyEvents(String segment, UUID writerId, int numEvents, int eventSize,
                                      int expectedMessages) throws Exception {
         @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
-        ArrayList<Object> received = setupAppend(segment, writerId, fakeNetwork);
+        val received = new ReceivedCommands();
+        setupAppend(segment, writerId, fakeNetwork);
         for (int i = 0; i < numEvents; i++) {
             append(segment, writerId, eventSize * (i + 1L), i, eventSize, fakeNetwork);
             read(fakeNetwork, received);
@@ -461,10 +469,9 @@ public class AppendEncodeDecodeTest {
 
         assertEquals(expectedMessages + 1, received.size());
         assertEquals(received.get(received.size() - 1), keepAlive);
-        received.remove(received.size() - 1);
-        verify(received, numEvents, eventSize);
+        received.results.remove(received.size() - 1);
+        verify(received.results, numEvents, eventSize);
     }
-
 
     @Test
     public void testFlushBeforeEndOfBlock() throws Exception {
@@ -478,8 +485,8 @@ public class AppendEncodeDecodeTest {
 
     private void testFlush(int size) throws Exception {
         @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
-        ArrayList<Object> received = setupAppend(streamName, writerId, fakeNetwork);
+        val received = new ReceivedCommands();
+        setupAppend(streamName, writerId, fakeNetwork);
 
         append(streamName, writerId, 0, 0, size, fakeNetwork);
         read(fakeNetwork, received);
@@ -496,20 +503,18 @@ public class AppendEncodeDecodeTest {
         assertEquals(keepAlive, two);
     }
 
-
     @Test
     public void testAppendWithoutBatchTracker() throws Exception {
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[100];
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(null);
+        CommandEncoder commandEncoder = new CommandEncoder(null, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
-        ArrayList<Object> received = new ArrayList<>();
+        @Cleanup("release")
+        val received = new ReceivedCommands();
         commandEncoder.encode(ctx, msg, fakeNetwork);
         read(fakeNetwork, received);
         assertEquals(2, received.size());
@@ -520,22 +525,21 @@ public class AppendEncodeDecodeTest {
 
     @Test
     public void testBlockTimeout() throws Exception {
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[100];
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
-        ArrayList<Object> received = new ArrayList<>();
+        @Cleanup("release")
+        val received = new ReceivedCommands();
         Mockito.when(ch.writeAndFlush(Mockito.any())).thenAnswer(i -> {
-           commandEncoder.encode(ctx, i.getArgument(0), fakeNetwork);
-           return null;
+            commandEncoder.encode(ctx, i.getArgument(0), fakeNetwork);
+            return null;
         });
         commandEncoder.encode(ctx, msg, fakeNetwork);
         Thread.sleep(idBatchSizeTrackerMap.get(1L).getBatchTimeout() + 100);
@@ -549,15 +553,14 @@ public class AppendEncodeDecodeTest {
 
     @Test
     public void testAppendComplete() throws Exception {
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[256];
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
-        ArrayList<Object> received = new ArrayList<>();
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
+        @Cleanup("release")
+        val received = new ReceivedCommands();
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
@@ -570,20 +573,20 @@ public class AppendEncodeDecodeTest {
         Append readAppend = (Append) received.get(1);
         assertEquals((256  + TYPE_PLUS_LENGTH_SIZE) * 4L, readAppend.data.readableBytes());
         assertEquals((content.length + TYPE_PLUS_LENGTH_SIZE) * 4L, readAppend.data.readableBytes());
+        System.out.println();
     }
 
     @Test
     public void testSessionFlush() throws Exception {
         final UUID writerId2 = new UUID(1, 3);
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[100];
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
-        ArrayList<Object> received = new ArrayList<>();
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
+        @Cleanup("release")
+        val received = new ReceivedCommands();
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
@@ -612,15 +615,14 @@ public class AppendEncodeDecodeTest {
         final UUID writerId4 = new UUID(1, 5);
         final UUID writerId5 = new UUID(1, 6);
         final UUID writerId6 = new UUID(1, 7);
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[100];
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
-        ArrayList<Object> received = new ArrayList<>();
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
+        @Cleanup("release")
+        val received = new ReceivedCommands();
         Mockito.when(ch.writeAndFlush(Mockito.any())).thenAnswer(i -> {
             commandEncoder.encode(ctx, i.getArgument(0), fakeNetwork);
             return null;
@@ -664,15 +666,13 @@ public class AppendEncodeDecodeTest {
 
     @Test(expected = InvalidMessageException.class)
     public void testInvalidAppendEventNumber() throws Exception {
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[100];
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         commandEncoder.encode(ctx, msg, fakeNetwork);
@@ -682,15 +682,13 @@ public class AppendEncodeDecodeTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testInvalidAppendConditional() throws Exception {
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[100];
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         commandEncoder.encode(ctx, msg, fakeNetwork);
@@ -752,9 +750,7 @@ public class AppendEncodeDecodeTest {
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
 
-        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writer1, streamName, "");
         encoder.encode(ctx, setupAppend, fakeNetwork);
         setupAppend = new SetupAppend(1, writer2, streamName, "");
@@ -770,9 +766,7 @@ public class AppendEncodeDecodeTest {
         int size = 0; //Used to force a minimum size
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
-        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
         encoder.encode(ctx, setupAppend, fakeNetwork);
         Append msg = new Append(streamName, writerId, 1, 1, Unpooled.EMPTY_BUFFER, null, 1);
@@ -782,7 +776,8 @@ public class AppendEncodeDecodeTest {
         Append msg3 = new Append(streamName, writerId, 3, 1, Unpooled.EMPTY_BUFFER, null, 1);
         encoder.encode(ctx, msg2, fakeNetwork);
         encoder.encode(ctx, msg3, fakeNetwork);
-        ArrayList<Object> received = Lists.newArrayList();
+        @Cleanup("release")
+        val received = new ReceivedCommands();
         read(fakeNetwork, received);
         assertEquals(4, received.size());
         assertEquals(setupAppend, received.get(0));
@@ -796,9 +791,7 @@ public class AppendEncodeDecodeTest {
         int size = 100;
         idBatchSizeTrackerMap.remove(1L);
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
-        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get, NO_OP_METRIC_NOTIFIER);
         SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
         encoder.encode(ctx, setupAppend, fakeNetwork);
         Append msg = new Append(streamName, writerId, 1, 1, Unpooled.EMPTY_BUFFER, null, 1);
@@ -809,7 +802,8 @@ public class AppendEncodeDecodeTest {
         encoder.encode(ctx, msg2, fakeNetwork);
         encoder.encode(ctx, msg3, fakeNetwork);
         encoder.encode(ctx, new KeepAlive(), fakeNetwork);
-        ArrayList<Object> received = Lists.newArrayList();
+        @Cleanup("release")
+        val received = new ReceivedCommands();
         read(fakeNetwork, received);
         assertEquals(3, received.size());
         assertEquals(setupAppend, received.get(0));
@@ -822,8 +816,8 @@ public class AppendEncodeDecodeTest {
     public void testAppendAtBlockBound() throws Exception {
         int size = appendBlockSize;
         @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
-        ArrayList<Object> received = setupAppend(streamName, writerId, fakeNetwork);
+        val received = new ReceivedCommands();
+        setupAppend(streamName, writerId, fakeNetwork);
 
         append(streamName, writerId, size, 1, size, fakeNetwork);
         read(fakeNetwork, received);
@@ -854,14 +848,28 @@ public class AppendEncodeDecodeTest {
         sendAndVerifyEvents(streamName, writerId, 2, size, 2);
     }
 
-    private ArrayList<Object> setupAppend(String testStream, UUID writerId, ByteBuf fakeNetwork) throws Exception {
+    @Test
+    public void testConditionalAppend() throws Exception {
+        @Cleanup("release")
+        val received = new ReceivedCommands();
+        setupAppend(streamName, writerId, fakeNetwork);
+
+        val event = new Event(Unpooled.wrappedBuffer(new byte[appendBlockSize]));
+        val append1 = new WireCommands.ConditionalAppend(writerId, 10, 123, event, 1);
+        encoder.encode(ctx, append1, fakeNetwork);
+        read(fakeNetwork, received);
+        assertEquals(1, received.size());
+        Append readAppend1 = (Append) received.get(0);
+        assertEquals((long) readAppend1.expectedLength, append1.expectedOffset);
+        assertEquals(event.getAsByteBuf(), readAppend1.getData());
+    }
+
+    private void setupAppend(String testStream, UUID writerId, ByteBuf fakeNetwork) throws Exception {
         SetupAppend setupAppend = new SetupAppend(1, writerId, testStream, "");
         encoder.encode(ctx, setupAppend, fakeNetwork);
-        ArrayList<Object> received = new ArrayList<>();
         WireCommand command = CommandDecoder.parseCommand(fakeNetwork);
         assertTrue(appendDecoder.acceptInboundMessage(command));
         assertEquals(setupAppend, appendDecoder.processCommand(command));
-        return received;
     }
 
     private long append(String segment, UUID writerId, long offset, int messageNumber, int length, ByteBuf out)
@@ -876,20 +884,20 @@ public class AppendEncodeDecodeTest {
         return offset + length;
     }
 
-    private void read(ByteBuf in, List<Object> results) throws Exception {
+    private void read(ByteBuf in, ReceivedCommands received) throws Exception {
         ByteBuf segmented = (ByteBuf) lengthDecoder.decode(null, in);
         while (segmented != null) {
-            int before = results.size();
+            int before = received.results.size();
             WireCommand command = CommandDecoder.parseCommand(segmented);
             if (appendDecoder.acceptInboundMessage(command)) {
                 Request request = appendDecoder.processCommand(command);
                 if (request != null) {
-                    results.add(request);
+                    received.results.add(request);
                 }
             } else {
-                results.add(command);
+                received.results.add(command);
             }
-            assertTrue(results.size() == before || results.size() == before + 1);
+            assertTrue(received.results.size() == before || received.results.size() == before + 1);
             segmented.release();
             segmented = (ByteBuf) lengthDecoder.decode(null, in);
         }
@@ -938,6 +946,58 @@ public class AppendEncodeDecodeTest {
         } else {
             // Other type of buffer (direct?). Our best guess is invoking capacity() which should return the right value.
             return buf.capacity();
+        }
+    }
+
+    private static class BufferReleaseVerifier implements AutoCloseable {
+        private final ArrayList<Supplier<Integer>> getRefCounts;
+
+        BufferReleaseVerifier() {
+            this.getRefCounts = new ArrayList<>();
+        }
+
+        BufferReleaseVerifier include(WireCommands.ReleasableCommand cmd, ByteBuf buf) {
+            cmd.requireRelease();
+            Supplier<Integer> s = buf::refCnt;
+            AssertExtensions.assertGreaterThan("Expecting a referenced buffer.", 0, s.get());
+            this.getRefCounts.add(s);
+            return this;
+        }
+
+
+        @Override
+        public void close() {
+            for (int i = 0; i < this.getRefCounts.size(); i++) {
+                Assert.assertEquals("Referenced buffer found at position " + i, 0, (int) this.getRefCounts.get(i).get());
+            }
+        }
+    }
+
+    private static class ReceivedCommands {
+        final List<Object> results = new ArrayList<>();
+
+        int size() {
+            return this.results.size();
+        }
+
+        Object get(int index) {
+            return this.results.get(index);
+        }
+
+        /**
+         * Releases all appends. This is consistent with the Append Processor behavior in the Segment Store: once it
+         * is done processing the append, it will release it. We need to simulate the same behavior so that we may validate
+         * the following cases:
+         * - No reference undercounts (trying to use a {@link ByteBuf} that has {@link ByteBuf#refCnt()} 0.
+         * - No leaked {@link ByteBuf}s. In combination with {@link LeakDetectorTestSuite}, this verifies that at the end
+         * the test(s), {@link ByteBuf#refCnt()} is 0 when the {@link ByteBuf}s are garbage collected.
+         */
+        void release() {
+            for (Object o : results) {
+                if (o instanceof Append) {
+                    ((Append) o).getData().release();
+                }
+            }
         }
     }
 }

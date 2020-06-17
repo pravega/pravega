@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -251,7 +251,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         this.process = process;
         this.readerGroupName = eventProcessorConfig.getConfig().getReaderGroupName();
         this.readerId = readerId;
-        this.objectId = String.format("EventProcessor[%s:%s]", this.readerGroupName, index);
+        this.objectId = String.format("EventProcessor[%s:%d:%s]", this.readerGroupName, index, readerId);
         this.actor = createEventProcessor(eventProcessorConfig);
         this.delegate = new Delegate(eventProcessorConfig);
         this.lastCheckpoint = new AtomicReference<>();
@@ -270,6 +270,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "stopAsync");
         try {
             delegate.stopAsync();
+            log.info("Event processor cell {} SHUTDOWN issued", this.objectId);
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "stopAsync", traceId);
         }
@@ -292,6 +293,7 @@ class EventProcessorCell<T extends ControllerEvent> {
 
     final void awaitTerminated() {
         delegate.awaitTerminated();
+        log.info("Event processor cell {} Terminated", this.objectId);
     }
 
     private EventProcessor<T> createEventProcessor(final EventProcessorConfig<T> eventProcessorConfig) {

@@ -4,16 +4,11 @@ import io.pravega.controller.server.rest.generated.model.*;
 import io.pravega.controller.server.rest.generated.api.ScopesApiService;
 import io.pravega.controller.server.rest.generated.api.factories.ScopesApiServiceFactory;
 
-import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
 import io.swagger.jaxrs.*;
 
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
-import io.pravega.controller.server.rest.generated.model.CreateEventResponse;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
-import io.pravega.controller.server.rest.generated.model.GetEventResponse;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.ScalingEventList;
@@ -290,40 +285,5 @@ public class ScopesApi  {
 ,@Context SecurityContext securityContext)
     throws NotFoundException {
         return delegate.updateStreamState(scopeName,streamName,updateStreamStateRequest,securityContext);
-    }
-
-    @GET
-    @Path("/{scopeName}/streams/{streamName}/segments/{segmentNumber}/events")
-    @Produces({ "application/json" })
-    @io.swagger.annotations.ApiOperation(value = "", notes = "Retrieve event", response = GetEventResponse.class, tags={ "Events", })
-    @io.swagger.annotations.ApiResponses(value = {
-            @io.swagger.annotations.ApiResponse(code = 201, message = "Successfully retrieved the event", response = GetEventResponse.class),
-
-            @io.swagger.annotations.ApiResponse(code = 409, message = "Event with the given name already exists", response = GetEventResponse.class),
-
-            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while creating an event", response = GetEventResponse.class) })
-    public Response getEvent(@QueryParam("scopeName") String scopeName,
-                             @QueryParam("streamName") String streamName,
-                             @QueryParam("segmentNumber") Long segmentNumber, SecurityContext securityContext) throws NotFoundException {
-        return delegate.getEvent(scopeName, streamName, segmentNumber, securityContext);
-    }
-
-    @POST
-    @Path("/events")
-    @Consumes("text/plain")
-    @Produces({"application/json"})
-    @io.swagger.annotations.ApiOperation(value = "", notes = "Create a new event", response = CreateEventResponse.class, tags={ "Events", })
-    @io.swagger.annotations.ApiResponses(value = {
-            @io.swagger.annotations.ApiResponse(code = 201, message = "Successfully created the event", response = CreateEventResponse.class),
-
-            @io.swagger.annotations.ApiResponse(code = 409, message = "Event with the given name already exists", response = CreateEventResponse.class),
-
-            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while creating an event", response = CreateEventResponse.class) })
-    public Response createEvent(
-                                @ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
-                                @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
-                                @ApiParam(value = "message", required = true) String message,
-                                @Context SecurityContext securityContext) throws NotFoundException {
-        return delegate.createEvent(scopeName, streamName, message, securityContext);
     }
 }

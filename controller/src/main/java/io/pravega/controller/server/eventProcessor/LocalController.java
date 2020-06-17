@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,11 +11,7 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -23,9 +19,6 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.CancellableRequest;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerFailureException;
-import io.pravega.client.stream.Serializer;
-import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -37,7 +30,6 @@ import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
-import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
@@ -46,13 +38,11 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Supplier;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
-import java.util.Random;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -61,11 +51,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.LoggerFactory;
 
 public class LocalController implements Controller {
 
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(LocalController.class));
     private static final int LIST_STREAM_IN_SCOPE_LIMIT = 1000;
     private ControllerService controller;
     private final String tokenSigningKey;
@@ -75,39 +63,6 @@ public class LocalController implements Controller {
         this.controller = controller;
         this.tokenSigningKey = tokenSigningKey;
         this.authorizationEnabled = authorizationEnabled;
-    }
-
-    @Override
-    public CompletableFuture<String> getEvent(String routingKey, String scopeName, String streamName, Long segmentNumber) {
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this);
-        final Serializer<String> serializer = new JavaSerializer<>();
-        final Random random = new Random();
-        final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
-        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", serializer,
-                ReaderConfig.builder().build());
-        CompletableFuture<String> completableFuture = new CompletableFuture<String>();
-        String data = reader.readNextEvent(-1).getEvent();
-        completableFuture.complete(data);
-        return completableFuture;
-    }
-
-    @Override
-    public CompletableFuture<Void> createEvent(String routingKey, String scopeName, String streamName, String message) {
-        CompletableFuture<Void> completableFuture = new CompletableFuture<>();
-        try {
-            ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this);
-            final Serializer<String> serializer = new JavaSerializer<>();
-            final Random random = new Random();
-            final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
-            EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
-                    EventWriterConfig.builder().build());
-            completableFuture = writer.writeEvent(keyGenerator.get(), message);
-            // ack.get();
-            log.info("event created for scope:{} stream:{}", scopeName, streamName);
-        } catch (Exception e) {
-            log.error("Exception:", e);
-        }
-        return completableFuture;
     }
 
     @Override
@@ -347,6 +302,12 @@ public class LocalController implements Controller {
                 .thenApply(this::getStreamSegments);
     }
 
+    @Override
+    public CompletableFuture<StreamSegments> getEpochSegments(String scope, String streamName, int epoch) {
+        return controller.getEpochSegments(scope, streamName, epoch)
+                         .thenApply(this::getStreamSegments);
+    }
+
     private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
         NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
         for (SegmentRange r : ranges) {
@@ -364,7 +325,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Transaction.PingStatus> pingTransaction(Stream stream, UUID txId, long lease) {
-        return controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease)
+        return controller.pingTransaction(stream.getScope(), stream.getStreamName(), txId, lease)
                          .thenApply(status -> {
                              try {
                                  return ModelHelper.encode(status.getStatus(), stream + " " + txId);
@@ -378,20 +339,20 @@ public class LocalController implements Controller {
     public CompletableFuture<Void> commitTransaction(Stream stream, final String writerId, final Long timestamp, UUID txnId) {
         long time = Optional.ofNullable(timestamp).orElse(Long.MIN_VALUE);
         return controller
-                .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId), writerId, time)
+                .commitTransaction(stream.getScope(), stream.getStreamName(), txnId, writerId, time)
                 .thenApply(x -> null);
     }
 
     @Override
-    public CompletableFuture<Void> abortTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<Void> abortTransaction(Stream stream, UUID txnId) {
         return controller
-                .abortTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId))
+                .abortTransaction(stream.getScope(), stream.getStreamName(), txnId)
                 .thenApply(x -> null);
     }
 
     @Override
     public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txnId) {
-        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
+        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), txnId)
                 .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txnId));
     }
 

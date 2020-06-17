@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,8 +10,10 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -67,6 +69,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
         String stream = event.getStream();
         int epoch = event.getEpoch();
         UUID txId = event.getTxid();
+        Timer timer = new Timer();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
@@ -79,12 +82,14 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                     if (error != null) {
                         log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
+                        TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, event.getTxid().toString());
                     } else {
                         log.debug("Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
                         if (processedEvents != null) {
                             processedEvents.offer(event);
                         }
+                        TransactionMetrics.getInstance().abortTransaction(scope, stream, timer.getElapsed());
                     }
                 }));
     }

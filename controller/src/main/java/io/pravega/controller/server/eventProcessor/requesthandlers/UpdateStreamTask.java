@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                                     return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
                                             versionedState, context, executor));
                                 } else {
-                                    throw new TaskExceptions.StartException("Update Stream not started yet.");
+                                    return CompletableFuture.completedFuture(null);
                                 }
                             } else {
                                 return processUpdate(scope, stream, versionedMetadata, versionedState, context, requestId);

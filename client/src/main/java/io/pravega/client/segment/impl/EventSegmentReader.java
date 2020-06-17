@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,17 @@ public interface EventSegmentReader extends AutoCloseable {
      *
      * @param offset The offset to set.
      */
-    public abstract void setOffset(long offset);
+    default void setOffset(long offset) {
+        setOffset(offset, false);
+    }
+
+    /**
+     * Sets the offset for reading from the segment.
+     *
+     * @param offset The offset to set.
+     * @param resendRequest Resend the read request incase there is an already pending read request for the offset.
+     */
+    void setOffset(long offset, boolean resendRequest);
 
     /**
      * Gets the current offset. (Passing this to setOffset in the future will reset reads to the
@@ -62,13 +72,13 @@ public interface EventSegmentReader extends AutoCloseable {
      * an event. If this timeout elapses, then null is returned. Once an event has been partially read, it will be
      * fully read without regard to the timeout.
      *
-     * @param firstByteTimeout The maximum length of time to block to get the first byte of the event.
+     * @param firstByteTimeoutMillis The maximum length of time to block to get the first byte of the event.
      * @return A ByteBuffer containing the serialized data that was written via
      *         {@link EventStreamWriter#writeEvent(String, Object)}
      * @throws EndOfSegmentException If no event could be read because the end of the segment was reached.
      * @throws SegmentTruncatedException If the segment has been truncated beyond the current offset and the data cannot be read.
      */
-    public abstract ByteBuffer read(long firstByteTimeout) throws EndOfSegmentException, SegmentTruncatedException;
+    public abstract ByteBuffer read(long firstByteTimeoutMillis) throws EndOfSegmentException, SegmentTruncatedException;
     
     /**
      * Issues a request to asynchronously fill up the buffer. The goal is to prevent future {@link #read()} calls from blocking.

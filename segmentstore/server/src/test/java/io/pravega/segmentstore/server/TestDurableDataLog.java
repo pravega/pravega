@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,12 +10,14 @@
 package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.CompositeArrayView;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
+import io.pravega.segmentstore.storage.WriteSettings;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.test.common.ErrorInjector;
 import java.time.Duration;
@@ -80,7 +82,7 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
+    public CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.appendSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.appendAsyncErrorInjector,
                 () -> this.wrappedLog.append(data, timeout));
@@ -105,8 +107,8 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public int getMaxAppendLength() {
-        return this.wrappedLog.getMaxAppendLength();
+    public WriteSettings getWriteSettings() {
+        return this.wrappedLog.getWriteSettings();
     }
 
     @Override
@@ -117,6 +119,11 @@ public class TestDurableDataLog implements DurableDataLog {
     @Override
     public QueueStats getQueueStatistics() {
         return this.wrappedLog.getQueueStatistics();
+    }
+
+    @Override
+    public void registerQueueStateChangeListener(ThrottleSourceListener listener) {
+        this.wrappedLog.registerQueueStateChangeListener(listener);
     }
 
     //endregion

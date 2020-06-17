@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,7 +127,7 @@ public class ReaderGroupState implements Revisioned {
             if (entry.getValue().isEmpty()) {
                 result.put(entry.getKey(), 0.0);
             } else {
-                Long distance = Math.max(ASSUMED_LAG_MILLIS, distanceToTail.get(entry.getKey()));
+                long distance = Math.max(ASSUMED_LAG_MILLIS, distanceToTail.get(entry.getKey()));
                 result.put(entry.getKey(), entry.getValue().size() * distance / (double) maxDistance);
             }
         }
@@ -179,7 +179,7 @@ public class ReaderGroupState implements Revisioned {
         if (segments == null) {
             return null;
         }
-        return segments.keySet().stream().map(s -> s.getSegment()).collect(Collectors.toSet());
+        return segments.keySet().stream().map(SegmentWithRange::getSegment).collect(Collectors.toSet());
     }
     
     @Synchronized

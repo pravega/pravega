@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,7 +127,15 @@ abstract class SegmentAggregates {
                 lastTick = newTick;
                 final long count = currentCount;
                 currentCount = 0;
-                computeDecay(count, (double) Duration.ofMillis(age).toMillis() / 1000.0);
+                long iterations = age / TICK_INTERVAL;
+                // If the age is greater than tick interval, then account for silent periods between last 
+                // reported update and current update by calling the decay function for all silent tick intervals
+                // with event count as 0 for them.
+                for (long i = 0; i < iterations - 1; i++) {
+                    computeDecay(0, (double) TICK_INTERVAL / 1000.0);
+                }
+                double duration = (age - ((iterations - 1) * TICK_INTERVAL)) / 1000.0;
+                computeDecay(count, duration);
             }
 
             return true;

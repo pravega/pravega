@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,18 +10,14 @@
 package io.pravega.shared;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
+import java.net.InetAddress;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.junit.Assert;
 import org.junit.Test;
 
-import java.net.InetAddress;
-
-import static io.pravega.shared.MetricsTags.DEFAULT_HOSTNAME_KEY;
-import static io.pravega.shared.MetricsTags.containerTag;
-import static io.pravega.shared.MetricsTags.createHostTag;
-import static io.pravega.shared.MetricsTags.hostTag;
-import static io.pravega.shared.MetricsTags.segmentTags;
-import static io.pravega.shared.MetricsTags.streamTags;
-import static io.pravega.shared.MetricsTags.transactionTags;
+import static io.pravega.shared.MetricsTags.*;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
@@ -124,6 +120,15 @@ public class MetricsTagsTest {
     }
 
     @Test
+    public void testThrottlerTags() {
+        String[] tags = throttlerTag(1, "Cache");
+        assertEquals(MetricsTags.TAG_CONTAINER, tags[0]);
+        assertEquals("1", tags[1]);
+        assertEquals(MetricsTags.TAG_THROTTLER, tags[2]);
+        assertEquals("Cache", tags[3]);
+    }
+
+    @Test
     public void testTableSegmentTags() {
         String[] tags = segmentTags("_system/_tables/commonTables");
         assertEquals(MetricsTags.TAG_SCOPE, tags[0]);
@@ -154,5 +159,35 @@ public class MetricsTagsTest {
         assertEquals("scope/stream/tablesInStream", tags[5]);
         assertEquals(MetricsTags.TAG_EPOCH, tags[6]);
         assertEquals("0", tags[7]);
+    }
+
+    @Test
+    public void testExceptionTags() {
+        val classNames = ImmutableMap
+                .<String, String>builder()
+                .put("A", "A")
+                .put("B.", "B.")
+                .put(".C", "C")
+                .put("D.E.F", "F")
+                .build();
+        for (val logClassName : classNames.entrySet()) {
+            // Check without exception.
+            String[] tags = exceptionTag(logClassName.getKey(), null);
+            checkExceptionTags(tags, logClassName.getValue(), "none");
+
+            // Check with exceptions.
+            for (val exceptionClassName : classNames.entrySet()) {
+                tags = exceptionTag(logClassName.getKey(), exceptionClassName.getKey());
+                checkExceptionTags(tags, logClassName.getValue(), exceptionClassName.getValue());
+            }
+        }
+    }
+
+    private void checkExceptionTags(String[] tags, String expectedClassTag, String expectedExceptionTag) {
+        Assert.assertEquals(4, tags.length);
+        Assert.assertEquals(MetricsTags.TAG_CLASS, tags[0]);
+        Assert.assertEquals(expectedClassTag, tags[1]);
+        Assert.assertEquals(MetricsTags.TAG_EXCEPTION, tags[2]);
+        Assert.assertEquals(expectedExceptionTag, tags[3]);
     }
 }

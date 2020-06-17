@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.function.Callbacks;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
@@ -44,7 +44,7 @@ class FutureReadResultEntry extends ReadResultEntryBase {
     }
 
     @Override
-    protected void complete(ReadResultEntryContents readResultEntryContents) {
+    protected void complete(BufferView readResultEntryContents) {
         super.complete(readResultEntryContents);
         invokeWhenCompleteOrFail();
     }

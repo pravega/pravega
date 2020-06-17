@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,9 @@ import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.common.util.Retry;
@@ -25,7 +25,6 @@ import io.pravega.common.util.btree.BTreeIndex;
 import io.pravega.common.util.btree.PageEntry;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -35,10 +34,10 @@ import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
-import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
@@ -97,7 +96,8 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     private final SegmentMetadata segmentMetadata;
     private final AtomicReference<SegmentHandle> handle;
     private final Storage storage;
-    private final Cache cache;
+    @GuardedBy("cacheEntries")
+    private final CacheStorage cacheStorage;
     @GuardedBy("cacheEntries")
     private int currentCacheGeneration;
     @GuardedBy("cacheEntries")
@@ -118,18 +118,18 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      *
      * @param segmentMetadata The SegmentMetadata of the Segment whose attributes we want to manage.
      * @param storage         A Storage adapter which can be used to access the Attribute Segment.
-     * @param cache           The Cache to use.
      * @param config          Attribute Index Configuration.
      * @param executor        An Executor to run async tasks.
      */
-    SegmentAttributeBTreeIndex(@NonNull SegmentMetadata segmentMetadata, @NonNull Storage storage, @NonNull Cache cache,
+    SegmentAttributeBTreeIndex(@NonNull SegmentMetadata segmentMetadata, @NonNull Storage storage, @NonNull CacheStorage cacheStorage,
                                @NonNull AttributeIndexConfig config, @NonNull ScheduledExecutorService executor) {
         this.segmentMetadata = segmentMetadata;
         this.storage = storage;
-        this.cache = cache;
+        this.cacheStorage = cacheStorage;
         this.config = config;
         this.executor = executor;
         this.handle = new AtomicReference<>();
+        this.traceObjectId = String.format("AttributeIndex[%d-%d]", this.segmentMetadata.getContainerId(), this.segmentMetadata.getId());
         this.index = BTreeIndex.builder()
                                .keyLength(KEY_LENGTH)
                                .valueLength(VALUE_LENGTH)
@@ -138,10 +138,10 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                                .getLength(this::getLength)
                                .readPage(this::readPage)
                                .writePages(this::writePages)
+                               .traceObjectId(this.traceObjectId)
                                .build();
 
         this.cacheEntries = new HashMap<>();
-        this.traceObjectId = String.format("AttributeIndex[%d-%d]", this.segmentMetadata.getContainerId(), this.segmentMetadata.getId());
         this.closed = new AtomicBoolean();
     }
 
@@ -154,7 +154,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     CompletableFuture<Void> initialize(Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         Preconditions.checkState(!this.index.isInitialized(), "SegmentAttributeIndex is already initialized.");
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
 
         // Attempt to open the Attribute Segment; if it does not exist do not create it now. It will be created when we
         // make the first write.
@@ -179,7 +179,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      */
     static CompletableFuture<Void> delete(String segmentName, Storage storage, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(segmentName);
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(segmentName);
         return Futures.exceptionallyExpecting(
                 storage.openWrite(attributeSegmentName)
                        .thenCompose(handle -> storage.delete(handle, timer.getRemaining())),
@@ -193,28 +193,12 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
     @Override
     public void close() {
-        // Quick close (no cache cleanup) this should be used only in case of container shutdown, when the cache will
-        // be erased anyway.
-        close(false);
-    }
-
-    /**
-     * Closes the SegmentAttributeIndex and optionally cleans the cache.
-     *
-     * @param cleanCache If true, the Cache will be cleaned up of all entries pertaining to this Index. If false, the
-     *                   Cache will not be touched.
-     */
-    void close(boolean cleanCache) {
         if (!this.closed.getAndSet(true)) {
             // Close storage reader (and thus cancel those reads).
-            if (cleanCache) {
-                this.executor.execute(() -> {
-                    removeAllCacheEntries();
-                    log.info("{}: Closed.", this.traceObjectId);
-                });
-            } else {
-                log.info("{}: Closed (no cache cleanup).", this.traceObjectId);
-            }
+            this.executor.execute(() -> {
+                removeAllCacheEntries();
+                log.info("{}: Closed.", this.traceObjectId);
+            });
         }
     }
 
@@ -241,43 +225,32 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
     @Override
     public CacheManager.CacheStatus getCacheStatus() {
-        int minGen = 0;
-        int maxGen = 0;
-        long size = 0;
         synchronized (this.cacheEntries) {
-            for (CacheEntry e : this.cacheEntries.values()) {
-                if (e != null) {
-                    int g = e.getGeneration();
-                    minGen = Math.min(minGen, g);
-                    maxGen = Math.max(maxGen, g);
-                    size += e.getSize();
-                }
-            }
+            return CacheManager.CacheStatus.fromGenerations(
+                    this.cacheEntries.values().stream().filter(Objects::nonNull).map(CacheEntry::getGeneration).iterator());
         }
-
-        return new CacheManager.CacheStatus(size, minGen, maxGen);
     }
 
     @Override
-    public long updateGenerations(int currentGeneration, int oldestGeneration) {
+    public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         // Remove those entries that have a generation below the oldest permissible one.
-        long sizeRemoved = 0;
+        boolean anyRemoved = false;
         synchronized (this.cacheEntries) {
             this.currentCacheGeneration = currentGeneration;
             ArrayList<CacheEntry> toRemove = new ArrayList<>();
             for (val entry : this.cacheEntries.values()) {
                 if (entry.getGeneration() < oldestGeneration) {
-                    sizeRemoved += entry.getSize();
                     toRemove.add(entry);
                 }
             }
 
             removeFromCache(toRemove);
+            anyRemoved = !toRemove.isEmpty();
         }
 
-        return sizeRemoved;
+        return anyRemoved;
     }
 
     //endregion
@@ -285,7 +258,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     //region AttributeIndex Implementation
 
     @Override
-    public CompletableFuture<Void> update(@NonNull Map<UUID, Long> values, @NonNull Duration timeout) {
+    public CompletableFuture<Long> update(@NonNull Map<UUID, Long> values, @NonNull Duration timeout) {
         ensureInitialized();
         if (values.isEmpty()) {
             // Nothing to do.
@@ -386,7 +359,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      */
     private <T> CompletableFuture<T> createAttributeSegmentIfNecessary(Supplier<CompletableFuture<T>> toRun, Duration timeout) {
         if (this.handle.get() == null) {
-            String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
+            String attributeSegmentName = NameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
             return Futures
                     .exceptionallyComposeExpecting(
                             this.storage.create(attributeSegmentName, this.config.getAttributeSegmentRollingPolicy(), timeout),
@@ -414,12 +387,11 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      * @param timeout        Timeout for the operation.
      * @return A CompletableFuture that will indicate when the operation completes.
      */
-    private CompletableFuture<Void> executeConditionally(Function<Duration, CompletableFuture<Long>> indexOperation, Duration timeout) {
+    private CompletableFuture<Long> executeConditionally(Function<Duration, CompletableFuture<Long>> indexOperation, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return UPDATE_RETRY
                 .runAsync(() -> executeConditionallyOnce(indexOperation, timer), this.executor)
-                .exceptionally(this::handleIndexOperationException)
-                .thenAccept(Callbacks::doNothing);
+                .exceptionally(this::handleIndexOperationException);
     }
 
     /**
@@ -486,14 +458,17 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         return BitConverter.readLong(value, 0);
     }
 
-    private CompletableFuture<Long> getLength(Duration timeout) {
+    private CompletableFuture<BTreeIndex.IndexInfo> getLength(Duration timeout) {
         SegmentHandle handle = this.handle.get();
         if (handle == null) {
-            return CompletableFuture.completedFuture(0L);
+            return CompletableFuture.completedFuture(BTreeIndex.IndexInfo.EMPTY);
         }
 
         return this.storage.getStreamSegmentInfo(handle.getSegmentName(), timeout)
-                           .thenApply(SegmentProperties::getLength);
+                .thenApply(segmentInfo -> {
+                    long rootPointer = this.segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, BTreeIndex.IndexInfo.EMPTY.getRootPointer());
+                    return new BTreeIndex.IndexInfo(segmentInfo.getLength(), rootPointer);
+                });
     }
 
     private CompletableFuture<ByteArraySegment> readPage(long offset, int length, Duration timeout) {
@@ -576,12 +551,13 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         synchronized (this.cacheEntries) {
             CacheEntry entry = this.cacheEntries.getOrDefault(offset, null);
             if (entry != null) {
-                byte[] data = this.cache.get(entry.getKey());
-                if (data != null && data.length == length) {
+                BufferView data = this.cacheStorage.get(entry.getCacheAddress());
+                if (data != null && data.getLength() == length) {
                     // We only deem a cache entry valid if it exists and has the expected length; otherwise it's best
                     // if we treat it as a cache miss and re-read it from Storage.
                     entry.setGeneration(this.currentCacheGeneration);
-                    return data;
+                    // TODO: we do need a copy since we are making changes to this thing and we shouldn't modify the cache directly.
+                    return data.getCopy();
                 }
             }
         }
@@ -599,7 +575,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
             }
 
             // Update the entry's data.
-            this.cache.insert(entry.getKey(), data);
+            storeInCache(entry, new ByteArraySegment(data));
         }
     }
 
@@ -621,9 +597,21 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                     this.cacheEntries.put(offset, entry);
                 }
 
-                this.cache.insert(entry.getKey(), data);
+                storeInCache(entry, data);
             }
         }
+    }
+
+    @GuardedBy("cacheEntries")
+    private void storeInCache(CacheEntry entry, ByteArraySegment data) {
+        int newAddress;
+        if (entry.isStored()) {
+            newAddress = this.cacheStorage.replace(entry.getCacheAddress(), data);
+        } else {
+            newAddress = this.cacheStorage.insert(data);
+        }
+
+        entry.setCacheAddress(newAddress);
     }
 
     private void removeFromCache(Collection<CacheEntry> entries) {
@@ -634,7 +622,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
     @GuardedBy("cacheEntries")
     private void removeFromCache(CacheEntry e) {
-        this.cache.remove(e.getKey());
+        this.cacheStorage.delete(e.getCacheAddress());
         this.cacheEntries.remove(e.getOffset());
     }
 
@@ -671,18 +659,14 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         private final int size;
         @GuardedBy("this")
         private int generation;
+        @GuardedBy("this")
+        private int cacheAddress;
 
         CacheEntry(long offset, int size, int currentGeneration) {
             this.offset = offset;
             this.size = size;
             this.generation = currentGeneration;
-        }
-
-        /**
-         * Gets a new CacheKey representing this Entry.
-         */
-        CacheKey getKey() {
-            return new CacheKey(SegmentAttributeBTreeIndex.this.segmentMetadata.getId(), this.offset);
+            this.cacheAddress = -1;
         }
 
         /**
@@ -690,6 +674,27 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
          */
         synchronized int getGeneration() {
             return this.generation;
+        }
+
+        /**
+         * Gets a value representing the {@link CacheStorage} address for this Cache Entry's data.
+         */
+        synchronized int getCacheAddress() {
+            return this.cacheAddress;
+        }
+
+        /**
+         * Updates the {@link CacheStorage} address for this Cache Entry's data.
+         */
+        synchronized void setCacheAddress(int newAddress) {
+            this.cacheAddress = newAddress;
+        }
+
+        /**
+         * Gets a value representing whether this Cache Entry does have any data stored in the {@link CacheStorage}.
+         */
+        synchronized boolean isStored() {
+            return this.cacheAddress >= 0;
         }
 
         /**

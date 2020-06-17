@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import io.pravega.controller.server.AuthResourceRepresentation;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.ModelHelper;
-import io.pravega.controller.server.rest.generated.model.CreateEventResponse;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
@@ -747,110 +746,5 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             }
         }).thenApply(asyncResponse::resume)
                 .thenAccept(x -> LoggerHelpers.traceLeave(log, "getScalingEvents", traceId));
-    }
-
-
-    /**
-     * Implementation of getScope REST API.
-     * @param scopeName Scope Name.
-     * @param streamName Stream Name.
-     * @param securityContext The security for API access.
-     * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing.
-     */
-    @Override
-    public void getEvent(String scopeName, String streamName, Long segmentNumber, SecurityContext securityContext,
-                         final AsyncResponse asyncResponse) {
-        long traceId = LoggerHelpers.traceEnter(log, "getEvent");
-        try {
-            NameUtils.validateUserScopeName(scopeName);
-            NameUtils.validateUserStreamName(streamName);
-        } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Get event failed due to invalid scope name {} or stream name {}",
-                    scopeName, streamName);
-            asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
-            LoggerHelpers.traceLeave(log, "getEvent", traceId);
-            return;
-        }
-        log.info("getEvent called for scope:{} and stream:{}", scopeName, streamName);
-
-        try {
-            restAuthHelper.authenticateAuthorize(
-                    getAuthorizationHeader(),
-                    "event", READ);
-        } catch (AuthException e) {
-            log.warn("Get event failed due to authentication failure.");
-            asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
-            LoggerHelpers.traceLeave(log, "getEvent", traceId);
-            return;
-        }
-        log.info("getEvent authorized");
-
-        controllerService.getEvent("", scopeName, streamName, segmentNumber)
-                .thenApply(response -> {
-                    return Response.status(Status.OK).entity(response).build();
-                })
-                .exceptionally( exception -> {
-                    if (exception.getCause() instanceof StoreException.DataNotFoundException) {
-                        log.warn("Event not found");
-                        return Response.status(Status.NOT_FOUND).entity(exception.getMessage()).build();
-                    } else {
-                        log.warn("getScope  failed with exception: {}", exception);
-                        return Response.status(Status.INTERNAL_SERVER_ERROR).entity(exception.getMessage()).build();
-                    }
-                }).thenApply(asyncResponse::resume)
-                .thenAccept(x -> LoggerHelpers.traceLeave(log, "getEvent", traceId));
-    }
-
-    /**
-     * Implementation of createEvent REST API.
-     * @param scopeName Scope Name.
-     * @param streamName Stream Name.
-     * @param message Message.
-     * @param securityContext     The security for API access.
-     * @param asyncResponse       AsyncResponse provides means for asynchronous server side response processing.
-     */
-    @Override
-    public void createEvent(final String scopeName, final String streamName, final String message, final SecurityContext securityContext,
-                            final AsyncResponse asyncResponse) {
-        long traceId = LoggerHelpers.traceEnter(log, "createEvent");
-        try {
-            NameUtils.validateUserScopeName(scopeName);
-            NameUtils.validateUserStreamName(streamName);
-        } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Create event failed due to invalid scope name {} or stream name {}", 
-                    scopeName, streamName);
-            asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
-            LoggerHelpers.traceLeave(log, "createEvent", traceId);
-            return;
-        }
-        log.debug("createEvent scopeName:{}, streamName:{}, message:{}",
-                   scopeName,
-                   streamName,
-                   message);
-
-        try {
-            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(),
-                    "/events", READ_UPDATE);
-        } catch (AuthException e) {
-            log.warn("Create event for scope {} and stream {} failed due to authentication failure {}.",
-                    scopeName, streamName, e);
-            asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
-            LoggerHelpers.traceLeave(log, "createEvent", traceId);
-            return;
-        }
-        log.debug("createEvent authorized");
-
-        controllerService.createEvent(
-                "",
-                scopeName,
-                streamName,
-                message).thenApply(scope -> {
-                    return Response.status(Status.CREATED).entity(new CreateEventResponse().scopeName(scopeName)).build();
-        }).exceptionally(exception -> {
-            log.warn("createEvent for scope: {} stream: {} failed, exception: {}",
-                    scopeName, streamName, exception);
-            return Response.status(Status.INTERNAL_SERVER_ERROR).entity(exception.getMessage()).build();
-        }).thenApply(asyncResponse::resume)
-                .thenAccept(x -> LoggerHelpers.traceLeave(log, "createEvent", traceId));
     }
 }

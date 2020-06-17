@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -21,7 +20,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
@@ -85,46 +83,6 @@ public class DataFrameOutputStreamTests {
         Assert.assertNotNull("No frame has been created when flush() was called.", writtenFrame);
         Assert.assertTrue("Created frame is not sealed.", writtenFrame.get().isSealed());
         DataFrameTestHelpers.checkReadRecords(readFrame(writtenFrame.get()), records, ByteArraySegment::new);
-    }
-
-    /**
-     * Tests the ability to reuse existing physical buffers, and discard them if needed.
-     */
-    @Test
-    public void testBufferReuse() throws Exception {
-        final int count = 500;
-        final int resetEvery = 50;
-        final byte[] writeData = new byte[1000];
-        final int maxFrameSize = 10 * 1024;
-
-        // Callback for when a frame is written.
-        AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
-
-        int expectedStartIndex = 0;
-        @Cleanup
-        DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, writtenFrame::set);
-        for (int i = 0; i < count; i++) {
-            if (i % resetEvery == 0) {
-                s.releaseBuffer();
-                expectedStartIndex = 0;
-            }
-
-            // We generate some frame of fixed size.
-            s.startNewRecord();
-            s.write(writeData);
-            s.endRecord();
-            s.flush();
-
-            // Then we inspect it's ArrayView's buffer characteristics, especially the array offset. If it increases as
-            // expect it to (and then resets when it exceeds a certain size), then we know the same physical buffer is
-            // reused.
-            ArrayView av = writtenFrame.getAndSet(null).getData();
-            Assert.assertEquals("Unexpected buffer index after flush #" + (i + 1), expectedStartIndex, av.arrayOffset());
-            expectedStartIndex += av.getLength();
-            if (maxFrameSize - expectedStartIndex < av.getLength()) {
-                expectedStartIndex = 0;
-            }
-        }
     }
 
     /**

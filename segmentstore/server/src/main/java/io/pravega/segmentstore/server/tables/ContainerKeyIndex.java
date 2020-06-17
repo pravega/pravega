@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
@@ -27,7 +28,6 @@ import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
-import io.pravega.segmentstore.storage.CacheFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -51,6 +51,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.Cleanup;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -97,14 +98,13 @@ class ContainerKeyIndex implements AutoCloseable {
      * Creates a new instance of the ContainerKeyIndex class.
      *
      * @param containerId  Id of the SegmentContainer this instance is associated with.
-     * @param cacheFactory A {@link CacheFactory} that can be used to create Cache instances.
      * @param cacheManager A {@link CacheManager} that can be used to manage Cache instances.
      * @param keyHasher    A {@link KeyHasher} that can be used to hash keys.
      * @param executor     Executor for async operations.
      */
-    ContainerKeyIndex(int containerId, @NonNull CacheFactory cacheFactory, @NonNull CacheManager cacheManager,
-                      @NonNull KeyHasher keyHasher, @NonNull ScheduledExecutorService executor) {
-        this.cache = new ContainerKeyCache(containerId, cacheFactory);
+    ContainerKeyIndex(int containerId, @NonNull CacheManager cacheManager, @NonNull KeyHasher keyHasher,
+                      @NonNull ScheduledExecutorService executor) {
+        this.cache = new ContainerKeyCache(cacheManager.getCacheStorage());
         this.cacheManager = cacheManager;
         this.cacheManager.register(this.cache);
         this.executor = executor;
@@ -573,9 +573,9 @@ class ContainerKeyIndex implements AutoCloseable {
         ReadResult rr = segment.read(lastIndexedOffset, (int) tailIndexLength, getRecoveryTimeout());
         AsyncReadResultProcessor
                 .processAll(rr, this.executor, getRecoveryTimeout())
-                .thenAcceptAsync(inputStream -> {
+                .thenAcceptAsync(inputData -> {
                     // Parse out all Table Keys and collect their latest offsets, as well as whether they were deleted.
-                    val updates = collectLatestOffsets(inputStream, lastIndexedOffset, (int) tailIndexLength);
+                    val updates = collectLatestOffsets(inputData, lastIndexedOffset, (int) tailIndexLength);
 
                     // Incorporate that into the cache.
                     this.cache.includeTailCache(segment.getSegmentId(), updates);
@@ -593,13 +593,15 @@ class ContainerKeyIndex implements AutoCloseable {
     }
 
     @SneakyThrows(IOException.class)
-    private Map<UUID, CacheBucketOffset> collectLatestOffsets(InputStream input, long startOffset, int maxLength) {
+    private Map<UUID, CacheBucketOffset> collectLatestOffsets(BufferView input, long startOffset, int maxLength) {
         EntrySerializer serializer = new EntrySerializer();
         val entries = new HashMap<UUID, CacheBucketOffset>();
         long nextOffset = startOffset;
         final long maxOffset = startOffset + maxLength;
+        @Cleanup
+        InputStream inputStream = input.getReader();
         while (nextOffset < maxOffset) {
-            val e = AsyncTableEntryReader.readEntryComponents(input, nextOffset, serializer);
+            val e = AsyncTableEntryReader.readEntryComponents(inputStream, nextOffset, serializer);
             val hash = this.keyHasher.hash(e.getKey());
             entries.put(hash, new CacheBucketOffset(nextOffset, e.getHeader().isDeletion()));
             nextOffset += e.getHeader().getTotalLength();

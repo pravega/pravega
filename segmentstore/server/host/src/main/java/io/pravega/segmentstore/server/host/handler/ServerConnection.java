@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,4 +41,11 @@ public interface ServerConnection extends AutoCloseable {
      */
     @Override
     void close();
+
+    /**
+     * Checks if this instance is already closed.
+     *
+     * @return {@code true} if this object is already closed, otherwise returns {@code false}.
+     */
+    boolean isClosed();
 }

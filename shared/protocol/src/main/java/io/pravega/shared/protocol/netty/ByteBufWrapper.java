@@ -13,11 +13,16 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 
 /**
  * {@link BufferView} wrapper for {@link ByteBuf} instances.
@@ -41,7 +46,7 @@ public class ByteBufWrapper implements BufferView {
      * @param buf The {@link ByteBuf} to wrap. A read-only duplicate will be made of this buffer; any changes made to the
      *            {@link ByteBuf#readerIndex()} or {@link ByteBuf#writerIndex()} to this object will not be reflected
      *            in this {@link ByteBufWrapper} instance. This {@link ByteBuf} reference count will be incremented by 1
-     *            to reflect the new reference added by this wrapper. Invoke {@link #close()} to release that reference.
+     *            to reflect the new reference added by this wrapper. Invoke {@link #release()} to release that reference.
      */
     public ByteBufWrapper(@NonNull ByteBuf buf) {
         this.buf = buf.asReadOnly();
@@ -71,14 +76,36 @@ public class ByteBufWrapper implements BufferView {
     }
 
     @Override
+    public List<ByteBuffer> getContents() {
+        return Arrays.asList(this.buf.nioBuffers());
+    }
+
+    @Override
     public int getLength() {
         return this.buf.readableBytes();
+    }
+
+    @Override
+    public Reader getBufferViewReader() {
+        return new ByteBufReader(this.buf.duplicate());
     }
 
     @Override
     public InputStream getReader() {
         Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
         return new ByteBufInputStream(this.buf.duplicate(), false);
+    }
+
+    @Override
+    public InputStream getReader(int offset, int length) {
+        Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
+        return new ByteBufInputStream(this.buf.slice(offset, length), false);
+    }
+
+    @Override
+    public BufferView slice(int offset, int length) {
+        Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
+        return new ByteBufWrapper(this.buf.slice(offset, length));
     }
 
     @Override
@@ -98,8 +125,51 @@ public class ByteBufWrapper implements BufferView {
     }
 
     @Override
+    public int copyTo(ByteBuffer byteBuffer) {
+        Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
+        ByteBuf source = this.buf.duplicate();
+        int length = byteBuffer.remaining();
+        if (length > getLength()) {
+            int origLimit = byteBuffer.limit();
+            length = getLength();
+            byteBuffer.limit(length);
+            source.readBytes(byteBuffer);
+            byteBuffer.limit(origLimit);
+        } else {
+            source.readBytes(byteBuffer);
+        }
+        return length;
+    }
+
+    @Override
     public String toString() {
         return this.buf.toString();
+    }
+
+    //endregion
+
+    //region Reader Implementation
+
+    /**
+     * {@link BufferView.Reader} implementation.
+     */
+    @RequiredArgsConstructor
+    private static class ByteBufReader implements Reader {
+        private final ByteBuf buf;
+
+        @Override
+        public int available() {
+            return this.buf.readableBytes();
+        }
+
+        @Override
+        public int readBytes(ByteArraySegment segment) {
+            int len = Math.min(segment.getLength(), this.buf.readableBytes());
+            if (len > 0) {
+                this.buf.readBytes(segment.array(), segment.arrayOffset(), len);
+            }
+            return len;
+        }
     }
 
     //endregion

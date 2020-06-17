@@ -9,22 +9,31 @@
  */
 package io.pravega.client.security.auth;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.common.util.RetriesExhaustedException;
+import java.net.URI;
+import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executors;
+import java.util.function.Supplier;
+
+import io.pravega.test.common.JwtBody;
+import io.pravega.test.common.JwtTestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
-import java.time.Instant;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
-
-import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
-import static io.pravega.client.security.auth.JwtTestUtils.dummyToken;
+import static io.pravega.test.common.JwtTestUtils.createEmptyDummyToken;
+import static io.pravega.test.common.JwtTestUtils.toCompact;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -36,7 +45,7 @@ public class JwtTokenProviderImplTest {
     @Test
     public void testIsWithinThresholdForRefresh() {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "somescope", "somestream");
+                createEmptyDummyToken(), dummyController, "somescope", "somestream");
 
         assertFalse(objectUnderTest.isWithinRefreshThreshold(Instant.ofEpochSecond(10), Instant.ofEpochSecond(30)));
         assertFalse(objectUnderTest.isWithinRefreshThreshold(Instant.now(), Instant.now().plusSeconds(11)));
@@ -47,70 +56,18 @@ public class JwtTokenProviderImplTest {
 
     @Test
     public void testRetrievesSameTokenPassedDuringConstruction() {
-        String token = String.format("header.%s.signature", createJwtBody(
+        String token = String.format("header.%s.signature", toCompact(
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 token, mock(Controller.class), "somescope", "somestream");
         assertEquals(token, objectUnderTest.retrieveToken().join());
     }
 
-    @Test
-    public void testExtractExpirationTimeReturnsNullIfExpInBodyIsNotSet() {
 
-        // See decoded parts at https://jwt.io/.
-        //
-        // The body decodes to:
-        //     {
-        //        "sub": "1234567890",
-        //        "aud": "segmentstore",
-        //        "iat": 1516239022
-        //     }
-        String token = String.format("%s.%s.%s", "base64-encoded-header",
-                JwtBody.builder().subject("1234567890").audience("segmentstore").issuedAtTime(1516239022L).build(),
-                "base64-encoded-signature");
-
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                token, mock(Controller.class), "somescope", "somestream");
-
-        assertNull(objectUnderTest.extractExpirationTime(token));
-    }
-
-    @Test
-    public void testExtractExpirationTimeReturnsNullIfTokenIsNotInJwtFormat() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                mock(Controller.class), "somescope", "somestream");
-        assertNull(objectUnderTest.extractExpirationTime("abc"));
-        assertNull(objectUnderTest.extractExpirationTime("abc.def"));
-        assertNull(objectUnderTest.extractExpirationTime("abc.def.ghi.jkl"));
-    }
-
-    // Refresh behavior when expiration time is not set
-    // public void testExpirationTimeIsNullIfExpInBodyIsNotSet
-
-    @Test
-    public void testExpirationTimeIsNotNullIfExpInBodyIsSet() {
-
-        // See decoded parts at https://jwt.io/.
-        //
-        // The body decodes to:
-        //     {
-        //        "sub": "jdoe",
-        //        "aud": "segmentstore",
-        //         "iat": 1569324678,
-        //         "exp": 1569324683
-        //     }
-        String token = String.format("%s.%s.%s",
-                "eyJhbGciOiJIUzUxMiJ9", // header
-                "eyJzdWIiOiJqZG9lIiwiYXVkIjoic2VnbWVudHN0b3JlIiwiaWF0IjoxNTY5MzI0Njc4LCJleHAiOjE1NjkzMjQ2ODN9", // body
-                "EKvw5oVkIihOvSuKlxiX7q9_OAYz7m64wsFZjJTBkoqg4oidpFtdlsldXHToe30vrPnX45l8QAG4DoShSMdw"); // signature
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                token, dummyController, "somescope", "somestream");
-        assertNotNull(objectUnderTest.extractExpirationTime(token));
-    }
 
     @Test
     public void testRetrievesNewTokenIfTokenIsNearingExpiry() {
-        String token = String.format("header.%s.signature", createJwtBody(
+        String token = String.format("header.%s.signature", toCompact(
                 JwtBody.builder().expirationTime(Instant.now().minusSeconds(1).getEpochSecond()).build()));
         log.debug("token: {}", token);
 
@@ -119,7 +76,7 @@ public class JwtTokenProviderImplTest {
         CompletableFuture<String> future = CompletableFuture.supplyAsync(new Supplier<String>() {
             @Override
             public String get() {
-                return String.format("newtokenheader.%s.signature", createJwtBody(
+                return String.format("newtokenheader.%s.signature", toCompact(
                         JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
             }
         });
@@ -140,7 +97,7 @@ public class JwtTokenProviderImplTest {
     @Test
     public void testRetrievesSameTokenOutsideOfTokenRefreshThresholdWhenTokenIsNull() {
 
-        final String token = String.format("newtokenheader.%s.signature", createJwtBody(
+        final String token = String.format("newtokenheader.%s.signature", toCompact(
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         // Setup mock
         Controller mockController = mock(Controller.class);
@@ -161,30 +118,16 @@ public class JwtTokenProviderImplTest {
     }
 
     @Test
-    public void testReturnsNullExpirationTimeForNullToken() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
-        assertNull(objectUnderTest.extractExpirationTime(null));
-    }
-
-    @Test
-    public void testReturnsNullExpirationTimeForEmptyToken() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
-        assertNull(objectUnderTest.extractExpirationTime(null));
-    }
-
-    @Test
     public void testDefaultTokenRefreshThreshold() {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
+                createEmptyDummyToken(), dummyController, "some-scope", "some-stream");
         assertSame(JwtTokenProviderImpl.DEFAULT_REFRESH_THRESHOLD_SECONDS,
                 objectUnderTest.getRefreshThresholdInSeconds());
     }
 
     @Test
     public void testReturnsExistingTokenIfNotNearingExpiry() {
-        String encodedJwtBody = createJwtBody(JwtBody.builder()
+        String encodedJwtBody = toCompact(JwtBody.builder()
                 .expirationTime(Instant.now().plusSeconds(10000).getEpochSecond())
                 .build());
         String token = String.format("header.%s.signature", encodedJwtBody);
@@ -195,55 +138,13 @@ public class JwtTokenProviderImplTest {
     }
 
     @Test
-    public void testParseExpirationTimeExtractsExpiryTime() {
-        // Contains a space before each field value
-        String json1 = "{\"sub\": \"subject\",\"aud\": \"segmentstore\",\"iat\": 1569837384,\"exp\": 1569837434}";
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
-        assertEquals(1569837434, objectUnderTest.parseExpirationTime(json1).longValue());
-
-        // Does not contain space before field values
-        String json2 = "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384,\"exp\":1569837434}";
-        assertEquals(1569837434, objectUnderTest.parseExpirationTime(json2).longValue());
-    }
-
-    @Test
-    public void testParseExpirationTimeReturnsNullWhenExpiryIsNotSet() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
-
-        // Does not contain expiry time
-        String json = "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384}";
-
-        assertNull(objectUnderTest.parseExpirationTime(json));
-    }
-
-    @Test
-    public void testParseExpirationTimeReturnsNullWhenTokenIsNullOrEmpty() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
-        assertNull(objectUnderTest.parseExpirationTime(null));
-        assertNull(objectUnderTest.parseExpirationTime(""));
-    }
-
-    @Test
-    public void testParseExpirationTimeReturnsNullWhenTokenIsNotInteger() {
-        // Notice that the exp field value contains non-digits/alphabets
-        String jwtBody = "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384,\"exp\":\"abc\"}";
-
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                dummyToken(), dummyController, "some-scope", "some-stream");
-        assertNull(objectUnderTest.parseExpirationTime(jwtBody));
-    }
-
-    @Test
     public void testRetrievesNewTokenFirstTimeWhenInitialTokenIsNull() {
         // Setup mock
         Controller mockController = mock(Controller.class);
         CompletableFuture<String> future = CompletableFuture.supplyAsync(new Supplier<String>() {
             @Override
             public String get() {
-                return String.format("newtokenheader.%s.signature", createJwtBody(
+                return String.format("newtokenheader.%s.signature", toCompact(
                         JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
             }
         });
@@ -297,15 +198,76 @@ public class JwtTokenProviderImplTest {
     @Test
     public void testPopulateTokenReturnsTrueWhenTokenIsNonEmpty() {
         String initialToken = String.format("%s.%s.%s", "base64-encoded-header",
-                JwtTestUtils.createJwtBody(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
+                JwtTestUtils.toCompact(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
                 "base64-encoded-signature");
 
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(initialToken, this.dummyController,
                 "somescope", "somestream");
 
         String newToken = String.format("%s.%s.%s", "base64-encoded-header",
-                JwtTestUtils.createJwtBody(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
+                JwtTestUtils.toCompact(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
                 "base64-encoded-signature");
         assertTrue(objectUnderTest.populateToken(newToken));
+    }
+
+    @Test(expected = CompletionException.class)
+    public void testRetrieveTokenFailsWhenClientCallToControllerFails() {
+        Controller mockController = mock(Controller.class);
+
+        CompletableFuture<String> tokenFuture = new CompletableFuture<>();
+        tokenFuture.completeExceptionally(new CompletionException(new RuntimeException("Failed to connect to server")));
+
+        when(mockController.getOrRefreshDelegationTokenFor("test-scope", "test-stream"))
+                .thenReturn(tokenFuture);
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(mockController, "test-scope", "test-stream");
+        try {
+            tokenProvider.retrieveToken().join();
+        } catch (CompletionException e) {
+            assertEquals(RuntimeException.class.getName(), e.getCause().getClass().getName());
+            throw e;
+        }
+    }
+
+    @Test(expected = CompletionException.class)
+    public void testRefreshTokenCompletesUponFailure() {
+        ClientConfig config = ClientConfig.builder().controllerURI(URI.create("tcp://non-existent-cluster:9090")).build();
+        Controller controllerClient = new ControllerImpl(
+                ControllerImplConfig.builder().clientConfig(config).retryAttempts(1).build(),
+                Executors.newScheduledThreadPool(1));
+
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controllerClient, "bob-0", "bob-0");
+        try {
+            tokenProvider.retrieveToken().join();
+        } catch (CompletionException e) {
+            assertEquals(RetriesExhaustedException.class.getName(), e.getCause().getClass().getName());
+            throw e;
+        }
+    }
+
+    @Test
+    public void testTokenRefreshFutureIsClearedUponFailure() throws InterruptedException {
+        ClientConfig config = ClientConfig.builder().controllerURI(
+                URI.create("tcp://non-existent-cluster:9090")).build();
+
+        Controller controllerClient = new ControllerImpl(
+                ControllerImplConfig.builder().clientConfig(config).retryAttempts(1).build(),
+                Executors.newScheduledThreadPool(1));
+
+        JwtTokenProviderImpl tokenProvider = (JwtTokenProviderImpl) DelegationTokenProviderFactory.create(controllerClient,
+                "bob-0", "bob-0");
+
+        try {
+            String token = tokenProvider.retrieveToken().join();
+            fail("Didn't expect the control to come here");
+        } catch (CompletionException e) {
+            log.info("Encountered CompletionException as expected");
+            assertNull("Expected a null tokenRefreshFuture", tokenProvider.getTokenRefreshFuture().get());
+        }
+        try {
+            tokenProvider.retrieveToken().join();
+        } catch (CompletionException e) {
+            log.info("Encountered CompletionException as expected");
+            assertNull("Expected a null tokenRefreshFuture", tokenProvider.getTokenRefreshFuture().get());
+        }
     }
 }

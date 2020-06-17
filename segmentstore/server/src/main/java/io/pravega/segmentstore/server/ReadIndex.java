@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,14 +12,13 @@ package io.pravega.segmentstore.server;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.Collection;
 
 /**
  * Defines a ReadIndex for StreamSegments, that allows adding data only at the end.
  */
-public interface ReadIndex extends AutoCloseable, CacheUtilizationProvider {
+public interface ReadIndex extends AutoCloseable {
     /**
      * Appends a range of bytes at the end of the Read Index for the given StreamSegmentId.
      *
@@ -75,7 +74,7 @@ public interface ReadIndex extends AutoCloseable, CacheUtilizationProvider {
      * <ul>
      * <li> This method allows reading from partially merged transactions (on which beginMerge was called but not completeMerge).
      * This is acceptable because this method is only meant to be used by internal clients (not by an outside request)
-     * and it prebuilds the result into the returned InputStream.
+     * and it prebuilds the result into the returned {@link BufferView}.
      * <li> This method will not cause cache statistics to be updated. As such, Cache entry generations will not be
      * updated for those entries that are touched.
      * </ul>
@@ -83,12 +82,12 @@ public interface ReadIndex extends AutoCloseable, CacheUtilizationProvider {
      * @param streamSegmentId The Id of the StreamSegment to read from.
      * @param startOffset     The offset in the StreamSegment where to start reading.
      * @param length          The number of bytes to read.
-     * @return An InputStream containing the requested data, or null if all of the conditions of this read cannot be met.
+     * @return A {@link BufferView} containing the requested data, or null if all of the conditions of this read cannot be met.
      * @throws StreamSegmentNotExistsException If streamSegmentId is mapped to a Segment that is marked as Deleted.
      * @throws IllegalStateException    If the read index is in recovery mode.
      * @throws IllegalArgumentException If the parameters are invalid (offset, length or offset+length are not in the Segment's range).
      */
-    InputStream readDirect(long streamSegmentId, long startOffset, int length) throws StreamSegmentNotExistsException;
+    BufferView readDirect(long streamSegmentId, long startOffset, int length) throws StreamSegmentNotExistsException;
 
     /**
      * Reads a number of bytes from the StreamSegment ReadIndex.
@@ -148,6 +147,14 @@ public interface ReadIndex extends AutoCloseable, CacheUtilizationProvider {
      *                                 the Read Index or it has conflicting information about it.
      */
     void exitRecoveryMode(boolean successfulRecovery) throws DataCorruptionException;
+
+    /**
+     * Gets the {@link CacheUtilizationProvider} shared across all Segment Containers hosted in this process that can
+     * be used to query the Cache State.
+     *
+     * @return The {@link CacheUtilizationProvider}.
+     */
+    CacheUtilizationProvider getCacheUtilizationProvider();
 
     @Override
     void close();

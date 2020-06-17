@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,10 +38,11 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
+import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
@@ -88,7 +89,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     private static final int APPENDS_PER_SEGMENT_RECOVERY = 500; // We use depth-first, which has slower performance.
     private static final int METADATA_CHECKPOINT_FREQUENCY = 50;
     private static final UUID CORE_ATTRIBUTE_ID = Attributes.EVENT_COUNT;
-    private static final UUID EXTENDED_ATTRIBUTE_ID = UUID.randomUUID();
+    private static final List<UUID> EXTENDED_ATTRIBUTE_IDS = Arrays.asList(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
     private static final WriterConfig DEFAULT_CONFIG = WriterConfig
             .builder()
             .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1000)
@@ -227,6 +228,44 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         context.storage.setConcatAsyncErrorInjector(new ErrorInjector<>(count -> count % failConcatAsyncEvery == 0, exceptionSupplier));
 
         testWriter(context);
+    }
+
+    /**
+     * Tests the StorageWriter in a scenario where the DurableLog is left throwing DataLogWriterNotPrimaryException. In
+     * this case, we need to restart the StorageWriter and expect the container recovery to resolve the original issue.
+     */
+    @Test
+    public void testWithDataSourceNotPrimaryErrors() throws Exception {
+        final int failWriteSyncEvery = 4;
+        Predicate<Throwable> errorPredicate = ex -> ex instanceof DataLogWriterNotPrimaryException;
+
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+        Supplier<Exception> exceptionSupplier = () -> new DataLogWriterNotPrimaryException("Problem interacting with Zookeeper");
+
+        // Simulate DataLogWriterNotPrimaryException in DurableLog from a failed truncation (e.g., KeeperException.BadVersionException).
+        context.dataSource.setAckAsyncErrorInjector(new ErrorInjector<>(count -> count % failWriteSyncEvery == 0, exceptionSupplier));
+
+        // Start the writer.
+        context.writer.startAsync();
+
+        // Create a bunch of segments and Transactions.
+        ArrayList<Long> segmentIds = createSegments(context);
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
+        ArrayList<Long> transactionIds = new ArrayList<>();
+        transactionsBySegment.values().forEach(transactionIds::addAll);
+
+        // Append data.
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendDataBreadthFirst(segmentIds, segmentContents, context);
+        appendDataBreadthFirst(transactionIds, segmentContents, context);
+
+        // Wait for the Storage Writer to be shutdown.
+        ServiceListeners.awaitShutdown(context.writer, TIMEOUT, false);
+
+        // Ensure that the failure case is DataLogWriterNotPrimaryException.
+        Assert.assertTrue("Unexpected failure cause for DurableLog.",
+                errorPredicate.test(Exceptions.unwrap(context.writer.failureCause())));
     }
 
     /**
@@ -472,6 +511,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     public void testCleanup() throws Exception {
         final WriterConfig config = WriterConfig.builder()
                                                 .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1) // This differs from DEFAULT_CONFIG.
+                                                .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, 1)
                                                 .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 1000L)
                                                 .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                                                 .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
@@ -852,10 +892,13 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     private Collection<AttributeUpdate> generateAttributeUpdates(UpdateableSegmentMetadata segmentMetadata) {
         long coreAttributeValue = segmentMetadata.getAttributes().getOrDefault(CORE_ATTRIBUTE_ID, 0L) + 1;
-        long extendedAttributeValue = segmentMetadata.getAttributes().getOrDefault(EXTENDED_ATTRIBUTE_ID, 0L) + 13;
-        Collection<AttributeUpdate> attributeUpdates = Arrays.asList(
-                new AttributeUpdate(CORE_ATTRIBUTE_ID, AttributeUpdateType.Accumulate, coreAttributeValue),
-                new AttributeUpdate(EXTENDED_ATTRIBUTE_ID, AttributeUpdateType.Replace, extendedAttributeValue));
+        val attributeUpdates = new ArrayList<AttributeUpdate>();
+        attributeUpdates.add(new AttributeUpdate(CORE_ATTRIBUTE_ID, AttributeUpdateType.Accumulate, coreAttributeValue));
+        for (int i = 0; i < EXTENDED_ATTRIBUTE_IDS.size(); i++) {
+            UUID id = EXTENDED_ATTRIBUTE_IDS.get(i);
+            long extendedAttributeValue = segmentMetadata.getAttributes().getOrDefault(id, 0L) + 13 + i;
+            attributeUpdates.add(new AttributeUpdate(id, AttributeUpdateType.Replace, extendedAttributeValue));
+        }
         segmentMetadata.updateAttributes(
                 attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue)));
         return attributeUpdates;
@@ -900,7 +943,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             transactions.put(parentId, segmentTransactions);
             SegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
-                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
+                String transactionName = NameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
                 context.transactionIds.put(transactionId, parentId);
                 context.metadata.mapStreamSegmentId(transactionName, transactionId);
                 initializeSegment(transactionId, context);

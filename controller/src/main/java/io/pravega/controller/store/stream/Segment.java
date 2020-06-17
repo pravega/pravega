@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,11 +9,10 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.ToString;
-
+import io.pravega.shared.NameUtils;
 import java.util.AbstractMap;
 
 /**
@@ -30,15 +29,15 @@ public class Segment {
     private final double keyEnd;
 
     public Segment(long segmentId, long start, double keyStart, double keyEnd) {
-        this.number = StreamSegmentNameUtils.getSegmentNumber(segmentId);
-        this.epoch = StreamSegmentNameUtils.getEpoch(segmentId);
+        this.number = NameUtils.getSegmentNumber(segmentId);
+        this.epoch = NameUtils.getEpoch(segmentId);
         this.start = start;
         this.keyStart = keyStart;
         this.keyEnd = keyEnd;
     }
 
     public long segmentId() {
-        return StreamSegmentNameUtils.computeSegmentId(number, epoch);
+        return NameUtils.computeSegmentId(number, epoch);
     }
 
     public boolean overlaps(final Segment segment) {
