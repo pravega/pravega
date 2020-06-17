@@ -91,7 +91,7 @@ class TableSegmentImpl implements TableSegment {
      */
     TableSegmentImpl(@NonNull Segment segment, @NonNull Controller controller, @NonNull ConnectionFactory connectionFactory,
                      @NonNull KeyValueTableClientConfiguration clientConfig, DelegationTokenProvider tokenProvider) {
-        this.segmentName = segment.getScopedName();
+        this.segmentName = segment.getKVTScopedName();
         this.segmentId = segment.getSegmentId();
         this.controller = controller;
         this.connectionFactory = connectionFactory;

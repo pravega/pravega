@@ -378,17 +378,6 @@ public interface Controller extends AutoCloseable {
     AsyncIterator<KeyValueTableInfo> listKeyValueTables(final String scopeName);
 
     /**
-     * API to update the configuration of a KeyValueTable.
-     *
-     * @param scope     Scope
-     * @param kvtName   KeyValueTable name
-     * @param kvtConfig The {@link KeyValueTableConfiguration} to update.
-     * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     * indicate that the KeyValueTable was updated because the config is now different from before.
-     */
-    CompletableFuture<Boolean> updateKeyValueTable(final String scope, final String kvtName, final KeyValueTableConfiguration kvtConfig);
-
-    /**
      * API to delete a KeyValueTable. Only a sealed KeyValueTable can be deleted.
      *
      * @param scope   Scope name.

@@ -34,6 +34,10 @@ import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM_FAILED;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_LATENCY;
+import static io.pravega.shared.MetricsNames.CREATE_KVTABLE;
+import static io.pravega.shared.MetricsNames.KVTABLE_SEGMENTS_COUNT;
+import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_FAILED;
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
 
@@ -49,6 +53,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger sealStreamLatency;
     private final OpStatsLogger updateStreamLatency;
     private final OpStatsLogger truncateStreamLatency;
+    private final OpStatsLogger createKeyValueTableLatency;
 
     private StreamMetrics() {
         createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
@@ -56,6 +61,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
         updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
         truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
+        createKeyValueTableLatency = STATS_LOGGER.createStats(CREATE_KVTABLE_LATENCY);
     }
 
     /**
@@ -75,6 +81,33 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     public static StreamMetrics getInstance() {
         Preconditions.checkState(INSTANCE.get() != null, "You need call initialize before using this class.");
         return INSTANCE.get();
+    }
+
+    /**
+     * This method increments the global and KeyValueTable-specific counters of KeyValueTable creations,
+     * initializes other kvt-specific metrics and reports the latency of the operation.
+     *
+     * @param scope             Scope.
+     * @param kvtName           Name of the KeyValueTable.
+     * @param minNumSegments    Initial number of segments for the KeyValueTable.
+     * @param latency           Latency of the create KeyValueTable operation.
+     */
+    public void createKeyValueTable(String scope, String kvtName, int minNumSegments, Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(CREATE_KVTABLE, 1);
+        DYNAMIC_LOGGER.reportGaugeValue(KVTABLE_SEGMENTS_COUNT, minNumSegments, streamTags(scope, kvtName));
+        createKeyValueTableLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method increments the global counter of failed KeyValueTable creations in the system as well as the failed creation
+     * attempts for this specific KeyValueTable.
+     *
+     * @param scope         Scope.
+     * @param kvtName       Name of the KeyValueTable.
+     */
+    public void createKeyValueTableFailed(String scope, String kvtName) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_KVTABLE_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(CREATE_KVTABLE_FAILED, 1, streamTags(scope, kvtName));
     }
 
     /**

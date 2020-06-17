@@ -33,7 +33,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
+public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
 
     @Override
     public int getThreadPoolSize() {

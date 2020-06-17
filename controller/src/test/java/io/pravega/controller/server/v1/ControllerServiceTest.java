@@ -25,18 +25,21 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.VersionedMetadata;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.AssertExtensions;
@@ -74,8 +77,10 @@ public class ControllerServiceTest {
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore = spy(StreamStoreFactory.createInMemoryStore(executor));
+    private final KVTableMetadataStore kvtStore = spy(KVTableStoreFactory.createInMemoryStore(executor));
 
     private StreamMetadataTasks streamMetadataTasks;
+    private TableMetadataTasks kvtMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private ConnectionFactoryImpl connectionFactory;
     private ControllerService consumer;
@@ -106,8 +111,9 @@ public class ControllerServiceTest {
                 segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
-
-        consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
+        kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper,  executor,  executor,
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+        consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
                 new SegmentHelper(connectionFactory, hostStore), executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);

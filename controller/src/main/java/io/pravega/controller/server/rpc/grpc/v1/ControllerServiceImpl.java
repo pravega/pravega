@@ -59,6 +59,9 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 
 import java.util.List;
@@ -110,12 +113,43 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void createKeyValueTable(KeyValueTableConfig request, StreamObserver<CreateKeyValueTableStatus> responseObserver) {
+        String scope = request.getScope();
+        String kvt = request.getKvtName();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createKeyValueTable",
+                scope, kvt);
+        log.info(requestTag.getRequestId(), "createKeyValueTable called for KVTable {}/{}.", scope, kvt);
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                AuthResourceRepresentation.ofStreamsInScope(scope), AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.createKeyValueTable(scope, kvt,
+                        ModelHelper.encode(request),
+                        System.currentTimeMillis()),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void getCurrentSegmentsKeyValueTable(KeyValueTableInfo request, StreamObserver<SegmentRanges> responseObserver) {
+        log.info("getCurrentSegmentsKeyValueTable called for kvtable {}/{}.", request.getScope(), request.getKvtName());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                AuthResourceRepresentation.ofKeyValueTableInScope(request.getScope(), request.getKvtName()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getCurrentSegmentsKeyValueTable", request.getScope(), request.getKvtName());
+                    return controllerService.getCurrentSegmentsKeyValueTable(request.getScope(), request.getKvtName())
+                            .thenApply(segmentRanges -> SegmentRanges.newBuilder()
+                                    .addAllSegmentRanges(segmentRanges)
+                                    .setDelegationToken(delegationToken)
+                                    .build());
+                },
+                responseObserver);
+    }
+
+    @Override
     public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {
         String scope = request.getStreamInfo().getScope();
         String stream = request.getStreamInfo().getStream();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createStream",
                                                                             scope, stream);
-
         log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.", scope, stream);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamsInScope(scope), AuthHandler.Permissions.READ_UPDATE),
@@ -131,7 +165,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String stream = request.getStreamInfo().getStream();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "updateStream",
                 scope, stream);
-
         log.info(requestTag.getRequestId(), "updateStream called for stream {}/{}.", scope, stream);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE),
@@ -553,10 +586,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
     // endregion
     
-    private void logIfEmpty(String delegationToken, String requestName, String scopeName, String streamName) {
+    private void logIfEmpty(String delegationToken, String requestName, String scopeName, String name) {
         if (isAuthEnabled() && Strings.isNullOrEmpty(delegationToken)) {
-            log.warn("Delegation token for request [{}] with scope [{}] and stream [{}], is: [{}]",
-                    requestName, scopeName, streamName, delegationToken);
+            log.warn("Delegation token for request [{}] for artifact [{}]/[{}], is: [{}]",
+                    requestName, scopeName, name, delegationToken);
         }
     }
 

@@ -322,13 +322,14 @@ public class SegmentHelper implements AutoCloseable {
      * @param tableName           Qualified table name.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
+     * @param sortedTableSegment  Boolean flag indicating if the Table Segment should be created in sorted order.
      * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
      * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
      * can be retried then the future will be failed with {@link WireCommandFailedException}.
      */
     public CompletableFuture<Void> createTableSegment(final String tableName,
                                                          String delegationToken,
-                                                         final long clientRequestId) {
+                                                         final long clientRequestId, final boolean sortedTableSegment) {
 
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
@@ -337,7 +338,7 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().asLong();
 
         // All Controller Metadata Segments are non-sorted.
-        return sendRequest(connection, requestId, new WireCommands.CreateTableSegment(requestId, tableName, false, delegationToken))
+        return sendRequest(connection, requestId, new WireCommands.CreateTableSegment(requestId, tableName, sortedTableSegment, delegationToken))
                 .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.CreateTableSegment.class, type));
     }
 

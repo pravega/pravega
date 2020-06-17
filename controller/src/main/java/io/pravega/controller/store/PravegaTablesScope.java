@@ -7,12 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store;
 
 import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.stream.StoreException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -43,11 +44,12 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
 @Slf4j
 public class PravegaTablesScope implements Scope {
     private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "streamsInScope" + SEPARATOR + "%s";
+    private static final String KVTABLES_IN_SCOPE_TABLE_FORMAT = "kvTablesInScope" + SEPARATOR + "%s";
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;
     private final AtomicReference<UUID> idRef;
 
-    PravegaTablesScope(final String scopeName, PravegaTablesStoreHelper storeHelper) {
+    public PravegaTablesScope(final String scopeName, PravegaTablesStoreHelper storeHelper) {
         this.scopeName = scopeName;
         this.storeHelper = storeHelper;
         this.idRef = new AtomicReference<>(null);
@@ -71,33 +73,40 @@ public class PravegaTablesScope implements Scope {
                 DATA_NOT_FOUND_PREDICATE,
                 () -> storeHelper.createTable(SCOPES_TABLE)
                                  .thenCompose(v -> {
-                                     log.debug("table created {}", SCOPES_TABLE);
+                                     log.debug("table for streams created {}", SCOPES_TABLE);
                                      return storeHelper.addNewEntryIfAbsent(SCOPES_TABLE, scopeName, newId());
                                  })), (r, e) -> {
             if (e == null || Exceptions.unwrap(e) instanceof StoreException.DataExistsException) {
-                return getStreamsInScopeTableName()
-                        .thenCompose(tableName -> storeHelper.createTable(tableName)
+                return CompletableFuture.allOf(getStreamsInScopeTableName()
+                        .thenCompose(streamsTableName -> storeHelper.createTable(streamsTableName)
                                                              .thenAccept(v -> {
-                                                                 log.debug("table created {}", tableName);
+                                                                 log.debug("table for streams created {}", streamsTableName);
                                                                  if (e != null) {
                                                                      throw new CompletionException(e);
                                                                  }
-                                                             }));
+                                                             })),
+                        getKVTablesInScopeTableName()
+                        .thenCompose(kvtsTableName -> storeHelper.createTable(kvtsTableName)
+                                .thenAccept(v -> {
+                                    log.debug("table for kvts created {}", kvtsTableName);
+                                    if (e != null) {
+                                        throw new CompletionException(e);
+                                    }
+                                })));
             } else {
                 throw new CompletionException(e);
             }
         });
     }
 
-    private byte[] newId() {
-        byte[] b = new byte[2 * Long.BYTES];
-        BitConverter.writeUUID(b, 0, UUID.randomUUID());
-        return b;
-    }
-
-    CompletableFuture<String> getStreamsInScopeTableName() {
+    public CompletableFuture<String> getStreamsInScopeTableName() {
         return getId().thenApply(id ->
                 getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, id.toString())));
+    }
+
+    public CompletableFuture<String> getKVTablesInScopeTableName() {
+        return getId().thenApply(id ->
+                getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(KVTABLES_IN_SCOPE_TABLE_FORMAT, id.toString())));
     }
 
     CompletableFuture<UUID> getId() {
@@ -154,19 +163,25 @@ public class PravegaTablesScope implements Scope {
         idRef.set(null);
     }
 
-    CompletableFuture<Void> addStreamToScope(String stream) {
+    public CompletableFuture<Void> addStreamToScope(String stream) {
         return getStreamsInScopeTableName()
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, stream, newId())));
     }
 
-    CompletableFuture<Void> removeStreamFromScope(String stream) {
+    public CompletableFuture<Void> removeStreamFromScope(String stream) {
         return getStreamsInScopeTableName()
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, stream)));
     }
 
-    CompletableFuture<Boolean> checkStreamExistsInScope(String stream) {
+    public CompletableFuture<Boolean> checkStreamExistsInScope(String stream) {
         return getStreamsInScopeTableName()
                 .thenCompose(tableName -> storeHelper.expectingDataNotFound(
                         storeHelper.getEntry(tableName, stream, x -> x).thenApply(v -> true), false));
     }
+
+    public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
+        return getKVTablesInScopeTableName()
+                .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, kvt, id)));
+    }
+
 }
