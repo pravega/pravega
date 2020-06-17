@@ -1945,10 +1945,6 @@ public final class WireCommands {
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
 
-            if (initialAvailable - in.available() < length) {
-                throw new InvalidMessageException("Was expecting length " + length + " but read " + (initialAvailable - in.available()));
-            }
-
             return new TableKeysRead(requestId, segment, keys, wrappedBuffer(continuationToken)).requireRelease();
         }
 
@@ -2038,10 +2034,6 @@ public final class WireCommands {
             int dataLength = in.readInt();
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
-
-            if (initialAvailable - in.available() < length) {
-                throw new InvalidMessageException("Was expecting length " + length + " but read " + (initialAvailable - in.available()));
-            }
             return new TableEntriesRead(requestId, segment, entries, wrappedBuffer(continuationToken)).requireRelease();
         }
 

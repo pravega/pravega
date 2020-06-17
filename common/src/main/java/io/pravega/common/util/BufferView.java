@@ -255,7 +255,7 @@ public interface BufferView {
         BufferView readSlice(int length) throws EOFException;
 
         /**
-         * Reads all the remaining bytes from this {@link BufferView.Reader} into a new {@link ArrayView}. The reader
+         * Copies all the remaining bytes from this {@link BufferView.Reader} into a new {@link ArrayView}. The reader
          * position will be set to the end of the {@link BufferView}.
          *
          * @param bufferSize The maximum number of bytes to copy at each iteration. Set to {@link Integer#MAX_VALUE}
