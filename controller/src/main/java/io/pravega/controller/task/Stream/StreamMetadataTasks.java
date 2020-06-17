@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,14 +20,12 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
-import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
@@ -70,6 +68,7 @@ import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -82,13 +81,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
 import lombok.Synchronized;
 import org.apache.commons.lang3.NotImplementedException;
 import org.slf4j.LoggerFactory;
@@ -106,7 +104,6 @@ public class StreamMetadataTasks extends TaskBase {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
-    private static final long COMPLETION_TIMEOUT_MILLIS = Duration.ofMinutes(2).toMillis();
 
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
@@ -118,7 +115,6 @@ public class StreamMetadataTasks extends TaskBase {
     private final GrpcAuthHelper authHelper;
     private final RequestTracker requestTracker;
     private final ScheduledExecutorService eventExecutor;
-    private final AtomicLong completionTimeoutMillis = new AtomicLong(COMPLETION_TIMEOUT_MILLIS);
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
@@ -249,11 +245,10 @@ public class StreamMetadataTasks extends TaskBase {
     }
     
     private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition, long delay) {
-        // Check whether workflow is complete by adding a delay between each iteration. 
-        // If the work is not complete within `completionTimeoutMillis` throw TimeoutException.
         AtomicBoolean isDone = new AtomicBoolean(false);
-        return RetryHelper.loopWithTimeout(() -> !isDone.get(), () -> condition.get().thenAccept(isDone::set),
-                delay, 5000L, completionTimeoutMillis.get(), executor);
+        return Futures.loop(() -> !isDone.get(),
+                () -> Futures.delayedFuture(condition, delay, executor)
+                             .thenAccept(isDone::set), executor);
     }
 
     @VisibleForTesting
@@ -728,18 +723,15 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
-        writerInitFuture.thenComposeAsync(v -> requestEventWriterRef.get().writeEvent(event.getKey(), event),
-                                          eventExecutor)
+        writerInitFuture.thenComposeAsync(v -> requestEventWriterRef.get().writeEvent(event.getKey(), event), eventExecutor)
                         .whenComplete((r, e) -> {
                             if (e != null) {
                                 log.warn("exception while posting event {} {}", e.getClass().getName(), e.getMessage());
                                 if (e instanceof TaskExceptions.ProcessingDisabledException) {
                                     result.completeExceptionally(e);
                                 } else {
-                                    // transform any other event write exception to retryable
-                                    // exception
-                                    result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event",
-                                                                                                       e));
+                                    // transform any other event write exception to retryable exception
+                                    result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event", e));
                                 }
                             } else {
                                 log.info("event posted successfully");
@@ -770,7 +762,7 @@ public class StreamMetadataTasks extends TaskBase {
                         final int minNumSegments = response.getConfiguration().getScalingPolicy().getMinNumSegments();
                         List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
                                                            .boxed()
-                                                           .map(x -> NameUtils.computeSegmentId(x, 0))
+                                                           .map(x -> StreamSegmentNameUtils.computeSegmentId(x, 0))
                                                            .collect(Collectors.toList());
                         return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken(), requestId)
                                 .thenCompose(v -> createMarkStream(scope, stream, timestamp, requestId))
@@ -830,7 +822,7 @@ public class StreamMetadataTasks extends TaskBase {
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         return this.streamMetadataStore.createStream(scope, markStream, config, timestamp, null, executor)
                                 .thenCompose(response -> {
-                                    final long segmentId = NameUtils.computeSegmentId(response.getStartingSegmentNumber(), 0);
+                                    final long segmentId = StreamSegmentNameUtils.computeSegmentId(response.getStartingSegmentNumber(), 0);
                                     return notifyNewSegment(scope, markStream, segmentId, response.getConfiguration().getScalingPolicy(),
                                             this.retrieveDelegationToken(), requestId);
                                 })
@@ -985,8 +977,6 @@ public class StreamMetadataTasks extends TaskBase {
         Throwable cause = Exceptions.unwrap(ex);
         if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
-        } else if (cause instanceof TimeoutException) {
-            throw new CompletionException(cause);
         } else {
             log.warn(requestId, "Update stream failed due to ", cause);
             return UpdateStreamStatus.Status.FAILURE;
@@ -997,8 +987,6 @@ public class StreamMetadataTasks extends TaskBase {
         Throwable cause = Exceptions.unwrap(ex);
         if (cause instanceof StoreException.DataNotFoundException) {
             return DeleteStreamStatus.Status.STREAM_NOT_FOUND;
-        } else if (cause instanceof TimeoutException) {
-            throw new CompletionException(cause);
         } else {
             log.warn(requestId, "Delete stream failed.", ex);
             return DeleteStreamStatus.Status.FAILURE;
@@ -1007,12 +995,10 @@ public class StreamMetadataTasks extends TaskBase {
 
     public CompletableFuture<Void> notifyTxnCommit(final String scope, final String stream,
                                                    final List<Long> segments, final UUID txnId) {
-        Timer timer = new Timer();
         return Futures.allOf(segments.stream()
                 .parallel()
                 .map(segment -> notifyTxnCommit(scope, stream, segment, txnId))
-                .collect(Collectors.toList()))
-                .thenRun(() -> TransactionMetrics.getInstance().commitTransactionSegments(timer.getElapsed()));
+                .collect(Collectors.toList()));
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyTxnCommit(final String scope, final String stream,
@@ -1027,12 +1013,10 @@ public class StreamMetadataTasks extends TaskBase {
 
     public CompletableFuture<Void> notifyTxnAbort(final String scope, final String stream,
                                                   final List<Long> segments, final UUID txnId) {
-        Timer timer = new Timer();
         return Futures.allOf(segments.stream()
                 .parallel()
                 .map(segment -> notifyTxnAbort(scope, stream, segment, txnId))
-                .collect(Collectors.toList()))
-                .thenRun(() -> TransactionMetrics.getInstance().abortTransactionSegments(timer.getElapsed()));
+                .collect(Collectors.toList()));
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyTxnAbort(final String scope, final String stream,
@@ -1075,10 +1059,5 @@ public class StreamMetadataTasks extends TaskBase {
 
     public String retrieveDelegationToken() {
         return authHelper.retrieveMasterToken();
-    }
-
-    @VisibleForTesting
-    public void setCompletionTimeoutMillis(long timeoutMillis) {
-        completionTimeoutMillis.set(timeoutMillis);
     }
 }

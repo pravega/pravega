@@ -150,7 +150,6 @@ public class NoOpStorageUserDataWriteOnlyTests extends StorageTestBase {
         }
     }
 
-    @Override
     @Test
     public void testRead() throws Exception {
         final String segmentName = "TestRead";
@@ -178,7 +177,6 @@ public class NoOpStorageUserDataWriteOnlyTests extends StorageTestBase {
         }
     }
 
-    @Override
     @Test
     public void testConcat() throws Exception {
         final String firstSegmentName = "firstSegment";
@@ -196,11 +194,4 @@ public class NoOpStorageUserDataWriteOnlyTests extends StorageTestBase {
     public void testFencing() throws Exception {
     }
 
-    @Override
-    public void testListSegmentsWithOneSegment() {
-    }
-
-    @Override
-    public void testListSegmentsNextNoSuchElementException() {
-    }
 }

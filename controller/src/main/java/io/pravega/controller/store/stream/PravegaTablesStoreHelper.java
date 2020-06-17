@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,8 +50,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionDropped;
-import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionFailed;
 import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 
 /**
@@ -98,6 +96,10 @@ public class PravegaTablesStoreHelper {
         this.numOfRetries = numOfRetries;
     }
 
+    public SegmentHelper getSegmentHelper() {
+        return this.segmentHelper;
+    }
+
     /**
      * Api to read cached value for the specified key from the requested table.
      * @param table name of table
@@ -125,6 +127,14 @@ public class PravegaTablesStoreHelper {
      */
     public void invalidateCache(String table, String key) {
         cache.invalidateCache(new TableCacheKey<>(table, key, x -> null));
+    }
+
+    public CompletableFuture<Void> createEvent(String routingKey, String scopeName, String streamName, String message, io.pravega.client.segment.impl.Segment segment) {
+        return segmentHelper.createEvent(scopeName, streamName, message, authToken.get(), RequestTag.NON_EXISTENT_ID, segment);
+    }
+
+    public CompletableFuture<String> getEvent(String routingKey, String scopeName, String streamName, Long sequenceNumber) {
+        return segmentHelper.getEvent(scopeName, streamName, sequenceNumber, authToken.get(), RequestTag.NON_EXISTENT_ID);
     }
 
     /**
@@ -178,7 +188,7 @@ public class PravegaTablesStoreHelper {
                 new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), KeyVersion.NOT_EXISTS), value));
         Supplier<String> errorMessage = () -> String.format("addNewEntry: key: %s table: %s", key, tableName);
         return withRetries(() -> segmentHelper.updateTableEntries(tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                errorMessage, true)
+                errorMessage)
                 .exceptionally(e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
                     if (unwrap instanceof StoreException.WriteConflictException) {
@@ -259,7 +269,7 @@ public class PravegaTablesStoreHelper {
         List<TableEntry<byte[], byte[]>> entries = Collections.singletonList(
                 new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), version), value));
         return withRetries(() -> segmentHelper.updateTableEntries(tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                () -> String.format("updateEntry: key: %s table: %s", key, tableName), true)
+                () -> String.format("updateEntry: key: %s table: %s", key, tableName))
                 .thenApplyAsync(x -> {
                     KeyVersion first = x.get(0);
                     log.trace("entry for key {} updated to table {} with new version {}", key, tableName, first.getSegmentVersion());
@@ -303,45 +313,6 @@ public class PravegaTablesStoreHelper {
                        result.complete(r);
                    }
                 }, executor);
-        return result;
-    }
-
-    /**
-     * Method to retrieve the value for a given key from a table. This method takes a deserialization function and deserializes
-     * the received byte[] using the supplied function.
-     * @param tableName tableName
-     * @param keys keys to read
-     * @param fromBytes deserialization function
-     * @param nonExistent entry to populate for non existent keys
-     * @param <T> Type of deserialized object
-     * @return CompletableFuture which when completed will have the versionedMetadata retrieved from the store.
-     */
-    public <T> CompletableFuture<List<VersionedMetadata<T>>> getEntries(String tableName, List<String> keys, 
-                                                                        Function<byte[], T> fromBytes, VersionedMetadata<T> nonExistent) {
-        log.trace("get entries called for : {} keys : {}", tableName, keys);
-        List<TableKey<byte[]>> tableKeys = keys.stream().map(key -> new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null))
-                                           .collect(Collectors.toList());
-        CompletableFuture<List<VersionedMetadata<T>>> result = new CompletableFuture<>();
-
-        String message = "get entry: key: %s table: %s";
-        withRetries(() -> segmentHelper.readTable(tableName, tableKeys, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                () -> String.format(message, keys, tableName))
-                .thenApplyAsync(entries -> entries.stream().map(entry -> {
-                    if (entry.getKey().getVersion().equals(KeyVersion.NOT_EXISTS)) {
-                        return nonExistent;
-                    } else {
-                        return new VersionedMetadata<>(fromBytes.apply(entry.getValue()), 
-                                new Version.LongVersion(entry.getKey().getVersion().getSegmentVersion()));
-                    }
-                }).collect(Collectors.toList()), executor)
-                .whenCompleteAsync((r, e) -> {
-                   if (e != null) {
-                       result.completeExceptionally(e);
-                   } else {
-                       result.complete(r);
-                   }
-                }, executor);
-        
         return result;
     }
 
@@ -531,10 +502,8 @@ public class PravegaTablesStoreHelper {
     <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
         return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, toReturn);
     }
-    
-    private <T> Supplier<CompletableFuture<T>> exceptionalCallback(Supplier<CompletableFuture<T>> future, 
-                                                                   Supplier<String> errorMessageSupplier, 
-                                                                   boolean throwOriginalOnCFE) {
+
+    private <T> Supplier<CompletableFuture<T>> exceptionalCallback(Supplier<CompletableFuture<T>> future, Supplier<String> errorMessageSupplier) {
         return () -> CompletableFuture.completedFuture(null).thenComposeAsync(v -> future.get(), executor).exceptionally(t -> {
             String errorMessage = errorMessageSupplier.get();
             Throwable cause = Exceptions.unwrap(t);
@@ -544,9 +513,6 @@ public class PravegaTablesStoreHelper {
                 switch (wcfe.getReason()) {
                     case ConnectionDropped:
                     case ConnectionFailed:
-                        toThrow = throwOriginalOnCFE ? wcfe : 
-                                StoreException.create(StoreException.Type.CONNECTION_ERROR, wcfe, errorMessage);        
-                        break;
                     case UnknownHost:
                         toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, wcfe, errorMessage);
                         break;
@@ -593,27 +559,17 @@ public class PravegaTablesStoreHelper {
      * are thrown back
      */
     private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, Supplier<String> errorMessage) {
-        return withRetries(futureSupplier, errorMessage, false);
-    }
-
-    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, Supplier<String> errorMessage, 
-                                         boolean throwOriginalOnCfe) {
-        return RetryHelper.withRetriesAsync(exceptionalCallback(futureSupplier, errorMessage, throwOriginalOnCfe),
-                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException, numOfRetries, executor)
+        return RetryHelper.withRetriesAsync(exceptionalCallback(futureSupplier, errorMessage),
+                e -> {
+                    Throwable unwrap = Exceptions.unwrap(e);
+                    return unwrap instanceof StoreException.StoreConnectionException;
+                }, numOfRetries, executor)
                 .exceptionally(e -> {
                     Throwable t = Exceptions.unwrap(e);
                     if (t instanceof RetriesExhaustedException) {
                         throw new CompletionException(t.getCause());
                     } else {
-                        Throwable unwrap = Exceptions.unwrap(e);
-                        if (unwrap instanceof WireCommandFailedException &&
-                                (((WireCommandFailedException) unwrap).getReason().equals(ConnectionDropped) ||
-                                        ((WireCommandFailedException) unwrap).getReason().equals(ConnectionFailed))) {
-                            throw new CompletionException(StoreException.create(StoreException.Type.CONNECTION_ERROR, 
-                                    errorMessage.get()));
-                        } else {
-                            throw new CompletionException(unwrap);
-                        }
+                        throw new CompletionException(t);
                     }
                 });
     }

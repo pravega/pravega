@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,13 +56,15 @@ public class AssertExtensions {
      * @throws Exception            If the is an assertion error, and exception from `eval`, or the thread is interrupted.
      */
     private static <T> void assertEventuallyEquals(T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
-        TestUtils.await(() -> {
-                try {
-                    return (expected == null && eval.call() == null) || (expected != null && expected.equals(eval.call()));
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-        }, checkIntervalMillis, timeoutMillis);
+        long currentTime = System.currentTimeMillis();
+        long endTime = currentTime + timeoutMillis;
+        while (currentTime < endTime) {
+            if ((expected == null && eval.call() == null) || (expected != null && expected.equals(eval.call()))) {
+                return;
+            }
+            Thread.sleep(checkIntervalMillis);
+            currentTime = System.currentTimeMillis();
+        }
         assertEquals(expected, eval.call());
     }
 
@@ -78,7 +80,13 @@ public class AssertExtensions {
      * @throws Exception If the is an assertion error, and exception from `eval`, or the thread is interrupted.
      */
     public static <T> void assertEventuallyEquals(String message, T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
-        assertEventuallyEquals(expected, eval, checkIntervalMillis, timeoutMillis);
+        long remainingMillis = timeoutMillis;
+        while (remainingMillis > 0) {
+            if ((expected == null && eval.call() == null) || (expected != null && expected.equals(eval.call()))) {
+                return;
+            }
+            Thread.sleep(checkIntervalMillis);
+        }
         assertEquals(message, expected, eval.call());
     }
 
@@ -122,7 +130,7 @@ public class AssertExtensions {
             if (!tester.test(ex.getCause())) {
                 throw new AssertionError(message + " Exception thrown was of unexpected type: " + ex.getCause(), ex);
             }
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             if (!tester.test(ex)) {
                 throw new AssertionError(message + " Exception thrown was of unexpected type: " + ex, ex);
             }
@@ -310,7 +318,7 @@ public class AssertExtensions {
     }
 
     /**
-     * Asserts that actual {@literal <} expected.
+     * Asserts that actual < expected.
      *
      * @param message  The message to include in the Assert calls.
      * @param expected The larger value.
@@ -321,7 +329,7 @@ public class AssertExtensions {
     }
 
     /**
-     * Asserts that actual {@literal <=} expected.
+     * Asserts that actual <= expected.
      *
      * @param message  The message to include in the Assert calls.
      * @param expected The larger value.
@@ -332,7 +340,7 @@ public class AssertExtensions {
     }
 
     /**
-     * Asserts that actual {@literal >} expected.
+     * Asserts that actual > expected.
      *
      * @param message  The message to include in the Assert calls.
      * @param expected The smaller value.
@@ -343,7 +351,7 @@ public class AssertExtensions {
     }
 
     /**
-     * Asserts that actual {@literal >=} expected.
+     * Asserts that actual >= expected.
      *
      * @param message  The message to include in the Assert calls.
      * @param expected The smaller value.

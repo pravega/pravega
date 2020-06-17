@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,7 +10,6 @@
 package io.pravega.client.netty.impl;
 
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -30,6 +29,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.pravega.client.ClientConfig;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -37,10 +37,10 @@ import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +56,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
@@ -76,7 +75,7 @@ public class ConnectionPoolingTest {
     private Function<Long, WireCommands.ReadSegment> readRequestGenerator = id ->
             new WireCommands.ReadSegment(seg, offset, length, "", id);
     private Function<Long, WireCommands.SegmentRead> readResponseGenerator = id ->
-            new WireCommands.SegmentRead(seg, offset, true, false, Unpooled.wrappedBuffer(data.getBytes(StandardCharsets.UTF_8)), id);
+            new WireCommands.SegmentRead(seg, offset, true, false, ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8)), id);
 
     private class EchoServerHandler extends ChannelInboundHandlerAdapter {
 
@@ -145,7 +144,7 @@ public class ConnectionPoolingTest {
                      sslEngine.setSSLParameters(sslParameters);
                      p.addLast(handler);
                  }
-                 p.addLast(new CommandEncoder(null, NO_OP_METRIC_NOTIFIER),
+                 p.addLast(new CommandEncoder(null),
                            new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                            new CommandDecoder(),
                            new EchoServerHandler());

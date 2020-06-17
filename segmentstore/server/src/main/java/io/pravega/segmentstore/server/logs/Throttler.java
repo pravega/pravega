@@ -12,8 +12,8 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
-import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -28,7 +28,7 @@ import lombok.val;
  * Throttling utilities for the {@link OperationProcessor} class.
  */
 @Slf4j
-class Throttler implements ThrottleSourceListener, AutoCloseable {
+class Throttler implements CacheUtilizationProvider.CleanupListener, AutoCloseable {
     //region Members
 
     private final ThrottlerCalculator throttlerCalculator;
@@ -71,10 +71,10 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
 
     //endregion
 
-    //region ThrottleSourceListener Implementation
+    //region CacheUtilizationProvider.CleanupListener Implementation
 
     @Override
-    public void notifyThrottleSourceChanged() {
+    public void cacheCleanupComplete() {
         val currentDelay = this.currentDelay.get();
         if (currentDelay != null && isInterruptible(currentDelay.source)) {
             // We were actively throttling due to a reason that is eligible for re-throttling. Terminate the current
@@ -122,7 +122,6 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
                 if (remaining > 0 && remaining < delay.get().getDurationMillis()) {
                     delay.set(delay.get().withNewDelay(remaining));
                 }
-                this.metrics.processingDelay((int) existingDelay.remaining.getElapsed().toMillis(), existingDelay.source.toString());
             }
 
             return throttleOnce(delay.get());
@@ -139,10 +138,10 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
     }
 
     private CompletableFuture<Void> throttleOnce(ThrottlerCalculator.DelayResult delay) {
-        if (delay.isMaximum()
-                || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.DurableDataLog) {
+        this.metrics.processingDelay(delay.getDurationMillis());
+        if (delay.isMaximum() || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.CommitBacklog) {
             // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
-            // processing of operations) or if this is due to us not being able to ingest items quickly enough.
+            // processing of operations) or if this is due to the Commit Processor not being able to keep up.
             log.warn("{}: Processing delay = {}.", this.traceObjectId, delay);
         } else {
             log.debug("{}: Processing delay = {}.", this.traceObjectId, delay);
@@ -159,24 +158,14 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
                             result.delayFuture,
                             ex -> ex instanceof ThrottlingInterruptedException,
                             this::throttle)
-                    .whenComplete((r, e) -> {
-                        if (this.currentDelay.get() != null && !this.currentDelay.get().remaining.hasRemaining()) {
-                            this.metrics.processingDelay(delay.getDurationMillis(), delay.getThrottlerName().toString());
-                        }
-                        this.currentDelay.set(null);
-                    });
+                    .whenComplete((r, e) -> this.currentDelay.set(null));
         } else {
-            // The future won't be interrupted, so we can assume it will run till completion.
-            if (delay.getThrottlerName() != null) {
-                this.metrics.processingDelay(delay.getDurationMillis(), delay.getThrottlerName().toString());
-            }
             return delayFuture;
         }
     }
 
     private boolean isInterruptible(ThrottlerCalculator.ThrottlerName name) {
-        return name == ThrottlerCalculator.ThrottlerName.Cache
-                || name == ThrottlerCalculator.ThrottlerName.DurableDataLog;
+        return name == ThrottlerCalculator.ThrottlerName.Cache;
     }
 
     @VisibleForTesting

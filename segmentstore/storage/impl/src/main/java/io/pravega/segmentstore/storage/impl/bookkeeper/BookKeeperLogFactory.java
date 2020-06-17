@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.bookkeeper.client.api.BookKeeper;
-import org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy;
+import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.conf.ClientConfiguration;
-import org.apache.bookkeeper.net.CommonConfigurationKeys;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
@@ -140,7 +138,6 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 .setAddEntryTimeout(writeTimeout)
                 .setReadEntryTimeout(readTimeout)
                 .setGetBookieInfoTimeout(readTimeout)
-                .setEnableDigestTypeAutodetection(true)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
 
@@ -156,17 +153,9 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         } else {
             metadataServiceUri += this.config.getBkLedgerPath();
         }
-        config = config.setMetadataServiceUri(metadataServiceUri);
+        config.setMetadataServiceUri(metadataServiceUri);
 
-        if (this.config.isEnforceMinNumRacksPerWriteQuorum()) {
-            config = config.setEnsemblePlacementPolicy(RackawareEnsemblePlacementPolicy.class);
-            config.setEnforceMinNumRacksPerWriteQuorum(this.config.isEnforceMinNumRacksPerWriteQuorum());
-            config.setMinNumRacksPerWriteQuorum(this.config.getMinNumRacksPerWriteQuorum());
-            config.setProperty(CommonConfigurationKeys.NET_TOPOLOGY_SCRIPT_FILE_NAME_KEY, this.config.getNetworkTopologyFileName());
-        }
-
-        return BookKeeper.newBuilder(config)
-                         .build();
+        return new BookKeeper(config);
     }
 
     //endregion

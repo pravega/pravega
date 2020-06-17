@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.Getter;
-import lombok.With;
+import lombok.experimental.Wither;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -102,16 +102,16 @@ public final class Retry {
      */
     public static final class RetryWithBackoff {
         @Getter
-        @With
+        @Wither
         private final long initialMillis;
         @Getter
-        @With
+        @Wither
         private final int multiplier;
         @Getter
-        @With
+        @Wither
         private final int attempts;
         @Getter
-        @With
+        @Wither
         private final long maxDelay;
 
         private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
@@ -187,7 +187,7 @@ public final class Retry {
                     Exceptions.handleInterrupted(() -> Thread.sleep(sleepFor));
 
                     delay = Math.min(params.maxDelay, params.multiplier * delay);
-                    log.debug("Retrying command {} Retry #{}, timestamp={}", r.toString(), attemptNumber, Instant.now());
+                    log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
                 }
             }
             throw new RetriesExhaustedException(last);
@@ -218,7 +218,7 @@ public final class Retry {
                                             params.initialMillis :
                                             Math.min(params.maxDelay, params.multiplier * delay.get()));
                                     attemptNumber.incrementAndGet();
-                                    log.debug("Retrying command {} Retry #{}, timestamp={}", task.toString(), attemptNumber, Instant.now());
+                                    log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
                                 }
                                 return null;
                             }),
@@ -249,7 +249,7 @@ public final class Retry {
                                             params.initialMillis :
                                             Math.min(params.maxDelay, params.multiplier * delay.get()));
                                     attemptNumber.incrementAndGet();
-                                    log.debug("Retrying command {} Retry #{}, timestamp={}", r.toString(), attemptNumber, Instant.now());
+                                    log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
                                 }
 
                                 return null;

@@ -1,5 +1,5 @@
 <!--
-Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -68,6 +68,11 @@ Read [Getting Started](documentation/src/docs/getting-started.md) page for more 
 ## Running Pravega
 
 Pravega can be installed locally or in a distributed environment. The installation and deployment of pravega is covered in the [Running Pravega](documentation/src/docs/deployment/deployment.md) guide.
+
+
+## Workflows with Pravega
+
+Pravega can participate in data pipelines without requiring code to be written. Just use curl to upload files to Pravega as shown in deployment/test.sh
 
 ## Support
 

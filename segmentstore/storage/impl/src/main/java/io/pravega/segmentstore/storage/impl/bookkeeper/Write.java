@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,19 +10,15 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.pravega.common.Timer;
-import io.pravega.common.util.CompositeArrayView;
+import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.Setter;
-import lombok.val;
 
 /**
  * A single Write in the BookKeeperLog Write Queue.
@@ -30,10 +26,7 @@ import lombok.val;
 class Write {
     //region Members
 
-    @Getter
-    private final ByteBuf data;
-    @Getter
-    private final int length;
+    final ArrayView data;
     private final CompletableFuture<LogAddress> result;
     private final AtomicInteger attemptCount;
     private final AtomicReference<WriteLedger> writeLedger;
@@ -57,9 +50,8 @@ class Write {
      * @param result             A CompletableFuture that will be completed with the result (or failure cause) once this
      *                           Write is completed.
      */
-    Write(@NonNull CompositeArrayView data, WriteLedger initialWriteLedger, CompletableFuture<LogAddress> result) {
-        this.data = convertData(data);
-        this.length = data.getLength();
+    Write(ArrayView data, WriteLedger initialWriteLedger, CompletableFuture<LogAddress> result) {
+        this.data = Preconditions.checkNotNull(data, "data");
         this.writeLedger = new AtomicReference<>(Preconditions.checkNotNull(initialWriteLedger, "initialWriteLedger"));
         this.result = Preconditions.checkNotNull(result, "result");
         this.attemptCount = new AtomicInteger();
@@ -68,20 +60,12 @@ class Write {
         this.beginAttemptTimer = new AtomicReference<>();
     }
 
-    private ByteBuf convertData(CompositeArrayView data) {
-        ByteBuf[] components = new ByteBuf[data.getComponentCount()];
-        val index = new AtomicInteger();
-        data.collect((array, offset, length) -> components[index.getAndIncrement()] = Unpooled.wrappedBuffer(array, offset, length));
-        return Unpooled.wrappedUnmodifiableBuffer(components);
-    }
-
     //endregion
 
     //region Properties
 
     /**
      * Gets the WriteLedger associated with this write.
-     *
      * @return The WriteLedger.
      */
     WriteLedger getWriteLedger() {
@@ -203,7 +187,7 @@ class Write {
     @Override
     public String toString() {
         return String.format("LedgerId = %s, Length = %s, Attempts = %s, InProgress = %s, Done = %s, Failed %s",
-                this.writeLedger.get().metadata.getLedgerId(), getLength(), this.attemptCount, isInProgress(),
+                this.writeLedger.get().metadata.getLedgerId(), this.data.getLength(), this.attemptCount, isInProgress(),
                 isDone(), this.failureCause.get() != null);
     }
 

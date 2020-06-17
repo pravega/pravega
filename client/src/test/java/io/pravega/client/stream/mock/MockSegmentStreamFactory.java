@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 
 public class MockSegmentStreamFactory implements SegmentInputStreamFactory, SegmentOutputStreamFactory, ConditionalOutputStreamFactory, SegmentMetadataClientFactory {
@@ -39,7 +38,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     private MockSegmentIoStreams getMockStream(Segment segment) {
-        MockSegmentIoStreams streams = new MockSegmentIoStreams(segment, null);
+        MockSegmentIoStreams streams = new MockSegmentIoStreams(segment);
         segments.putIfAbsent(segment, streams);
         return segments.get(segment);
     }
@@ -71,19 +70,12 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize, Semaphore hasData, long endOffset) {
-        MockSegmentIoStreams streams = new MockSegmentIoStreams(segment, hasData);
-        segments.putIfAbsent(segment, streams);
-        return segments.get(segment);
-    }
-
-    @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider) {
+    public EventSegmentReader createEventReaderForSegment(Segment segment, long endOffset) {
         return getMockStream(segment);
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider, long startOffset) {
+    public SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider) {
         return getMockStream(segment);
     }
 

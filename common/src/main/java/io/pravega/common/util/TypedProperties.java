@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,7 +11,6 @@ package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-
 import java.util.Properties;
 import java.util.function.Function;
 
@@ -130,9 +129,6 @@ public class TypedProperties {
         // Get value from config.
         String value = this.properties.getProperty(fullKeyName, null);
 
-        if (value == null && property.hasLegacyName()) {
-            value = this.properties.getProperty(this.keyPrefix + property.getLegacyName(), null);
-        }
         if (value == null) {
             // 2. Nothing in the configuration for this Property.
             if (property.hasDefaultValue()) {

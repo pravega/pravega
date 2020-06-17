@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,16 +51,7 @@ public class TimeoutTimer {
     public Duration getRemaining() {
         return timeout.minusNanos(getNanos.get() - initialNanos);
     }
-
-    /**
-     * Returns a Duration of the time elapsed in Nanoseconds.
-     *
-     * @return The elapsed time.
-     */
-    public Duration getElapsed() {
-        return Duration.ofNanos(getNanos.get() - initialNanos);
-    }
-
+    
     /**
      * Returns true if there is time remaining.
      *

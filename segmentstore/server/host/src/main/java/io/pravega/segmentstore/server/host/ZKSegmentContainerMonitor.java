@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -76,11 +75,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     // we don't initiate conflicting tasks for the same containerId.
     private final Set<Integer> pendingTasks;
     private final ScheduledExecutorService executor;
-    private AtomicReference<ScheduledFuture<?>> assignmentTask;
+    private AtomicReference<ScheduledFuture<?>> assigmentTask;
     private final AtomicLong lastReportTime;
-
-    // Throttle the max number of parallel container starts/recoveries.
-    private final Semaphore parallelContainerStartsSemaphore;
 
     /**
      * Creates an instance of ZKSegmentContainerMonitor.
@@ -90,9 +86,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
      * @param pravegaServiceEndpoint The pravega endpoint for which we need to fetch the container assignment.
      */
     ZKSegmentContainerMonitor(SegmentContainerRegistry containerRegistry, CuratorFramework zkClient,
-                              Host pravegaServiceEndpoint, int parallelContainerStarts, ScheduledExecutorService executor) {
+                              Host pravegaServiceEndpoint, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(zkClient, "zkClient");
-        Preconditions.checkArgument(parallelContainerStarts > 0, "parallelContainerStarts");
 
         this.registry = Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         this.host = Preconditions.checkNotNull(pravegaServiceEndpoint, "pravegaServiceEndpoint");
@@ -101,9 +96,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         this.pendingTasks = new ConcurrentSkipListSet<>();
         String clusterPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
         this.hostContainerMapNode = new NodeCache(zkClient, clusterPath);
-        this.assignmentTask = new AtomicReference<>();
+        this.assigmentTask = new AtomicReference<>();
         this.lastReportTime = new AtomicLong(CURRENT_TIME_MILLIS.get());
-        this.parallelContainerStartsSemaphore = new Semaphore(parallelContainerStarts);
     }
 
     /**
@@ -118,14 +112,14 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     public void initialize(Duration monitorInterval) {
         Exceptions.checkNotClosed(closed.get(), this);
 
-        // Start loading the segment container to node assignment map from zookeeper.
+        // Start loading the segment container to node assigment map from zookeeper.
         this.hostContainerMapNode.start();
 
         // There are two triggers for the segment container monitor.
         // 1. On any segment container ownership changes notified via zookeeper. We will ensure the local containers
         //      are stopped/started according to the new ownership mapping.
         // 2. At scheduled intervals to perform retries on local segment container start failures.
-        this.assignmentTask.set(this.executor.scheduleWithFixedDelay(
+        this.assigmentTask.set(this.executor.scheduleWithFixedDelay(
                 this::checkAssignment, 0L, monitorInterval.getSeconds(), TimeUnit.SECONDS));
         this.hostContainerMapNode.getListenable().addListener(this::checkAssignment, this.executor);
     }
@@ -140,7 +134,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
             log.warn("Failed to close hostContainerMapNode", e);
         }
 
-        val task = this.assignmentTask.getAndSet(null);
+        val task = this.assigmentTask.getAndSet(null);
         if (task != null) {
             task.cancel(true);
         }
@@ -248,8 +242,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         log.info("Starting Container {}.", containerId);
         this.pendingTasks.add(containerId);
         try {
-            return CompletableFuture.runAsync(() -> Exceptions.handleInterrupted(parallelContainerStartsSemaphore::acquire))
-                    .thenCompose(v -> this.registry.startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER))
+            return this.registry
+                    .startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER)
                     .whenComplete((handle, ex) -> {
                         try {
                             if (ex == null) {
@@ -268,7 +262,6 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
                             // should be available immediately after the task is complete.
                             // Also need to ensure this is always called, hence doing this in a finally block.
                             this.pendingTasks.remove(containerId);
-                            this.parallelContainerStartsSemaphore.release();
                         }
                     });
         } catch (Throwable e) {

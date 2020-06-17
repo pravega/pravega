@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
-
-import java.io.IOException;
 import java.io.InputStream;
-import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -194,11 +191,6 @@ class NoOpStorage implements SyncStorage {
     @Override
     public boolean supportsTruncation() {
         return baseStorage.supportsTruncation();
-    }
-
-    @Override
-    public Iterator<SegmentProperties> listSegments() throws IOException {
-        return baseStorage.listSegments();
     }
 
     /**

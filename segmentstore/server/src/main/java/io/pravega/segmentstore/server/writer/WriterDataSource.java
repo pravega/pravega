@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,13 +9,11 @@
  */
 package io.pravega.segmentstore.server.writer;
 
-import io.pravega.common.util.BufferView;
-import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.Map;
@@ -48,27 +46,10 @@ interface WriterDataSource {
      * @param streamSegmentId The Id of the StreamSegment to persist for.
      * @param attributes      The Attributes to persist (Key=AttributeId, Value=Attribute Value).
      * @param timeout         Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the operation completed and contain a value
-     * that would need to be passed to {@link #notifyAttributesPersisted}. If the operation failed, this Future
-     * will complete with the appropriate exception.
-     */
-    CompletableFuture<Long> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout);
-
-    /**
-     * Indicates that a batch of Attributes for a Segment have been durably persisted in Storage (after an invocation of
-     * {@link #persistAttributes}) and updates the required Segment's Core Attributes to keep track of the state.
-     * of the current
-     *
-     * @param segmentId          The Id of the Segment to persist for.
-     * @param rootPointer        The Root Pointer to set as {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER} for the segment.
-     * @param lastSequenceNumber The Sequence number of the last Operation that updated attributes. This will be set as
-     *                           {@link Attributes#ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO} for the segment.
-     * @param timeout            Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation
-     * failed, this Future will complete with the appropriate exception. Notable exceptions:
-     * - {@link BadAttributeUpdateException}: If the rootPointer is less than the current value for {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER}.
+     * failed, this Future will complete with the appropriate exception.
      */
-    CompletableFuture<Void> notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, Duration timeout);
+    CompletableFuture<Void> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout);
 
     /**
      * Instructs the DataSource to seal and compact the Attribute Index for the given Segment.
@@ -116,9 +97,9 @@ interface WriterDataSource {
      * @param streamSegmentId The Id of the StreamSegment to fetch data for.
      * @param startOffset     The offset where to begin fetching data from.
      * @param length          The number of bytes to fetch.
-     * @return An {@link BufferView} with the requested data, of the requested length, or null if not available.
+     * @return An InputStream with the requested data, of the requested length, or null if not available.
      */
-    BufferView getAppendData(long streamSegmentId, long startOffset, int length);
+    InputStream getAppendData(long streamSegmentId, long startOffset, int length);
 
     /**
      * Gets a value indicating whether the given Operation Sequence Number is a valid Truncation Point, as set by

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,7 +11,6 @@ package io.pravega.shared.segment;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.HashHelper;
-import io.pravega.shared.NameUtils;
 
 /**
  * Defines a Mapper from StreamSegment Name to Container Id.
@@ -53,7 +52,7 @@ public final class SegmentToContainerMapper {
      * @return Integer indicating the container id for the given StreamSegment.
      */
     public int getContainerId(String streamSegmentName) {
-        String primaryStreamSegmentName = NameUtils.extractPrimaryStreamSegmentName(streamSegmentName);
+        String primaryStreamSegmentName = StreamSegmentNameUtils.extractPrimaryStreamSegmentName(streamSegmentName);
         if (primaryStreamSegmentName != null) {
             // This is a Transaction. Map it to the parent's Container.
             return mapStreamSegmentNameToContainerId(primaryStreamSegmentName);

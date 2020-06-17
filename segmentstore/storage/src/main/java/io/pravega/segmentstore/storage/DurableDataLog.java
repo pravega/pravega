@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,8 +9,8 @@
  */
 package io.pravega.segmentstore.storage;
 
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
-import io.pravega.common.util.CompositeArrayView;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -84,13 +84,13 @@ public interface DurableDataLog extends AutoCloseable {
      * is always reported when the CompletableFuture returned by this method is completed exceptionally.
      * </ul>
      *
-     * @param data    A CompositeArrayView representing the data to append.
+     * @param data    An ArrayView representing the data to append.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the LogAddress within the log for the entry. If the entry
      * failed to be added, this Future will complete with the appropriate exception.
      * @throws IllegalStateException If the DurableDataLog is not currently initialized (which implies being enabled).
      */
-    CompletableFuture<LogAddress> append(CompositeArrayView data, Duration timeout);
+    CompletableFuture<LogAddress> append(ArrayView data, Duration timeout);
 
     /**
      * Truncates the log up to the given sequence.
@@ -123,10 +123,9 @@ public interface DurableDataLog extends AutoCloseable {
     CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException;
 
     /**
-     * Gets a {@link WriteSettings} containing limitations for appends.
-     * @return A new {@link WriteSettings} object.
+     * Gets the maximum number of bytes allowed for a single append.
      */
-    WriteSettings getWriteSettings();
+    int getMaxAppendLength();
 
     /**
      * Gets a value indicating the current Epoch of this DurableDataLog.
@@ -150,15 +149,6 @@ public interface DurableDataLog extends AutoCloseable {
      * @return The result.
      */
     QueueStats getQueueStatistics();
-
-    /**
-     * Registers a {@link ThrottleSourceListener} that will be invoked every time the internal queue state changes by having
-     * added or removed from it.
-     *
-     * @param listener The {@link ThrottleSourceListener} to register. This listener will be unregistered when its
-     *                 {@link ThrottleSourceListener#isClosed()} is determined to be true.
-     */
-    void registerQueueStateChangeListener(ThrottleSourceListener listener);
 
     /**
      * Closes this instance of a DurableDataLog and releases any resources it holds.

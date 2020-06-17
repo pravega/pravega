@@ -117,10 +117,5 @@ public class ConnectionTrackerTests {
         public void close() {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public boolean isClosed() {
-            throw new UnsupportedOperationException();
-        }
     }
 }

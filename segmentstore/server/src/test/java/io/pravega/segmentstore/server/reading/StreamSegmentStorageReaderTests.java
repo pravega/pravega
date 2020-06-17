@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -160,7 +161,7 @@ public class StreamSegmentStorageReaderTests extends ThreadPooledTestSuite {
                 entry.requestContent(TIMEOUT);
                 val contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 AssertExtensions.assertGreaterThanOrEqual("Empty read entry contents.", 0, contents.getLength());
-                val readData = contents.getCopy();
+                val readData = StreamHelpers.readAll(contents.getData(), contents.getLength());
                 AssertExtensions.assertArrayEquals("Unexpected data read back.", writtenData, (int) entry.getStreamSegmentOffset(),
                         readData, 0, readData.length);
             }

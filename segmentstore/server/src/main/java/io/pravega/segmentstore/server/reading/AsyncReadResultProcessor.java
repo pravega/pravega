@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,12 +10,15 @@
 package io.pravega.segmentstore.server.reading;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
+import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -86,15 +89,15 @@ public class AsyncReadResultProcessor implements AutoCloseable {
     }
 
     /**
-     * Processes the given {@link ReadResult} and returns the contents as an {@link BufferView}.
+     * Processes the given {@link ReadResult} and returns the contents as an {@link InputStream}.
      *
      * @param readResult            The {@link ReadResult} to process.
      * @param executor              An Executor to run asynchronous tasks on.
      * @param requestContentTimeout Timeout for each call to {@link ReadResultEntry#requestContent(Duration)}, for those
      *                              {@link ReadResultEntry} instances that are not already cached in memory.
-     * @return A CompletableFuture that, when completed, will contain an {@link BufferView} with the requested data.
+     * @return A CompletableFuture that, when completed, will contain an {@link InputStream} with the requested data.
      */
-    public static CompletableFuture<BufferView> processAll(ReadResult readResult, Executor executor, Duration requestContentTimeout) {
+    public static CompletableFuture<InputStream> processAll(ReadResult readResult, Executor executor, Duration requestContentTimeout) {
         ProcessAllHandler handler = new ProcessAllHandler(requestContentTimeout);
         process(readResult, handler, executor);
         return handler.result;
@@ -153,7 +156,7 @@ public class AsyncReadResultProcessor implements AutoCloseable {
         ReadResultEntry currentEntry = this.readResult.next();
         if (currentEntry != null && currentEntry.getType() != ReadResultEntryType.EndOfStreamSegment) {
             // We have something to retrieve.
-            CompletableFuture<BufferView> entryContentsFuture = currentEntry.getContent();
+            CompletableFuture<ReadResultEntryContents> entryContentsFuture = currentEntry.getContent();
             if (entryContentsFuture.isDone()) {
                 // Result is readily available.
                 return CompletableFuture.completedFuture(currentEntry);
@@ -173,8 +176,8 @@ public class AsyncReadResultProcessor implements AutoCloseable {
     private static class ProcessAllHandler implements AsyncReadResultHandler {
         @Getter
         private final Duration requestContentTimeout;
-        private final List<BufferView> parts = Collections.synchronizedList(new ArrayList<>());
-        private final CompletableFuture<BufferView> result = new CompletableFuture<>();
+        private final List<InputStream> parts = Collections.synchronizedList(new ArrayList<>());
+        private final CompletableFuture<InputStream> result = new CompletableFuture<>();
 
         @Override
         public boolean shouldRequestContents(ReadResultEntryType entryType, long streamSegmentOffset) {
@@ -183,7 +186,7 @@ public class AsyncReadResultProcessor implements AutoCloseable {
 
         @Override
         public boolean processEntry(ReadResultEntry entry) {
-            this.parts.add(entry.getContent().join());
+            this.parts.add(entry.getContent().join().getData());
             return true;
         }
 
@@ -194,7 +197,7 @@ public class AsyncReadResultProcessor implements AutoCloseable {
 
         @Override
         public void processResultComplete() {
-            this.result.complete(BufferView.wrap(this.parts));
+            this.result.complete(new SequenceInputStream(Iterators.asEnumeration(this.parts.iterator())));
         }
     }
 }

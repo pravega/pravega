@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ class DataFrameBuilder<T extends SequencedItemList.Element> implements AutoClose
         this.args = Preconditions.checkNotNull(args, "args");
         Preconditions.checkNotNull(args.commitSuccess, "args.commitSuccess");
         Preconditions.checkNotNull(args.commitFailure, "args.commitFailure");
-        this.outputStream = new DataFrameOutputStream(targetLog.getWriteSettings().getMaxWriteLength(), this::handleDataFrameComplete);
+        this.outputStream = new DataFrameOutputStream(targetLog.getMaxAppendLength(), this::handleDataFrameComplete);
         this.lastSerializedSequenceNumber = -1;
         this.lastStartedSequenceNumber = -1;
         this.failureCause = new AtomicReference<>();
@@ -98,6 +98,7 @@ class DataFrameBuilder<T extends SequencedItemList.Element> implements AutoClose
     void flush() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         this.outputStream.flush();
+        this.outputStream.releaseBuffer();
     }
 
     /**

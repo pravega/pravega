@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,14 +13,14 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.retryable.RetryableException;
-import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -30,7 +30,7 @@ import static org.junit.Assert.assertTrue;
 public class RetryHelperTest extends ThreadPooledTestSuite {
     private static class TestException extends RuntimeException implements RetryableException {
     }
-    
+
     @Override
     protected int getThreadPoolSize() {
         return 1;
@@ -97,6 +97,7 @@ public class RetryHelperTest extends ThreadPooledTestSuite {
     public void testLoopWithDelay() {
         final int maxLoops = 5;
         AtomicInteger loopCounter = new AtomicInteger();
+        ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
         AtomicLong previous = new AtomicLong(System.nanoTime());
         AtomicBoolean loopDelayHonored = new AtomicBoolean(true);
@@ -113,23 +114,8 @@ public class RetryHelperTest extends ThreadPooledTestSuite {
                     return CompletableFuture.completedFuture(null);
                 },
                 delayInMs,
-                executorService()
+                executorService
         ).join();
         Assert.assertTrue(loopDelayHonored.get());
-    }
-
-    @Test(timeout = 30000L)
-    public void testLoopWithTimeout() {
-        AtomicInteger i = new AtomicInteger();
-        AssertExtensions.assertFutureThrows("Timeout expected", 
-                RetryHelper.loopWithTimeout(() -> true, () -> {
-                            i.incrementAndGet();
-                            return CompletableFuture.completedFuture(null);
-                        },
-                100L, 1000L, 1000L,
-                executorService()
-        ), e -> Exceptions.unwrap(e) instanceof TimeoutException);
-        
-        assertTrue(i.get() < 5);
     }
 }

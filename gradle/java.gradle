@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,15 +30,6 @@ plugins.withId('java') {
     }
 
     archivesBaseName = "pravega" + project.path.replace(':', '-')
-
-    // Include LICENSE and NOTICE files in every jar file 
-    jar {
-        into ('META-INF') {
-            from project.rootDir
-            include 'LICENSE'
-            include 'NOTICE'
-        }
-    }
 
     task sourceJar(type: Jar) {
         classifier = 'sources'
@@ -86,9 +77,6 @@ plugins.withId('java') {
         maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
         minHeapSize = "128m"
         maxHeapSize = "512m"
-        def jvmArgsCopy = jvmArgs
-        jvmArgsCopy.add("-XX:MaxDirectMemorySize=4g")
-        jvmArgs = jvmArgsCopy
     }
 
     dependencies {

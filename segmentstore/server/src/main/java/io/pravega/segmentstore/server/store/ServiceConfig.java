@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,45 +27,37 @@ import lombok.SneakyThrows;
 public class ServiceConfig {
     //region Config Names
 
-    public static final Property<Integer> CONTAINER_COUNT = Property.named("container.count", null, "containerCount");
-    public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("container.parallelStarts", 2);
-    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPool.core.size", 30, "threadPoolSize");
-    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("threadPool.storage.size", 200, "storageThreadPoolSize");
-    public static final Property<Integer> LOW_PRIORITY_THREAD_POOL_SIZE = Property.named("threadPool.lowPriorityTasks.size", 10, "lowPriorityThreadPoolSize");
-    public static final Property<Integer> LISTENING_PORT = Property.named("service.listener.port", 12345, "listeningPort");
-    public static final Property<Integer> PUBLISHED_PORT = Property.named("service.published.port", null, "publishedPort");
-    public static final Property<String> LISTENING_IP_ADDRESS = Property.named("service.listener.host.nameOrIp", "", "listeningIPAddress");
-    public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("service.published.host.nameOrIp", "", "publishedIPAddress");
-    public static final Property<String> ZK_URL = Property.named("zk.connect.uri", "localhost:2181", "zkURL");
-    public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zk.connect.retries.interval.milliseconds", 5000, "zkRetrySleepMs");
-    public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zk.connect.retries.count.max", 5, "zkRetryCount");
-    public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zk.connect.sessionTimeout.milliseconds", 10000, "zkSessionTimeoutMs");
-    public static final Property<Boolean> SECURE_ZK = Property.named("zk.connect.security.enable", false, "secureZK");
-    public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zk.connect.security.tls.trustStore.location", "", "zkTrustStore");
-    public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zk.connect.security.tls.trustStore.pwd.location", "", "zkTrustStorePasswordPath");
-
-    // Not changing this configuration property (to "cluster.name"), as it is set by Pravega operator, and changing this
-    // will require simultaneous changes there. So, we'll change this at a later time, employing strategy like this:
-    // 1. Modify the operator to set this old, as well as the new property.
-    // 2. Modify this property to use the new key, with legacy key name set as the old key.
-    // 3. Remove old property from the operator.
+    public static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount");
+    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 30);
+    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("storageThreadPoolSize", 200);
+    public static final Property<Integer> LISTENING_PORT = Property.named("listeningPort", 12345);
+    public static final Property<Integer> PUBLISHED_PORT = Property.named("publishedPort");
+    public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
+    public static final Property<String> PUBLISHED_IP_ADDRESS = Property.named("publishedIPAddress", "");
+    public static final Property<String> ZK_URL = Property.named("zkURL", "localhost:2181");
+    public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
+    public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
+    public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 10000);
+    public static final Property<Boolean> SECURE_ZK = Property.named("secureZK", false);
+    public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zkTrustStore", "");
+    public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zkTrustStorePasswordPath", "");
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
-    public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY, "dataLogImplementation");
-    public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS, "storageImplementation");
-    public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnly.enable", false, "readOnlySegmentStore");
-    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cache.size.max", 4L * 1024 * 1024 * 1024, "cacheMaxSize");
-    public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cache.utilization.percent.target", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION), "cacheTargetUtilizationPercent");
-    public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cache.utilization.percent.max", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION), "cacheMaxUtilizationPercent");
-    public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cache.time.seconds.max", 30 * 60, "cacheMaxTimeSeconds");
-    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cache.generation.duration.seconds", 1, "cacheGenerationTimeSeconds");
-    public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("request.replyWithStackTraceOnError.enable", false, "replyWithStackTraceOnError");
-    public static final Property<String> INSTANCE_ID = Property.named("instance.id", "");
+    public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
+    public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.HDFS);
+    public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
+    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
+    public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cacheTargetUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION));
+    public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cacheMaxUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION));
+    public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
+    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 1);
+    public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
+    public static final Property<String> INSTANCE_ID = Property.named("instanceId", "");
 
     // TLS-related config for the service
-    public static final Property<Boolean> ENABLE_TLS = Property.named("security.tls.enable", false, "enableTls");
-    public static final Property<String> CERT_FILE = Property.named("security.tls.server.certificate.location", "", "certFile");
-    public static final Property<String> KEY_FILE = Property.named("security.tls.server.privateKey.location", "", "keyFile");
-    public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("security.tls.certificate.autoReload.enable", false, "enableTlsReload");
+    public static final Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
+    public static final Property<String> CERT_FILE = Property.named("certFile", "");
+    public static final Property<String> KEY_FILE = Property.named("keyFile", "");
+    public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("enableTlsReload", false);
 
 
     public static final String COMPONENT_CODE = "pravegaservice";
@@ -125,12 +117,6 @@ public class ServiceConfig {
     private final int coreThreadPoolSize;
 
     /**
-     * The number of threads in the thread pool that runs low priority tasks.
-     */
-    @Getter
-    private final int lowPriorityThreadPoolSize;
-
-    /**
      * The number of threads in the Thread Pool used for accessing Storage.
      */
     @Getter
@@ -166,12 +152,6 @@ public class ServiceConfig {
      */
     @Getter
     private final String publishedIPAddress;
-
-    /**
-     * Number of segment containers that a Segment Store will start (and recover) in parallel.
-     */
-    @Getter
-    private final int parallelContainerStarts;
 
     /**
      * The Zookeeper URL.
@@ -299,7 +279,6 @@ public class ServiceConfig {
         this.containerCount = properties.getInt(CONTAINER_COUNT);
         this.coreThreadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.storageThreadPoolSize = properties.getInt(STORAGE_THREAD_POOL_SIZE);
-        this.lowPriorityThreadPoolSize = properties.getInt(LOW_PRIORITY_THREAD_POOL_SIZE);
         this.listeningPort = properties.getInt(LISTENING_PORT);
 
         int publishedPort;
@@ -323,7 +302,6 @@ public class ServiceConfig {
         } else {
             this.publishedIPAddress = publishedIPAddress;
         }
-        this.parallelContainerStarts = properties.getInt(PARALLEL_CONTAINER_STARTS);
         this.zkURL = properties.get(ZK_URL);
         this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
@@ -374,7 +352,6 @@ public class ServiceConfig {
                 .append(String.format("listeningIPAddress: %s, ", listeningIPAddress))
                 .append(String.format("publishedPort: %d, ", publishedPort))
                 .append(String.format("publishedIPAddress: %s, ", publishedIPAddress))
-                .append(String.format("parallelContainerStarts: %d, ", parallelContainerStarts))
                 .append(String.format("zkURL: %s, ", zkURL))
                 .append(String.format("zkRetrySleepMs: %d, ", zkRetrySleepMs))
                 .append(String.format("zkSessionTimeoutMs: %d, ", zkSessionTimeoutMs))

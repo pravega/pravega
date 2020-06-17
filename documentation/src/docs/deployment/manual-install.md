@@ -1,5 +1,5 @@
 <!--
-Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -142,12 +142,12 @@ In the file `conf/config.properties`, make the following changes as mentioned:
 Replace `<zk-ip>`, `<controller-ip>` and `<hdfs-ip>` with the IPs of the respective services.
 
 ```
-pravegaservice.zk.connect.uri=<zk-ip>:2181
-bookkeeper.zk.connect.uri=<zk-ip>:2181
-autoScale.controller.connect.uri=tcp://<controller-ip>:9090
+pravegaservice.zkURL=<zk-ip>:2181
+bookkeeper.zkAddress=<zk-ip>:2181
+autoScale.controllerUri=tcp://<controller-ip>:9090
 
 # Settings required for HDFS
-hdfs.connect.uri=<hdfs-ip>:8020
+hdfs.hdfsUrl=<hdfs-ip>:8020
 ```
 
 After making the configuration changes, the segment store can be run using the following command:

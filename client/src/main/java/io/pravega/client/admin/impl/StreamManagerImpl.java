@@ -22,7 +22,6 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
@@ -139,21 +138,20 @@ public class StreamManagerImpl implements StreamManager {
 
     /**
      * Fetch the {@link StreamInfo} for a given stream.
+     * Note: The access level of this method can be reduced once the deprecated method
+     * {@link io.pravega.client.batch.BatchClient#getStreamInfo(Stream)} is removed.
      *
      * @param stream The Stream.
      * @return A future representing {@link StreamInfo}.
      */
-    private CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
+    public CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
         //Fetch the stream cut representing the current TAIL and current HEAD of the stream.
         CompletableFuture<StreamCut> currentTailStreamCut = streamCutHelper.fetchTailStreamCut(stream);
         CompletableFuture<StreamCut> currentHeadStreamCut = streamCutHelper.fetchHeadStreamCut(stream);
         return currentTailStreamCut.thenCombine(currentHeadStreamCut,
-                                                (tailSC, headSC) -> {
-                                                    boolean isSealed = ((StreamCutImpl) tailSC).getPositions().isEmpty();
-                                                    return new StreamInfo(stream.getScope(),
-                                                            stream.getStreamName(),
-                                                            tailSC, headSC, isSealed);
-                                                });
+                                                (tailSC, headSC) -> new StreamInfo(stream.getScope(),
+                                                                                   stream.getStreamName(),
+                                                                                   tailSC, headSC));
     }
 
     @Override

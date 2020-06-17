@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,14 +9,12 @@
  */
 package io.pravega.segmentstore.storage;
 
-import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
-import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -28,9 +26,6 @@ import java.util.Random;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -58,22 +53,16 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Check Append pre-initialization.
             AssertExtensions.assertThrows(
                     "append() worked before initialize()",
-                    () -> log.append(new CompositeByteArraySegment("h".getBytes()), TIMEOUT),
+                    () -> log.append(new ByteArraySegment("h".getBytes()), TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
-
-            // Check that we cannot append data exceeding the max limit.
-            AssertExtensions.assertSuppliedFutureThrows(
-                    "append() worked with buffer exceeding max size",
-                    () -> log.append(new CompositeByteArraySegment(log.getWriteSettings().getMaxWriteLength() + 1), TIMEOUT),
-                    ex -> ex instanceof WriteTooLongException);
 
             // Only verify sequence number monotonicity. We'll verify reads in its own test.
             LogAddress prevAddress = null;
             int writeCount = getWriteCount();
             for (int i = 0; i < writeCount; i++) {
-                LogAddress address = log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).join();
+                LogAddress address = log.append(new ByteArraySegment(getWriteData()), TIMEOUT).join();
                 Assert.assertNotNull("No address returned from append().", address);
                 if (prevAddress != null) {
                     AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.", prevAddress.getSequence(), address.getSequence());
@@ -98,7 +87,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             List<CompletableFuture<LogAddress>> appendFutures = new ArrayList<>();
             int writeCount = getWriteCount();
             for (int i = 0; i < writeCount; i++) {
-                appendFutures.add(log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT));
+                appendFutures.add(log.append(new ByteArraySegment(getWriteData()), TIMEOUT));
             }
 
             val results = Futures.allOfWithResults(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -216,7 +205,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             Assert.assertNotNull("Nothing read before modification.", firstItem);
 
             // Make a modification.
-            log.append(new CompositeByteArraySegment("foo".getBytes()), TIMEOUT).join();
+            log.append(new ByteArraySegment("foo".getBytes()), TIMEOUT).join();
 
             // Try to get a new item.
             DurableDataLog.ReadItem secondItem = reader.getNext();
@@ -244,7 +233,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             try (DurableDataLog log = createDurableDataLog(context)) {
                 log.initialize(TIMEOUT);
                 byte[] writeData = String.format("Write_%s", i).getBytes();
-                currentAddress = log.append(new CompositeByteArraySegment(writeData), TIMEOUT).join();
+                currentAddress = log.append(new ByteArraySegment(writeData), TIMEOUT).join();
                 writtenData.put(currentAddress, writeData);
             }
 
@@ -293,7 +282,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                 // Verify we cannot write to the first log.
                 AssertExtensions.assertSuppliedFutureThrows(
                         "The first log was not fenced out.",
-                        () -> log1.append(new CompositeByteArraySegment(new byte[1]), TIMEOUT),
+                        () -> log1.append(new ByteArraySegment(new byte[1]), TIMEOUT),
                         ex -> ex instanceof DataLogWriterNotPrimaryException);
 
                 // Verify we can write to the second log.
@@ -337,7 +326,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
             AssertExtensions.assertThrows(
                     "disable() did not close the Log.",
-                    () -> log.append(new CompositeByteArraySegment(1), TIMEOUT),
+                    () -> log.append(new ByteArraySegment(new byte[1]), TIMEOUT),
                     ex -> ex instanceof ObjectClosedException);
         }
 
@@ -352,7 +341,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             // Verify that Log operations cannot execute while disabled.
             AssertExtensions.assertThrows(
                     "append() worked with a disabled/non-initialized log.",
-                    () -> log1.append(new CompositeByteArraySegment(1), TIMEOUT),
+                    () -> log1.append(new ByteArraySegment(new byte[1]), TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
             AssertExtensions.assertThrows(
                     "truncate() worked with a disabled/non-initialized log.",
@@ -384,46 +373,6 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
         try (DurableDataLog log3 = createDurableDataLog(context)) {
             log3.initialize(TIMEOUT);
             verifyReads(log3, writeData);
-        }
-    }
-
-    /**
-     * Tests the ability to register a {@link ThrottleSourceListener} and notify it of updates.
-     * @throws Exception If an error occurred.
-     */
-    @Test
-    public void testRegisterQueueStateListener() throws Exception {
-        val listener = new TestThrottleSourceListener();
-        try (DurableDataLog log = createDurableDataLog()) {
-            log.initialize(TIMEOUT);
-            log.registerQueueStateChangeListener(listener);
-
-            // Only verify sequence number monotonicity. We'll verify reads in its own test.
-            int writeCount = getWriteCount();
-            for (int i = 0; i < writeCount; i++) {
-                log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).join();
-            }
-
-            // Verify the correct number of invocations.
-            TestUtils.await(
-                    () -> listener.getCount() == writeCount,
-                    10,
-                    TIMEOUT.toMillis());
-
-            // Verify that the listener is unregistered when closed.
-            listener.close();
-            log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).join();
-            try {
-                TestUtils.await(
-                        () -> listener.getCount() > writeCount,
-                        10,
-                        50);
-                Assert.fail("Listener's count was updated after it was closed.");
-            } catch (TimeoutException tex) {
-                // This is expected. We do not want our condition to hold true.
-            }
-            log.registerQueueStateChangeListener(listener); // This should have no effect as it's already closed.
-            Assert.assertFalse("Not expected the listener to have been notified after closing.", listener.wasNotifiedWhenClosed());
         }
     }
 
@@ -477,7 +426,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
         val futures = new ArrayList<CompletableFuture<LogAddress>>();
         for (int i = 0; i < writeCount; i++) {
             byte[] writeData = getWriteData();
-            futures.add(log.append(new CompositeByteArraySegment(writeData), TIMEOUT));
+            futures.add(log.append(new ByteArraySegment(writeData), TIMEOUT));
             data.add(writeData);
         }
 
@@ -507,43 +456,6 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected sequence number.", expected.getKey().getSequence(), nextItem.getAddress().getSequence());
             val actualPayload = StreamHelpers.readAll(nextItem.getPayload(), nextItem.getLength());
             Assert.assertArrayEquals("Unexpected payload for sequence number " + expected.getKey(), expected.getValue(), actualPayload);
-        }
-    }
-
-    //endregion
-
-    //region TestThrottleSourceListener
-
-    private static class TestThrottleSourceListener implements ThrottleSourceListener {
-        private final AtomicBoolean closed = new AtomicBoolean();
-        private final AtomicInteger count = new AtomicInteger();
-        private final AtomicBoolean notifyWhenClosed = new AtomicBoolean(false);
-
-        void close() {
-            this.closed.set(true);
-        }
-
-        boolean wasNotifiedWhenClosed() {
-            return this.notifyWhenClosed.get();
-        }
-
-        int getCount() {
-            return this.count.get();
-        }
-
-        @Override
-        public void notifyThrottleSourceChanged() {
-            if (this.closed.get()) {
-                this.notifyWhenClosed.set(true);
-            }
-
-            Exceptions.checkNotClosed(this.closed.get(), this);
-            this.count.incrementAndGet();
-        }
-
-        @Override
-        public boolean isClosed() {
-            return this.closed.get();
         }
     }
 

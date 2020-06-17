@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import lombok.Cleanup;
@@ -44,7 +45,7 @@ public class CommandDecoder extends ByteToMessageDecoder {
     @VisibleForTesting
     public static WireCommand parseCommand(ByteBuf in) throws IOException {
         @Cleanup
-        EnhancedByteBufInputStream is = new EnhancedByteBufInputStream(in);
+        ByteBufInputStream is = new ByteBufInputStream(in);
         int readableBytes = in.readableBytes();
         if (readableBytes < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
             throw new InvalidMessageException("Not enough bytes to read.");

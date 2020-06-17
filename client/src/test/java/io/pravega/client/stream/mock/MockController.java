@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -76,6 +77,24 @@ public class MockController implements Controller {
     private final Map<Stream, StreamConfiguration> createdStreams = new HashMap<>();
     private final Supplier<Long> idGenerator = () -> Flow.create().asLong();
     private final boolean callServer;
+
+    @Override
+    @Synchronized
+    public CompletableFuture<String> getEvent(final String routingKey,
+                                                  final String scopeName,
+                                                  final String streamName,
+                                                  final Long segmentNumber) {
+        return null;
+    }
+    
+    @Override
+    @Synchronized
+    public CompletableFuture<Void> createEvent(final String routingKey,
+                                                  final String scopeName,
+                                                  final String streamName,
+                                                  final String message) {
+        return null;
+    }
     
     @Override
     @Synchronized
@@ -318,15 +337,10 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<StreamSegments> getEpochSegments(String scope, String stream, int epoch) {
-        return CompletableFuture.completedFuture(getCurrentSegments(new StreamImpl(scope, stream)));
-    }
-
-    @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
         return CompletableFuture.completedFuture(getCurrentSegments(new StreamImpl(scope, stream)));
     }
-
+    
     private StreamSegments getCurrentSegments(Stream stream) {
         List<Segment> segmentsInStream = getSegmentsForStream(stream);
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
@@ -391,7 +405,7 @@ public class MockController implements Controller {
             }
         };
         sendRequestOverNewConnection(new WireCommands.MergeSegments(idGenerator.get(), segment.getScopedName(),
-                NameUtils.getTransactionNameFromId(segment.getScopedName(), txId), ""), replyProcessor, result);
+                StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId), ""), replyProcessor, result);
         return result;
     }
 
@@ -442,7 +456,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        String transactionName = NameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
         sendRequestOverNewConnection(new DeleteSegment(idGenerator.get(), transactionName, ""), replyProcessor, result);
         return result;
     }
@@ -496,7 +510,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        String transactionName = NameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
         sendRequestOverNewConnection(new CreateSegment(idGenerator.get(), transactionName, WireCommands.CreateSegment.NO_SCALE,
                 0, ""), replyProcessor, result);
         return result;
@@ -584,4 +598,3 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(null);
     }
 }
-

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ import com.emc.object.s3.bean.CanonicalUser;
 import com.emc.object.s3.bean.CopyPartResult;
 import com.emc.object.s3.bean.Grant;
 import com.emc.object.s3.bean.ListObjectsResult;
-import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
@@ -29,7 +28,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -41,12 +39,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
-
-import java.io.BufferedInputStream;
 import java.io.InputStream;
-import java.time.Duration;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
@@ -214,14 +207,13 @@ public class ExtendedS3Storage implements SyncStorage {
 
     private int doRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName(), offset, bufferOffset, length);
-        Timer timer = new Timer();
 
         if (offset < 0 || bufferOffset < 0 || length < 0) {
             throw new ArrayIndexOutOfBoundsException();
         }
 
         try (InputStream reader = client.readObjectStream(config.getBucket(),
-                config.getPrefix() + handle.getSegmentName(), Range.fromOffsetLength(offset, length))) {
+                config.getRoot() + handle.getSegmentName(), Range.fromOffsetLength(offset, length))) {
             /*
              * TODO: This implementation assumes that if S3Client.readObjectStream returns null, then
              * the object does not exist and we throw StreamNotExistsException. The javadoc, however,
@@ -236,13 +228,6 @@ public class ExtendedS3Storage implements SyncStorage {
 
             int bytesRead = StreamHelpers.readAll(reader, buffer, bufferOffset, length);
 
-            Duration elapsed = timer.getElapsed();
-
-            ExtendedS3Metrics.READ_LATENCY.reportSuccessEvent(elapsed);
-            ExtendedS3Metrics.READ_BYTES.add(length);
-
-            log.debug("Read segment={} offset={} bytesWritten={} latency={}.", handle.getSegmentName(), offset, length, elapsed.toMillis());
-
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
         }
@@ -251,9 +236,9 @@ public class ExtendedS3Storage implements SyncStorage {
     private StreamSegmentInformation doGetStreamSegmentInfo(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(),
-                config.getPrefix() + streamSegmentName);
+                config.getRoot() + streamSegmentName);
 
-        AccessControlList acls = client.getObjectAcl(config.getBucket(), config.getPrefix() + streamSegmentName);
+        AccessControlList acls = client.getObjectAcl(config.getBucket(), config.getRoot() + streamSegmentName);
         boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
         StreamSegmentInformation information = StreamSegmentInformation.builder()
                 .name(streamSegmentName)
@@ -268,10 +253,18 @@ public class ExtendedS3Storage implements SyncStorage {
 
     private boolean doExists(String streamSegmentName) {
         try {
-            S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(),
-                    config.getPrefix() + streamSegmentName);
-            return true;
+            ListObjectsResult result = client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName);
+            return !result.getObjects().isEmpty();
         } catch (S3Exception e) {
+            /*
+             * TODO: This implementation is supporting both an empty list and a no such key
+             * exception to indicate that the segment doesn't exist. It is trying to be safe,
+             * but this is an indication that the behavior is not well understood. We need to
+             * investigate the exact behavior we should expect out of this call and react
+             * accordingly rather than guess.
+             *
+             * See https://github.com/pravega/pravega/issues/1559
+             */
             if ( e.getErrorCode().equals("NoSuchKey")) {
                 return false;
             } else {
@@ -283,16 +276,14 @@ public class ExtendedS3Storage implements SyncStorage {
     private SegmentHandle doCreate(String streamSegmentName) throws StreamSegmentExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
 
-        Timer timer = new Timer();
-
-        if (!client.listObjects(config.getBucket(), config.getPrefix() + streamSegmentName).getObjects().isEmpty()) {
+        if (!client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName).getObjects().isEmpty()) {
             throw new StreamSegmentExistsException(streamSegmentName);
         }
 
         S3ObjectMetadata metadata = new S3ObjectMetadata();
         metadata.setContentLength((long) 0);
 
-        PutObjectRequest request = new PutObjectRequest(config.getBucket(), config.getPrefix() + streamSegmentName, null);
+        PutObjectRequest request = new PutObjectRequest(config.getBucket(), config.getRoot() + streamSegmentName, null);
 
         AccessControlList acl = new AccessControlList();
         acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), READ_WRITE_PERMISSION));
@@ -319,20 +310,13 @@ public class ExtendedS3Storage implements SyncStorage {
         }
         client.putObject(request);
 
-        Duration elapsed = timer.getElapsed();
-
-        ExtendedS3Metrics.CREATE_LATENCY.reportSuccessEvent(elapsed);
-        ExtendedS3Metrics.CREATE_COUNT.inc();
-
-        log.debug("Create segment={} latency={}.", streamSegmentName, elapsed.toMillis());
-
         LoggerHelpers.traceLeave(log, "create", traceId);
         return ExtendedS3SegmentHandle.getWriteHandle(streamSegmentName);
     }
 
     private Void doWrite(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
-        Timer timer = new Timer();
+
         long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
 
         SegmentProperties si = doGetStreamSegmentInfo(handle.getSegmentName());
@@ -345,16 +329,8 @@ public class ExtendedS3Storage implements SyncStorage {
             throw new BadOffsetException(handle.getSegmentName(), si.getLength(), offset);
         }
 
-        client.putObject(this.config.getBucket(), this.config.getPrefix() + handle.getSegmentName(),
+        client.putObject(this.config.getBucket(), this.config.getRoot() + handle.getSegmentName(),
                 Range.fromOffsetLength(offset, length), data);
-
-        Duration elapsed = timer.getElapsed();
-
-        ExtendedS3Metrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
-        ExtendedS3Metrics.WRITE_BYTES.add(length);
-
-        log.debug("Write segment={} offset={} bytesWritten={} latency={}.", handle.getSegmentName(), offset, length, elapsed.toMillis());
-
         LoggerHelpers.traceLeave(log, "write", traceId);
         return null;
     }
@@ -375,12 +351,12 @@ public class ExtendedS3Storage implements SyncStorage {
     }
 
     private void setPermission(SegmentHandle handle, Permission permission) {
-        AccessControlList acl = client.getObjectAcl(config.getBucket(), config.getPrefix() + handle.getSegmentName());
+        AccessControlList acl = client.getObjectAcl(config.getBucket(), config.getRoot() + handle.getSegmentName());
         acl.getGrants().clear();
         acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), permission));
 
         client.setObjectAcl(
-                new SetObjectAclRequest(config.getBucket(), config.getPrefix() + handle.getSegmentName()).withAcl(acl));
+                new SetObjectAclRequest(config.getBucket(), config.getRoot() + handle.getSegmentName()).withAcl(acl));
     }
 
     /**
@@ -392,57 +368,23 @@ public class ExtendedS3Storage implements SyncStorage {
      * completeMultiPartUpload call. Specifically, to concatenate, we are copying the target segment T and the
      * source segment S to T, so essentially we are doing T <- T + S.
      */
-    private Void doConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws Exception {
+    private Void doConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentNotExistsException {
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "target handle must not be read-only.");
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(), offset, sourceSegment);
-        Timer timer = new Timer();
 
-        String targetPath = config.getPrefix() + targetHandle.getSegmentName();
+        SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
+        String targetPath = config.getRoot() + targetHandle.getSegmentName();
+        String uploadId = client.initiateMultipartUpload(config.getBucket(), targetPath);
+
         // check whether the target exists
         if (!doExists(targetHandle.getSegmentName())) {
             throw new StreamSegmentNotExistsException(targetHandle.getSegmentName());
         }
         // check whether the source is sealed
         SegmentProperties si = doGetStreamSegmentInfo(sourceSegment);
-        String sourcePath = config.getPrefix() + sourceSegment;
         Preconditions.checkState(si.isSealed(), "Cannot concat segment '%s' into '%s' because it is not sealed.",
                 sourceSegment, targetHandle.getSegmentName());
 
-        if (config.getSmallObjectSizeLimitForConcat() < si.getLength()) {
-            doConcatWithMultipartUpload(targetPath, sourceSegment, offset);
-            ExtendedS3Metrics.LARGE_CONCAT_COUNT.inc();
-        } else {
-            doConcatWithAppend(targetPath, sourcePath, offset, si.getLength());
-        }
-        // Now delete the source object.
-        client.deleteObject(config.getBucket(), sourcePath);
-
-        Duration elapsed = timer.getElapsed();
-        log.debug("Concat target={} source={} offset={} bytesWritten={} latency={}.", targetHandle.getSegmentName(), sourceSegment, offset, si.getLength(), elapsed.toMillis());
-
-        ExtendedS3Metrics.CONCAT_LATENCY.reportSuccessEvent(elapsed);
-        ExtendedS3Metrics.CONCAT_BYTES.add(si.getLength());
-        ExtendedS3Metrics.CONCAT_COUNT.inc();
-
-        LoggerHelpers.traceLeave(log, "concat", traceId);
-
-        return null;
-    }
-
-    private void doConcatWithAppend(String targetPath, String sourcePath, long offset, long length) throws Exception {
-        try (InputStream reader = client.readObjectStream(config.getBucket(),
-                sourcePath, Range.fromOffsetLength(0, length))) {
-            client.putObject(this.config.getBucket(),
-                    targetPath,
-                    Range.fromOffsetLength(offset, length),
-                    new BufferedInputStream(reader, Math.toIntExact(length)));
-        }
-    }
-
-    private void doConcatWithMultipartUpload(String targetPath, String sourceSegment, long offset) {
-        String uploadId = client.initiateMultipartUpload(config.getBucket(), targetPath);
-
-        SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
         //Copy the first part
         CopyPartRequest copyRequest = new CopyPartRequest(config.getBucket(),
                 targetPath,
@@ -456,11 +398,11 @@ public class ExtendedS3Storage implements SyncStorage {
 
         //Copy the second part
         S3ObjectMetadata metadataResult = client.getObjectMetadata(config.getBucket(),
-                config.getPrefix() + sourceSegment);
+                config.getRoot() + sourceSegment);
         long objectSize = metadataResult.getContentLength(); // in bytes
 
         copyRequest = new CopyPartRequest(config.getBucket(),
-                config.getPrefix() + sourceSegment,
+                config.getRoot() + sourceSegment,
                 config.getBucket(),
                 targetPath,
                 uploadId,
@@ -472,20 +414,15 @@ public class ExtendedS3Storage implements SyncStorage {
         //Close the upload
         client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getBucket(),
                 targetPath, uploadId).withParts(partEtags));
+
+        client.deleteObject(config.getBucket(), config.getRoot() + sourceSegment);
+        LoggerHelpers.traceLeave(log, "concat", traceId);
+
+        return null;
     }
 
     private Void doDelete(SegmentHandle handle) {
-        long traceId = LoggerHelpers.traceEnter(log, "delete", handle.getSegmentName());
-        Timer timer = new Timer();
-        client.deleteObject(config.getBucket(), config.getPrefix() + handle.getSegmentName());
-        Duration elapsed = timer.getElapsed();
-
-        ExtendedS3Metrics.DELETE_LATENCY.reportSuccessEvent(elapsed);
-        ExtendedS3Metrics.DELETE_COUNT.inc();
-
-        log.debug("Delete segment={} latency={}.", handle.getSegmentName(), elapsed.toMillis());
-
-        LoggerHelpers.traceLeave(log, "delete", traceId);
+        client.deleteObject(config.getBucket(), config.getRoot() + handle.getSegmentName());
         return null;
     }
 
@@ -550,78 +487,4 @@ public class ExtendedS3Storage implements SyncStorage {
 
     //endregion
 
-    @Override
-    public Iterator<SegmentProperties> listSegments() {
-        return new ExtendedS3SegmentIterator(s3object -> true);
-    }
-
-    /**
-     * Iterator for segments in ExtendedS3Storage.
-     */
-    private class ExtendedS3SegmentIterator implements Iterator<SegmentProperties> {
-        private final java.util.function.Predicate<S3Object> patternMatchPredicate;
-        private final ListObjectsResult results;
-        private Iterator<SegmentProperties> innerIterator;
-        private boolean nextBatch;
-
-        ExtendedS3SegmentIterator(java.util.function.Predicate<S3Object> patternMatchPredicate) {
-            this.results = client.listObjects(config.getBucket(), config.getPrefix());
-            this.innerIterator = client.listObjects(config.getBucket(), config.getPrefix()).getObjects().stream()
-                    .filter(patternMatchPredicate)
-                    .map(this::toSegmentProperties)
-                    .iterator();
-            this.patternMatchPredicate = patternMatchPredicate;
-            this.nextBatch = false;
-        }
-
-        /**
-         * Transforms a S3Object to SegmentProperties.
-         * @param s3Object The S3Object to be transformed.
-         * @return A SegmentProperties object.
-         */
-        public SegmentProperties toSegmentProperties(S3Object s3Object) {
-            AccessControlList acls = client.getObjectAcl(config.getBucket(), s3Object.getKey());
-            boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
-            return StreamSegmentInformation.builder()
-                    .name(s3Object.getKey().replaceFirst(config.getPrefix(), ""))
-                    .length(s3Object.getSize())
-                    .sealed(!canWrite)
-                    .lastModified(new ImmutableDate(s3Object.getLastModified().toInstant().toEpochMilli()))
-                    .build();
-        }
-
-        /**
-         * Method to check the presence of next element in the iterator.
-         * @return true if the next element is there, else false.
-         */
-        @Override
-        public boolean hasNext() {
-            if (innerIterator == null) {
-                return false;
-            }
-            if (innerIterator.hasNext()) {
-                return true;
-            } else {
-                if (nextBatch || results.getObjects().size() < results.getMaxKeys()) {
-                    return false;
-                }
-                innerIterator = client.listMoreObjects(results).getObjects().stream()
-                        .filter(patternMatchPredicate)
-                        .map(this::toSegmentProperties)
-                        .iterator();
-                nextBatch = true;
-                return innerIterator.hasNext();
-            }
-        }
-
-        /**
-         * Method to return the next element in the iterator.
-         * @return A newly created StreamSegmentInformation class.
-         * @throws NoSuchElementException in case of an unexpected failure.
-         */
-        @Override
-        public SegmentProperties next() throws NoSuchElementException {
-            return innerIterator.next();
-        }
-    }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -226,45 +225,6 @@ public final class Futures {
     public static <T> CompletableFuture<T> failedFuture(Throwable exception) {
         CompletableFuture<T> result = new CompletableFuture<>();
         result.completeExceptionally(exception);
-        return result;
-    }
-
-    /**
-     * Returns a CompletableFuture that will complete with the same outcome or result as the given source, but when
-     * cancelled, will apply a consumer to the eventual result of the original future.
-     * <p>
-     * If the returned CompletableFuture is NOT cancelled ({@link CompletableFuture#cancel}):
-     * - If source completes normally, the result CompletableFuture will complete with the same result.
-     * - If source completes exceptionally, the result CompletableFuture will complete with the same result.
-     * <p>
-     * If the returned CompletableFuture is cancelled ({@link CompletableFuture#cancel}):
-     * - If the source has already completed, the result CompletableFuture will also be completed with the same outcome.
-     * - If the source has not already been completed, if it completes normally, then `onCancel` will be applied to
-     * the result when it eventually completes. The source completes exceptionally, nothing will happen.
-     *
-     * @param source   The CompletableFuture to wrap.
-     * @param onCancel A Consumer to invoke on source's eventual completion result if the result of this method is cancelled.
-     * @param <T>      Result type.
-     * @return A CompletableFuture that will complete with the same outcome or result as the given source.
-     */
-    public static <T> CompletableFuture<T> cancellableFuture(CompletableFuture<T> source, Consumer<T> onCancel) {
-        if (source == null) {
-            return null;
-        }
-
-        val result = new CompletableFuture<T>();
-        source.whenComplete((r, ex) -> {
-            if (ex == null) {
-                result.complete(r);
-            } else {
-                result.completeExceptionally(ex);
-            }
-        });
-        Futures.exceptionListener(result, ex -> {
-            if (ex instanceof CancellationException && !source.isCancelled()) {
-                source.thenAccept(onCancel);
-            }
-        });
         return result;
     }
 

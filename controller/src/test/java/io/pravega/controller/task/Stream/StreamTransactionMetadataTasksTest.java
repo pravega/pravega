@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -31,8 +32,6 @@ import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
-import io.pravega.controller.metrics.StreamMetrics;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
@@ -83,8 +82,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
@@ -107,10 +106,10 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for StreamTransactionMetadataTasks.
@@ -179,8 +178,6 @@ public class StreamTransactionMetadataTasksTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
-        StreamMetrics.initialize();
-        TransactionMetrics.initialize();
     }
 
     @After
@@ -191,8 +188,6 @@ public class StreamTransactionMetadataTasksTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
-        StreamMetrics.reset();
-        TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
@@ -751,6 +746,16 @@ public class StreamTransactionMetadataTasksTest {
         }
 
         @Override
+        public Transaction<T> beginTxn() {
+            return null;
+        }
+
+        @Override
+        public Transaction<T> getTxn(UUID transactionId) {
+            return null;
+        }
+
+        @Override
         public EventWriterConfig getConfig() {
             return null;
         }
@@ -801,7 +806,7 @@ public class StreamTransactionMetadataTasksTest {
                 .supplier(factory)
                 .build();
 
-        system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore(), executor);
+        system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore());
     }
 
     public static class RegularBookKeeperLogTests extends StreamTransactionMetadataTasksTest {

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
@@ -34,8 +35,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
@@ -44,7 +43,6 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @ThreadSafe
-@RequiredArgsConstructor
 public class ControllerResolverFactory extends NameResolver.Factory {
 
     // Use this scheme when client want to connect to a static set of controller servers.
@@ -60,8 +58,6 @@ public class ControllerResolverFactory extends NameResolver.Factory {
     private final static String SCHEME_DISCOVER = "pravega";
     //Secure version of discover scheme.
     private final static String SCHEME_DISCOVER_TLS = "pravegas";
-    @NonNull
-    private final ScheduledExecutorService executor;
 
     @Nullable
     @Override
@@ -79,7 +75,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
             return InetSocketAddress.createUnresolved(strings[0], Integer.parseInt(strings[1]));
         }).collect(Collectors.toList());
 
-        return new ControllerNameResolver(authority, addresses, SCHEME_DISCOVER.equals(scheme) || SCHEME_DISCOVER_TLS.equals(scheme), executor);
+        return new ControllerNameResolver(authority, addresses, SCHEME_DISCOVER.equals(scheme) || SCHEME_DISCOVER_TLS.equals(scheme));
     }
 
     @Override
@@ -132,10 +128,9 @@ public class ControllerResolverFactory extends NameResolver.Factory {
          * @param authority         The authority string used to create the URI.
          * @param bootstrapServers  The initial set of controller endpoints.
          * @param enableDiscovery   Whether to use the controller's discovery API.
-         * @param executor          The executor to run resolve tasks on.
          */
         ControllerNameResolver(final String authority, final List<InetSocketAddress> bootstrapServers,
-                               final boolean enableDiscovery, ScheduledExecutorService executor) {
+                               final boolean enableDiscovery) {
             this.authority = authority;
             this.bootstrapServers = ImmutableList.copyOf(bootstrapServers);
             this.enableDiscovery = enableDiscovery;
@@ -149,7 +144,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
 
                 this.client = ControllerServiceGrpc.newBlockingStub(ManagedChannelBuilder
                         .forTarget(connectString)
-                        .nameResolverFactory(new ControllerResolverFactory(executor))
+                        .nameResolverFactory(new ControllerResolverFactory())
                         .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
                         .usePlaintext()
                         .build());
@@ -157,7 +152,13 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                 this.client = null;
             }
 
-            this.scheduledExecutor = executor;
+            // We enable the periodic refresh only if controller discovery is enabled or if DNS resolution is required.
+            if (this.enableDiscovery || this.bootstrapServers.stream().anyMatch(
+                    inetSocketAddress -> !InetAddresses.isInetAddress(inetSocketAddress.getHostString()))) {
+                this.scheduledExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "fetch-controllers");
+            } else {
+                this.scheduledExecutor = null;
+            }
         }
 
         @Override
@@ -171,38 +172,32 @@ public class ControllerResolverFactory extends NameResolver.Factory {
             Preconditions.checkState(this.resolverUpdater == null, "ControllerNameResolver has already been started");
             Preconditions.checkState(!shutdown, "ControllerNameResolver is shutdown, restart is not supported");
             this.resolverUpdater = listener;
-            boolean scheduleDiscovery;
+
             // If the servers comprise only of IP addresses then we need to update the controller list only once.
-            List<EquivalentAddressGroup> servers = new ArrayList<>();
-            if (!this.enableDiscovery) {
-                scheduleDiscovery = false;
+            if (this.scheduledExecutor == null) {
                 // Use the bootstrapped server list as the final set of controllers.
-                for (InetSocketAddress address : bootstrapServers) {
-                    if (InetAddresses.isInetAddress(address.getHostString())) {
-                        servers.add(new EquivalentAddressGroup(
-                                new InetSocketAddress(address.getHostString(), address.getPort())));
-                    } else {
-                        scheduleDiscovery = true;
-                    }
-                }
-            } else {
-                scheduleDiscovery = true;
-            }
-            if (scheduleDiscovery) {
-                // Schedule the first discovery immediately.
-                this.scheduledFuture = this.scheduledExecutor.schedule(this::getControllers, 0L, TimeUnit.SECONDS);
-            } else {
+                List<EquivalentAddressGroup> servers = this.bootstrapServers.stream()
+                        .map(address -> new EquivalentAddressGroup(
+                                new InetSocketAddress(address.getHostString(), address.getPort())))
+                        .collect(Collectors.toList());
                 log.info("Updating client with controllers: {}", servers);
-                this.resolverUpdater.onAddresses(servers, Attributes.EMPTY);  
+                this.resolverUpdater.onAddresses(servers, Attributes.EMPTY);
+                return;
             }
+
+            // Schedule the first discovery immediately.
+            this.scheduledFuture = this.scheduledExecutor.schedule(this::getControllers, 0L, TimeUnit.SECONDS);
         }
 
         @Override
         @Synchronized
         public void shutdown() {
-            shutdown = true;
-            if (scheduledFuture != null) {
-                scheduledFuture.cancel(false);
+            if (!shutdown) {
+                log.info("Shutting down ControllerNameResolver");
+                if (this.scheduledExecutor != null) {
+                    ExecutorServiceHelpers.shutdown(this.scheduledExecutor);
+                }
+                shutdown = true;
             }
         }
 

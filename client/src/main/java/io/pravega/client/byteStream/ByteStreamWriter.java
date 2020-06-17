@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2018 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -97,11 +97,5 @@ public abstract class ByteStreamWriter extends OutputStream {
      * @return The tail offset
      */
     public abstract long fetchTailOffset();
-
-    /**
-     * This makes a synchronous RPC call to the server to truncate the segment at the provided offset.
-     * @param offset The truncation offset.
-     */
-    public abstract void truncateDataBefore(long offset);
     
 }

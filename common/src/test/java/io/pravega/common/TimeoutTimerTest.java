@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@ public class TimeoutTimerTest {
         assertFalse(timer.hasRemaining());
         timer.reset(Duration.ofMillis(10000));
         assertTrue(timer.hasRemaining());
-        assertTrue(timer.getElapsed().toNanos() > 0);
         timer.zero();
         assertFalse(timer.hasRemaining());
     }
-
+    
+    
     @Test
     public void testResetToZero() {
         TimeoutTimer timer = new TimeoutTimer(Duration.ofMillis(10000));
@@ -37,5 +37,5 @@ public class TimeoutTimerTest {
         timer.zero();
         assertFalse(timer.hasRemaining());
     }
-
+    
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@ package io.pravega.segmentstore.storage.rolling;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -28,21 +27,15 @@ import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.shared.NameUtils;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
-
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -245,7 +238,7 @@ public class RollingStorage implements SyncStorage {
     @Override
     public SegmentHandle create(String segmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
         Preconditions.checkNotNull(rollingPolicy, "rollingPolicy");
-        String headerName = NameUtils.getHeaderSegmentName(segmentName);
+        String headerName = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
         long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, rollingPolicy);
 
         // First, check if the segment exists but with no header (it might have been created prior to applying
@@ -308,7 +301,6 @@ public class RollingStorage implements SyncStorage {
     }
 
     @Override
-    @SneakyThrows(IOException.class)
     public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
         val h = getHandle(handle);
         ensureNotDeleted(h);
@@ -329,13 +321,7 @@ public class RollingStorage implements SyncStorage {
             int writeLength = (int) Math.min(length - bytesWritten, h.getRollingPolicy().getMaxLength() - last.getLength());
             assert writeLength > 0 : "non-positive write length";
             long chunkOffset = offset + bytesWritten - last.getStartOffset();
-
-            // Use a BoundedInputStream to ensure that the underlying storage does not try to read more (or less) data
-            // than we instructed it to. Invoking BoundedInputStream.close() will throw an IOException if baseStorage.write()
-            // has not read all the bytes it was supposed to.
-            try (BoundedInputStream bis = new BoundedInputStream(data, writeLength)) {
-                this.baseStorage.write(h.getActiveChunkHandle(), chunkOffset, bis, writeLength);
-            }
+            this.baseStorage.write(h.getActiveChunkHandle(), chunkOffset, data, writeLength);
             last.increaseLength(writeLength);
             bytesWritten += writeLength;
         }
@@ -521,12 +507,6 @@ public class RollingStorage implements SyncStorage {
         return true;
     }
 
-    @Override
-    public Iterator<SegmentProperties> listSegments() throws IOException {
-        return new RollingStorageSegmentIterator(this, this.baseStorage.listSegments(),
-                props -> NameUtils.isHeaderSegment(props.getName()));
-    }
-
     //endregion
 
     //region SegmentChunk Operations
@@ -654,7 +634,7 @@ public class RollingStorage implements SyncStorage {
         Preconditions.checkArgument(handle.getHeaderHandle() == null, "handle already has a header.");
 
         // Create a new Header SegmentChunk.
-        String headerName = NameUtils.getHeaderSegmentName(handle.getSegmentName());
+        String headerName = StreamSegmentNameUtils.getHeaderSegmentName(handle.getSegmentName());
         this.baseStorage.create(headerName);
         val headerHandle = this.baseStorage.openWrite(headerName);
 
@@ -720,7 +700,7 @@ public class RollingStorage implements SyncStorage {
     }
 
     private SegmentProperties getHeaderInfo(String segmentName) throws StreamSegmentException {
-        String headerSegment = NameUtils.getHeaderSegmentName(segmentName);
+        String headerSegment = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
         val headerInfo = this.baseStorage.getStreamSegmentInfo(headerSegment);
         if (headerInfo.getLength() == 0) {
             // We treat empty header files as inexistent segments.
@@ -845,53 +825,5 @@ public class RollingStorage implements SyncStorage {
         }
     }
 
-    /**
-     * Iterator for segments in Rolling storage.
-     */
-    private static class RollingStorageSegmentIterator implements Iterator<SegmentProperties> {
-        private final RollingStorage instance;
-        private final Iterator<SegmentProperties> results;
-
-        RollingStorageSegmentIterator(RollingStorage instance, Iterator<SegmentProperties> results, java.util.function.Predicate<SegmentProperties> patternMatchPredicate) {
-            this.instance = instance;
-            this.results = StreamSupport.stream(Spliterators.spliteratorUnknownSize(results, 0), false)
-                    .filter(patternMatchPredicate)
-                    .map(this::toSegmentProperties)
-                    .iterator();
-        }
-
-        public SegmentProperties toSegmentProperties(SegmentProperties segmentProperties) {
-            try {
-                String segmentName = NameUtils.getSegmentNameFromHeader(segmentProperties.getName());
-                val handle = instance.openHandle(segmentName, true);
-                return StreamSegmentInformation.builder()
-                        .name(segmentName)
-                        .length(handle.length())
-                        .sealed(handle.isSealed()).build();
-            } catch (StreamSegmentException e) {
-                log.error("Exception occurred while transforming the object into SegmentProperties.");
-                return null;
-            }
-        }
-
-        /**
-         * Method to check the presence of next element in the iterator.
-         * @return true if the next element is there, else false.
-         */
-        @Override
-        public boolean hasNext() {
-            return results.hasNext();
-        }
-
-        /**
-         * Method to return the next element in the iterator.
-         * @return A newly created StreamSegmentInformation class.
-         * @throws NoSuchElementException in case of an unexpected failure.
-         */
-        @Override
-        public SegmentProperties next() throws NoSuchElementException {
-            return results.next();
-        }
-    }
     //endregion
 }

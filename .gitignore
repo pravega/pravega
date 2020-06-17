@@ -20,4 +20,3 @@ out/
 *.log
 .nb-gradle
 .nb-gradle-properties
-*.swp

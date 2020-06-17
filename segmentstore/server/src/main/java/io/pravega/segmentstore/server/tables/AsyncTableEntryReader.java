@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@ import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -174,8 +174,11 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
         try {
             Preconditions.checkArgument(entry.getContent().isDone(), "Entry Contents is not yet fetched.");
-            BufferView contents = entry.getContent().join();
-            contents.copyTo(this.readData);
+            ReadResultEntryContents contents = entry.getContent().join();
+
+            // TODO: most of these transfers are from memory to memory. It's a pity that we need an extra buffer to do the copy.
+            // TODO: https://github.com/pravega/pravega/issues/2924
+            this.readData.write(StreamHelpers.readAll(contents.getData(), contents.getLength()));
             if (this.header == null && this.readData.size() >= EntrySerializer.HEADER_LENGTH) {
                 // We now have enough to read the header.
                 this.header = this.serializer.readHeader(this.readData.getData());
@@ -229,7 +232,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
             if (readData.getLength() >= EntrySerializer.HEADER_LENGTH + header.getKeyLength()) {
                 // We read enough information.
-                ArrayView keyData = readData.slice(header.getKeyOffset(), header.getKeyLength());
+                ArrayView keyData = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
                 if (header.isDeletion()) {
                     complete(TableKey.notExists(keyData));
                 } else {
@@ -280,7 +283,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
             if (!this.keyValidated) {
                 // Compare the sought key and the data we read, byte-by-byte.
-                ByteArraySegment keyData = readData.slice(header.getKeyOffset(), header.getKeyLength());
+                ByteArraySegment keyData = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
                 for (int i = 0; i < this.soughtKey.getLength(); i++) {
                     if (this.soughtKey.get(i) != keyData.get(i)) {
                         // Key mismatch; no point in continuing.
@@ -308,7 +311,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             if (header.getValueLength() == 0) {
                 valueData = new ByteArraySegment(new byte[0]);
             } else {
-                valueData = readData.slice(header.getValueOffset(), header.getValueLength());
+                valueData = readData.subSegment(header.getValueOffset(), header.getValueLength());
             }
 
             complete(TableEntry.versioned(getKeyData(this.soughtKey, readData, header), valueData, getKeyVersion()));
@@ -317,7 +320,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
         private ArrayView getKeyData(ArrayView soughtKey, ByteArraySegment readData, EntrySerializer.Header header) {
             if (soughtKey == null) {
-                soughtKey = readData.slice(header.getKeyOffset(), header.getKeyLength());
+                soughtKey = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
             }
 
             return soughtKey;

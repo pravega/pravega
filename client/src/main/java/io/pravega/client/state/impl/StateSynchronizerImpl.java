@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                 }
             }
         } catch (TruncatedDataException e) {
-            log.info("{} encountered truncation on segment {}", this, segment);
+            log.warn("{} encountered truncation on segment {}", this, segment);
             RETRY_INDEFINITELY
                  .retryingOn(TruncatedDataException.class)
                  .throwingOn(RuntimeException.class)

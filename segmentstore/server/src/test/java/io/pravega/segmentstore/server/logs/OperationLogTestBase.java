@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,12 +12,12 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.collect.Iterators;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -34,7 +34,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperati
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.shared.NameUtils;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -125,7 +125,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                 long transactionId = getTransactionId(streamSegmentId, i);
                 assert result.put(transactionId, streamSegmentId) == null : "duplicate TransactionId generated: " + transactionId;
                 assert !streamSegmentIds.contains(transactionId) : "duplicate StreamSegmentId (Transaction) generated: " + transactionId;
-                String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
+                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
                 UpdateableSegmentMetadata transactionMetadata = containerMetadata.mapStreamSegmentId(transactionName, transactionId);
                 transactionMetadata.setLength(0);
                 transactionMetadata.setStorageLength(0);
@@ -145,7 +145,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
             String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
 
             for (int i = 0; i < transactionsPerStreamSegment; i++) {
-                String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
+                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
                 StreamSegmentMapOperation op = new StreamSegmentMapOperation(StreamSegmentInformation.builder().name(transactionName).build());
                 durableLog.add(op, TIMEOUT).join();
                 result.put(op.getStreamSegmentId(), streamSegmentId);
@@ -276,13 +276,13 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
             ReadResult readResult = readIndex.read(e.getKey(), 0, expectedLength, TIMEOUT);
             int readLength = 0;
             while (readResult.hasNext()) {
-                BufferView entry = readResult.next().getContent().join();
+                ReadResultEntryContents entry = readResult.next().getContent().join();
                 int length = entry.getLength();
                 readLength += length;
                 int streamSegmentOffset = expectedLengths.getOrDefault(e.getKey(), 0);
                 expectedLengths.put(e.getKey(), streamSegmentOffset + length);
                 AssertExtensions.assertStreamEquals(String.format("Unexpected data returned from ReadIndex. StreamSegmentId = %d, Offset = %d.",
-                        e.getKey(), streamSegmentOffset), e.getValue(), entry.getReader(), length);
+                        e.getKey(), streamSegmentOffset), e.getValue(), entry.getData(), length);
             }
 
             Assert.assertEquals("Not enough bytes were read from the ReadIndex for StreamSegment " + e.getKey(), expectedLength, readLength);

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,21 +74,18 @@ class SegmentInputStreamImpl implements SegmentInputStream {
 
     @Override
     @Synchronized
-    public void setOffset(long offset, boolean resendRequest) {
+    public void setOffset(long offset) {
         log.trace("SetOffset {}", offset);
         Preconditions.checkArgument(offset >= 0);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
         if (offset > this.offset) {
             receivedTruncated = false;
         }
-        if (offset != this.offset || resendRequest) {
-            if (outstandingRequest != null) {
-                log.debug("Cancelling the read request for segment {} at offset {}. The new read offset is {}", asyncInput.getSegmentId(), this.offset, offset);
-                cancelOutstandingRequest();
-            }
+        if (offset != this.offset) {
             this.offset = offset;
             buffer.clear();
             receivedEndOfSegment = false;
+            outstandingRequest = null;        
         }
     }
 
@@ -148,22 +145,20 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             throw e;
         }
         verifyIsAtCorrectOffset(segmentRead);
-        if (segmentRead.getData().readableBytes() > 0) {
-            int copied = buffer.fill(segmentRead.getData().nioBuffers());
-            segmentRead.getData().skipBytes(copied);
+        if (segmentRead.getData().hasRemaining()) {
+            buffer.fill(segmentRead.getData());
         }
         if (segmentRead.isEndOfSegment()) {
             receivedEndOfSegment = true;
         }
-        if (segmentRead.getData().readableBytes() == 0) {
-            segmentRead.release();
+        if (!segmentRead.getData().hasRemaining()) {
             outstandingRequest = null;
             issueRequestIfNeeded();
         }
     }
 
     private void verifyIsAtCorrectOffset(WireCommands.SegmentRead segmentRead) {
-        long offsetRead = segmentRead.getOffset() + segmentRead.getData().readerIndex();
+        long offsetRead = segmentRead.getOffset() + segmentRead.getData().position();
         long expectedOffset = offset + buffer.dataAvailable();
         checkState(offsetRead == expectedOffset, "ReadSegment returned data for the wrong offset %s vs %s", offsetRead,
                    expectedOffset);
@@ -179,8 +174,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         int updatedReadLength = computeReadLength(offset + buffer.dataAvailable());
         if (!receivedEndOfSegment && !receivedTruncated && updatedReadLength > 0 && outstandingRequest == null) {
             log.trace("Issuing read request for segment {} of {} bytes", getSegmentId(), updatedReadLength);
-            CompletableFuture<SegmentRead> r = asyncInput.read(offset + buffer.dataAvailable(), updatedReadLength);
-            outstandingRequest = Futures.cancellableFuture(r, SegmentRead::release);
+            outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), updatedReadLength);
         }
     }
 
@@ -198,32 +192,14 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         return Math.toIntExact(Math.min(currentReadLength, numberOfBytesRemaining));
     }
 
-    @GuardedBy("$lock")
-    private void cancelOutstandingRequest() {
-        // We need to make sure that we release the ByteBuf held on to by WireCommands.SegmentRead.
-        // We first attempt to cancel the request. If it has not already completed (and will complete successfully at one point),
-        // it will automatically release the buffer.
-        outstandingRequest.cancel(true);
-
-        // If the request has already completed successfully, attempt to release it anyway. Doing so multiple times will
-        // have no adverse effect. We do this after attempting to cancel (as opposed to before) since the request may very
-        // well complete while we're executing this method and we want to ensure no SegmentRead instances are left hanging.
-        if (outstandingRequest.isDone() && !outstandingRequest.isCompletedExceptionally()) {
-            SegmentRead request = outstandingRequest.join();
-            request.release();
-        }
-
-        log.debug("Completed cancelling outstanding read request for segment {}", asyncInput.getSegmentId());
-        outstandingRequest = null;
-    }
-
     @Override
     @Synchronized
     public void close() {
         log.trace("Closing {}", this);
         if (outstandingRequest != null) {
             log.debug("Cancel outstanding read request for segment {}", asyncInput.getSegmentId());
-            cancelOutstandingRequest();
+            outstandingRequest.cancel(true);
+            log.debug("Completed cancelling outstanding read request for segment {}", asyncInput.getSegmentId());
         }
         asyncInput.close();
     }
@@ -233,7 +209,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     public CompletableFuture<?> fillBuffer() {
         log.trace("Filling buffer {}", this);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
-        try {
+        try {      
             issueRequestIfNeeded();
             while (dataWaitingToGoInBuffer()) {
                 handleRequest();
@@ -252,7 +228,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         boolean atEnd = receivedEndOfSegment || receivedTruncated || (outstandingRequest != null && outstandingRequest.isCompletedExceptionally());
         if (outstandingRequest != null && Futures.isSuccessful(outstandingRequest)) {
             SegmentRead request = outstandingRequest.join();
-            result += request.getData().readableBytes();
+            result += request.getData().remaining();
             atEnd |= request.isEndOfSegment();
         }
         if (result <= 0 && atEnd) {
@@ -265,11 +241,6 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Override
     public Segment getSegmentId() {
         return asyncInput.getSegmentId();
-    }
-    
-    @Synchronized
-    int getBufferSize() {
-        return buffer.getCapacity();
     }
 
 }

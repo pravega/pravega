@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -297,9 +297,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             throw new StreamSegmentMergedException(this.name);
         }
 
-        if (this.sealed && !(operation.isInternal() && operation.hasOnlyCoreAttributes())) {
-            // No operation may be accepted after a Segment has been sealed, except if it was internally generated and the
-            // only thing that operation does is update exclusively Core Attributes.
+        if (this.sealed) {
             throw new StreamSegmentSealedException(this.name);
         }
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,9 +9,7 @@
  */
 package io.pravega.common.util;
 
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.List;
+import java.io.InputStream;
 
 /**
  * Defines a generic read-only view of an index-based, array-like structure.
@@ -44,6 +42,16 @@ public interface ArrayView extends BufferView {
     int arrayOffset();
 
     /**
+     * Creates an InputStream that can be used to read the contents of this ArrayView. The InputStream returned
+     * spans the given section of the ArrayView.
+     *
+     * @param offset The starting offset of the section to read.
+     * @param length The length of the section to read.
+     * @return The InputStream.
+     */
+    InputStream getReader(int offset, int length);
+
+    /**
      * Copies a specified number of bytes from this ArrayView into the given target array.
      *
      * @param target       The target array.
@@ -52,9 +60,4 @@ public interface ArrayView extends BufferView {
      * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
      */
     void copyTo(byte[] target, int targetOffset, int length);
-
-    @Override
-    default List<ByteBuffer> getContents() {
-        return Collections.singletonList(ByteBuffer.wrap(array(), arrayOffset(), getLength()));
-    }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,10 +13,8 @@ import io.netty.buffer.ByteBuf;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.util.UUID;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 
 @Data
-@RequiredArgsConstructor
 public class Append implements Request, Comparable<Append> {
     final String segment;
     final UUID writerId;
@@ -33,7 +31,17 @@ public class Append implements Request, Comparable<Append> {
     public Append(String segment, UUID writerId, long eventNumber, Event event, long expectedLength, long flowId) {
         this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), expectedLength, flowId);
     }
-
+    
+    public Append(String segment, UUID writerId, long eventNumber, int eventCount, ByteBuf data, Long expectedLength, long flowId) {
+        this.segment = segment;
+        this.writerId = writerId;
+        this.eventNumber = eventNumber;
+        this.eventCount = eventCount;
+        this.data = data;
+        this.expectedLength = expectedLength;
+        this.flowId = flowId;
+    }
+    
     public int getDataLength() {
         return data.readableBytes();
     }

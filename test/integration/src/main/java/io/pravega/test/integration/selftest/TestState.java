@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -574,22 +574,15 @@ public class TestState {
         }
 
         /**
-         * Gets a value indicating the overall latency.
+         * Gets a value indicating the average latency.
          */
-        synchronized double sum() {
+        synchronized double average() {
             long sum = 0;
             for (int i = 0; i < this.latencyCounts.length; i++) {
                 sum += (long) this.latencyCounts[i] * i;
             }
 
-            return (double) sum;
-        }
-
-        /**
-         * Gets a value indicating the average latency.
-         */
-        synchronized double average() {
-            return sum() / this.size;
+            return (double) sum / this.size;
         }
 
         /**

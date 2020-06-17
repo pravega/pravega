@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,13 +11,13 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.CacheManager;
-import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.Cache;
+import io.pravega.segmentstore.storage.CacheFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -32,7 +32,7 @@ import lombok.val;
 class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     //region Members
 
-    private final CacheStorage cacheStorage;
+    private final Cache cache;
     @GuardedBy("segmentCaches")
     private final Map<Long, SegmentKeyCache> segmentCaches;
     @GuardedBy("segmentCaches")
@@ -46,10 +46,11 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     /**
      * Creates a new instance of the ContainerKeyCache class.
      *
-     * @param cacheStorage A {@link CacheStorage} that can be used to store data in memory.
+     * @param containerId  The Id of the SegmentContainer that this instance is associated with.
+     * @param cacheFactory A {@link CacheFactory} that can be used to create {@link Cache} instances.
      */
-    ContainerKeyCache(@NonNull CacheStorage cacheStorage) {
-        this.cacheStorage = cacheStorage;
+    ContainerKeyCache(int containerId, @NonNull CacheFactory cacheFactory) {
+        this.cache = cacheFactory.getCache(String.format("Container_%d_TableKeys", containerId));
         this.segmentCaches = new HashMap<>();
         this.closed = new AtomicBoolean();
     }
@@ -61,13 +62,10 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
-            ArrayList<SegmentKeyCache> toEvict;
+            this.cache.close();
             synchronized (this.segmentCaches) {
-                toEvict = new ArrayList<>(this.segmentCaches.values());
                 this.segmentCaches.clear();
             }
-
-            toEvict.forEach(s -> s.evictAll().forEach(SegmentKeyCache.CacheEntry::evict));
         }
     }
 
@@ -77,35 +75,38 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
 
     @Override
     public CacheManager.CacheStatus getCacheStatus() {
+        int minGen = 0;
+        int maxGen = 0;
+        long size = 0;
         synchronized (this.segmentCaches) {
-            return CacheManager.CacheStatus.combine(
-                    this.segmentCaches.values().stream()
-                                      .filter(Objects::nonNull)
-                                      .map(SegmentKeyCache::getCacheStatus)
-                                      .iterator());
+            for (SegmentKeyCache e : this.segmentCaches.values()) {
+                if (e != null) {
+                    val cs = e.getCacheStatus();
+                    minGen = Math.min(minGen, cs.getOldestGeneration());
+                    maxGen = Math.max(maxGen, cs.getNewestGeneration());
+                    size += cs.getSize();
+                }
+            }
         }
+
+        return new CacheManager.CacheStatus(size, minGen, maxGen);
     }
 
     @Override
-    public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
+    public long updateGenerations(int currentGeneration, int oldestGeneration) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         // Instruct each Segment Cache to perform its own cache management, collect eviction candidates, and remove them
         // from the cache.
-        val evictions = new ArrayList<SegmentKeyCache.CacheEntry>();
+        val evictions = new ArrayList<SegmentKeyCache.EvictionResult>();
         synchronized (this.segmentCaches) {
             this.currentCacheGeneration = currentGeneration;
             for (SegmentKeyCache segmentCache : this.segmentCaches.values()) {
-                evictions.addAll(segmentCache.evictBefore(oldestGeneration));
+                evictions.add(segmentCache.evictBefore(oldestGeneration));
             }
         }
 
-        boolean anyEvicted = false;
-        for (val e : evictions) {
-            anyEvicted = e.evict() | anyEvicted;
-        }
-
-        return anyEvicted;
+        return evictions.stream().mapToLong(this::evict).sum();
     }
 
     //endregion
@@ -130,7 +131,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         int generation;
         synchronized (this.segmentCaches) {
             generation = this.currentCacheGeneration;
-            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cacheStorage));
+            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cache));
         }
 
         return cache.includeUpdateBatch(batch, batchOffset, generation);
@@ -149,7 +150,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         int generation;
         synchronized (this.segmentCaches) {
             generation = this.currentCacheGeneration;
-            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cacheStorage));
+            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cache));
         }
 
         cache.includeTailCache(keyOffsets, generation);
@@ -174,7 +175,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         int generation;
         synchronized (this.segmentCaches) {
             generation = this.currentCacheGeneration;
-            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cacheStorage));
+            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cache));
         }
 
         return cache.includeExistingKey(keyHash, segmentOffset, generation);
@@ -216,13 +217,13 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             if (remove) {
                 cache = this.segmentCaches.remove(segmentId);
             } else {
-                cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cacheStorage));
+                cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cache));
             }
         }
 
         if (cache != null) {
             if (remove) {
-                cache.evictAll().forEach(SegmentKeyCache.CacheEntry::evict);
+                evict(cache.evictAll());
             } else {
                 cache.setLastIndexedOffset(indexOffset, generation);
             }
@@ -243,7 +244,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         synchronized (this.segmentCaches) {
             generation = this.currentCacheGeneration;
             if (!this.segmentCaches.containsKey(segmentId)) {
-                cache = new SegmentKeyCache(segmentId, this.cacheStorage);
+                cache = new SegmentKeyCache(segmentId, this.cache);
             }
         }
 
@@ -290,6 +291,11 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         }
 
         return cache == null ? ifNotExists : ifExists.apply(cache);
+    }
+
+    private long evict(SegmentKeyCache.EvictionResult eviction) {
+        eviction.getKeys().forEach(this.cache::remove);
+        return eviction.getSize();
     }
 
     //endregion

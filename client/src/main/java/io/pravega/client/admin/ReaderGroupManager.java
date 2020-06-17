@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
 package io.pravega.client.admin;
 
 import io.pravega.client.ClientConfig;
+import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ReaderConfig;
@@ -49,7 +50,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * Creates a new ReaderGroup.
      *
      * Readers will be able to join the group by calling
-     * {@link io.pravega.client.EventStreamClientFactory#createReader(String, String, Serializer, ReaderConfig)}
+     * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}
      * . Once this is done they will start receiving events from the point defined in the config
      * passed here.
      * <p>

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,11 +29,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -189,7 +186,7 @@ class HDFSStorage implements SyncStorage {
         return exists;
     }
 
-    private static boolean isSealed(Path path) throws FileNameFormatException {
+    private boolean isSealed(Path path) throws FileNameFormatException {
         return getEpochFromPath(path) == MAX_EPOCH;
     }
 
@@ -212,12 +209,12 @@ class HDFSStorage implements SyncStorage {
 
         try {
             return HDFS_RETRY.run(() -> {
-                int totalBytesRead  = readInternal(handle, buffer, offset, bufferOffset, length);
-                HDFSMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
-                HDFSMetrics.READ_BYTES.add(totalBytesRead);
-                LoggerHelpers.traceLeave(log, "read", traceId, handle, offset, totalBytesRead);
-                return totalBytesRead;
-            });
+                            int totalBytesRead  = readInternal(handle, buffer, offset, bufferOffset, length);
+                            HDFSMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
+                            HDFSMetrics.READ_BYTES.add(totalBytesRead);
+                            LoggerHelpers.traceLeave(log, "read", traceId, handle, offset, totalBytesRead);
+                            return totalBytesRead;
+                        });
         } catch (IOException e) {
             throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), e);
         } catch (RetriesExhaustedException e) {
@@ -356,7 +353,7 @@ class HDFSStorage implements SyncStorage {
                 throw new StorageNotPrimaryException(handle.getSegmentName());
             }
         } catch (IOException e) {
-            throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), e);
+             throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), e);
         }
 
         Timer timer = new Timer();
@@ -490,7 +487,6 @@ class HDFSStorage implements SyncStorage {
         // return handle
         return HDFSSegmentHandle.write(streamSegmentName);
     }
-
     //endregion
 
     //region Helpers
@@ -579,8 +575,8 @@ class HDFSStorage implements SyncStorage {
         }
 
         val result = Arrays.stream(rawFiles)
-                .sorted(this::compareFileStatus)
-                .collect(Collectors.toList());
+                           .sorted(this::compareFileStatus)
+                           .collect(Collectors.toList());
         return result.get(result.size() -1);
     }
 
@@ -596,16 +592,7 @@ class HDFSStorage implements SyncStorage {
         return getEpochFromPath(status.getPath());
     }
 
-    private static String getSegmentNameFromPath(Path path) throws FileNameFormatException {
-        String fileName = path.getName();
-        int pos2 = fileName.lastIndexOf(PART_SEPARATOR);
-        if (pos2 <= 0) {
-            throw new FileNameFormatException(fileName, "File must be in the following format: " + EXAMPLE_NAME_FORMAT);
-        }
-        return fileName.substring(0, pos2);
-    }
-
-    private static long getEpochFromPath(Path path) throws FileNameFormatException {
+    private long getEpochFromPath(Path path) throws FileNameFormatException {
         String fileName = path.toString();
         int pos2 = fileName.lastIndexOf(PART_SEPARATOR);
         if (pos2 <= 0) {
@@ -667,73 +654,5 @@ class HDFSStorage implements SyncStorage {
         return length;
     }
 
-    @Override
-    public Iterator<SegmentProperties> listSegments() throws IOException {
-        try {
-            return new HDFSSegmentIterator(this.fileSystem.listStatus(new Path(config.getHdfsRoot() + Path.SEPARATOR)),
-                    fileStatus -> {
-                        String fileName = fileStatus.getPath().getName();
-                        int index = fileName.lastIndexOf(PART_SEPARATOR);
-                        if (fileName.endsWith(PART_SEPARATOR + SEALED)) {
-                            return true;
-                        }
-                        try {
-                            Long.parseLong(fileName.substring(index + 1));
-                        } catch (NumberFormatException nfe) {
-                            return false;
-                        }
-                        return true;
-                    });
-        } catch (IOException e) {
-            log.error("Exception occurred while listing the segments.", e);
-            throw e;
-        }
-    }
-
-    /**
-     * Iterator for segments in HDFS Storage.
-     */
-    private static class HDFSSegmentIterator implements Iterator<SegmentProperties> {
-        private final Iterator<SegmentProperties> results;
-
-        HDFSSegmentIterator(FileStatus[] results, java.util.function.Predicate<FileStatus> patternMatchPredicate) {
-                this.results = Arrays.asList(results).stream()
-                        .filter(patternMatchPredicate)
-                        .map(this::toSegmentProperties)
-                        .iterator();
-        }
-
-        public SegmentProperties toSegmentProperties(FileStatus fileStatus) {
-            try {
-                boolean isSealed = isSealed(fileStatus.getPath());
-                return StreamSegmentInformation.builder()
-                        .name(getSegmentNameFromPath(fileStatus.getPath()))
-                        .length(fileStatus.getLen())
-                        .sealed(isSealed).build();
-            } catch (FileNameFormatException e) {
-                log.error("Exception occurred while transforming the object into SegmentProperties.");
-                return null;
-            }
-        }
-
-        /**
-         * Method to check the presence of next element in the iterator.
-         * @return true if the next element is there, else false.
-         */
-        @Override
-        public boolean hasNext() {
-            return results.hasNext();
-        }
-
-        /**
-         * Method to return the next element in the iterator.
-         * @return A newly created StreamSegmentInformation class.
-         * @throws NoSuchElementException in case of an unexpected failure.
-         */
-        @Override
-        public SegmentProperties next() throws NoSuchElementException {
-            return results.next();
-        }
-    }
     //endregion
 }

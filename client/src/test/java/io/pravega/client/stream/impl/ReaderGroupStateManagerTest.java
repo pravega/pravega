@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,9 +52,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 @RunWith(BlockJUnit4ClassRunner.class)
 public class ReaderGroupStateManagerTest {
@@ -342,11 +339,8 @@ public class ReaderGroupStateManagerTest {
         newSegments = readerState2.acquireNewSegmentsIfNeeded(0, new PositionImpl(Collections.emptyMap()));
         assertEquals(1, newSegments.size());
         assertEquals(Long.valueOf(789L), newSegments.get(segment0));
-
-        StateSynchronizer<ReaderGroupState> spied = spy(stateSynchronizer);
-        ReaderGroupStateManager.readerShutdown("testReader2", null, spied);
-        // verify that fetch updates is called once on the spied state synchronizer.
-        verify(spied, times(1)).fetchUpdates();
+        
+        ReaderGroupStateManager.readerShutdown("testReader2", null, stateSynchronizer);
         AssertExtensions.assertThrows(ReaderNotInReaderGroupException.class,
                 () -> readerState2.releaseSegment(new Segment(scope, stream, 0), 711L, 0L, new PositionImpl(Collections.emptyMap())));
 
@@ -588,8 +582,6 @@ public class ReaderGroupStateManagerTest {
 
         reader1.readerShutdown(new PositionImpl(segments1));
 
-        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
-
         Map<SegmentWithRange, Long> segmentsRecovered = reader2.acquireNewSegmentsIfNeeded(0, new PositionImpl(segments2));
         assertFalse(segmentsRecovered.isEmpty());
         assertEquals(2, segmentsRecovered.size());
@@ -634,7 +626,7 @@ public class ReaderGroupStateManagerTest {
         segments.put(s3, 3L);
         segments.put(s4, 4L);
         segments.put(s5, 5L);
-        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit( ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", stateSynchronizer, controller,
                 clock::get);
@@ -685,22 +677,20 @@ public class ReaderGroupStateManagerTest {
 
         assertNotNull(reader1.findSegmentToReleaseIfRequired());
         reader1.releaseSegment(new Segment(scope, stream, 0), 0, 0,
-                               new PositionImpl(ImmutableMap.of(s0, 10L, s1, 11L, s2, 12L)));
+                               new PositionImpl(ImmutableMap.of(s0, Long.valueOf(10), s1, Long.valueOf(11), s2, Long.valueOf(12))));
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
         assertNotNull(reader2.findSegmentToReleaseIfRequired());
         reader2.releaseSegment(new Segment(scope, stream, 3), 3, 0,
-                               new PositionImpl(ImmutableMap.of(s3, 13L, s4, 14L, s5, 15L)));
+                               new PositionImpl(ImmutableMap.of(s3, Long.valueOf(13), s4, Long.valueOf(14), s5, Long.valueOf(15))));
         assertNull(reader2.findSegmentToReleaseIfRequired());
-
-        clock.addAndGet(ReaderGroupStateManager.TIME_UNIT.toNanos());
 
         Map<SegmentWithRange, Long> segments3 = reader3.acquireNewSegmentsIfNeeded(0, new PositionImpl(Collections.emptyMap()));
         assertEquals(2, segments3.size());
 
         clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
-        reader3.updateLagIfNeeded(0, new PositionImpl(ImmutableMap.of(s0, 20L, s3, 23L)));
+        reader3.updateLagIfNeeded(0, new PositionImpl(ImmutableMap.of(s0, Long.valueOf(20), s3, Long.valueOf(23))));
         assertNull(reader1.findSegmentToReleaseIfRequired());
         assertNull(reader2.findSegmentToReleaseIfRequired());
         assertNull(reader3.findSegmentToReleaseIfRequired());

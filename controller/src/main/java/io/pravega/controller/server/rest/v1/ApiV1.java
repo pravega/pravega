@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,6 +11,7 @@ package io.pravega.controller.server.rest.v1;
 
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.CreateEventResponse;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.ScalingEventList;
@@ -56,6 +57,7 @@ public final class ApiV1 {
         @GET
         Response ping();
     }
+
 
     /**
      * Stream metadata version 1.0 APIs.
@@ -308,5 +310,48 @@ public final class ApiV1 {
                 @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
                 @ApiParam(value = "The state info to be updated", required = true) StreamState updateStreamStateRequest,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
+
+        @GET
+        @Path("/{scopeName}/streams/{streamName}/segments/{segmentNumber}/events")
+        @Produces({ "application/json" })
+        @ApiOperation(
+                value = "", notes = "Retrieve event", response = String.class, tags = {  })
+        @ApiResponses(value = {
+                @ApiResponse(
+                        code = 200, message = "Successfully retrieved the scope", response = String.class),
+
+                @ApiResponse(
+                        code = 404, message = "Scope not found", response = String.class),
+
+                @ApiResponse(
+                        code = 500, message = "Server error", response = String.class) })
+        public void getEvent(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName, 
+                             @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
+                             @ApiParam(value = "Segment number", required = true) @PathParam("segmentNumber") Long segmentNumber,
+                             @Context SecurityContext securityContext,
+                             @Suspended final AsyncResponse asyncResponse);
+
+
+        @PUT
+        @Path("/{scopeName}/streams/{streamName}/events")
+        @Consumes("text/plain")
+        @Produces({"application/json"})
+        @ApiOperation(
+                value = "", notes = "Creates a new event", response = CreateEventResponse.class, tags = {})
+        @ApiResponses(value = {
+                @ApiResponse(
+                        code = 201, message = "Successfully created the event", response = CreateEventResponse.class),
+
+                @ApiResponse(
+                        code = 409, message = "Event already exists", response = CreateEventResponse.class),
+
+                @ApiResponse(
+                        code = 500, message = "Server error", response = CreateEventResponse.class)})
+        public void createEvent(
+                @ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
+                @ApiParam(value = "message", required = true) String message,
+                @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
+
     }
 }

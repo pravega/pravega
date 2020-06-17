@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,6 @@ public class Property<T> {
     private final String name;
     @Getter
     private final T defaultValue;
-    @Getter
-    private final String legacyName;
 
     /**
      * Creates a new instance of the Property class with no default value.
@@ -35,7 +33,7 @@ public class Property<T> {
      * @return A new instance of the Property class with no default value.
      */
     public static <T> Property<T> named(String name) {
-        return new Property<>(name, null, null);
+        return new Property<>(name, null);
     }
 
     /**
@@ -47,20 +45,7 @@ public class Property<T> {
      * @return A new instance of the Property class with the given default value.
      */
     public static <T> Property<T> named(String name, T defaultValue) {
-        return new Property<>(name, defaultValue, null);
-    }
-
-    /**
-     * Creates a new instance of the Property class with the given default value.
-     *
-     * @param name          The name of the property.
-     * @param defaultValue  The default value of the property.
-     * @param legacyName    The old name of the property, for backward compatibility.
-     * @param <T>           The type of the property values.
-     * @return A new instance of the Property class with the given default value.
-     */
-    public static <T> Property<T> named(String name, T defaultValue, String legacyName) {
-        return new Property<>(name, defaultValue, legacyName);
+        return new Property<>(name, defaultValue);
     }
 
     /**
@@ -68,25 +53,6 @@ public class Property<T> {
      */
     boolean hasDefaultValue() {
         return this.defaultValue != null;
-    }
-
-    /**
-     * Determines whether this instance has a legacy name.
-     *
-     * @return {@code true} if this has a legacy name, otherwise {@code false}.
-     */
-    boolean hasLegacyName() {
-        return this.legacyName != null;
-    }
-
-    /**
-     * Returns full property name using the specified component code.
-     *
-     * @param componentCode the component prefix (`controller.`, `pravegaservice`, etc.)
-     * @return fully qualified property name
-     */
-    public String getFullName(String componentCode) {
-        return String.format("%s.%s", componentCode, this.getName());
     }
 
     @Override

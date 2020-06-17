@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,15 +9,17 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import io.pravega.common.util.BufferView;
+import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
+import lombok.Getter;
+import org.junit.Assert;
+
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.Getter;
-import org.junit.Assert;
 
 /**
  * Helper class for unit tests that require usage of an AsyncReadResultProcessor to handle ReadResults.
@@ -43,9 +45,11 @@ public class TestReadResultHandler implements AsyncReadResultHandler {
 
     @Override
     public boolean processEntry(ReadResultEntry e) {
-        BufferView c = e.getContent().join();
+        ReadResultEntryContents c = e.getContent().join();
+        byte[] data = new byte[c.getLength()];
         try {
-            c.copyTo(readContents);
+            StreamHelpers.readAll(c.getData(), data, 0, data.length);
+            readContents.write(data);
             return true;
         } catch (Exception ex) {
             processError(ex);

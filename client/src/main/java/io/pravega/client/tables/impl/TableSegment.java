@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,9 +37,9 @@ public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
 
     /**
      * Inserts or updates an existing Table Entry into this Table Segment.
-     * @param entry The Entry to insert or update. If {@link TableEntry#getKey()}{@link TableKey#getVersion()} is null,
-     *              this will perform an Unconditional Update, otherwise it will perform a Conditional Update
-     *              based on the information provided. See {@link TableSegment} doc for more details on Types of Updates.
+     * @param entry The Entry to insert or update. If {@link TableEntry#getKey()#getVersion()} is null, this will perform
+     *              an Unconditional Update, otherwise it will perform a Conditional Update based on the information
+     *              provided. See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will contain the {@link KeyVersion} associated with the newly
      * inserted or updated entry. Notable exceptions:
      * <ul>
@@ -52,10 +52,9 @@ public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
      * Inserts new or updates existing Table Entries into this Table Segment.
      *
      * @param entries A Collection of entries to insert or update. If for at least one such entry,
-     *                {@link TableEntry#getKey()}{@link TableKey#getVersion()} returns a non-null value,
-     *                this will perform an atomic Conditional Update where all the entries either get applied or
-     *                none will; otherwise a Unconditional Update will be performed.
-     *                See {@link TableSegment} doc for more details on Types of Updates.
+     *                {@link TableEntry#getKey()#getVersion()} returns a non-null value, this will perform an atomic
+     *                Conditional Update where all the entries either get applied or none will; otherwise a Unconditional
+     *                Update will be performed. See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will contain a map of {@link KeyT} to {@link KeyVersion} which
      * represents the versions for the inserted/updated keys. Notable exceptions:
      * <ul>

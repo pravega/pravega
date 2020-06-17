@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ package io.pravega.shared;
  * - segmentstore.bookkeeper: metrics related to bookkeeper (Tier 1)
  * - segmentstore.container: metrics for segment containers
  * - segmentstore.thread_pool: metrics for segmentstore thread pool
- * - segmentstore.cache: cache-related metrics
+ * - segmentstore.cache: cache-related metrics (RocksDB)
  * - controller.stream: metrics for operations on streams (e.g., number of streams created)
  * - controller.segments: metrics about segments, per stream (e.g., count, splits, merges)
  * - controller.transactions: metrics related to transactions (e.g., created, committed, aborted)
@@ -64,10 +64,6 @@ public final class MetricsNames {
     // PREFIX can be loaded from config when config becomes dependency.
     public static final String PREFIX = "pravega" + ".";
 
-    // Metrics for all services
-    public static final String LOG_ERRORS = PREFIX + "logged_errors";     // Counter
-    public static final String LOG_WARNINGS = PREFIX + "logged_warnings"; // Counter
-
     // Metrics in Segment Store Service
     // Segment-related stats
     public static final String SEGMENT_CREATE_LATENCY = PREFIX + "segmentstore.segment.create_latency_ms";              // Histogram
@@ -96,30 +92,25 @@ public final class MetricsNames {
     public static final String TABLE_SEGMENT_ITERATE_ENTRIES = PREFIX + "segmentstore.tablesegment.iterate_entries";       // Counter and Per-segment Counter
 
     // Storage stats
-    public static final String STORAGE_READ_LATENCY = PREFIX + "segmentstore.storage.read_latency_ms";     // Histogram
-    public static final String STORAGE_WRITE_LATENCY = PREFIX + "segmentstore.storage.write_latency_ms";   // Histogram
-    public static final String STORAGE_CREATE_LATENCY = PREFIX + "segmentstore.storage.create_latency_ms"; // Histogram
-    public static final String STORAGE_DELETE_LATENCY = PREFIX + "segmentstore.storage.delete_latency_ms"; // Histogram
-    public static final String STORAGE_CONCAT_LATENCY = PREFIX + "segmentstore.storage.concat_latency_ms"; // Histogram
-
+    public static final String STORAGE_READ_LATENCY = PREFIX + "segmentstore.storage.read_latency_ms";   // Histogram
+    public static final String STORAGE_WRITE_LATENCY = PREFIX + "segmentstore.storage.write_latency_ms"; // Histogram
     public static final String STORAGE_READ_BYTES = PREFIX + "segmentstore.storage.read_bytes";          // Counter
     public static final String STORAGE_WRITE_BYTES = PREFIX + "segmentstore.storage.write_bytes";        // Counter
-    public static final String STORAGE_CONCAT_BYTES = PREFIX + "segmentstore.storage.concat_bytes";      // Counter
     public static final String STORAGE_CREATE_COUNT = PREFIX + "segmentstore.storage.create_count";      // Counter
-    public static final String STORAGE_DELETE_COUNT = PREFIX + "segmentstore.storage.delete_count";      // Counter
-    public static final String STORAGE_CONCAT_COUNT = PREFIX + "segmentstore.storage.concat_count";      // Counter
-    public static final String STORAGE_LARGE_CONCAT_COUNT = PREFIX + "segmentstore.storage.large_concat_count"; // Counter
 
-
-    // Cache stats
-    public static final String CACHE_WRITE_BYTES = PREFIX + "segmentstore.cache.write_bytes";               // Counter
-    public static final String CACHE_APPEND_BYTES = PREFIX + "segmentstore.cache.append_bytes";             // Counter
-    public static final String CACHE_READ_BYTES = PREFIX + "segmentstore.cache.read_bytes";                 // Counter
-    public static final String CACHE_DELETE_BYTES = PREFIX + "segmentstore.cache.delete_bytes";             // Counter
-    public static final String CACHE_STORED_SIZE_BYTES = PREFIX + "segmentstore.cache.stored_size_bytes";   // Gauge
-    public static final String CACHE_USED_SIZE_BYTES = PREFIX + "segmentstore.cache.used_size_bytes";       // Gauge
-    public static final String CACHE_ALLOC_SIZE_BYTES = PREFIX + "segmentstore.cache.allocated_size_bytes"; // Gauge
-    public static final String CACHE_GENERATION_SPREAD = PREFIX + "segmentstore.cache.gen";                 // Histogram
+    // Cache (RocksDB) stats
+    public static final String CACHE_INSERT_LATENCY = PREFIX + "segmentstore.cache.insert_latency_ms";   // Histogram
+    public static final String CACHE_INSERT_SIZE = PREFIX + "segmentstore.cache.insert_size";            // Histogram
+    public static final String CACHE_INSERT_COUNT = PREFIX + "segmentstore.cache.insert_count";          // Counter
+    public static final String CACHE_WRITE_BYTES = PREFIX + "segmentstore.cache.write_bytes";            // Counter
+    public static final String CACHE_GET_LATENCY = PREFIX + "segmentstore.cache.get_latency_ms";         // Histogram
+    public static final String CACHE_GET_SIZE = PREFIX + "segmentstore.cache.get_size";                  // Histogram
+    public static final String CACHE_GET_COUNT = PREFIX + "segmentstore.cache.get_count";                // Counter
+    public static final String CACHE_READ_BYTES = PREFIX + "segmentstore.cache.read_bytes";              // Counter
+    public static final String CACHE_DELETE_LATENCY = PREFIX + "segmentstore.cache.delete_latency_ms";   // Histogram
+    public static final String CACHE_DELETE_COUNT = PREFIX + "segmentstore.cache.delete_count";          // Counter
+    public static final String CACHE_TOTAL_SIZE_BYTES = PREFIX + "segmentstore.cache.size_bytes";        // Gauge
+    public static final String CACHE_GENERATION_SPREAD = PREFIX + "segmentstore.cache.gen";              // Histogram
 
     // DurableDataLog (Tier1) stats
     public static final String BK_TOTAL_WRITE_LATENCY = PREFIX + "segmentstore.bookkeeper.total_write_latency_ms";   // Including Queue. Per-container Histogram
@@ -128,14 +119,6 @@ public final class MetricsNames {
     public static final String BK_WRITE_QUEUE_SIZE = PREFIX + "segmentstore.bookkeeper.write_queue_size";            // Per-container Histogram
     public static final String BK_WRITE_QUEUE_FILL_RATE = PREFIX + "segmentstore.bookkeeper.write_queue_fill";       // Per-container Histogram
     public static final String BK_LEDGER_COUNT = PREFIX + "segmentstore.bookkeeper.ledger_count";                    // Per-container Gauge
-
-    // StorageWriter stats
-    public static final String STORAGE_WRITER_FLUSH_ELAPSED = PREFIX + "segmentstore.storagewriter.flush_elapsed_ms";         // Time to flush all processors. Per-container Histogram.
-    public static final String STORAGE_WRITER_ITERATION_ELAPSED = PREFIX + "segmentstore.storagewriter.iteration_elapsed_ms"; // Total Iteration Duration. Per-container Histogram
-    public static final String STORAGE_WRITER_READ_COUNT = PREFIX + "segmentstore.storagewriter.read_count";                  // Items read from DurableLog. Counter.
-    public static final String STORAGE_WRITER_FLUSHED_BYTES = PREFIX + "segmentstore.storagewriter.flushed_bytes";            // Bytes written per iteration. Counter.
-    public static final String STORAGE_WRITER_MERGED_BYTES = PREFIX + "segmentstore.storagewriter.merged_bytes";              // Bytes merged per iteration. Counter.
-    public static final String STORAGE_WRITER_FLUSHED_ATTRIBUTES = PREFIX + "segmentstore.storagewriter.flushed_attributes";  // Attributes flushed per iteration. Counter.
 
     // Segment container metrics
     public static final String CONTAINER_APPEND_COUNT = PREFIX + "segmentstore.container.append_count";                          // Per-container Event Counter
@@ -149,7 +132,6 @@ public final class MetricsNames {
     public static final String CONTAINER_MERGE_SEGMENT_COUNT = PREFIX + "segmentstore.container.merge_segment_count";            // Per-container Event Counter
     public static final String CONTAINER_SEAL_COUNT = PREFIX + "segmentstore.container.seal_count";                              // Per-container Event Counter
     public static final String CONTAINER_TRUNCATE_COUNT = PREFIX + "segmentstore.container.truncate_count";                      // Per-container Event Counter
-    public static final String CONTAINER_RECOVERY_TIME = PREFIX + "segmentstore.container.recovery_time";                        // Per-container Gauge
 
     // Operation processor metrics
     public static final String PROCESS_OPERATIONS_LATENCY = PREFIX + "segmentstore.container.process_operations.latency_ms";                 // Per-container Histogram
@@ -190,22 +172,17 @@ public final class MetricsNames {
     public static final String TRUNCATE_STREAM_FAILED = PREFIX + "controller.stream.truncate_failed";        // Counter and Per-stream Counter
 
     // Transaction request Operations
-    public static final String CREATE_TRANSACTION = PREFIX + "controller.transactions.created";                                         // Counter and Per-stream Counter
-    public static final String CREATE_TRANSACTION_LATENCY = PREFIX + "controller.transactions.created_latency_ms";                      // Histogram
-    public static final String CREATE_TRANSACTION_SEGMENTS_LATENCY = PREFIX + "controller.transactions.created_segments_latency_ms";    // Histogram
-    public static final String CREATE_TRANSACTION_FAILED = PREFIX + "controller.transactions.create_failed";                            // Counter and Per-stream Counter
-    public static final String COMMITTING_TRANSACTION_LATENCY = PREFIX + "controller.transactions.committing_latency_ms";               // Histogram
-    public static final String COMMIT_TRANSACTION = PREFIX + "controller.transactions.committed";                                       // Counter and Per-stream Counter
-    public static final String COMMIT_TRANSACTION_LATENCY = PREFIX + "controller.transactions.committed_latency_ms";                    // Histogram
-    public static final String COMMIT_TRANSACTION_SEGMENTS_LATENCY = PREFIX + "controller.transactions.committed_segments_latency_ms";  // Histogram
-    public static final String COMMIT_TRANSACTION_FAILED = PREFIX + "controller.transactions.commit_failed";                            // Counter, Per-stream Counter, Per-transaction Counter
-    public static final String ABORTING_TRANSACTION_LATENCY = PREFIX + "controller.transactions.aborting_latency_ms";                   // Histogram
-    public static final String ABORT_TRANSACTION = PREFIX + "controller.transactions.aborted";                                          // Counter and Per-stream Counter
-    public static final String ABORT_TRANSACTION_LATENCY = PREFIX + "controller.transactions.aborted_latency_ms";                       // Histogram
-    public static final String ABORT_TRANSACTION_SEGMENTS_LATENCY = PREFIX + "controller.transactions.aborted_segments_latency_ms";     // Histogram
-    public static final String ABORT_TRANSACTION_FAILED = PREFIX + "controller.transactions.abort_failed";                              // Counter, Per-stream Counter, Per-transaction Counter
-    public static final String OPEN_TRANSACTIONS = PREFIX + "controller.transactions.opened";                                           // Per-stream Gauge
-    public static final String TIMEDOUT_TRANSACTIONS = PREFIX + "controller.transactions.timedout";                                     // Per-stream Counter
+    public static final String CREATE_TRANSACTION = PREFIX + "controller.transactions.created";                      // Counter and Per-stream Counter
+    public static final String CREATE_TRANSACTION_LATENCY = PREFIX + "controller.transactions.created_latency_ms";   // Histogram
+    public static final String CREATE_TRANSACTION_FAILED = PREFIX + "controller.transactions.create_failed";         // Counter and Per-stream Counter
+    public static final String COMMIT_TRANSACTION = PREFIX + "controller.transactions.committed";                    // Counter and Per-stream Counter
+    public static final String COMMIT_TRANSACTION_LATENCY = PREFIX + "controller.transactions.committed_latency_ms"; // Histogram
+    public static final String COMMIT_TRANSACTION_FAILED = PREFIX + "controller.transactions.commit_failed";         // Counter, Per-stream Counter, Per-transaction Counter
+    public static final String ABORT_TRANSACTION = PREFIX + "controller.transactions.aborted";                       // Counter and Per-stream Counter
+    public static final String ABORT_TRANSACTION_LATENCY = PREFIX + "controller.transactions.aborted_latency_ms";    // Histogram
+    public static final String ABORT_TRANSACTION_FAILED = PREFIX + "controller.transactions.abort_failed";           // Counter, Per-stream Counter, Per-transaction Counter
+    public static final String OPEN_TRANSACTIONS = PREFIX + "controller.transactions.opened";                        // Per-stream Gauge
+    public static final String TIMEDOUT_TRANSACTIONS = PREFIX + "controller.transactions.timedout";                  // Per-stream Counter
 
     // Host metrics
     public static final String SEGMENT_STORE_HOST_NUMBER = PREFIX + "controller.hosts.count";                    // Gauge

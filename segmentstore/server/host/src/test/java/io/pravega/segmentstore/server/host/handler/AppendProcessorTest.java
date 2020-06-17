@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,12 +24,9 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
-import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
-import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
@@ -46,22 +43,17 @@ import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
-import io.pravega.shared.security.token.JsonWebToken;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -80,17 +72,13 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atMost;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -99,7 +87,6 @@ import static org.mockito.Mockito.when;
 public class AppendProcessorTest extends ThreadPooledTestSuite {
     private final long requestId = 1L;
 
-    @Override
     protected int getThreadPoolSize() {
         return 2;
     }
@@ -123,10 +110,8 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
 
-        SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, "");
-        processor.setupAppend(setupAppendCommand);
+        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
         processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
-
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac, data);
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
@@ -137,98 +122,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyNoMoreInteractions(store);
 
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
-        assertTrue(processor.isSetupAppendCompleted(setupAppendCommand.getSegment(), setupAppendCommand.getWriterId()));
-    }
-
-    @Test
-    public void testSetupAppendClosesConnectionIfTokenHasExpired() {
-        String streamSegmentName = "scope/stream/0.#epoch.0";
-        UUID clientId = UUID.randomUUID();
-        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
-        StreamSegmentStore store = mock(StreamSegmentStore.class);
-        ServerConnection connection = mock(ServerConnection.class);
-        ConnectionTracker tracker = mock(ConnectionTracker.class);
-        val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
-
-        AppendProcessor processor = AppendProcessor.defaultBuilder()
-                .store(store)
-                .connection(connection)
-                .connectionTracker(tracker)
-                .statsRecorder(mockedRecorder)
-                .tokenVerifier(new TokenVerifierImpl("secret"))
-                .build();
-
-        setupGetAttributes(streamSegmentName, clientId, store);
-        val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
-
-        Date expiryDate = Date.from(Instant.now().minusSeconds(100));
-        JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(), expiryDate, null);
-
-        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
-        processor.setupAppend(setupAppend);
-        verify(connection).close();
-    }
-
-    @Test
-    public void testSetupTokenExpiryTaskClosesConnectionIfTokenHasExpired() {
-        // Arrange
-        String streamSegmentName = "scope/stream/0.#epoch.0";
-        UUID clientId = UUID.randomUUID();
-
-        StreamSegmentStore mockStore = mock(StreamSegmentStore.class);
-        ServerConnection mockConnection = mock(ServerConnection.class);
-
-        @Cleanup("shutdown")
-        ScheduledExecutorService executor = new InlineExecutor();
-        AppendProcessor processor = AppendProcessor.defaultBuilder()
-                .store(mockStore)
-                .connection(mockConnection)
-                .tokenExpiryHandlerExecutor(executor)
-                .build();
-
-        // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
-        AppendProcessor mockProcessor = spy(processor);
-        doReturn(true).when(mockProcessor).isSetupAppendCompleted(streamSegmentName, clientId);
-
-        JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(),
-                Date.from(Instant.now().minusSeconds(5)), null);
-        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
-
-        // Act
-        mockProcessor.setupTokenExpiryTask(setupAppend, token).join();
-
-        // Assert
-        verify(mockConnection).close();
-    }
-
-    @Test
-    public void testSetupTokenExpiryWhenConnectionSendThrowsException() {
-        // Arrange
-        String streamSegmentName = "scope/stream/0.#epoch.0";
-        UUID clientId = UUID.randomUUID();
-
-        StreamSegmentStore mockStore = mock(StreamSegmentStore.class);
-        ServerConnection mockConnection = mock(ServerConnection.class);
-        @Cleanup("shutdown")
-        ScheduledExecutorService executor = new InlineExecutor();
-        AppendProcessor processor = AppendProcessor.defaultBuilder()
-                .store(mockStore)
-                .connection(mockConnection)
-                .tokenExpiryHandlerExecutor(executor)
-                .build();
-
-        // Spy the actual Append Processor, so that we can have some of the methods return stubbed values.
-        AppendProcessor mockProcessor = spy(processor);
-        doReturn(true).when(mockProcessor).isSetupAppendCompleted(streamSegmentName, clientId);
-        doThrow(new RuntimeException()).when(mockConnection).send(any());
-
-        Date expiryDate = Date.from(Instant.now().plusMillis(300));
-        JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(), expiryDate, null);
-
-        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
-
-        // Act
-        mockProcessor.setupTokenExpiryTask(setupAppend, token).join();
     }
 
     @Test
@@ -629,69 +522,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyNoMoreInteractions(store);
     }
 
-    @Test(timeout = 15 * 1000)
-    public void testAppendPipeliningWithSeal() {
-        String streamSegmentName = "scope/stream/testAppendSegment";
-        UUID clientId = UUID.randomUUID();
-        byte[] data1 = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-        byte[] data2 = new byte[]{1, 2, 3, 4, 5};
-        byte[] data3 = new byte[]{1, 2, 3};
-        StreamSegmentStore store = mock(StreamSegmentStore.class);
-        ServerConnection connection = mock(ServerConnection.class);
-        ConnectionTracker tracker = mock(ConnectionTracker.class);
-        AppendProcessor processor = AppendProcessor.defaultBuilder().store(store).connection(connection).connectionTracker(tracker).build();
-        InOrder connectionVerifier = Mockito.inOrder(connection);
-
-        setupGetAttributes(streamSegmentName, clientId, store);
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
-        connectionVerifier.verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
-
-        // Initiate one append.
-        val store1 = new CompletableFuture<Long>();
-        val ac1 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 1, 0, 1), store1);
-        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data1), null, requestId));
-        verifyStoreAppend(ac1, data1);
-        verify(tracker).updateOutstandingBytes(connection, data1.length, data1.length);
-
-        // Second append will fail with StreamSegmentSealedException (this simulates having one append, immediately followed
-        // by a Seal, then another append).
-        val ac2 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 2, 1, 1), Futures.failedFuture(new StreamSegmentSealedException(streamSegmentName)));
-        processor.append(new Append(streamSegmentName, clientId, 2, 1, Unpooled.wrappedBuffer(data2), null, requestId));
-        verifyStoreAppend(ac2, data2);
-        verify(tracker).updateOutstandingBytes(connection, data2.length, data1.length + data2.length);
-        verify(tracker).updateOutstandingBytes(connection, -data2.length, data1.length);
-
-        // Third append should fail just like the second one. However this will have a higher event number than that one
-        // and we use it to verify it won't prevent sending the SegmentIsSealed message or send it multiple times.
-        val ac3 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 3, 2, 1), Futures.failedFuture(new StreamSegmentSealedException(streamSegmentName)));
-        processor.append(new Append(streamSegmentName, clientId, 3, 1, Unpooled.wrappedBuffer(data3), null, requestId));
-        verifyStoreAppend(ac3, data3);
-        verify(tracker).updateOutstandingBytes(connection, data3.length, data1.length + data3.length);
-
-        // Complete the first one and verify it is acked properly.
-        store1.complete(100L);
-        connectionVerifier.verify(connection).send(new DataAppended(requestId, clientId, 1, 0L, 100L));
-
-        // Verify that a SegmentIsSealed message is sent AFTER the ack from the first one (for the second append).
-        connectionVerifier.verify(connection).send(new WireCommands.SegmentIsSealed(requestId, streamSegmentName, "", 2L));
-
-        // Verify that a second SegmentIsSealed is sent (for the third append).
-        connectionVerifier.verify(connection).send(new WireCommands.SegmentIsSealed(requestId, streamSegmentName, "", 3L));
-        verify(tracker).updateOutstandingBytes(connection, -data3.length, data1.length);
-        verify(tracker).updateOutstandingBytes(connection, -data1.length, 0);
-
-        interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 4, 3, 1), Futures.failedFuture(new IntentionalException(streamSegmentName)));
-        AssertExtensions.assertThrows(
-                "append() accepted a new request after sending a SegmentIsSealed message.",
-                () -> processor.append(new Append(streamSegmentName, clientId, 4, 1, Unpooled.wrappedBuffer(data1), null, requestId)),
-                ex -> ex instanceof IllegalStateException);
-
-        // Verify no more messages are sent over the connection.
-        connectionVerifier.verifyNoMoreInteractions();
-        verifyNoMoreInteractions(store);
-    }
-
     @Test
     public void testEventNumbersOldClient() {
         String streamSegmentName = "scope/stream/testAppendSegment";
@@ -901,7 +731,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
     private EmbeddedChannel createChannel(StreamSegmentStore store) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
-                new CommandEncoder(null, MetricNotifier.NO_OP_METRIC_NOTIFIER),
+                new CommandEncoder(null),
                 new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                 new CommandDecoder(),
                 new AppendDecoder(),

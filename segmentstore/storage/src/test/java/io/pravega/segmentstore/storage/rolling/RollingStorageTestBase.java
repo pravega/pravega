@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@ import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.SequenceInputStream;
 import java.util.Random;
 import lombok.Cleanup;
 import lombok.val;
@@ -122,51 +121,6 @@ public abstract class RollingStorageTestBase extends StorageTestBase {
         // Get a read handle, which will also fetch the number of chunks for us.
         val readHandle = (RollingSegmentHandle) s.openRead(segmentName).join();
         Assert.assertEquals("Unexpected number of chunks created.", 1, readHandle.chunks().size());
-    }
-
-    @Test
-    public void testWriteOnRollOverBoundary() throws Exception {
-        final String segmentName = "Segment";
-        final int maxLength = 3; // Really small rolling length.
-
-        val seq1 = "01234";
-        val seq2 = "56789";
-        val totalWriteLength = seq1.length() + seq2.length();
-
-        @Cleanup
-        val s = createStorage();
-        s.initialize(1);
-
-        val writeHandle = s.create(segmentName, new SegmentRollingPolicy(maxLength), TIMEOUT)
-                .thenCompose(v -> s.openWrite(segmentName)).join();
-
-        val byteInputStream1 = new ByteArrayInputStream(seq1.getBytes());
-        val byteInputStream2 = new ByteArrayInputStream(seq2.getBytes());
-
-        val sequenceInputStream = new SequenceInputStream(byteInputStream1, byteInputStream2);
-
-        // This write should cause 3 rollovers.
-        s.write(writeHandle, 0, sequenceInputStream, totalWriteLength, TIMEOUT).join();
-
-        // Check rollover actually happened as expected.
-        RollingSegmentHandle checkHandle = (RollingSegmentHandle) s.openWrite(segmentName).join();
-        val chunks = checkHandle.chunks();
-        int numberOfRollovers = totalWriteLength / maxLength;
-        Assert.assertEquals(numberOfRollovers + 1, chunks.size());
-
-        for (int i = 0; i < numberOfRollovers; i++) {
-            Assert.assertEquals(maxLength * i, chunks.get(i).getStartOffset());
-            Assert.assertEquals(maxLength, chunks.get(i).getLength());
-        }
-        // Last chunk has index == numberOfRollovers, as list is 0 based.
-        Assert.assertEquals(numberOfRollovers * maxLength, chunks.get(numberOfRollovers).getStartOffset());
-        Assert.assertEquals(1, chunks.get(numberOfRollovers).getLength());
-
-        // Now validate the contents written.
-        val readHandle = s.openRead(segmentName).join();
-        byte[] output = new byte[totalWriteLength];
-        s.read(readHandle, 0, output, 0, totalWriteLength, TIMEOUT).join();
-        Assert.assertEquals(seq1 + seq2, new String(output));
     }
 
     @Override

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,11 +11,12 @@ package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.val;
@@ -63,7 +64,7 @@ public class RedirectedReadResultEntryTests {
         Assert.assertEquals("Unexpected value for getRequestedReadLength.", baseEntry.getRequestedReadLength(), redirectedEntry.getRequestedReadLength());
 
         // getContent will be thoroughly tested in its own unit test.
-        baseEntry.getContent().complete(new ByteArraySegment(new byte[1]));
+        baseEntry.getContent().complete(new ReadResultEntryContents(new ByteArrayInputStream(new byte[1]), 1));
         Assert.assertEquals("Unexpected result for getContent.", baseEntry.getContent().join(), redirectedEntry.getContent().join());
 
         redirectedEntry.requestContent(Duration.ZERO);
@@ -176,7 +177,7 @@ public class RedirectedReadResultEntryTests {
         MockReadResultEntry t5Good = new MockReadResultEntry(2, 1);
         t1.setCompletionCallback(i -> { // Do nothing.
         });
-        t5Good.getContent().complete(new ByteArraySegment(new byte[1]));
+        t5Good.getContent().complete(new ReadResultEntryContents(new ByteArrayInputStream(new byte[1]), 1));
         RedirectedReadResultEntry e5 = new RedirectedReadResultEntry(t5Bad, 1, (o, l, m) -> t5Good, 2);
         val finalResult = e5.getContent().join();
         Assert.assertEquals("Unexpected result from getCompletionCallback after successful redirect.", t5Bad.getCompletionCallback(), t5Good.getCompletionCallback());

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEventResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateEventResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -423,5 +425,14 @@ public final class ModelHelper {
                                         .addAllValue(segmentRangeListEntry.getValue())
                                         .build())
                                 .collect(Collectors.toList()));
+    }
+
+    public static final GetEventResponse.Builder getEventResponse(String data) {
+       Preconditions.checkNotNull(data);
+       return GetEventResponse.newBuilder();
+    }
+
+    public static final CreateEventResponse.Builder createEventResponse() {
+       return CreateEventResponse.newBuilder();
     }
 }

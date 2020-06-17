@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -223,7 +223,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
     // Default Health Check which uses netstat command to ensure the service is  up and running.
     List<String> defaultHealthCheck(int port) {
-        return  customHealthCheck("netstat -ltn 2> /dev/null | grep " + port + " || ss -ltn 2> /dev/null | grep " +  port + "  || echo ruok | nc 127.0.0.1 " + port  + " 2> /dev/null | grep imok || exit 1");
+        return  customHealthCheck("netstat -ltn 2> /dev/null | grep " + port + " || ss -ltn 2> /dev/null | grep " +  port + " || exit 1");
     }
 
     //Custom Health check with the command provided by the service.

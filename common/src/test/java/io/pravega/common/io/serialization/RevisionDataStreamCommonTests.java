@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -251,7 +254,7 @@ public class RevisionDataStreamCommonTests {
     }
 
     /**
-     * Tests the ability to encode and decode {@link BufferView}s.
+     * Tests the ability to encode and decode a byte array (raw, as {@link ArrayView} or as {@link BufferView}).
      */
     @Test
     public void testByteArrays() throws Exception {
@@ -275,7 +278,7 @@ public class RevisionDataStreamCommonTests {
 
             // Buffer Views.
             testEncodeDecode(
-                    (RevisionDataOutputStream s, byte[] t) -> s.writeBuffer(t == null ? null : new ByteArraySegment(t)),
+                    (RevisionDataOutputStream s, byte[] t) -> s.writeBuffer(t == null ? null : new TestBufferView(t)),
                     RevisionDataInput::readArray,
                     (s, v) -> s.getCollectionLength(v == null ? 0 : v.length, 1),
                     value,
@@ -448,6 +451,34 @@ public class RevisionDataStreamCommonTests {
         }
 
         return result;
+    }
+
+    private static class TestBufferView implements BufferView {
+        private final ByteArraySegment buf;
+
+        TestBufferView(byte[] data) {
+            this.buf = new ByteArraySegment(data);
+        }
+
+        @Override
+        public int getLength() {
+            return this.buf.getLength();
+        }
+
+        @Override
+        public InputStream getReader() {
+            return this.buf.getReader();
+        }
+
+        @Override
+        public byte[] getCopy() {
+            return this.buf.getCopy();
+        }
+
+        @Override
+        public void copyTo(OutputStream target) throws IOException {
+            this.buf.copyTo(target);
+        }
     }
 
     @FunctionalInterface

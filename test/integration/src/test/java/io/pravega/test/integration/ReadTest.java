@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,9 +9,12 @@
  */
 package io.pravega.test.integration;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetector.Level;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -28,29 +31,24 @@ import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventPointer;
-import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
-import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
-import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -61,24 +59,13 @@ import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
-import io.pravega.test.common.LeakDetectorTestSuite;
-import io.pravega.test.common.NoOpScheduledExecutor;
 import io.pravega.test.common.TestUtils;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
-import java.util.AbstractMap;
-import java.util.Map.Entry;
-import java.util.Queue;
 import java.util.UUID;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import lombok.Cleanup;
 import org.junit.After;
@@ -92,9 +79,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-public class ReadTest extends LeakDetectorTestSuite {
+public class ReadTest {
 
-    private static final int TIMEOUT_MILLIS = 60000;
+    private static final int TIMEOUT_MILLIS = 30000;
+    private Level originalLevel;
     private ServiceBuilder serviceBuilder;
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
     @Rule
@@ -102,6 +90,9 @@ public class ReadTest extends LeakDetectorTestSuite {
 
     @Before
     public void setup() throws Exception {
+        originalLevel = ResourceLeakDetector.getLevel();
+        ResourceLeakDetector.setLevel(Level.PARANOID);
+        InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.initialize();
     }
@@ -109,6 +100,7 @@ public class ReadTest extends LeakDetectorTestSuite {
     @After
     public void teardown() {
         this.serviceBuilder.close();
+        ResourceLeakDetector.setLevel(originalLevel);
     }
 
     @Test(timeout = 10000)
@@ -131,11 +123,9 @@ public class ReadTest extends LeakDetectorTestSuite {
 
             // Each ReadResultEntryContents may be of an arbitrary length - we should make no assumptions.
             // Also put a timeout when fetching the response in case we get back a Future read and it never completes.
-            BufferView contents = entry.getContent().get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            @Cleanup
-            InputStream contentStream = contents.getReader();
+            ReadResultEntryContents contents = entry.getContent().get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             byte next;
-            while ((next = (byte) contentStream.read()) != -1) {
+            while ((next = (byte) contents.getData().read()) != -1) {
                 byte expected = data[index % data.length];
                 assertEquals(expected, next);
                 index++;
@@ -157,28 +147,28 @@ public class ReadTest extends LeakDetectorTestSuite {
         @Cleanup
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
 
-        ByteBuf actual = Unpooled.buffer(entries * data.length);
-        while (actual.writerIndex() < actual.capacity()) {
-            SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.writerIndex(), 10000, "", 1L));
+        ByteBuffer actual = ByteBuffer.allocate(entries * data.length);
+        while (actual.position() < actual.capacity()) {
+            SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.position(), 10000, "", 1L));
             assertEquals(segmentName, result.getSegment());
-            assertEquals(result.getOffset(), actual.writerIndex());
+            assertEquals(result.getOffset(), actual.position());
             assertTrue(result.isAtTail());
             assertFalse(result.isEndOfSegment());
-            actual.writeBytes(result.getData());
-            if (actual.writerIndex() < actual.capacity()) {
+            actual.put(result.getData());
+            if (actual.position() < actual.capacity()) {
                 // Prevent entering a tight loop by giving the store a bit of time to process al the appends internally
                 // before trying again.
                 Thread.sleep(10);
             }
         }
 
-        ByteBuf expected = Unpooled.buffer(entries * data.length);
+        ByteBuffer expected = ByteBuffer.allocate(entries * data.length);
         for (int i = 0; i < entries; i++) {
-            expected.writeBytes(data);
+            expected.put(data);
         }
 
-        expected.writerIndex(expected.capacity()).resetReaderIndex();
-        actual.writerIndex(actual.capacity()).resetReaderIndex();
+        expected.rewind();
+        actual.rewind();
         assertEquals(expected, actual);
     }
 
@@ -192,8 +182,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor());
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
         Controller controller = new MockController(endpoint, port, clientCF, true);
@@ -238,8 +227,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                this.serviceBuilder.getLowPriorityExecutor());
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
         Controller controller = new MockController(endpoint, port, clientCF, true);
@@ -282,7 +270,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -316,7 +304,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -339,114 +327,6 @@ public class ReadTest extends LeakDetectorTestSuite {
             EventPointer pointer = reader.readNextEvent(5000).getEventPointer();
             String read = reader.fetchEvent(pointer);
             assertEquals(testString + i, read);
-        }
-    }
-
-    /**
-     * This test performs concurrent writes, reads and position checks on a Stream. Readers are checkers exercising the
-     * lazy construction of PositionImpl objects while the internal segmentOffsetUpdates list in EventStreamReaderImpl is
-     * being updated due to new read events. This test generates enough events to make segmentOffsetUpdates list in
-     * EventStreamReaderImpl to be filled and cleaned at least once. This test verifies the thread safety of the new
-     * optimization in EventStreamReaderImpl to prevent generating segmentOffset maps on every event read, as well as
-     * to check for the correctness of the segment offsets returned by PositionImpl.
-     */
-    @Test(timeout = 60000)
-    public void testEventPositions() {
-        String endpoint = "localhost";
-        String streamName = "eventPositions";
-        String readerGroup = "groupPositions";
-        String scope = "scopePositions";
-        // Generate enough events to make the internal segment offset update buffer in EventStreamReaderImpl to be
-        // emptied and filled again.
-        int eventsToWrite = 2000;
-        BlockingQueue<Entry<Integer, PositionImpl>> readEventsPositions = new ArrayBlockingQueue<>(eventsToWrite);
-        ScheduledExecutorService readersWritersAndCheckers = new ScheduledThreadPoolExecutor(4);
-        AtomicInteger finishedProcesses = new AtomicInteger(0);
-        int port = TestUtils.getAvailableListenPort();
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
-        server.startListening();
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
-        MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().groupRefreshTimeMillis(1000).stream(Stream.of(scope, streamName)).build();
-        streamManager.createScope(scope);
-        // Create a Stream with 2 segments.
-        streamManager.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build());
-        streamManager.createReaderGroup(readerGroup, groupConfig);
-        JavaSerializer<String> serializer = new JavaSerializer<>();
-
-        @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
-        @Cleanup
-        EventStreamReader<String> reader1 = clientFactory.createReader("reader1", readerGroup, serializer, ReaderConfig.builder().build());
-        @Cleanup
-        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", readerGroup, serializer, ReaderConfig.builder().build());
-
-        // Leave some time for readers to re-balance the segments and acquire one each.
-        Exceptions.handleInterrupted(() -> Thread.sleep(2000));
-
-        // Start writers and readers in parallel.
-        CompletableFuture reader1Future =  CompletableFuture.runAsync(() -> {
-            readAndQueueEvents(reader1, eventsToWrite, readEventsPositions);
-            finishedProcesses.incrementAndGet();
-        }, readersWritersAndCheckers);
-
-        CompletableFuture reader2Future = CompletableFuture.runAsync(() -> {
-            readAndQueueEvents(reader2, eventsToWrite, readEventsPositions);
-            finishedProcesses.incrementAndGet();
-        }, readersWritersAndCheckers);
-
-        CompletableFuture writerFuture = CompletableFuture.runAsync(() -> {
-            for (int i = 0; i < eventsToWrite; i++) {
-                producer.writeEvent("segment1", "a");
-                producer.writeEvent("segment2", "b");
-                Exceptions.handleInterrupted(() -> Thread.sleep(1));
-            }
-            finishedProcesses.incrementAndGet();
-        }, readersWritersAndCheckers);
-
-        // This process access the positions read by the reader threads, which means that this thread is concurrently
-        // accessing the shared segmentOffsetUpdates list, whereas readers are appending data to it.
-        CompletableFuture checkOffsets = CompletableFuture.runAsync(() -> {
-            int sizeOfEvent = 16; // 1-char string is assumed to be the payload of events
-            while (finishedProcesses.get() < 2) {
-                Entry<Integer, PositionImpl> element;
-                try {
-                    element = readEventsPositions.poll(1, TimeUnit.MINUTES);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                int numberOfSegments = element.getValue().getOwnedSegmentsWithOffsets().size();
-                assertEquals("Reader owning too many segments.", 1, numberOfSegments);
-                // The segment position should increase by sizeOfEvent every event.
-                long segmentPositionOffset = element.getValue().getOwnedSegmentsWithOffsets().values().iterator().next();
-                assertEquals("Wrong event position", sizeOfEvent * element.getKey(), segmentPositionOffset);
-            }
-            finishedProcesses.incrementAndGet();
-        }, readersWritersAndCheckers);
-
-        // Wait for all futures to complete.
-        CompletableFuture.allOf(writerFuture, reader1Future, reader2Future, checkOffsets).join();
-        // Any failure reading, writing or checking positions will make this assertion to fail.
-        assertEquals(finishedProcesses.get(), 4);
-        ExecutorServiceHelpers.shutdown(readersWritersAndCheckers);
-    }
-
-    /**
-     * Reads events and puts them in a queue for later checking (potentially by another thread).
-     */
-    private void readAndQueueEvents(EventStreamReader<String> reader, int eventsToWrite, Queue<Entry<Integer, PositionImpl>> readEventsPositions) {
-        int eventCount = 1;
-        for (int i = 0; i < eventsToWrite; i++) {
-            final EventRead<String> event = reader.readNextEvent(1000);
-            if (event.getEvent() != null && !event.isCheckpoint()) {
-                // The reader should own only 1 segment.
-                readEventsPositions.add(new AbstractMap.SimpleEntry<>(eventCount, (PositionImpl) event.getPosition()));
-                eventCount++;
-            }
         }
     }
 

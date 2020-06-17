@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,10 +10,10 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import java.time.Duration;
@@ -89,7 +89,7 @@ class ReadResultMock implements ReadResult {
         private final int relativeOffset;
         private final int requestedReadLength;
         private final ReadResultEntryType type;
-        private final CompletableFuture<BufferView> content = new CompletableFuture<>();
+        private final CompletableFuture<ReadResultEntryContents> content = new CompletableFuture<>();
 
         Entry(int relativeOffset, int requestedReadLength) {
             this.relativeOffset = relativeOffset;
@@ -112,7 +112,9 @@ class ReadResultMock implements ReadResult {
             if (this.type == ReadResultEntryType.Truncated) {
                 this.content.completeExceptionally(new StreamSegmentTruncatedException(getStreamSegmentStartOffset()));
             } else {
-                this.content.complete(data.slice(this.relativeOffset, this.requestedReadLength));
+                this.content.complete(new ReadResultEntryContents(
+                        data.getReader(this.relativeOffset, this.requestedReadLength),
+                        this.requestedReadLength));
             }
         }
 

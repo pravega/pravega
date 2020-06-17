@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenAccept(state -> {
                     if (!state.equals(State.SEALING) && !state.equals(State.SEALED)) {
-                        throw new IllegalStateException("Seal stream not started.");
+                        throw new TaskExceptions.StartException("Seal stream task not started yet.");
                     }
                 })
                 .thenCompose(x -> abortTransaction(context, scope, stream, requestId)
@@ -114,8 +114,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                         // abort transactions
                         return Futures.allOf(activeTxns.entrySet().stream().map(txIdPair -> {
                             CompletableFuture<Void> voidCompletableFuture;
-                            TxnStatus txnStatus = txIdPair.getValue().getTxnStatus();
-                            if (txnStatus.equals(TxnStatus.OPEN) || txnStatus.equals(TxnStatus.ABORTING)) {
+                            if (txIdPair.getValue().getTxnStatus().equals(TxnStatus.OPEN)) {
                                 voidCompletableFuture = Futures.toVoid(streamTransactionMetadataTasks
                                         .abortTxn(scope, stream, txIdPair.getKey(), null, context)
                                         .exceptionally(e -> {

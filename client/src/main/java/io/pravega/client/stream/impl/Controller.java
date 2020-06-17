@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,29 @@ import java.util.concurrent.ScheduledExecutorService;
  * Stream Controller APIs.
  */
 public interface Controller extends AutoCloseable {
+
+    /**
+     * API to add a raw event to a stream. The future completes with true in the case the event did not get written
+     * when the controller executed the operation. In the case of a re-attempt to create the
+     * same event, the future completes with false to indicate that the event existed when the
+     * controller executed the operation.
+     *
+     * @param routingKey routing Key
+     * @param scopeName scope Name
+     * @param streamName stream Name
+     * @param message the raw message of the stream
+     */
+    CompletableFuture<Void> createEvent(final String routingKey, final String scopeName, final String streamName, final String message);
+
+    /**
+     * API to get the read the event from a stream. 
+     *
+     * @param routingKey routing Key
+     * @param scopeName scope Name
+     * @param streamName stream Name
+     * @param segmentNumber segment number 
+     */
+    CompletableFuture<String> getEvent(final String routingKey, final String scopeName, final String streamName, final Long segmentNumber);
 
     // Controller Apis for administrative action for streams
 
@@ -167,16 +190,6 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName);
 
     /**
-     * API to get list of segments for given epoch.
-     *
-     * @param scope Scope
-     * @param streamName Stream name
-     * @param epoch Epoch number.
-     * @return Stream segments for a given Epoch.
-     */
-    CompletableFuture<StreamSegments> getEpochSegments(final String scope, final String streamName, int epoch);
-
-    /**
      * API to create a new transaction. The transaction timeout is relative to the creation time.
      * 
      * @param stream           Stream name
@@ -310,7 +323,7 @@ public interface Controller extends AutoCloseable {
      * This is called by writers via {@link EventStreamWriter#noteTime(long)} or
      * {@link Transaction#commit(long)}. The controller should aggrigate this information and write
      * it to the stream's marks segment so that it read by readers who will in turn ultimately
-     * surface this information through the {@link EventStreamReader#getCurrentTimeWindow(Stream)} API.
+     * surface this information through the {@link EventStreamReader#getCurrentTimeWindow()} API.
      * 
      * @param writer The name of the writer. (User defined)
      * @param stream The stream the timestamp is associated with.

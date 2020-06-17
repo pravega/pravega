@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
@@ -53,11 +52,10 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @GuardedBy("$lock")
     private final AtomicBoolean close = new AtomicBoolean();
     private final ConcurrentHashMap<SegmentAttribute, Long> attributes = new ConcurrentHashMap<>();
-    private final Semaphore fillCalled;
     
     @Override
     @Synchronized
-    public void setOffset(long offset, boolean resend) {
+    public void setOffset(long offset) {
         if (offset < 0) {
             throw new IllegalArgumentException("Invalid offset " + offset);
         }
@@ -65,11 +63,6 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
             throw new IllegalArgumentException("Beyond the end of the stream: " + offset);
         }
         readOffset = offset;
-    }
-
-    @Override
-    public void setOffset(long offset) {
-        setOffset(offset, false);
     }
 
     @Override
@@ -187,10 +180,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     public CompletableFuture<?> fillBuffer() {
-        if (fillCalled != null) {
-            fillCalled.release();
-        }
-        return null;
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

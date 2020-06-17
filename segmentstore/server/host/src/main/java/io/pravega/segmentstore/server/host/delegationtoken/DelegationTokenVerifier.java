@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@ import io.pravega.auth.InvalidClaimException;
 import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
-import io.pravega.shared.security.token.JsonWebToken;
 
 /**
  * This interface represents the code on segment store side that verifies the delegation token.
@@ -34,8 +33,7 @@ public interface DelegationTokenVerifier {
      * @throws InvalidClaimException  if the {@code token} does not contain the claim representing
      *                                {@code expectedLevel} of access
      * @throws TokenException         if any other failure condition is encountered
-     * @return JsonWebToken           a non-null value if token was parsed and verified successfully, otherwise null.
      */
-    JsonWebToken verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel)
+    void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel)
             throws TokenExpiredException, InvalidTokenException, InvalidClaimException, TokenException;
 }

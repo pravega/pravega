@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.BufferOverflowException;
+import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,11 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
-import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.Accessors;
 
@@ -55,15 +52,14 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 10;
+    public static final int WIRE_VERSION = 9;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
-    public static final int MAX_WIRECOMMAND_SIZE = 0x00FFFFFF; // 16MB-1
-
+    public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; // 8MB
+    
     public static final long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as Attributes.NULL_ATTRIBUTE_VALUE
-    public static final long NULL_TABLE_SEGMENT_OFFSET = -1;
-
+    
     private static final Map<Integer, WireCommandType> MAPPING;
     private static final String EMPTY_STACK_TRACE = "";
     static {
@@ -80,7 +76,7 @@ public final class WireCommands {
 
     @FunctionalInterface
     interface Constructor {
-        WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException;
+        WireCommand readFrom(ByteBufInputStream in, int length) throws IOException;
     }
 
     @Data
@@ -110,7 +106,7 @@ public final class WireCommands {
             int lowVersion = in.readInt();
             return new Hello(highVersion, lowVersion);
         }
-
+        
         @Override
         public long getRequestId() {
             return 0;
@@ -145,7 +141,7 @@ public final class WireCommands {
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
             return new WrongHost(requestId, segment, correctHost, serverStackTrace);
         }
-
+        
         @Override
         public boolean isFailure() {
             return true;
@@ -183,7 +179,7 @@ public final class WireCommands {
             long offset = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
             return new SegmentIsSealed(requestId, segment, serverStackTrace, offset);
         }
-
+        
         @Override
         public boolean isFailure() {
             return true;
@@ -224,7 +220,7 @@ public final class WireCommands {
             long offset = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
             return new SegmentIsTruncated(requestId, segment, startOffset, serverStackTrace, offset);
         }
-
+        
         @Override
         public boolean isFailure() {
             return true;
@@ -261,7 +257,7 @@ public final class WireCommands {
         public String toString() {
             return "Segment already exists: " + segment;
         }
-
+        
         @Override
         public boolean isFailure() {
             return true;
@@ -304,7 +300,7 @@ public final class WireCommands {
         public String toString() {
             return "No such segment: " + segment;
         }
-
+        
         @Override
         public boolean isFailure() {
             return true;
@@ -379,7 +375,7 @@ public final class WireCommands {
         public String toString() {
             return "Invalid event number: " + eventNumber + " for writer: " + writerId;
         }
-
+        
         @Override
         public boolean isFailure() {
             return true;
@@ -416,7 +412,7 @@ public final class WireCommands {
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
             return new OperationUnsupported(requestId, operationName, serverStackTrace);
         }
-
+        
         @Override
         public boolean isFailure() {
             return true;
@@ -457,8 +453,7 @@ public final class WireCommands {
     }
 
     @Data
-    @EqualsAndHashCode(callSuper = false)
-    public static final class PartialEvent extends ReleasableCommand {
+    public static final class PartialEvent implements WireCommand {
         final WireCommandType type = WireCommandType.PARTIAL_EVENT;
         final ByteBuf data;
 
@@ -467,13 +462,10 @@ public final class WireCommands {
             data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
-            return new PartialEvent(in.readFully(length).retain()).requireRelease();
-        }
-
-        @Override
-        void releaseInternal() {
-            this.data.release();
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            byte[] msg = new byte[length];
+            in.readFully(msg);
+            return new PartialEvent(wrappedBuffer(msg));
         }
     }
 
@@ -493,7 +485,7 @@ public final class WireCommands {
             ByteBuf header = Unpooled.buffer(TYPE_PLUS_LENGTH_SIZE, TYPE_PLUS_LENGTH_SIZE);
             header.writeInt(type.getCode());
             header.writeInt(data.readableBytes());
-            return Unpooled.wrappedUnmodifiableBuffer(header, data);
+            return Unpooled.wrappedBuffer(header, data);
         }
     }
 
@@ -530,8 +522,7 @@ public final class WireCommands {
     }
 
     @Data
-    @EqualsAndHashCode(callSuper = false)
-    public static final class AppendBlock extends ReleasableCommand {
+    public static final class AppendBlock implements WireCommand {
         final WireCommandType type = WireCommandType.APPEND_BLOCK;
         final UUID writerId;
         final ByteBuf data;
@@ -553,21 +544,16 @@ public final class WireCommands {
             // Data not written, as it should be null.
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
-            ByteBuf data = in.readFully(length - Long.BYTES * 2).retain();
-            return new AppendBlock(writerId, data).requireRelease();
-        }
-
-        @Override
-        void releaseInternal() {
-            this.data.release();
+            byte[] data = new byte[length - Long.BYTES * 2];
+            in.readFully(data);
+            return new AppendBlock(writerId, wrappedBuffer(data));
         }
     }
 
     @Data
-    @EqualsAndHashCode(callSuper = false)
-    public static final class AppendBlockEnd extends ReleasableCommand {
+    public static final class AppendBlockEnd implements WireCommand {
         final WireCommandType type = WireCommandType.APPEND_BLOCK_END;
         final UUID writerId;
         final int sizeOfWholeEvents;
@@ -592,32 +578,26 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             int sizeOfHeaderlessAppends = in.readInt();
             int dataLength = in.readInt();
-            ByteBuf data;
+            byte[] data;
             if (dataLength > 0) {
-                data = in.readFully(dataLength);
+                data = new byte[dataLength];
+                in.readFully(data);
             } else {
-                data = EMPTY_BUFFER;
+                data = new byte[0];
             }
             int numEvents = in.readInt();
             long lastEventNumber = in.readLong();
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, data.retain(), numEvents, lastEventNumber, requestId)
-                    .requireRelease();
-        }
-
-        @Override
-        void releaseInternal() {
-            this.data.release();
+            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, wrappedBuffer(data), numEvents, lastEventNumber, requestId);
         }
     }
 
     @Data
-    @EqualsAndHashCode(callSuper = false)
-    public static final class ConditionalAppend extends ReleasableCommand implements Request {
+    public static final class ConditionalAppend implements WireCommand, Request {
         final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
         final UUID writerId;
         final long eventNumber;
@@ -635,16 +615,16 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
             Event event = readEvent(in, length);
             long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
-            return new ConditionalAppend(writerId, eventNumber, expectedOffset, event, requestId).requireRelease();
+            return new ConditionalAppend(writerId, eventNumber, expectedOffset, event, requestId);
         }
 
-        private static Event readEvent(EnhancedByteBufInputStream in, int length) throws IOException {
+        private static Event readEvent(ByteBufInputStream in, int length) throws IOException {
             int typeCode = in.readInt();
             if (typeCode != WireCommandType.EVENT.getCode()) {
                 throw new InvalidMessageException("Was expecting EVENT but found: " + typeCode);
@@ -653,7 +633,9 @@ public final class WireCommands {
             if (eventLength > length - TYPE_PLUS_LENGTH_SIZE) {
                 throw new InvalidMessageException("Was expecting length: " + length + " but found: " + eventLength);
             }
-            return new Event(in.readFully(eventLength).retain());
+            byte[] msg = new byte[eventLength];
+            in.readFully(msg);
+            return new Event(wrappedBuffer(msg));
         }
 
         @Override
@@ -665,11 +647,6 @@ public final class WireCommands {
         public void process(RequestProcessor cp) {
             //Unreachable. This should be handled in AppendDecoder.
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        void releaseInternal() {
-            this.event.data.release();
         }
     }
 
@@ -736,7 +713,7 @@ public final class WireCommands {
             long currentSegmentWriteOffset = in.available() >= Long.BYTES ? in.readLong() : -1L;
             return new DataAppended(requestId, writerId, eventNumber, previousEventNumber, currentSegmentWriteOffset);
         }
-
+        
         @Override
         public long getRequestId() {
             return requestId;
@@ -815,18 +792,14 @@ public final class WireCommands {
         }
     }
 
-    @RequiredArgsConstructor
-    @Getter
-    @ToString
-    @EqualsAndHashCode(callSuper = false)
-    @NotThreadSafe
-    public static final class SegmentRead extends ReleasableCommand implements Reply {
+    @Data
+    public static final class SegmentRead implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_READ;
         final String segment;
         final long offset;
         final boolean atTail; //TODO: Is sometimes false when actual state is unknown.
         final boolean endOfSegment;
-        final ByteBuf data;
+        final ByteBuffer data;
         final long requestId;
 
         @Override
@@ -840,13 +813,13 @@ public final class WireCommands {
             out.writeLong(offset);
             out.writeBoolean(atTail);
             out.writeBoolean(endOfSegment);
-            int dataLength = data.readableBytes();
+            int dataLength = data.remaining();
             out.writeInt(dataLength);
-            this.data.getBytes(this.data.readerIndex(), (OutputStream) out, dataLength);
+            out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             String segment = in.readUTF();
             long offset = in.readLong();
             boolean atTail = in.readBoolean();
@@ -855,14 +828,10 @@ public final class WireCommands {
             if (dataLength > length) {
                 throw new BufferOverflowException();
             }
-            ByteBuf data = in.readFully(dataLength).retain();
-            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new SegmentRead(segment, offset, atTail, endOfSegment, data, requestId).requireRelease();
-        }
-
-        @Override
-        void releaseInternal() {
-            this.data.release();
+            byte[] data = new byte[dataLength];
+            in.readFully(data);
+            long requestId =  in.available() >= Long.BYTES ? in.readLong() : -1L;
+            return new SegmentRead(segment, offset, atTail, endOfSegment, ByteBuffer.wrap(data), requestId);
         }
 
         @Override
@@ -902,7 +871,7 @@ public final class WireCommands {
             return new GetSegmentAttribute(requestId, segment, attributeId, delegationToken);
         }
     }
-
+    
     @Data
     public static final class SegmentAttribute implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_ATTRIBUTE;
@@ -922,11 +891,11 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
-            long value = in.readLong();
+            long value = in.readLong();                
             return new SegmentAttribute(requestId, value);
         }
     }
-
+    
     @Data
     public static final class UpdateSegmentAttribute implements Request, WireCommand {
         final WireCommandType type = WireCommandType.UPDATE_SEGMENT_ATTRIBUTE;
@@ -958,13 +927,13 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             UUID attributeId = new UUID(in.readLong(), in.readLong());
-            long newValue = in.readLong();
+            long newValue = in.readLong();                
             long excpecteValue = in.readLong();
             String delegationToken = in.readUTF();
             return new UpdateSegmentAttribute(requestId, segment, attributeId, newValue, excpecteValue, delegationToken);
         }
     }
-
+    
     @Data
     public static final class SegmentAttributeUpdated implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_ATTRIBUTE_UPDATED;
@@ -988,7 +957,7 @@ public final class WireCommands {
             return new SegmentAttributeUpdated(requestId, success);
         }
     }
-
+    
     @Data
     public static final class GetStreamSegmentInfo implements Request, WireCommand {
         final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
@@ -1641,7 +1610,6 @@ public final class WireCommands {
         @ToString.Exclude
         final String delegationToken;
         final TableEntries tableEntries;
-        final long tableSegmentOffset;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1654,7 +1622,6 @@ public final class WireCommands {
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             tableEntries.writeFields(out);
-            out.writeLong(tableSegmentOffset);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -1662,9 +1629,8 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
-            long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
-            return new UpdateTableEntries(requestId, segment, delegationToken, entries, tableSegmentOffset);
+            return new UpdateTableEntries(requestId, segment, delegationToken, entries);
         }
     }
 
@@ -1708,7 +1674,6 @@ public final class WireCommands {
         @ToString.Exclude
         final String delegationToken;
         final List<TableKey> keys;
-        final long tableSegmentOffset;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1724,7 +1689,6 @@ public final class WireCommands {
             for (TableKey key : keys) {
                 key.writeFields(out);
             }
-            out.writeLong(tableSegmentOffset);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -1736,9 +1700,7 @@ public final class WireCommands {
             for (int i = 0; i < numberOfKeys; i++) {
                 keys.add((TableKey) TableKey.readFrom(in, in.available()));
             }
-            long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
-
-            return new RemoveTableKeys(requestId, segment, delegationToken, keys, tableSegmentOffset);
+            return new RemoveTableKeys(requestId, segment, delegationToken, keys);
         }
     }
 
@@ -1765,7 +1727,6 @@ public final class WireCommands {
             return new TableKeysRemoved(requestId, segment);
         }
     }
-
 
     @Data
     public static final class ReadTable implements Request, WireCommand {
@@ -2190,111 +2151,4 @@ public final class WireCommands {
         }
     }
 
-    @Data
-    public static final class ReadTableEntriesDelta implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES_DELTA;
-        final long requestId;
-        final String segment;
-        @ToString.Exclude
-        final String delegationToken;
-        final long fromVersion;
-        final int suggestedEntryCount;
-
-        @Override
-        public void process(RequestProcessor cp) {
-
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
-            out.writeLong(fromVersion);
-            out.writeInt(suggestedEntryCount);
-        }
-
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            String delegationToken = in.readUTF();
-            long fromVersion = in.readLong();
-            int suggestedEntryCount = in.readInt();
-
-            return new ReadTableEntriesDelta(requestId, segment, delegationToken, fromVersion, suggestedEntryCount);
-        }
-    }
-
-    @Data
-    public static final class TableEntriesDeltaRead implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.TABLE_ENTRIES_DELTA_READ;
-        final long requestId;
-        final String segment;
-        final TableEntries tableEntries;
-        final boolean shouldClear;
-        final boolean reachedEnd;
-        final long lastVersion;
-
-        // TODO: Will be implemented as apart of: https://github.com/pravega/pravega/issues/4677
-        @Override
-        public void process(ReplyProcessor cp) throws UnsupportedOperationException {
-
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(segment);
-            tableEntries.writeFields(out);
-            out.writeBoolean(shouldClear);
-            out.writeBoolean(reachedEnd);
-            out.writeLong(lastVersion);
-        }
-
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
-            boolean shouldClear = in.readBoolean();
-            boolean reachedEnd = in.readBoolean();
-            long lastVersion = in.readLong();
-
-            return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastVersion);
-        }
-    }
-
-    /**
-     * Base class for any command that may require releasing resources.
-     */
-    static abstract class ReleasableCommand implements WireCommand {
-        @Getter
-        private boolean released = true;
-
-        /**
-         * Marks the fact that this instance requires {@link #release()} to be invoked in order to free up resources.
-         *
-         * @return This instance.
-         */
-        WireCommand requireRelease() {
-            this.released = false;
-            return this;
-        }
-
-        /**
-         * Releases any resources used by this command, if needed ({@link #isReleased()} is false. This method has no
-         * effect if invoked multiple times or if no resource release is required.
-         */
-        public void release() {
-            if (!this.released) {
-                releaseInternal();
-                this.released = true;
-            }
-        }
-
-        /**
-         * Internal implementation of {@link #release()}. Do not invoke directly as this method offers no protection
-         * against multiple invocations.
-         */
-        abstract void releaseInternal();
-    }
 }

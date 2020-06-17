@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,10 @@ import lombok.Getter;
  */
 public class DurableLogConfig {
     //region Config Names
-    public static final Property<Integer> CHECKPOINT_MIN_COMMIT_COUNT = Property.named("checkpoint.commit.count.min", 300, "checkpointMinCommitCount");
-    public static final Property<Integer> CHECKPOINT_COMMIT_COUNT = Property.named("checkpoint.commit.threshold.count", 300, "checkpointCommitCountThreshold");
-    public static final Property<Long> CHECKPOINT_TOTAL_COMMIT_LENGTH = Property.named("checkpoint.commit.length.total", 256 * 1024 * 1024L, "checkpointTotalCommitLengthThreshold");
-    public static final Property<Integer> START_RETRY_DELAY_MILLIS = Property.named("start.retry.delay.millis", 60 * 1000, "startRetryDelayMillis");
+    public static final Property<Integer> CHECKPOINT_MIN_COMMIT_COUNT = Property.named("checkpointMinCommitCount", 300);
+    public static final Property<Integer> CHECKPOINT_COMMIT_COUNT = Property.named("checkpointCommitCountThreshold", 300);
+    public static final Property<Long> CHECKPOINT_TOTAL_COMMIT_LENGTH = Property.named("checkpointTotalCommitLengthThreshold", 256 * 1024 * 1024L);
+    public static final Property<Integer> START_RETRY_DELAY_MILLIS = Property.named("startRetryDelayMillis", 60 * 1000);
     private static final String COMPONENT_CODE = "durablelog";
 
     //endregion

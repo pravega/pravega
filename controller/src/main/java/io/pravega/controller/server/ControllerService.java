@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,14 @@ import io.pravega.common.Timer;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
-import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.StreamDataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -40,6 +39,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
@@ -56,6 +56,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -70,6 +71,7 @@ import org.apache.commons.lang3.tuple.Pair;
 @Slf4j
 public class ControllerService {
 
+    private final StreamDataStore streamDataStore;
     private final StreamMetadataStore streamStore;
     private final BucketStore bucketStore;
     private final StreamMetadataTasks streamMetadataTasks;
@@ -77,6 +79,31 @@ public class ControllerService {
     private final SegmentHelper segmentHelper;
     private final Executor executor;
     private final Cluster cluster;
+    private final StreamMetrics streamMetrics;
+    private final TransactionMetrics transactionMetrics;
+
+    public ControllerService(StreamMetadataStore streamStore,
+                             BucketStore bucketStore, StreamMetadataTasks streamMetadataTasks,
+                             StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
+                             Executor executor, Cluster cluster) {
+        this(null, streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                segmentHelper, executor, cluster);
+    }
+
+    public ControllerService(StreamDataStore streamDataStore, StreamMetadataStore streamStore, BucketStore bucketStore, StreamMetadataTasks streamMetadataTasks,
+                             StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
+                             Executor executor, Cluster cluster) {
+        this.streamDataStore = streamDataStore;
+        this.streamStore = streamStore;
+        this.bucketStore = bucketStore;
+        this.streamMetadataTasks = streamMetadataTasks;
+        this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
+        this.segmentHelper = segmentHelper;
+        this.executor = executor;
+        this.cluster = cluster;
+        this.streamMetrics = new StreamMetrics();
+        this.transactionMetrics = new TransactionMetrics();
+    }
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
         if (cluster == null) {
@@ -184,15 +211,6 @@ public class ControllerService {
         // Fetch active segments from segment store.
         return streamStore.getActiveSegments(scope, stream, null, executor)
                 .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, stream), executor);
-    }
-
-    public CompletableFuture<List<SegmentRange>> getEpochSegments(final String scope, final String stream, int epoch) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(stream, "stream");
-        Exceptions.checkArgument(epoch >= 0, "epoch", "Epoch cannot be less than 0");
-        OperationContext context = streamStore.createContext(scope, stream);
-        return streamStore.getEpoch(scope, stream, epoch, context, executor)
-                          .thenApplyAsync(epochRecord -> getSegmentRanges(epochRecord.getSegments(), scope, stream), executor);
     }
 
     public CompletableFuture<Map<SegmentId, Long>> getSegmentsAtHead(final String scope, final String stream) {
@@ -322,10 +340,10 @@ public class ControllerService {
                     return new ImmutablePair<>(data.getId(), getSegmentRanges(segments, scope, stream));
                 }).handle((result, ex) -> {
                     if (ex != null) {
-                        TransactionMetrics.getInstance().createTransactionFailed(scope, stream);
+                        transactionMetrics.createTransactionFailed(scope, stream);
                         throw new CompletionException(ex);
                     }
-                    TransactionMetrics.getInstance().createTransaction(scope, stream, timer.getElapsed());
+                    transactionMetrics.createTransaction(scope, stream, timer.getElapsed());
                     return result;
                 });
     }
@@ -339,60 +357,42 @@ public class ControllerService {
         return listOfSegment;
     }
 
-    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId,
+    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId txnId, 
                                                           final String writerId, final long timestamp) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        Preconditions.checkNotNull(txId, "txnId");
+        Preconditions.checkNotNull(txnId, "txnId");
         Timer timer = new Timer();
+        UUID txId = ModelHelper.encode(txnId);
         return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, writerId, timestamp, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         log.warn("Transaction commit failed", ex);
-                        Throwable unwrap = getRealException(ex);
-                        if (unwrap instanceof RetryableException) {
-                            // if its a retryable exception (it could be either write conflict or store exception)
-                            // let it be thrown and translated to appropriate error code so that the client 
-                            // retries upon failure.
-                            throw new CompletionException(unwrap);
-                        }
-                        TransactionMetrics.getInstance().commitTransactionFailed(scope, stream, txId.toString());
+                        // TODO: return appropriate failures to user.
+                        transactionMetrics.commitTransactionFailed(scope, stream, txId.toString());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
-                        TransactionMetrics.getInstance().committingTransaction(timer.getElapsed());
+                        transactionMetrics.commitTransaction(scope, stream, timer.getElapsed());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });
     }
 
-    private Throwable getRealException(Throwable ex) {
-        Throwable unwrap = Exceptions.unwrap(ex);
-        if (unwrap instanceof RetriesExhaustedException) {
-            unwrap = Exceptions.unwrap(unwrap.getCause());
-        }
-        return unwrap;
-    }
-
-    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId) {
+    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final TxnId txnId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        Preconditions.checkNotNull(txId, "txnId");
+        Preconditions.checkNotNull(txnId, "txnId");
         Timer timer = new Timer();
+        UUID txId = ModelHelper.encode(txnId);
         return streamTransactionMetadataTasks.abortTxn(scope, stream, txId, null, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         log.warn("Transaction abort failed", ex);
-                        Throwable unwrap = getRealException(ex);
-                        if (unwrap instanceof RetryableException) {
-                            // if its a retryable exception (it could be either write conflict or store exception)
-                            // let it be thrown and translated to appropriate error code so that the client 
-                            // retries upon failure.
-                            throw new CompletionException(unwrap);
-                        }
-                        TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, txId.toString());
+                        // TODO: return appropriate failures to user.
+                        transactionMetrics.abortTransactionFailed(scope, stream, txId.toString());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
-                        TransactionMetrics.getInstance().abortingTransaction(timer.getElapsed());
+                        transactionMetrics.abortTransaction(scope, stream, timer.getElapsed());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });
@@ -400,21 +400,22 @@ public class ControllerService {
 
     public CompletableFuture<PingTxnStatus> pingTransaction(final String scope,
                                                             final String stream,
-                                                            final UUID txId,
+                                                            final TxnId txnId,
                                                             final long lease) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        Preconditions.checkNotNull(txId, "txnId");
+        Preconditions.checkNotNull(txnId, "txnId");
+        UUID txId = ModelHelper.encode(txnId);
 
         return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, null);
     }
 
     public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream,
-            final UUID txnId) {
+            final TxnId txnId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
-        return streamStore.transactionStatus(scope, stream, txnId, null, executor)
+        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId), null, executor)
                 .thenApplyAsync(res -> TxnState.newBuilder().setState(TxnState.State.valueOf(res.name())).build(), executor);
     }
 
@@ -496,41 +497,41 @@ public class ControllerService {
     private void reportCreateStreamMetrics(String scope, String streamName, int initialSegments, CreateStreamStatus.Status status,
                                            Duration latency) {
         if (status.equals(CreateStreamStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().createStream(scope, streamName, initialSegments, latency);
+            streamMetrics.createStream(scope, streamName, initialSegments, latency);
         } else if (status.equals(CreateStreamStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().createStreamFailed(scope, streamName);
+            streamMetrics.createStreamFailed(scope, streamName);
         }
     }
 
     private void reportUpdateStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().updateStream(scope, streamName, latency);
+            streamMetrics.updateStream(scope, streamName, latency);
         } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().updateStreamFailed(scope, streamName);
+            streamMetrics.updateStreamFailed(scope, streamName);
         }
     }
 
     private void reportTruncateStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().truncateStream(scope, streamName, latency);
+            streamMetrics.truncateStream(scope, streamName, latency);
         } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().truncateStreamFailed(scope, streamName);
+            streamMetrics.truncateStreamFailed(scope, streamName);
         }
     }
 
     private void reportSealStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().sealStream(scope, streamName, latency);
+            streamMetrics.sealStream(scope, streamName, latency);
         } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().sealStreamFailed(scope, streamName);
+            streamMetrics.sealStreamFailed(scope, streamName);
         }
     }
 
     private void reportDeleteStreamMetrics(String scope, String streamName, DeleteStreamStatus.Status status, Duration latency) {
         if (status.equals(DeleteStreamStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().deleteStream(scope, streamName, latency);
+            streamMetrics.deleteStream(scope, streamName, latency);
         } else if (status.equals(DeleteStreamStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().deleteStreamFailed(scope, streamName);
+            streamMetrics.deleteStreamFailed(scope, streamName);
         }
     }
 
@@ -579,4 +580,45 @@ public class ControllerService {
     }
 
     // End metrics reporting region
+
+
+    // Begin data operations
+    /**
+     * Controller Service API to create event.
+     *
+     * @param routingKey Name of routingKey to be used.
+     * @param scopeName Name of scope to be used.
+     * @param streamName Name of stream to be used.
+     * @param message the raw data to be appended to stream
+     * @return Status of create event.
+     */
+    public CompletableFuture<Void> createEvent(final String routingKey, final String scopeName, final String streamName, final String message ) {
+        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
+        Exceptions.checkNotNullOrEmpty(streamName, "streamName");
+        Exceptions.checkNotNullOrEmpty(message, "message");
+        try {
+            NameUtils.validateScopeName(scopeName);
+            NameUtils.validateStreamName(streamName);
+        } catch (Exception e) {
+            return null;
+        }
+        log.debug("ControllerService-createEvent: {} {} {} ", routingKey, scopeName, streamName);
+        return streamDataStore.createEvent(routingKey, scopeName, streamName, message);
+    }
+
+    /**
+     * Controller Service API to create event.
+     *
+     * @param routingKey Name of routingKey to be used.
+     * @param scopeName Name of scope to be used.
+     * @param streamName Name of stream to be used.
+     * @param segmentNumber Number of the segemnt to be used.
+     * @return Status of get event.
+     */
+    public CompletableFuture<String> getEvent(final String routingKey, final String scopeName, final String streamName, final Long segmentNumber) {
+        log.debug("ControllerService-getEvent: {} {} {} {} ", routingKey, scopeName, streamName, segmentNumber);
+        return streamDataStore.getEvent(routingKey, scopeName, streamName, segmentNumber);
+    }
+    // End data operations
+
 }

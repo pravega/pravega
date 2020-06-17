@@ -1,5 +1,5 @@
 <!--
-Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -244,7 +244,7 @@ Following are some common combinations of component and sub-components (or abstr
 - `segmentstore.bookkeeper`: Metrics related to Bookkeeper (Tier 1)
 - `segmentstore.container`: Metrics for Segment Containers
 - `segmentstore.thread_pool`: Metrics for Segment Store thread pool
-- `segmentstore.cache`: Cache-related metrics
+- `segmentstore.cache`: Cache-related metrics (RocksDB)
 - `controller.stream`: Metrics for operations on Streams (e.g., number of streams created)
 - `controller.segments`: Metrics about Segments, per Stream (e.g., count, splits, merges)
 - `controller.transactions`: Metrics related to Transactions (e.g., created, committed, aborted)

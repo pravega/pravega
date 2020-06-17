@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -10,8 +10,8 @@
 #
 
 init_controller() {
-    [ ! -z "$HOSTNAME" ] && add_system_property "controller.metrics.prefix" "${HOSTNAME}"
-    add_system_property "controller.zk.connect.uri" "${ZK_URL}"
+    [ ! -z "$HOSTNAME" ] && add_system_property "controller.metrics.metricsPrefix" "${HOSTNAME}"
+    add_system_property "controller.zk.url" "${ZK_URL}"
     add_system_property "controller.server.store.host.type" "Zookeeper"
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }

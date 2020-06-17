@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@ import io.pravega.auth.InvalidClaimException;
 import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
+import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.shared.security.token.JsonWebToken;
 
 import java.util.Arrays;
@@ -29,8 +30,16 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 public class TokenVerifierImplTest {
 
     @Test
+    public void testTokenVerificationSucceedsWhenAuthIsDisabled() throws TokenException {
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(false);
+
+        // No exception is expected here.
+        tokenVerifier.verifyToken("xyz", null, READ);
+    }
+
+    @Test
     public void testTokenVerificationFailsWhenTokenIsNull() {
-        DelegationTokenVerifier tokenVerifier = new TokenVerifierImpl("secret");
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
 
         assertThrows(InvalidTokenException.class,
                 () -> tokenVerifier.verifyToken("xyz", null, READ)
@@ -39,7 +48,7 @@ public class TokenVerifierImplTest {
 
     @Test
     public void testTokenVerificationFailsWhenTokenIsExpired() {
-        DelegationTokenVerifier tokenVerifier = new TokenVerifierImpl("secret");
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
         String tokenWithExpiry = prepareJwt("*, READ_UPDATE", 0);
 
         assertThrows(TokenExpiredException.class,
@@ -49,7 +58,7 @@ public class TokenVerifierImplTest {
 
     @Test
     public void testTokenVerificationSucceedsWhenTokenIsNotExpired() throws TokenException {
-        DelegationTokenVerifier tokenVerifier = new TokenVerifierImpl("secret");
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
         String tokenWithExpiry = prepareJwt("*, READ_UPDATE", Integer.MAX_VALUE);
 
         // No exception is expected here.
@@ -58,7 +67,7 @@ public class TokenVerifierImplTest {
 
     @Test
     public void testTokenVerificationFailsWhenTokenDoesNotContainMatchingResource() {
-        DelegationTokenVerifier tokenVerifier = new TokenVerifierImpl("secret");
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
         String tokenWithClaim = prepareJwt("abc, READ_UPDATE", Integer.MAX_VALUE);
 
         assertThrows(InvalidClaimException.class,
@@ -68,7 +77,7 @@ public class TokenVerifierImplTest {
 
     @Test
     public void testTokenVerificationFailsWhenTokenDoesNotContainMatchingPermission() {
-        DelegationTokenVerifier tokenVerifier = new TokenVerifierImpl("secret");
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
         String tokenWithClaim = prepareJwt("abc, READ", Integer.MAX_VALUE);
 
         assertThrows(InvalidClaimException.class,
@@ -78,7 +87,7 @@ public class TokenVerifierImplTest {
 
     @Test
     public void testTokenVerificationSucceedsWhenTokenContainsMatchingClaim() throws TokenException {
-        DelegationTokenVerifier tokenVerifier = new TokenVerifierImpl("secret");
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
 
         String tokenWithWildcardClaim = prepareJwt("*, READ_UPDATE", Integer.MAX_VALUE);
         tokenVerifier.verifyToken("xyz", tokenWithWildcardClaim, READ);
@@ -89,7 +98,7 @@ public class TokenVerifierImplTest {
 
     @Test
     public void testTokenVerificationSuceedsForInternalSegments() throws TokenException {
-        DelegationTokenVerifier tokenVerifier = new TokenVerifierImpl("secret");
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
 
         String token = prepareJwt("_system/_requeststream, READ_UPDATE", null);
         tokenVerifier.verifyToken("_system/_requeststream/0.#epoch.0", token, READ);
@@ -108,7 +117,15 @@ public class TokenVerifierImplTest {
             permissionsByResource.put(resource, permission);
         }
         JsonWebToken token = new JsonWebToken("segmentstoreresource",
-                "segmentstore", "secret".getBytes(), permissionsByResource, ttlInSeconds);
+                "segmentstore", "secret".getBytes(), ttlInSeconds, permissionsByResource);
         return token.toCompactString();
+    }
+
+    private DelegationTokenVerifier prepareTokenVerifier(boolean isAuthEnabled) {
+        AutoScalerConfig config = AutoScalerConfig.builder()
+                .with(AutoScalerConfig.AUTH_ENABLED, isAuthEnabled)
+                .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
+                .build();
+        return new TokenVerifierImpl(config);
     }
 }

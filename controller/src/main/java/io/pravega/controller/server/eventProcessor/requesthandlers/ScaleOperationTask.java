@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
@@ -21,7 +20,6 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 
@@ -121,32 +119,21 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                             } 
 
                             if (isManualScale) {
-                                log.info("Found empty epoch transition record, scale processing is already completed.");
-                                return Futures.toVoid(future);
+                                future = future.thenApply(x -> {
+                                    throw new TaskExceptions.StartException("Scale Stream not started yet.");
+                                });
                             } else {
                                 future = future.thenCompose(r -> streamMetadataStore.submitScale(scope, stream, scaleInput.getSegmentsToSeal(),
                                         new ArrayList<>(scaleInput.getNewRanges()), scaleInput.getScaleTime(), record, context, executor));
                             }
-                        } else if (!RecordHelper.verifyRecordMatchesInput(scaleInput.getSegmentsToSeal(), scaleInput.getNewRanges(), isManualScale, record.getObject())) {
-                            // ensure that we process the event only if the input matches the epoch transition record.
-                            // if its manual scale and the event doesnt match, it means the scale has already completed. 
-                            // for auto scale, it means another scale is on going and just throw scale conflict exception 
-                            // which will result in this event being postponed. 
-                            if (isManualScale) {
-                                log.info("Scale for stream {}/{} for segments {} already completed.", scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal());
-                                return CompletableFuture.completedFuture(null);
-                            } else {
-                                log.info("Scale for stream {}/{} for segments {} cannot be started as another scale is ongoing.", scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal());
-                                throw new EpochTransitionOperationExceptions.ConflictException();
-                            }
-                        }
+                        } 
                         
                         return future
                                 .thenCompose(versionedMetadata -> processScale(scope, stream, isManualScale, versionedMetadata, 
                                         reference.get(), context, delegationToken, requestId));
                     }));
     }
-    
+
     private CompletableFuture<Void> processScale(String scope, String stream, boolean isManualScale,
                                                  VersionedMetadata<EpochTransitionRecord> metadata,
                                                  VersionedMetadata<State> state, OperationContext context,

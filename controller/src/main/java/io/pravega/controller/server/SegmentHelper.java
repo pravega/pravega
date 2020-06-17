@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import io.netty.buffer.Unpooled;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -42,6 +43,8 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.ArrayList;
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -59,9 +62,10 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
-import static io.pravega.shared.NameUtils.getQualifiedStreamSegmentName;
-import static io.pravega.shared.NameUtils.getSegmentNumber;
-import static io.pravega.shared.NameUtils.getTransactionNameFromId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.*;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
 
 /**
  * Used by the Controller for interacting with Segment Store. Think of this class as a 'SegmentStoreHelper'. 
@@ -114,6 +118,10 @@ public class SegmentHelper implements AutoCloseable {
     public SegmentHelper(final ConnectionFactory clientCF, HostControllerStore hostStore) {
         this.connectionFactory = clientCF;
         this.hostStore = hostStore;
+    }
+
+    public ConnectionFactory getConnectionFactory() {
+        return this.connectionFactory;
     }
 
     public Controller.NodeUri getSegmentUri(final String scope,
@@ -349,6 +357,76 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     /**
+    * This method sends a WireCommand to read a segment from the stream.
+    *
+    * @param scopeName           The name of the scope
+    * @param streamName          The name of the stream
+    * @param segmentNumber       The id of the segment
+    * @param delegationToken     The token to be presented to the segmentstore.
+    * @param clientRequestId     Request id.
+    * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
+    * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
+    * can be retried then the future will be failed with {@link WireCommandFailedException}.
+    */
+    public CompletableFuture<String> getEvent(final String scopeName,
+                                              final String streamName,
+                                                         final Long segmentNumber,
+                                                         String delegationToken,
+                                                         final long clientRequestId) {
+        CompletableFuture<String> ackFuture = new CompletableFuture<String>();
+        final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scopeName, streamName, segmentNumber);
+        final Controller.NodeUri uri = getSegmentUri(scopeName, streamName, segmentNumber);
+        final WireCommandType type = WireCommandType.READ_SEGMENT;
+
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        final long requestId = connection.getFlow().asLong();
+
+        CompletableFuture<Void> result = sendRequest(connection, requestId, new WireCommands.ReadSegment(qualifiedStreamSegmentName, 0L, 256 * 1024, delegationToken, requestId))
+                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, streamName, WireCommands.ReadSegment.class, type));
+        ackFuture.complete(result.toString());
+        return ackFuture;
+    }
+
+    /**
+     * This method sends a WireCommand to add an event to the stream.
+     *
+     *
+     * @param scopeName           The name of the scope
+     * @param streamName          The name of the stream
+     * @param message             The data for the stream
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @param segment             The reference to segment
+     * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
+     * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
+     * can be retried then the future will be failed with {@link WireCommandFailedException}.
+     */
+    public CompletableFuture<Void> createEvent(final String scopeName,
+                                              final String streamName,
+                                              final String message,
+                                              String delegationToken,
+                                              final long clientRequestId,
+                                               io.pravega.client.segment.impl.Segment segment) {
+
+        CompletableFuture<Void> ack = new CompletableFuture<>();
+
+        final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scopeName, streamName, 0L);
+        final Controller.NodeUri uri = getSegmentUri(scopeName, streamName, 0L);
+        final WireCommandType setupType = WireCommandType.SETUP_APPEND;
+
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
+        final long requestId = connection.getFlow().asLong();
+        ByteBuf data = Unpooled.wrappedBuffer(message.getBytes());
+        final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
+        UUID connectionId = UUID.randomUUID();
+        sendRequest(connection, requestId, new WireCommands.SetupAppend(requestId, connectionId, qualifiedStreamSegmentName, delegationToken));
+        final WireCommandType appendType = WireCommandType.CONDITIONAL_APPEND;
+        return sendRequest(connection, requestId, new WireCommands.ConditionalAppend(connectionId, requestIdGenerator.get(), Long.MAX_VALUE,
+               new WireCommands.Event(data), requestId))
+                .thenAccept(x -> log.info("create event done."));
+    }
+
+    /**
      * This method sends a WireCommand to delete a table segment.
      *
      * @param tableName           Qualified table name.
@@ -403,7 +481,7 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
         WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, tableName, delegationToken,
-                new WireCommands.TableEntries(wireCommandEntries), WireCommands.NULL_TABLE_SEGMENT_OFFSET);
+                new WireCommands.TableEntries(wireCommandEntries));
 
         return sendRequest(connection, requestId, request)
                 .thenApply(rpl -> {
@@ -444,8 +522,7 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
 
-        WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(
-                requestId, tableName, delegationToken, keyList, WireCommands.NULL_TABLE_SEGMENT_OFFSET);
+        WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, tableName, delegationToken, keyList);
 
         return sendRequest(connection, requestId, request)
                 .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.RemoveTableKeys.class, type))

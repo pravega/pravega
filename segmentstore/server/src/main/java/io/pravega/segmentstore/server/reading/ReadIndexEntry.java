@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,8 +9,9 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import com.google.common.base.Preconditions;
 import io.pravega.common.util.SortedIndex;
+import com.google.common.base.Preconditions;
+
 import javax.annotation.concurrent.GuardedBy;
 
 /**
@@ -32,6 +33,7 @@ abstract class ReadIndexEntry implements SortedIndex.IndexEntry {
      *
      * @param streamSegmentOffset The StreamSegment offset for this entry.
      * @throws IllegalArgumentException if the offset is a negative number.
+     * @throws IllegalArgumentException if the length is a negative number.
      */
     ReadIndexEntry(long streamSegmentOffset) {
         Preconditions.checkArgument(streamSegmentOffset >= 0, "streamSegmentOffset must be a non-negative number.");
@@ -84,14 +86,6 @@ abstract class ReadIndexEntry implements SortedIndex.IndexEntry {
      * Gets a value indicating whether this ReadIndexEntry actually points to data (vs. being a meta-entry).
      */
     abstract boolean isDataEntry();
-
-    /**
-     * Gets the address in the CacheStorage where the contents of this ReadIndexEntry is located. The result of this method
-     * is undefined if {@link #isDataEntry()} is false.
-     *
-     * @return The CacheStorage address.
-     */
-    abstract int getCacheAddress();
 
     @Override
     public synchronized String toString() {

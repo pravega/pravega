@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2018 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -12,7 +12,6 @@ import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.byteStream.impl.BufferedByteStreamWriterImpl;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.PendingEvent;
@@ -30,7 +29,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 
 public class ByteStreamWriterTest {
@@ -115,20 +113,5 @@ public class ByteStreamWriterTest {
         writer.write(toWrite);
         writer.closeAndSeal();
         assertEquals(5, writer.fetchTailOffset());
-    }
-
-    @Test
-    public void testTruncate() throws IOException {
-        @Cleanup
-        ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
-        @Cleanup
-        ByteStreamReader reader =         clientFactory.createByteStreamReader(STREAM);
-
-        ByteBuffer toWrite = ByteBuffer.wrap(new byte[] { 0, 1, 2, 3, 4 });
-        writer.write(toWrite);
-        writer.truncateDataBefore(4);
-
-        reader.seekToOffset(3);
-        assertThrows(SegmentTruncatedException.class, reader::read);
     }
 }

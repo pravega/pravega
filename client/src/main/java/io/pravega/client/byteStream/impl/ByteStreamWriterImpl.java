@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2018 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,11 +63,6 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     @Override
     public long fetchTailOffset() {
         return meta.fetchCurrentSegmentLength();
-    }
-
-    @Override
-    public void truncateDataBefore(long offset) {
-        meta.truncateSegment(offset);
     }
 
 }

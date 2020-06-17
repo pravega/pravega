@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@ package io.pravega.local;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.impl.Credentials;
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.common.security.ZKTLSUtils;
+import io.pravega.common.auth.ZKTLSUtils;
 import com.google.common.base.Strings;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.ControllerServiceMain;
@@ -62,27 +62,35 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     /* Cluster name */
     private final String clusterName = "singlenode-" + UUID.randomUUID();
-    private boolean enableMetrics;
+    @Builder.Default
+    private boolean enableMetrics = false;
 
     /*Enabling this will configure security for the singlenode with hardcoded cert files and creds.*/
-    private boolean enableAuth;
-    private boolean enableTls;
+    @Builder.Default
+    private boolean enableAuth = false;
+    @Builder.Default
+    private boolean enableTls = false;
 
-    private boolean enableTlsReload;
+    @Builder.Default
+    private boolean enableTlsReload = false;
 
     /*Controller related variables*/
     private boolean isInProcController;
     private int controllerCount;
-    private int[] controllerPorts;
-    private String controllerURI;
+    @Builder.Default
+    private int[] controllerPorts = null;
+    @Builder.Default
+    private String controllerURI = null;
 
     /*REST server related variables*/
     private int restServerPort;
 
     /*SegmentStore related variables*/
     private boolean isInProcSegmentStore;
-    private int segmentStoreCount;
-    private int[] segmentStorePorts;
+    @Builder.Default
+    private int segmentStoreCount = 0;
+    @Builder.Default
+    private int[] segmentStorePorts = null;
 
 
     /*ZK related variables*/
@@ -97,7 +105,8 @@ public class InProcPravegaCluster implements AutoCloseable {
 
 
     /* SegmentStore configuration*/
-    private int containerCount;
+    @Builder.Default
+    private int containerCount = 4;
     private ServiceStarter[] nodeServiceStarter;
 
     private LocalHDFSEmulator localHdfs;
@@ -106,7 +115,8 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private String zkUrl;
 
-    private boolean enableRestServer;
+    @Builder.Default
+    private boolean enableRestServer = true;
     private String userName;
     private String passwd;
     private String certFile;
@@ -118,11 +128,6 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String jksKeyFile;
 
     public static final class InProcPravegaClusterBuilder {
-
-        // default values
-        private int containerCount = 4;
-        private boolean enableRestServer = true;
-
         public InProcPravegaCluster build() {
             //Check for valid combinations of flags
             //For ZK
@@ -392,7 +397,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         }
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
-                .threadPoolSize(Runtime.getRuntime().availableProcessors())
+                .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
                 .controllerClusterListenerEnabled(false)

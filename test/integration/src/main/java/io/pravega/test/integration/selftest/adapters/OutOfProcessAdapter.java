@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,7 +11,6 @@ package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.controller.util.Config;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.lang.ProcessStarter;
@@ -189,24 +188,26 @@ class OutOfProcessAdapter extends ExternalAdapter {
         int port = this.testConfig.getControllerPort(controllerId);
         int restPort = this.testConfig.getControllerRestPort(controllerId);
         int rpcPort = this.testConfig.getControllerRpcPort(controllerId);
-
         Process p = ProcessStarter
                 .forClass(io.pravega.controller.server.Main.class)
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_CONTAINER_COUNT), this.testConfig.getContainerCount())
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_ZK_URL), getZkUrl())
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_SERVICE_PORT), port)
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_AUTH_ENABLED), this.testConfig.isEnableSecurity())
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_AUTH_PASSWORD_FILE),
+                .sysProp("controller.containerCount", this.testConfig.getContainerCount())
+                .sysProp("controller.zk.url", getZkUrl())
+                .sysProp("controller.service.port", port)
+                .sysProp("controller.auth.enabled", this.testConfig.isEnableSecurity())
+                .sysProp("controller.auth.userPasswordFile",
                         pathOfConfigItem(SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME))
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_ENABLED), this.testConfig.isEnableSecurity())
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_CERT_FILE), pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME))
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_TRUST_STORE), pathOfConfigItem(SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME))
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TLS_KEY_FILE), pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME))
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_TOKEN_SIGNING_KEY), "secret")
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_REST_IP), TestConfig.LOCALHOST)
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_REST_PORT), restPort)
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_RPC_HOST), TestConfig.LOCALHOST)
-                .sysProp(configProperty(Config.COMPONENT_CODE, Config.PROPERTY_RPC_PORT), rpcPort)
+                .sysProp("controller.auth.tlsEnabled", this.testConfig.isEnableSecurity())
+                .sysProp("controller.auth.tlsCertFile",
+                        pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME))
+                .sysProp("controller.auth.tlsTrustStore",
+                        pathOfConfigItem(SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME))
+                .sysProp("controller.auth.tlsKeyFile",
+                        pathOfConfigItem(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME))
+                .sysProp("controller.auth.tokenSigningKey", "secret")
+                .sysProp("controller.service.restIp", TestConfig.LOCALHOST)
+                .sysProp("controller.service.restPort", restPort)
+                .sysProp("controller.service.publishedRPCHost", TestConfig.LOCALHOST)
+                .sysProp("controller.service.publishedRPCPort", rpcPort)
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("controller", controllerId))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("controller", controllerId))))
                 .start();

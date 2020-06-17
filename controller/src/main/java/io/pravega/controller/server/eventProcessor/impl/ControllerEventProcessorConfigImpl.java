@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,6 @@ import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.ToString;
-
-import java.time.Duration;
 
 /**
  * Configuration of controller event processors.
@@ -47,8 +45,6 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
     private final CheckpointConfig commitCheckpointConfig;
     private final CheckpointConfig abortCheckpointConfig;
     private final CheckpointConfig scaleCheckpointConfig;
-    
-    private final long rebalanceIntervalMillis;
 
     @Builder
     ControllerEventProcessorConfigImpl(final String scopeName,
@@ -62,8 +58,7 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
                                        final int abortReaderGroupSize,
                                        final CheckpointConfig commitCheckpointConfig,
                                        final CheckpointConfig abortCheckpointConfig,
-                                       final ScalingPolicy scaleStreamScalingPolicy,
-                                       final long rebalanceIntervalMillis) {
+                                       final ScalingPolicy scaleStreamScalingPolicy) {
 
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(commitStreamName, "commitStreamName");
@@ -94,7 +89,6 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
         this.scaleReaderGroupName = Config.SCALE_READER_GROUP;
         this.scaleReaderGroupSize = 1;
         this.scaleCheckpointConfig = CheckpointConfig.none();
-        this.rebalanceIntervalMillis = rebalanceIntervalMillis;
     }
 
     public static ControllerEventProcessorConfig withDefault() {
@@ -111,7 +105,6 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
                 .abortReaderGroupSize(1)
                 .commitCheckpointConfig(CheckpointConfig.periodic(10, 10))
                 .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
-                .rebalanceIntervalMillis(Duration.ofMinutes(2).toMillis())
                 .build();
     }
 

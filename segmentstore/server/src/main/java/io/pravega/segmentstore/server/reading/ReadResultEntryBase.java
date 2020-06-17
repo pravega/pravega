@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,10 +9,11 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import io.pravega.segmentstore.contracts.ReadResultEntryContents;
+import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.util.BufferView;
-import io.pravega.segmentstore.contracts.ReadResultEntryType;
+
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
@@ -23,7 +24,7 @@ import java.util.concurrent.CompletableFuture;
 public abstract class ReadResultEntryBase implements CompletableReadResultEntry {
     //region Members
 
-    private final CompletableFuture<BufferView> contents;
+    private final CompletableFuture<ReadResultEntryContents> contents;
     private final ReadResultEntryType type;
     private final int requestedReadLength;
     private final long streamSegmentOffset;
@@ -42,9 +43,6 @@ public abstract class ReadResultEntryBase implements CompletableReadResultEntry 
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     protected ReadResultEntryBase(ReadResultEntryType type, long streamSegmentOffset, int requestedReadLength) {
-        if (requestedReadLength == 0) {
-            System.out.println();
-        }
         Preconditions.checkArgument(streamSegmentOffset >= 0, "streamSegmentOffset must be a non-negative number.");
         Preconditions.checkArgument(requestedReadLength > 0, "requestedReadLength must be a positive integer.");
 
@@ -74,7 +72,7 @@ public abstract class ReadResultEntryBase implements CompletableReadResultEntry 
     }
 
     @Override
-    public final CompletableFuture<BufferView> getContent() {
+    public final CompletableFuture<ReadResultEntryContents> getContent() {
         return this.contents;
     }
 
@@ -103,7 +101,7 @@ public abstract class ReadResultEntryBase implements CompletableReadResultEntry 
      *
      * @param readResultEntryContents The content to set.
      */
-    protected void complete(BufferView readResultEntryContents) {
+    protected void complete(ReadResultEntryContents readResultEntryContents) {
         Preconditions.checkState(!this.contents.isDone(), "ReadResultEntry has already had its result set.");
         CompletionConsumer callback = this.completionCallback;
         if (callback != null) {
@@ -126,7 +124,7 @@ public abstract class ReadResultEntryBase implements CompletableReadResultEntry 
 
     @Override
     public String toString() {
-        CompletableFuture<BufferView> contentFuture = this.contents;
+        CompletableFuture<ReadResultEntryContents> contentFuture = this.contents;
         return String.format("%s: Offset = %d, RequestedLength = %d, HasData = %s, Error = %s, Cancelled = %s",
                 this.getClass().getSimpleName(),
                 getStreamSegmentOffset(),

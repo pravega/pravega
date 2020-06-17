@@ -1,4 +1,4 @@
-# Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,8 +30,8 @@
   environment:
     JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     JAVA_OPTS: |
-      -Dcontroller.service.rpc.listener.port=9090
-      -Dcontroller.service.rest.listener.port=10080
+      -Dcontroller.service.port=9090
+      -Dcontroller.service.restPort=10080
       -Dcontroller.zk.url=ZKNODE:2181
       -Dconfig.controller.metricenableCSVReporter=false
       -Xmx512m

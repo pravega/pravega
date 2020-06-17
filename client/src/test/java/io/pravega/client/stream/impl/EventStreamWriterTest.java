@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,8 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetector.Level;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -18,13 +20,15 @@ import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.mock.MockSegmentIoStreams;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.CollectingExecutor;
-import io.pravega.test.common.LeakDetectorTestSuite;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,11 +37,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -46,9 +53,24 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 
-public class EventStreamWriterTest extends LeakDetectorTestSuite {
+public class EventStreamWriterTest extends ThreadPooledTestSuite {
+    
+    private Level originalLevel;
+    
+    @Before
+    public void setup() throws Exception {
+        originalLevel = ResourceLeakDetector.getLevel();
+        ResourceLeakDetector.setLevel(Level.PARANOID);
+    }
+
+    @After
+    public void teardown() {
+        ResourceLeakDetector.setLevel(originalLevel);
+    }
+    
     @Test
     public void testWrite() {
         String scope = "scope";
@@ -59,7 +81,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
-        MockSegmentIoStreams outputStream = new MockSegmentIoStreams(segment, null);
+        MockSegmentIoStreams outputStream = new MockSegmentIoStreams(segment);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outputStream);
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory,
                 new JavaSerializer<>(), config, executorService(), executorService());
@@ -357,6 +379,77 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
+    public void testTxn() throws TxnFailedException {
+        String scope = "scope";
+        String streamName = "stream";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment = new Segment(scope, streamName, 0);
+        UUID txid = UUID.randomUUID();
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
+        FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
+        FakeSegmentOutputStream bad = new FakeSegmentOutputStream(segment);
+        Mockito.when(controller.createTransaction(eq(stream), anyLong()))
+               .thenReturn(CompletableFuture.completedFuture(new TxnSegments(getSegments(segment), txid)));
+        Mockito.when(streamFactory.createOutputStreamForTransaction(eq(segment), eq(txid), any(), any()))
+                .thenReturn(outputStream);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(bad);
+
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
+                config, executorService(), executorService());
+        Transaction<String> txn = writer.beginTxn();
+        txn.writeEvent("Foo");
+        Mockito.verify(controller).getCurrentSegments(any(), any());
+        assertTrue(bad.unacked.isEmpty());
+        assertEquals(1, outputStream.unacked.size());
+        outputStream.unacked.get(0).getAckFuture().complete(null);
+        txn.flush();
+        assertTrue(bad.unacked.isEmpty());
+        assertTrue(outputStream.unacked.isEmpty());
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    public void testTxnFailed() {
+        String scope = "scope";
+        String streamName = "stream";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment = new Segment(scope, streamName, 0);
+        UUID txid = UUID.randomUUID();
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
+        FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
+        FakeSegmentOutputStream bad = new FakeSegmentOutputStream(segment);
+        Mockito.when(controller.createTransaction(eq(stream), anyLong()))
+               .thenReturn(CompletableFuture.completedFuture(new TxnSegments(getSegments(segment), txid)));
+        Mockito.when(streamFactory.createOutputStreamForTransaction(eq(segment), eq(txid), any(), any()))
+                .thenReturn(outputStream);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(bad);
+
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
+                config, executorService(), executorService());
+        Transaction<String> txn = writer.beginTxn();
+        outputStream.invokeSealedCallBack();
+        try {
+            txn.writeEvent("Foo");
+        } catch (TxnFailedException e) {
+            // Expected
+        }
+        Mockito.verify(controller).getCurrentSegments(any(), any());
+        assertTrue(bad.unacked.isEmpty());
+        assertEquals(1, outputStream.unacked.size());
+    }
+
+    @Test
     public void testFlush() {
         String scope = "scope";
         String streamName = "stream";
@@ -445,7 +538,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.verify(controller).getCurrentSegments(any(), any());
         assertTrue(outputStream.unacked.size() > 0);
 
-        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2, null);
+        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
         outputStream.invokeSealedCallBack();
 
@@ -484,7 +577,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.verify(controller).getCurrentSegments(any(), any());
         assertTrue(outputStream.getUnackedEventsOnSeal().size() > 0);
 
-        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2, null);
+        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
 
         AssertExtensions.assertBlocks(() -> {
@@ -529,7 +622,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
 
-        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2, null);
+        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
 
         AssertExtensions.assertBlocks(() -> {
@@ -576,7 +669,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.verify(controller).getCurrentSegments(any(), any());
         assertTrue(outputStream.getUnackedEventsOnSeal().size() > 0);
 
-        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2, null);
+        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
 
         AssertExtensions.assertBlocks(() -> {
@@ -621,7 +714,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         Mockito.verify(controller).getCurrentSegments(any(), any());
         assertTrue(outputStream1.unacked.size() > 0);
 
-        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2, null);
+        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
         outputStream1.invokeSealedCallBack();
 

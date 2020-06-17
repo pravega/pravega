@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -111,7 +111,7 @@ public class ServiceBuilderConfig {
 
     /**
      * Represents a Builder for the ServiceBuilderConfig.
-     * Returns the new instance of a Configuration.
+     * @return The new instance of a Configuration.
      */
     public static class Builder {
         private final Properties properties;
