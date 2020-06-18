@@ -38,7 +38,6 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.impl.StreamSegments;
-import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
@@ -96,7 +95,7 @@ public class RevisionedStreamClientTest {
 
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        SynchronizerClientFactory clientFactory = new MockClientFactory(scope, streamFactory);
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
         
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
@@ -138,8 +137,8 @@ public class RevisionedStreamClientTest {
 
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        SynchronizerClientFactory clientFactory = new MockClientFactory(scope, streamFactory);
-        
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+               
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
@@ -175,8 +174,8 @@ public class RevisionedStreamClientTest {
 
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        SynchronizerClientFactory clientFactory = new MockClientFactory(scope, streamFactory);
-        
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+            
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
@@ -260,8 +259,8 @@ public class RevisionedStreamClientTest {
 
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        SynchronizerClientFactory clientFactory = new MockClientFactory(scope, streamFactory);
-
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+        
         SynchronizerConfig config = SynchronizerConfig.builder().build();
 
         // Simulate sealed stream.
@@ -430,8 +429,6 @@ public class RevisionedStreamClientTest {
             // Invoke Reply processor to simulate a successful read.
             rp.process(new WireCommands.SegmentRead(request.getSegment(), 15L, true, true, eventData, request
                     .getRequestId()));
-            ClientConnection.CompletedCallback callback = i.getArgument(1);
-            callback.complete(null);
             return null;
         }).when(c).send(any(WireCommands.ReadSegment.class));
         Entry<Revision, String> r = iterator.next();
