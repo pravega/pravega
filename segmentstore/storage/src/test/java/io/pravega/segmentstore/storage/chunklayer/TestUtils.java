@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -26,10 +26,10 @@ public class TestUtils {
     /**
      * Checks the bounds for the given segment.
      *
-     * @param metadataStore Metadata store to query.
-     * @param segmentName Name of the segment.
+     * @param metadataStore       Metadata store to query.
+     * @param segmentName         Name of the segment.
      * @param expectedStartOffset Expected start offset.
-     * @param expectedLength Expected length.
+     * @param expectedLength      Expected length.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static void checkSegmentBounds(ChunkMetadataStore metadataStore, String segmentName, long expectedStartOffset, long expectedLength) throws Exception {
@@ -42,9 +42,9 @@ public class TestUtils {
     /**
      * Checks the layout of the chunks for given segment.
      *
-     * @param metadataStore Metadata store to query.
-     * @param segmentName Name of the segment.
-     * @param lengthOfChunk Length of each chunk.
+     * @param metadataStore  Metadata store to query.
+     * @param segmentName    Name of the segment.
+     * @param lengthOfChunk  Length of each chunk.
      * @param numberOfchunks Number of chunks.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
@@ -67,8 +67,8 @@ public class TestUtils {
     /**
      * Checks the layout of the chunks for given segment.
      *
-     * @param metadataStore Metadata store to query.
-     * @param segmentName Name of the segment.
+     * @param metadataStore   Metadata store to query.
+     * @param segmentName     Name of the segment.
      * @param expectedLengths Array of expected lengths.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
@@ -79,9 +79,9 @@ public class TestUtils {
     /**
      * Checks the layout of the chunks for given segment.
      *
-     * @param metadataStore Metadata store to query.
-     * @param segmentName Name of the segment.
-     * @param expectedLengths Array of expected lengths.
+     * @param metadataStore            Metadata store to query.
+     * @param segmentName              Name of the segment.
+     * @param expectedLengths          Array of expected lengths.
      * @param lastChunkLengthInStorage Length of the last chunk in storage.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
@@ -97,7 +97,7 @@ public class TestUtils {
         val chunks = getChunkList(metadataStore, segmentName);
         for (val chunk : chunks) {
             Assert.assertEquals("Chunk " + Integer.toString(i) + " has unexpected length",
-                    i == expectedLengths.length-1 ? lastChunkLengthInStorage : expectedLengths[i],
+                    i == expectedLengths.length - 1 ? lastChunkLengthInStorage : expectedLengths[i],
                     chunk.getLength());
             expectedLength += chunk.getLength();
             i++;
@@ -113,7 +113,7 @@ public class TestUtils {
      * Retrieves the {@link StorageMetadata} with given key from given {@link ChunkMetadataStore}.
      *
      * @param metadataStore Metadata store to query.
-     * @param key Key.
+     * @param key           Key.
      * @return {@link StorageMetadata} if found, null otherwise.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
@@ -127,7 +127,7 @@ public class TestUtils {
      * Retrieves the {@link SegmentMetadata} with given key from given {@link ChunkMetadataStore}.
      *
      * @param metadataStore Metadata store to query.
-     * @param key Key.
+     * @param key           Key.
      * @return {@link SegmentMetadata} if found, null otherwise.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
@@ -141,7 +141,7 @@ public class TestUtils {
      * Retrieves the {@link ChunkMetadata} with given key from given {@link ChunkMetadataStore}.
      *
      * @param metadataStore Metadata store to query.
-     * @param key Key.
+     * @param key           Key.
      * @return {@link ChunkMetadata} if found, null otherwise.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
@@ -155,7 +155,7 @@ public class TestUtils {
      * Gets the list of chunks for the given segment.
      *
      * @param metadataStore Metadata store to query.
-     * @param key Key.
+     * @param key           Key.
      * @return List of {@link ChunkMetadata} for the segment.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
@@ -176,9 +176,10 @@ public class TestUtils {
 
     /**
      * Checks if all chunks actually exist in storage for given segment.
+     *
      * @param storageProvider {@link ChunkStorageProvider} instance to check.
-     * @param metadataStore {@link ChunkMetadataStore} instance to check.
-     * @param segmentName Segment name to check.
+     * @param metadataStore   {@link ChunkMetadataStore} instance to check.
+     * @param segmentName     Segment name to check.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static void checkChunksExistInStorage(ChunkStorageProvider storageProvider, ChunkMetadataStore metadataStore, String segmentName) throws Exception {
@@ -207,53 +208,20 @@ public class TestUtils {
     /**
      * Asserts that SegmentMetadata and its associated list of ChunkMetadata matches expected values.
      *
-     * @param expectedSegmentMetadata Expected {@link SegmentMetadata}.
+     * @param expectedSegmentMetadata   Expected {@link SegmentMetadata}.
      * @param expectedChunkMetadataList Expected list of {@link ChunkMetadata}.
-     * @param actualSegmentMetadata Actual {@link SegmentMetadata}.
-     * @param actualChunkMetadataList Actual list of {@link ChunkMetadata}.
+     * @param actualSegmentMetadata     Actual {@link SegmentMetadata}.
+     * @param actualChunkMetadataList   Actual list of {@link ChunkMetadata}.
      * @throws Exception {@link AssertionError} is thrown in case of mismatch.
      */
     public static void assertEquals(SegmentMetadata expectedSegmentMetadata, ArrayList<ChunkMetadata> expectedChunkMetadataList, SegmentMetadata actualSegmentMetadata, ArrayList<ChunkMetadata> actualChunkMetadataList) throws Exception {
-        assertEquals(expectedSegmentMetadata, actualSegmentMetadata);
+        Assert.assertEquals(expectedSegmentMetadata, actualSegmentMetadata);
         Assert.assertEquals(expectedChunkMetadataList.size(), actualChunkMetadataList.size());
 
         for (int i = 0; i < expectedChunkMetadataList.size(); i++) {
             val expectedChunkMetadata = expectedChunkMetadataList.get(i);
             val actualChunkMetadata = actualChunkMetadataList.get(i);
-            assertEquals(expectedChunkMetadata, actualChunkMetadata);
+            Assert.assertEquals(expectedChunkMetadata, actualChunkMetadata);
         }
-    }
-
-    /**
-     * Asserts that given {@link ChunkMetadata} matches expected value.
-     *
-     * @param expectedChunkMetadata Expected {@link ChunkMetadata}.
-     * @param actualChunkMetadata Actual {@link ChunkMetadata}.
-     * @throws Exception {@link AssertionError} is thrown in case of mismatch.
-     */
-    private static void assertEquals(ChunkMetadata expectedChunkMetadata, ChunkMetadata actualChunkMetadata) {
-        Assert.assertEquals(expectedChunkMetadata.getName(), actualChunkMetadata.getName());
-        Assert.assertEquals(expectedChunkMetadata.getLength(), actualChunkMetadata.getLength());
-        Assert.assertEquals(expectedChunkMetadata.getNextChunk(), actualChunkMetadata.getNextChunk());
-    }
-
-    /**
-     * Asserts that given {@link SegmentMetadata} matches expected value.
-     *
-     * @param expectedSegmentMetadata Expected {@link SegmentMetadata}.
-     * @param actualSegmentMetadata Actual {@link SegmentMetadata}.
-     * @throws Exception {@link AssertionError} is thrown in case of mismatch.
-     */
-    private static void assertEquals(SegmentMetadata expectedSegmentMetadata, SegmentMetadata actualSegmentMetadata) {
-        Assert.assertEquals(expectedSegmentMetadata.getName(), actualSegmentMetadata.getName());
-        Assert.assertEquals(expectedSegmentMetadata.getStartOffset(), actualSegmentMetadata.getStartOffset());
-        Assert.assertEquals(expectedSegmentMetadata.getLength(), actualSegmentMetadata.getLength());
-        Assert.assertEquals(expectedSegmentMetadata.getLastChunk(), actualSegmentMetadata.getLastChunk());
-        Assert.assertEquals(expectedSegmentMetadata.getFirstChunk(), actualSegmentMetadata.getFirstChunk());
-        Assert.assertEquals(expectedSegmentMetadata.getFirstChunkStartOffset(), actualSegmentMetadata.getFirstChunkStartOffset());
-        Assert.assertEquals(expectedSegmentMetadata.getLastChunkStartOffset(), actualSegmentMetadata.getLastChunkStartOffset());
-        Assert.assertEquals(expectedSegmentMetadata.getOwnerEpoch(), actualSegmentMetadata.getOwnerEpoch());
-        Assert.assertEquals(expectedSegmentMetadata.getStatus(), actualSegmentMetadata.getStatus());
-        Assert.assertEquals(expectedSegmentMetadata.getMaxRollinglength(), actualSegmentMetadata.getMaxRollinglength());
     }
 }

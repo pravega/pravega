@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.mocks;
 
@@ -26,7 +26,7 @@ import java.io.IOException;
 @Builder(toBuilder = true)
 @Data
 @EqualsAndHashCode(callSuper = true)
-public  class MockStorageMetadata extends StorageMetadata {
+public class MockStorageMetadata extends StorageMetadata {
 
     final private String key;
 
@@ -34,7 +34,8 @@ public  class MockStorageMetadata extends StorageMetadata {
 
     /**
      * Constructor.
-     * @param key Key.
+     *
+     * @param key   Key.
      * @param value Value.
      */
     public MockStorageMetadata(String key, String value) {

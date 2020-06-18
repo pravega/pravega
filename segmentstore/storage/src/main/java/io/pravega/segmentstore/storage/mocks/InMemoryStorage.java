@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.mocks;
 
@@ -21,6 +21,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.SyncStorage;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.Data;
 import lombok.SneakyThrows;
 
@@ -161,11 +163,11 @@ public class InMemoryStorage implements SyncStorage {
         ensurePreconditions();
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "Cannot concat using a read-only handle.");
         AtomicLong newLength = new AtomicLong();
-            StreamSegmentData sourceData = getStreamSegmentData(sourceSegment);
-            StreamSegmentData targetData = getStreamSegmentData(targetHandle.getSegmentName());
-            targetData.concat(sourceData, offset);
-            deleteInternal(new InMemorySegmentHandle(sourceSegment, false));
-            newLength.set(targetData.getInfo().getLength());
+        StreamSegmentData sourceData = getStreamSegmentData(sourceSegment);
+        StreamSegmentData targetData = getStreamSegmentData(targetHandle.getSegmentName());
+        targetData.concat(sourceData, offset);
+        deleteInternal(new InMemorySegmentHandle(sourceSegment, false));
+        newLength.set(targetData.getInfo().getLength());
     }
 
     @Override

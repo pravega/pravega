@@ -34,6 +34,7 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
 
     /**
      * Reads a metadata record for the given key.
+     *
      * @param key Key for the metadata record.
      * @return Associated {@link io.pravega.segmentstore.storage.metadata.BaseMetadataStore.TransactionData}.
      * @throws StorageMetadataException Exception related to storage metadata operations.
@@ -54,6 +55,7 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
 
     /**
      * Writes transaction data from a given list to the metadata store.
+     *
      * @param dataList List of transaction data to write.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
@@ -84,6 +86,7 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
 
     /**
      * Creates a clone for given {@link InMemoryMetadataStore}. Useful to simulate zombie segment container.
+     *
      * @param original Metadata store to clone.
      * @return Clone of given instance.
      */

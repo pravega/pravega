@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.mocks;
 
@@ -58,7 +58,7 @@ public class InMemoryChunkStorageProvider extends AbstractInMemoryChunkStoragePr
     }
 
     @Override
-    protected boolean doesExist(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected boolean checkExist(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         return chunks.containsKey(chunkName);
     }
 

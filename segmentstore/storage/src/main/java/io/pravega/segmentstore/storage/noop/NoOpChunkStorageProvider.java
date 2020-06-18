@@ -54,7 +54,7 @@ public class NoOpChunkStorageProvider extends AbstractInMemoryChunkStorageProvid
     }
 
     @Override
-    protected boolean doesExist(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected boolean checkExist(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         return chunkMetadata.containsKey(chunkName);
     }
 

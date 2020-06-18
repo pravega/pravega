@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage;
 
@@ -19,7 +19,7 @@ public final class SegmentRollingPolicy {
     /**
      * Max rolling length is 2^62 so that we can use CompactLong in serialization everywhere.
      */
-    public static final SegmentRollingPolicy NO_ROLLING = new SegmentRollingPolicy(Long.MAX_VALUE / 4 );
+    public static final SegmentRollingPolicy NO_ROLLING = new SegmentRollingPolicy(Long.MAX_VALUE / 4);
 
     /**
      * Maximum length, as allowed by this Rolling Policy.

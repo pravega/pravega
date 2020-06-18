@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.metadata;
 
@@ -71,9 +71,8 @@ public interface ChunkMetadataStore extends AutoCloseable {
     /**
      * Begins a new transaction.
      *
-     * @throws StorageMetadataException Exception related to storage metadata operations.
      * @return Returns a new instance of {@link MetadataTransaction}.
-     *
+     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
     MetadataTransaction beginTransaction() throws StorageMetadataException;
 
@@ -82,15 +81,15 @@ public interface ChunkMetadataStore extends AutoCloseable {
      *
      * @param txn Transaction.
      * @param key key to use to retrieve metadata.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
      * @return Metadata for given key. Null if key was not found.
+     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
     StorageMetadata get(MetadataTransaction txn, String key) throws StorageMetadataException;
 
     /**
      * Updates existing metadata.
      *
-     * @param txn Transaction.
+     * @param txn      Transaction.
      * @param metadata metadata record.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
@@ -99,8 +98,8 @@ public interface ChunkMetadataStore extends AutoCloseable {
     /**
      * Creates a new metadata record.
      *
-     * @param txn Transaction.
-     * @param metadata  metadata record.
+     * @param txn      Transaction.
+     * @param metadata metadata record.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
     void create(MetadataTransaction txn, StorageMetadata metadata) throws StorageMetadataException;
@@ -109,8 +108,8 @@ public interface ChunkMetadataStore extends AutoCloseable {
      * Marks given single record as pinned.
      * Pinned records are not evicted from memory and are not written to the underlying storage.
      *
-     * @param txn Transaction.
-     * @param metadata  metadata record.
+     * @param txn      Transaction.
+     * @param metadata metadata record.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
     void markPinned(MetadataTransaction txn, StorageMetadata metadata) throws StorageMetadataException;
@@ -135,8 +134,9 @@ public interface ChunkMetadataStore extends AutoCloseable {
      * In this case the state must be re-created using application specific recovery/failover logic.
      * Do not commit lazily if such recovery is not possible.
      * This call does not blocks until write to underlying storage is confirmed if lazyWrite is true.
-     * @param txn transaction to commit.
-     * @param lazyWrite true if data can be written lazily.
+     *
+     * @param txn            transaction to commit.
+     * @param lazyWrite      true if data can be written lazily.
      * @param skipStoreCheck true if data is not to be reloaded from store.
      * @throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be commited.
      */
@@ -149,7 +149,8 @@ public interface ChunkMetadataStore extends AutoCloseable {
      * In this case the state must be re-created using application specific recovery/failover logic.
      * Do not commit lazily if such recovery is not possible.
      * This call does not blocks until write to underlying storage is confirmed if lazyWrite is true.
-     * @param txn transaction to commit.
+     *
+     * @param txn       transaction to commit.
      * @param lazyWrite true if data can be written lazily.
      * @throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be commited.
      */

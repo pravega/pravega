@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -25,8 +25,8 @@ public class ChunkStorageManagerConfig {
      * Default configuration for {@link ChunkStorageManager}.
      */
     public static final ChunkStorageManagerConfig DEFAULT_CONFIG = ChunkStorageManagerConfig.builder()
-            .minSizeLimitForNativeConcat(0)
-            .maxSizeLimitForNativeConcat(Long.MAX_VALUE)
+            .minSizeLimitForConcat(0)
+            .maxSizeLimitForConcat(Long.MAX_VALUE)
             .defaultRollingPolicy(SegmentRollingPolicy.NO_ROLLING)
             .maxBufferSizeForChunkDataTransfer(1024 * 1024)
             .maxIndexedSegments(1024)
@@ -37,16 +37,16 @@ public class ChunkStorageManagerConfig {
 
     /**
      * Size of chunk in bytes above which it is no longer considered a small object.
-     * For small source objects, concatWithAppend is used instead of using concat.
+     * For small source objects, concat is not used and instead.
      */
     @Getter
-    final private long minSizeLimitForNativeConcat;
+    final private long minSizeLimitForConcat;
 
     /**
      * Size of chunk in bytes above which it is no longer considered for concat.
      */
     @Getter
-    final private long maxSizeLimitForNativeConcat;
+    final private long maxSizeLimitForConcat;
 
     /**
      * A SegmentRollingPolicy to apply to every StreamSegment that does not have its own policy defined.
@@ -57,7 +57,6 @@ public class ChunkStorageManagerConfig {
 
     /**
      * Maximum size for the buffer used while copying of data from one chunk to other.
-     *
      */
     @Getter
     final private int maxBufferSizeForChunkDataTransfer;

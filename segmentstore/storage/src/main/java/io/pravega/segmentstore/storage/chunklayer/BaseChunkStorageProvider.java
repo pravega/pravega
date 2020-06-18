@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -32,7 +32,6 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
 
     /**
      * Constructor.
-     *
      */
     public BaseChunkStorageProvider() {
         this.closed = new AtomicBoolean(false);
@@ -77,7 +76,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
         long traceId = LoggerHelpers.traceEnter(log, "exists", chunkName);
 
         // Call concrete implementation.
-        boolean retValue = doesExist(chunkName);
+        boolean retValue = checkExist(chunkName);
 
         LoggerHelpers.traceLeave(log, "exists", traceId, chunkName);
 
@@ -90,7 +89,6 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      * @param chunkName Name of the chunk to create.
      * @return ChunkHandle A writable handle for the recently created chunk.
      * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
-     *
      */
     @Override
     final public ChunkHandle create(String chunkName) throws ChunkStorageException {
@@ -148,7 +146,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      *
      * @param chunkName String name of the chunk to read from.
      * @return ChunkHandle A readable handle for the given chunk.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
     @Override
@@ -172,7 +170,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      *
      * @param chunkName String name of the chunk to write to or modify.
      * @return ChunkHandle A writable handle for the given chunk.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
     @Override
@@ -196,7 +194,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      *
      * @param chunkName String name of the chunk to read from.
      * @return ChunkInfo Information about the given chunk.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
     @Override
@@ -223,8 +221,8 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      * @param buffer       Byte buffer to which data is copied.
      * @param bufferOffset Offset in the buffer at which to start copying read data.
      * @return int Number of bytes read.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
-     * @throws IllegalArgumentException If argument is invalid.
+     * @throws ChunkStorageException     Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws IllegalArgumentException  If argument is invalid.
      * @throws IndexOutOfBoundsException If the index is out of bounds.
      */
     @Override
@@ -296,7 +294,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      * @param chunks Array of ConcatArgument objects containing info about existing chunks to be concatenated together.
      *               The chunks must be concatenated in the same sequence the arguments are provided.
      * @return int Number of bytes concatenated.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
     @Override
@@ -345,7 +343,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      * @param handle ChunkHandle of the chunk to truncate.
      * @param offset Offset to truncate to.
      * @return True if the object was truncated, false otherwise.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
     @Override
@@ -369,10 +367,10 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
     /**
      * Sets readonly attribute for the chunk.
      *
-     * @param handle ChunkHandle of the chunk.
+     * @param handle     ChunkHandle of the chunk.
      * @param isReadonly True if chunk is set to be readonly.
      * @return True if the operation was successful, false otherwise.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
     @Override
@@ -393,6 +391,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
 
     /**
      * Closes.
+     *
      * @throws Exception In case of any error.
      */
     @Override
@@ -402,6 +401,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
 
     /**
      * Checks whether this instance is closed or not.
+     *
      * @return True if this instance is closed, false otherwise.
      */
     protected boolean isClosed() {
@@ -413,7 +413,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      *
      * @param chunkName String name of the chunk to read from.
      * @return ChunkInfo Information about the given chunk.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
     abstract protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException, IllegalArgumentException;
@@ -423,7 +423,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      *
      * @param chunkName String name of the chunk to create.
      * @return ChunkHandle A writable handle for the recently created chunk.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
     abstract protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException, IllegalArgumentException;
@@ -433,16 +433,16 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      *
      * @param chunkName Name of the chunk to check.
      * @return True if the object exists, false otherwise.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
-    abstract protected boolean doesExist(String chunkName) throws ChunkStorageException, IllegalArgumentException;
+    abstract protected boolean checkExist(String chunkName) throws ChunkStorageException, IllegalArgumentException;
 
     /**
      * Deletes a chunk.
      *
      * @param handle ChunkHandle of the chunk to delete.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
     abstract protected void doDelete(ChunkHandle handle) throws ChunkStorageException, IllegalArgumentException;
@@ -452,7 +452,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      *
      * @param chunkName String name of the chunk to read from.
      * @return ChunkHandle A readable handle for the given chunk.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
     abstract protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException, IllegalArgumentException;
@@ -462,7 +462,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      *
      * @param chunkName String name of the chunk to write to or modify.
      * @return ChunkHandle A writable handle for the given chunk.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
     abstract protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException, IllegalArgumentException;
@@ -470,15 +470,15 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
     /**
      * Reads a range of bytes from the underlying chunk.
      *
-     * @param handle ChunkHandle of the chunk to read from.
-     * @param fromOffset Offset in the chunk from which to start reading.
-     * @param length Number of bytes to read.
-     * @param buffer Byte buffer to which data is copied.
+     * @param handle       ChunkHandle of the chunk to read from.
+     * @param fromOffset   Offset in the chunk from which to start reading.
+     * @param length       Number of bytes to read.
+     * @param buffer       Byte buffer to which data is copied.
      * @param bufferOffset Offset in the buffer at which to start copying read data.
      * @return int Number of bytes read.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
-     * @throws IllegalArgumentException If argument is invalid.
-     * @throws NullPointerException  If the parameter is null.
+     * @throws ChunkStorageException     Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws IllegalArgumentException  If argument is invalid.
+     * @throws NullPointerException      If the parameter is null.
      * @throws IndexOutOfBoundsException If the index is out of bounds.
      */
     abstract protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException, NullPointerException, IndexOutOfBoundsException;
@@ -489,9 +489,9 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      * @param handle ChunkHandle of the chunk to write to.
      * @param offset Offset in the chunk to start writing.
      * @param length Number of bytes to write.
-     * @param data An InputStream representing the data to write.
+     * @param data   An InputStream representing the data to write.
      * @return int Number of bytes written.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException     Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IndexOutOfBoundsException Throws IndexOutOfBoundsException in case of invalid index.
      */
     abstract protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException, IndexOutOfBoundsException;
@@ -502,7 +502,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      * @param chunks Array of ConcatArgument objects containing info about existing chunks to be concatenated together.
      *               The chunks must be concatenated in the same sequence the arguments are provided.
      * @return int Number of bytes concatenated.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
     abstract protected int doConcat(ConcatArgument[] chunks) throws ChunkStorageException, UnsupportedOperationException;
@@ -513,7 +513,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      * @param handle ChunkHandle of the chunk to truncate.
      * @param offset Offset to truncate to.
      * @return True if the object was truncated, false otherwise.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
     abstract protected boolean doTruncate(ChunkHandle handle, long offset) throws ChunkStorageException, UnsupportedOperationException;
@@ -521,10 +521,10 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
     /**
      * Sets readonly attribute for the chunk.
      *
-     * @param handle ChunkHandle of the chunk.
+     * @param handle     ChunkHandle of the chunk.
      * @param isReadOnly True if chunk is set to be readonly.
      * @return True if the operation was successful, false otherwise.
-     * @throws ChunkStorageException Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
     abstract protected boolean doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException;

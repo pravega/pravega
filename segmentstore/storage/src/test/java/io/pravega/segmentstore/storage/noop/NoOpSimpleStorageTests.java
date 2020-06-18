@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.noop;
 
@@ -24,7 +24,7 @@ public class NoOpSimpleStorageTests extends SimpleStorageTests {
         return new NoOpChunkStorageProvider();
     }
 
-    protected ChunkStorageProvider getChunkStorage()  throws Exception {
+    protected ChunkStorageProvider getChunkStorage() throws Exception {
         return getChunkStorageProvider();
     }
 
@@ -37,7 +37,7 @@ public class NoOpSimpleStorageTests extends SimpleStorageTests {
      * Unit tests for {@link NoOpChunkStorageProvider} using {@link ChunkManagerRollingTests}.
      */
     public static class NoOpRollingTests extends ChunkManagerRollingTests {
-        protected ChunkStorageProvider getChunkStorage()  throws Exception {
+        protected ChunkStorageProvider getChunkStorage() throws Exception {
             return getChunkStorageProvider();
         }
 

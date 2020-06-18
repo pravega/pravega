@@ -47,7 +47,7 @@ import static io.pravega.segmentstore.storage.metadata.StorageMetadata.toNullabl
  * This class implements system journaling functionality for critical storage system segments which is useful for bootstrap after failover.
  * It records any layout changes to storage system segments.
  * Storage system segments are the segments that the storage subsystem uses to store all metadata.
- * This create a circular dependency while reading or writing the data about these segment from the metadata segments..
+ * This creates a circular dependency while reading or writing the data about these segments from the metadata segments.
  * System journal is a mechanism to break this circular dependency by having independent log of all layout changes to system segments.
  * Currently only two actions are considered viz. Addition of new chunks and truncation of segments.
  * This log is replayed when the ChunkStorageManager is booted.

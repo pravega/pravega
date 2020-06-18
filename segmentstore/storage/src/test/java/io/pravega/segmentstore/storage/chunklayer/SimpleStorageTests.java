@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -35,7 +35,6 @@ import static io.pravega.test.common.AssertExtensions.assertMayThrow;
  *
  * The derived classes are expected to override getChunkStorage to return instance of specific type derived from ChunkStorageProvider.
  * In addition the method populate can be overriden to handle implementation specific logic. (Eg. NoOpChunkStorageProvider)
- *
  */
 @Slf4j
 public abstract class SimpleStorageTests extends StorageTestBase {
@@ -43,6 +42,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
     private static final int WRITE_COUNT = 5;
     ChunkStorageProvider chunkStorageProvider;
     ChunkMetadataStore chunkMetadataStore;
+
     /**
      * Creates a new instance of the Storage implementation to be tested. This will be cleaned up (via close()) upon
      * test termination.
@@ -66,6 +66,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      * Creates a new instance of Storage with forked metadata state.
      *
      * Any changes made inside forked instance are not visible in other instances. Useful for testing zombie scenarios.
+     *
      * @param storage Storage to fork.
      * @return New forked storage.
      * @throws Exception Exceptions in case of any errors.
@@ -85,7 +86,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      * @return A new instance of {@link InMemoryMetadataStore}.
      * @throws Exception Exceptions in case of any errors.
      */
-    protected ChunkMetadataStore getMetadataStore()  throws Exception {
+    protected ChunkMetadataStore getMetadataStore() throws Exception {
         return new InMemoryMetadataStore();
     }
 
@@ -96,7 +97,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      * @return Cloned instance of ChunkMetadataStore.
      * @throws Exception Exceptions in case of any errors.
      */
-    protected static ChunkMetadataStore getCloneMetadataStore(ChunkMetadataStore metadataStore)  throws Exception {
+    protected static ChunkMetadataStore getCloneMetadataStore(ChunkMetadataStore metadataStore) throws Exception {
         return InMemoryMetadataStore.clone((InMemoryMetadataStore) metadataStore);
     }
 
@@ -222,7 +223,6 @@ public abstract class SimpleStorageTests extends StorageTestBase {
         }
     }
 
-
     /**
      * Tests general GetInfoOperation behavior.
      */
@@ -302,7 +302,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
             Assert.assertEquals(segmentName, readHandle.getSegmentName());
             Assert.assertEquals(true, readHandle.isReadOnly());
             byte[] readBuffer = new byte[writeBuffer.length];
-            int bytesRead = s.read(readHandle, 0, readBuffer,  0, writeBuffer.length, null).get();
+            int bytesRead = s.read(readHandle, 0, readBuffer, 0, writeBuffer.length, null).get();
             Assert.assertEquals(writeBuffer.length, bytesRead);
             Assert.assertArrayEquals(writeBuffer, readBuffer);
         }
@@ -335,7 +335,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
             for (int i = 1; i <= 5; i++) {
                 int remaining = i;
                 while (remaining > 0) {
-                    int bytesRead = s.read(readHandle, totalBytesRead, readBuffer,  totalBytesRead, remaining, null).get();
+                    int bytesRead = s.read(readHandle, totalBytesRead, readBuffer, totalBytesRead, remaining, null).get();
                     remaining -= bytesRead;
                     totalBytesRead += bytesRead;
                 }
@@ -370,17 +370,17 @@ public abstract class SimpleStorageTests extends StorageTestBase {
             Assert.assertEquals(segmentName, readHandle.getSegmentName());
             Assert.assertTrue(readHandle.isReadOnly());
             byte[] readBuffer = new byte[writeBuffer.length];
-            int bytesRead = s.read(readHandle, 0, readBuffer,  0, writeBuffer.length, null).get();
+            int bytesRead = s.read(readHandle, 0, readBuffer, 0, writeBuffer.length, null).get();
             Assert.assertEquals(writeBuffer.length, bytesRead);
             Assert.assertArrayEquals(writeBuffer, readBuffer);
         }
     }
 
-
     //region synchronization unit tests
 
     /**
      * This test case simulates two hosts writing at the same offset at the same time.
+     *
      * @throws Exception if an unexpected error occurred.
      */
     @Test(timeout = 30000)
@@ -415,7 +415,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
                         !f1.isCompletedExceptionally() || !f2.isCompletedExceptionally());
                 offset += writeData.length;
             }
-            Assert.assertTrue( "Writes at the same offset are expected to be idempotent.",
+            Assert.assertTrue("Writes at the same offset are expected to be idempotent.",
                     s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength() == offset);
 
             offset = 0;

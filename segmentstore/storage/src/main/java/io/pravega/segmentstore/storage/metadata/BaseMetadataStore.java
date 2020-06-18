@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 
 package io.pravega.segmentstore.storage.metadata;
@@ -95,7 +95,6 @@ import java.util.stream.Collectors;
  * <li>A record marked as pinned by calling {@link MetadataTransaction#markPinned(StorageMetadata)} is never written to underlying storage.</li>
  * <li>In addition transaction can be committed using {@link MetadataTransaction#commit(boolean, boolean)} to skip validation step that reads any recently evicted changes from underlying storage.</li>
  * </ul>
- *
  */
 @Slf4j
 abstract public class BaseMetadataStore implements ChunkMetadataStore {
@@ -120,7 +119,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     private final AtomicBoolean fenced;
 
     /**
-     *  Monotonically increasing number. Keeps track of versions independent of external persistence or transaction mechanism.
+     * Monotonically increasing number. Keeps track of versions independent of external persistence or transaction mechanism.
      */
     private final AtomicLong version;
 
@@ -149,9 +148,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
 
     /**
      * Begins a new transaction.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
-     * @return Returns a new instance of MetadataTransaction.
      *
+     * @return Returns a new instance of MetadataTransaction.
+     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
     @Override
     public MetadataTransaction beginTransaction() throws StorageMetadataException {
@@ -161,7 +160,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
 
     /**
      * Commits given transaction.
-     * @param txn transaction to commit.
+     *
+     * @param txn       transaction to commit.
      * @param lazyWrite true if data can be written lazily.
      * @throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be commited.
      */
@@ -172,6 +172,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
 
     /**
      * Commits given transaction.
+     *
      * @param txn transaction to commit.
      * @throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be commited.
      */
@@ -182,7 +183,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
 
     /**
      * Commits given transaction.
-     * @param txn transaction to commit.
+     *
+     * @param txn       transaction to commit.
      * @param lazyWrite true if data can be written lazily.
      * @throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be commited.
      */
@@ -303,8 +305,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      *
      * @param txn Transaction.
      * @param key key to use to retrieve metadata.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
      * @return Metadata for given key. Null if key was not found.
+     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
     @Override
     public StorageMetadata get(MetadataTransaction txn, String key) throws StorageMetadataException {
@@ -348,6 +350,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
 
     /**
      * Loads value from store
+     *
      * @param key Key to load
      * @return Value if found null otherwise.
      * @throws StorageMetadataException Any exceptions.
@@ -390,6 +393,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
 
     /**
      * Writes transaction data from a given list to the metadata store.
+     *
      * @param dataList List of transaction data to write.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
@@ -398,7 +402,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Updates existing metadata.
      *
-     * @param txn Transaction.
+     * @param txn      Transaction.
      * @param metadata metadata record.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
@@ -425,7 +429,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Marks given record as pinned.
      *
-     * @param txn Transaction.
+     * @param txn      Transaction.
      * @param metadata metadata record.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
@@ -452,8 +456,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Creates a new metadata record.
      *
-     * @param txn Transaction.
-     * @param metadata  metadata record.
+     * @param txn      Transaction.
+     * @param metadata metadata record.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
     @Override
@@ -514,6 +518,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
 
     /**
      * Return whether record for the given key is pinned or not.
+     *
      * @param key Key to check.
      * @return True if record for the given key is pinned, false otherwise.
      */
@@ -523,6 +528,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
 
     /**
      * Retrieves the current version number.
+     *
      * @return current version number.
      */
     protected long getVersion() {
@@ -531,6 +537,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
 
     /**
      * Sets the current version number.
+     *
      * @param version Version to set.
      */
     protected void setVersion(long version) {

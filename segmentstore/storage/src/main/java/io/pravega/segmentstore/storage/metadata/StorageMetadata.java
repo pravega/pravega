@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.metadata;
 
@@ -27,22 +27,25 @@ public abstract class StorageMetadata implements Serializable {
 
     /**
      * Retrieves the key associated with the metadata.
+     *
      * @return key.
      */
     public abstract String getKey();
 
     /**
      * Creates a deep copy of this instance.
+     *
      * @return
      */
     public abstract StorageMetadata deepCopy();
 
     /**
      * Helper method that converts empty string to null value.
+     *
      * @param toConvert String to convert.
      * @return If toConvert is null then it returns empty string. Otherwise returns original string.
      */
-    public  static String toNullableString(String toConvert) {
+    public static String toNullableString(String toConvert) {
         if (toConvert.length() == 0) {
             return null;
         }
@@ -51,6 +54,7 @@ public abstract class StorageMetadata implements Serializable {
 
     /**
      * Helper method that converts null value to empty string.
+     *
      * @param toConvert String to convert.
      * @return If toConvert is null then it returns empty string. Otherwise returns original string.
      */
@@ -67,6 +71,7 @@ public abstract class StorageMetadata implements Serializable {
     public static class StorageMetadataSerializer extends VersionedSerializer.MultiType<StorageMetadata> {
         /**
          * Declare all supported serializers of subtypes.
+         *
          * @param builder A MultiType.Builder that can be used to declare serializers.
          */
         @Override
@@ -74,8 +79,8 @@ public abstract class StorageMetadata implements Serializable {
             // Unused values (Do not repurpose!):
             // - 0: Unsupported Serializer.
             builder.serializer(MockStorageMetadata.class, 1, new MockStorageMetadata.Serializer())
-                .serializer(ChunkMetadata.class, 2, new ChunkMetadata.Serializer())
-                .serializer(SegmentMetadata.class, 3, new SegmentMetadata.Serializer());
+                    .serializer(ChunkMetadata.class, 2, new ChunkMetadata.Serializer())
+                    .serializer(SegmentMetadata.class, 3, new SegmentMetadata.Serializer());
         }
     }
 }

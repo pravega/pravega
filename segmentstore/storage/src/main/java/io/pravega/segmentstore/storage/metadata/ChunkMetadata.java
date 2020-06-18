@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.metadata;
 
@@ -23,9 +23,9 @@ import java.io.IOException;
  * Represents chunk metadata.
  * Following metadata is stored.
  * <ul>
- *     <li>Name of the chunk.</li>
- *     <li>Length of the chunk.</li>
- *     <li>Name of the next chunk in list.</li>
+ * <li>Name of the chunk.</li>
+ * <li>Length of the chunk.</li>
+ * <li>Name of the next chunk in list.</li>
  * </ul>
  */
 @Builder(toBuilder = true)
@@ -49,6 +49,7 @@ public class ChunkMetadata extends StorageMetadata {
 
     /**
      * Retrieves the key associated with the metadata, which is the name of the chunk.
+     *
      * @return Name of the chunk.
      */
     @Override
@@ -58,6 +59,7 @@ public class ChunkMetadata extends StorageMetadata {
 
     /**
      * Creates a deep copy of this instance.
+     *
      * @return
      */
     @Override

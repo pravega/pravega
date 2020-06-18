@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -55,7 +55,8 @@ import java.util.stream.Collectors;
 /**
  * Implements storage for segments using {@link ChunkStorageProvider} and {@link ChunkMetadataStore}.
  * The metadata about the segments is stored in metadataStore using two types of records {@link SegmentMetadata} and {@link ChunkMetadata}.
- * Any changes to layout must be made inside a {@link MetadataTransaction} which will atomically change the records upon {@link MetadataTransaction#commit()}
+ * Any changes to layout must be made inside a {@link MetadataTransaction} which will atomically change the records upon
+ * {@link MetadataTransaction#commit()}.
  * Detailed design is documented here https://github.com/pravega/pravega/wiki/PDP-34:-Simplified-Tier-2
  */
 @Slf4j
@@ -175,35 +176,11 @@ public class ChunkStorageManager implements Storage {
         this.systemJournal = Preconditions.checkNotNull(systemJournal, "systemJournal");
     }
 
-    /**
-     * Initializes this instance with the given ContainerEpoch.
-     *
-     * @param containerEpoch The Container Epoch to initialize with.
-     */
     @Override
     public void initialize(long containerEpoch) {
         this.epoch = containerEpoch;
     }
 
-    /**
-     * Attempts to open the given Segment in read-write mode and make it available for use for this instance of the Storage
-     * adapter.
-     * A single active read-write SegmentHandle can exist at any given time for a particular Segment, regardless of owner,
-     * while a read-write SegmentHandle can coexist with any number of read-only SegmentHandles for that Segment (obtained
-     * by calling openRead()).
-     * This can be accomplished in a number of different ways based on the actual implementation of the Storage
-     * interface, but it can be compared to acquiring an exclusive lock on the given segment).
-     *
-     * @param streamSegmentName Name of the StreamSegment to be opened.
-     * @return A CompletableFuture that, when completed, will contain a read-write SegmentHandle that can be used to access
-     * the segment for read and write activities (ex: read, get, write, seal, concat).
-     * If the segment is sealed, then a Read-Only handle is returned.
-     * <p>
-     * If the operation failed, it will be failed with the cause of the failure. Notable exceptions:
-     * <ul>
-     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * </ul>
-     */
     @Override
     public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
         checkInitialized();
@@ -280,19 +257,6 @@ public class ChunkStorageManager implements Storage {
         txn.commit();
     }
 
-    /**
-     * Creates a new StreamSegment in this Storage Layer with the given Rolling Policy.
-     *
-     * @param streamSegmentName The full name of the StreamSegment.
-     * @param rollingPolicy     The Rolling Policy to apply to this StreamSegment.
-     * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain a read-write SegmentHandle that can be used to access
-     * * the segment for read and write activities (ex: read, get, write, seal, concat). If the operation failed, it will contain the cause of the
-     * failure. Notable exceptions:
-     * <ul>
-     * <li> StreamSegmentExistsException: When the given Segment already exists in Storage.
-     * </ul>
-     */
     @Override
     public CompletableFuture<SegmentHandle> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
         checkInitialized();
@@ -332,23 +296,6 @@ public class ChunkStorageManager implements Storage {
         });
     }
 
-    /**
-     * Writes the given data to the StreamSegment.
-     *
-     * @param handle  A read-write SegmentHandle that points to a Segment to write to.
-     * @param offset  The offset in the StreamSegment to write data at.
-     * @param data    An InputStream representing the data to write.
-     * @param length  The length of the InputStream.
-     * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
-     * it will contain the cause of the failure. Notable exceptions:
-     * <ul>
-     * <li> BadOffsetException: When the given offset does not match the actual length of the segment in storage.
-     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for this Segment (it was fenced out).
-     * </ul>
-     * @throws IllegalArgumentException If handle is read-only.
-     */
     @Override
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
         checkInitialized();
@@ -459,7 +406,7 @@ public class ChunkStorageManager implements Storage {
                         txn.update(segmentMetadata);
                         segmentMetadata.setLastChunkStartOffset(segmentMetadata.getLength());
 
-                        //
+                        // Clear flag for OwnershipChanged once first chunk after ownership change is written.
                         if (isFirstWriteAfterFailover) {
                             segmentMetadata.setOwnerEpoch(this.epoch);
                             isFirstWriteAfterFailover = false;
@@ -538,9 +485,9 @@ public class ChunkStorageManager implements Storage {
     }
 
     /**
-     * Gets whether given segment is a critical storage system segment.
+     * Gets whether given segment is a segment to used to storage system metadata.
      *
-     * @param segmentMetadata Meatadata for the segment.
+     * @param segmentMetadata Metadata for the segment.
      * @return True if this is a storage system segment.
      */
     private boolean isStorageSystemSegment(SegmentMetadata segmentMetadata) {
@@ -559,11 +506,11 @@ public class ChunkStorageManager implements Storage {
     private void addSystemLogRecord(ArrayList<SystemJournal.SystemJournalRecord> systemLogRecords, String streamSegmentName, long offset, String oldChunkName, String newChunkName) {
         systemLogRecords.add(
                 SystemJournal.ChunkAddedRecord.builder()
-                    .segmentName(streamSegmentName)
-                    .offset(offset)
-                    .oldChunkName(oldChunkName == null ? null : oldChunkName)
-                    .newChunkName(newChunkName)
-                    .build());
+                        .segmentName(streamSegmentName)
+                        .offset(offset)
+                        .oldChunkName(oldChunkName == null ? null : oldChunkName)
+                        .newChunkName(newChunkName)
+                        .build());
     }
 
     /**
@@ -588,19 +535,6 @@ public class ChunkStorageManager implements Storage {
         }
     }
 
-    /**
-     * Seals a StreamSegment. No further modifications are allowed on the StreamSegment after this operation completes.
-     *
-     * @param handle  A read-write SegmentHandle that points to a Segment to Seal.
-     * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation
-     * failed, it will contain the cause of the failure. Notable exceptions:
-     * <ul>
-     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for this Segment (it was fenced out).
-     * </ul>
-     * @throws IllegalArgumentException If handle is read-only.
-     */
     @Override
     public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
         checkInitialized();
@@ -636,27 +570,6 @@ public class ChunkStorageManager implements Storage {
         });
     }
 
-    /**
-     * Concatenates two StreamSegments together. The Source StreamSegment will be appended as one atomic block at the end
-     * of the Target StreamSegment (but only if its length equals the given offset), after which the Source StreamSegment
-     * will cease to exist. Prior to this operation, the Source StreamSegment must be sealed.
-     *
-     * @param targetHandle  A read-write SegmentHandle that points to the Target StreamSegment. After this operation
-     *                      is complete, this is the surviving StreamSegment.
-     * @param offset        The offset in the Target StreamSegment to concat at.
-     * @param sourceSegment The Source StreamSegment. This StreamSegment will be concatenated to the Target StreamSegment.
-     *                      After this operation is complete, this StreamSegment will no longer exist.
-     * @param timeout       Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
-     * it will contain the cause of the failure. Notable exceptions:
-     * <ul>
-     * <li> BadOffsetException: When the given offset does not match the actual length of the target segment in storage.
-     * <li> StreamSegmentNotExistsException: When the either the source Segment or the target Segment do not exist in Storage.
-     * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for the target Segment (it was fenced out).
-     * <li> IllegalStateException: When the Source Segment is not Sealed.
-     * </ul>
-     * @throws IllegalArgumentException If targetHandle is read-only.
-     */
     @Override
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
         checkInitialized();
@@ -769,29 +682,26 @@ public class ChunkStorageManager implements Storage {
     /**
      * Defragments the list of chunks for a given segment.
      * It finds eligible consecutive chunks that can be merged together.
-     * The sublist such elgible chunks is replaced with single new chunk record corresponding to new large chunk.
+     * The sublist of eligible chunks is replaced with single new chunk record corresponding to new large chunk.
      * Conceptually this is like deleting nodes from middle of the list of chunks.
      *
      * <Ul>
      * <li> In general without defrag the number of chunks in the system just keeps on increasing.
      * In addition when we have too many small chunks (say because too many small transactions), the segment is fragmented -
      * this may impact the read throughput but also performance of metadata store.
-     * This problem is further intensified when we have stores that do not support append semantics (eg. vanilla S3) and each write becomes a separate chunk.
+     * This problem is further intensified when we have stores that do not support append semantics (eg. vanilla S3) and
+     * each write becomes a separate chunk.
      * </li>
      * <li>
      * If underlying storage provides some facility to stitch together smaller chunks into larger chunks then we do actually
      * want to exploit that. Especially when this operation is supposed to be "metadata only operation" even for them.
-     * Obviously both ECS and S3 have MPU and is supposed to be metadata only operation for them.
+     * We want to leverage multi-part uploads in object stores that support it (e.g., AWS S3, Dell EMC ECS) as they are
+     * typically only metadata operations, reducing the overall cost of the merging them together.
      * HDFS also has native concat (I think metadata only). NFS has no concept of native concat.
-     * As chunks become larger, it no longer makes sense to concat them using append writes (read source completely and append -ie. write- it back at the end of target.)
+     * As chunks become larger, it no longer makes sense to concat them using append writes (read source completely and
+     * append -ie. write- it back at the end of target.)
      * We do not always use native concat to implement concat. We also use appends.
      * </li>
-     * <li>
-     * Ideally we want the defrag to be run in the background periodically and not on the write/concat path.
-     * We can then fine tune that background task to run optimally with low overhead.
-     * We might be able to give more knobs to tune its parameters (Eg. threshold on number of chunks).
-     * </li>
-     * <li>
      * <li>
      * Defrag operation will respect max rolling size and will not create chunks greater than that size.
      * </li>
@@ -805,7 +715,8 @@ public class ChunkStorageManager implements Storage {
      * This is indicated by supportsAppend.</li>
      * <li>Does ChunkStorageProvider support for concatenating chunks natively? This is indicated by supportsConcat.
      * If this is true then native concat operation concat will be invoked otherwise concatWithAppend is invoked.</li>
-     * <li>There are some obvious constraints - For ChunkStorageProvider support any concat functionality it must support either append or native concat.</li>
+     * <li>There are some obvious constraints - For ChunkStorageProvider support any concat functionality it must support
+     * either append or native concat.</li>
      * <li>Also when ChunkStorageProvider supports both native and append, ChunkStorageManager will invoke appropriate method
      * depending on size of target and source chunks. (Eg. ECS)</li>
      * </ul>
@@ -813,10 +724,14 @@ public class ChunkStorageManager implements Storage {
      * <li>
      * What controls defrag?
      * There are two additional parameters that control when native concat
-     * <li>minSizeLimitForNativeConcat : Size of chunk in bytes above which it is no longer considered a small object. For small source objects, concatWithAppend is used instead of using concat. (For really small txn it is rather efficient to use append than MPU).</li>
-     * <li>maxSizeLimitForNativeConcat: Size of chunk in bytes above which it is no longer considered for concat. (Eg S3 might have max limit on chunk size).</li>
-     * In short there is a size beyond which using append is not advisable. Conversely there is a size below which native concat is not efficient.(minSizeLimitForNativeConcat )
-     * Then there is limit which concating does not make sense maxSizeLimitForNativeConcat
+     * <li>minSizeLimitForConcat: Size of chunk in bytes above which it is no longer considered a small object.
+     * For small source objects, concatWithAppend is used instead of using concat. (For really small txn it is rather
+     * efficient to use append than MPU).</li>
+     * <li>maxSizeLimitForConcat: Size of chunk in bytes above which it is no longer considered for concat.
+     * (Eg S3 might have max limit on chunk size).</li>
+     * In short there is a size beyond which using append is not advisable.
+     * Conversely there is a size below which native concat is not efficient.(minSizeLimitForConcat )
+     * Then there is limit which concating does not make sense maxSizeLimitForConcat
      * </li>
      * <li>
      * What is the defrag algorithm
@@ -862,11 +777,11 @@ public class ChunkStorageManager implements Storage {
             while (null != nextChunkName) {
                 next = (ChunkMetadata) txn.get(nextChunkName);
 
-                if (useAppend && config.getMinSizeLimitForNativeConcat() < next.getLength()) {
+                if (useAppend && config.getMinSizeLimitForConcat() < next.getLength()) {
                     break;
                 }
 
-                if (targetSizeAfterConcat + next.getLength() > segmentMetadata.getMaxRollinglength() || next.getLength() > config.getMaxSizeLimitForNativeConcat()) {
+                if (targetSizeAfterConcat + next.getLength() > segmentMetadata.getMaxRollinglength() || next.getLength() > config.getMaxSizeLimitForConcat()) {
                     break;
                 }
 
@@ -875,10 +790,10 @@ public class ChunkStorageManager implements Storage {
 
                 nextChunkName = next.getNextChunk();
             }
-            // Note - After above while loop is exited nextChunkName points to chunk next to last one to be concat.
+            // Note - After above while loop exits, nextChunkName points to chunk next to last one to be concat.
             // Which means target should now point to it as next after concat is complete.
 
-            // If there are chunks that can be appended together then concat them.
+            // If there are chunks that can be appended together, then concat them.
             if (chunksToConcat.size() > 1) {
                 // Concat
 
@@ -943,19 +858,6 @@ public class ChunkStorageManager implements Storage {
         }
     }
 
-    /**
-     * Deletes a StreamSegment.
-     *
-     * @param handle  A read-write SegmentHandle that points to a Segment to Delete.
-     * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
-     * it will contain the cause of the failure. Notable exceptions:
-     * <ul>
-     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * <li> StorageNotPrimaryException: When this Storage instance is no longer primary for this Segment (it was fenced out).
-     * </ul>
-     * @throws IllegalArgumentException If handle is read-only.
-     */
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
         checkInitialized();
@@ -1013,24 +915,6 @@ public class ChunkStorageManager implements Storage {
         }
     }
 
-    /**
-     * Truncates all data in the given StreamSegment prior to the given offset. This does not fill the truncated data
-     * in the segment with anything, nor does it "shift" the remaining data to the beginning. After this operation is
-     * complete, any attempt to access the truncated data will result in an exception.
-     * <p>
-     * Notes:
-     * * Depending on implementation, this may not truncate at the exact offset. It may truncate at some point prior to
-     * the given offset, but it will never truncate beyond the offset.
-     *
-     * @param handle  A read-write SegmentHandle that points to a Segment to write to.
-     * @param offset  The offset in the StreamSegment to truncate to.
-     * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
-     * it will contain the cause of the failure. Notable exceptions:
-     * <ul>
-     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * </ul>
-     */
     @Override
     public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
         checkInitialized();
@@ -1137,41 +1021,16 @@ public class ChunkStorageManager implements Storage {
         });
     }
 
-    /**
-     * Gets a value indicating whether this Storage implementation can truncate Segments.
-     *
-     * @return True or false.
-     */
     @Override
     public boolean supportsTruncation() {
         return true;
     }
 
-    /**
-     * Lists all the segments stored on the storage device.
-     *
-     * @return Iterator that can be used to enumerate and retrieve properties of all the segments.
-     * @throws IOException if exception occurred while listing segments.
-     */
     @Override
     public Iterator<SegmentProperties> listSegments() throws IOException {
         throw new UnsupportedOperationException("listSegments is not yet supported");
     }
 
-    /**
-     * Opens the given Segment in read-only mode without acquiring any locks or blocking on any existing write-locks and
-     * makes it available for use for this instance of Storage.
-     * Multiple read-only Handles can coexist at any given time and allow concurrent read-only access to the Segment,
-     * regardless of whether there is another non-read-only SegmentHandle that modifies the segment at that time.
-     *
-     * @param streamSegmentName Name of the StreamSegment to be opened in read-only mode.
-     * @return A CompletableFuture that, when completed, will contain a read-only SegmentHandle that can be used to
-     * access the segment for non-modify activities (ex: read, get). If the operation failed, it will be failed with the
-     * cause of the failure. Notable exceptions:
-     * <ul>
-     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * </ul>
-     */
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
         checkInitialized();
@@ -1198,22 +1057,6 @@ public class ChunkStorageManager implements Storage {
         });
     }
 
-    /**
-     * Reads a range of bytes from the StreamSegment.
-     *
-     * @param handle       A SegmentHandle (read-only or read-write) that points to a Segment to read from.
-     * @param offset       The offset in the StreamSegment to read data from.
-     * @param buffer       A buffer to use for reading data.
-     * @param bufferOffset The offset in the buffer to start writing data to.
-     * @param length       The number of bytes to read.
-     * @param timeout      Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the number of bytes read. If the operation failed,
-     * it will contain the cause of the failure. Notable exceptions:
-     * <ul>
-     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * </ul>
-     * @throws ArrayIndexOutOfBoundsException If bufferOffset or bufferOffset + length are invalid for the buffer.
-     */
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         checkInitialized();
@@ -1332,17 +1175,6 @@ public class ChunkStorageManager implements Storage {
         });
     }
 
-    /**
-     * Gets current information about a StreamSegment.
-     *
-     * @param streamSegmentName The full name of the StreamSegment.
-     * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the information requested about the StreamSegment.
-     * If the operation failed, it will contain the cause of the failure. Notable exceptions:
-     * <ul>
-     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * </ul>
-     */
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         checkInitialized();
@@ -1369,14 +1201,6 @@ public class ChunkStorageManager implements Storage {
         });
     }
 
-    /**
-     * Determines whether the given StreamSegment exists or not.
-     *
-     * @param streamSegmentName The name of the StreamSegment.
-     * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the information requested. If the operation failed,
-     * it will contain the cause of the failure.
-     */
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
         checkInitialized();

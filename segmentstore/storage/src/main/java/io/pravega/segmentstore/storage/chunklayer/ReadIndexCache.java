@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -82,6 +82,7 @@ class ReadIndexCache {
 
     /**
      * Retrieves the read index for given segment.
+     *
      * @param streamSegmentName Name of the segment.
      * @return Read index correpsonding to the given segment. A new empty index is created if it doesn't already exist.
      */
@@ -107,6 +108,7 @@ class ReadIndexCache {
 
     /**
      * Gets total number of chunks in cache.
+     *
      * @return
      */
     public int getTotalChunksCount() {
@@ -115,6 +117,7 @@ class ReadIndexCache {
 
     /**
      * Gets total number of segments in cache.
+     *
      * @return
      */
     public int getTotalSegmentCount() {
@@ -123,6 +126,7 @@ class ReadIndexCache {
 
     /**
      * Gets oldest generation in cache.
+     *
      * @return
      */
     public long getOldestGeneration() {
@@ -131,6 +135,7 @@ class ReadIndexCache {
 
     /**
      * Gets current generation of cache.
+     *
      * @return
      */
     public long getCurrentGeneration() {
@@ -139,9 +144,10 @@ class ReadIndexCache {
 
     /**
      * Adds a new index entry for given a given chunk in a given segment.
+     *
      * @param streamSegmentName Name of the segment.
-     * @param chunkName Name of the chunk.
-     * @param startOffset Start offset of the chunk.
+     * @param chunkName         Name of the chunk.
+     * @param startOffset       Start offset of the chunk.
      */
     public void addIndexEntry(String streamSegmentName, String chunkName, long startOffset) {
         if (null != chunkName) {
@@ -165,6 +171,7 @@ class ReadIndexCache {
 
     /**
      * Updates read index for given segment with new entries.
+     *
      * @param streamSegmentName
      * @param newReadIndexEntries List of {@link ChunkNameOffsetPair} for new entries.
      */
@@ -189,6 +196,7 @@ class ReadIndexCache {
 
     /**
      * Removes the given segment from cache.
+     *
      * @param streamSegmentName
      */
     public void remove(String streamSegmentName) {
@@ -201,8 +209,9 @@ class ReadIndexCache {
 
     /**
      * Finds a chunk that is floor to the given offset.
+     *
      * @param streamSegmentName Name of the segment.
-     * @param offset Offset for which to search.
+     * @param offset            Offset for which to search.
      * @return
      */
     public ChunkNameOffsetPair findFloor(String streamSegmentName, long offset) {
@@ -222,6 +231,7 @@ class ReadIndexCache {
 
     /**
      * Truncate the read index for given segment by removing all the chunks that are below given offset.
+     *
      * @param streamSegmentName
      * @param startOffset
      */

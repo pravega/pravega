@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 
 package io.pravega.segmentstore.storage.metadata;
@@ -26,14 +26,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * <div>
  * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction()}
  * <ul>
- * <li>Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload of{@link MetadataTransaction#commit()}.</li>
+ * <li>Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload
+ * of{@link MetadataTransaction#commit()}.</li>
  * <li>Transaction is aborted automatically unless committed or when {@link MetadataTransaction#abort()} is called.</li>
  * <li>Transactions are atomic - either all changes in the transaction are committed or none at all.</li>
- * <li>In addition, Transactions provide snaphot isolation which means that transaction fails if any of the metadata records read during the transactions are changed outside the transaction after they were read.</li>
+ * <li>In addition, Transactions provide snaphot isolation which means that transaction fails if any of the metadata
+ * records read during the transactions are changed outside the transaction after they were read.</li>
  * </ul>
  * </div>
  * <div>
- * Within a transaction you can perform following actions on per record basis.
+ * Within a transaction you can perform following actions on a per record basis.
  * <ul>
  * <li>{@link MetadataTransaction#get(String)} Retrieves metadata using for given key.</li>
  * <li>{@link MetadataTransaction#create(StorageMetadata)} Creates a new record.</li>
@@ -45,13 +47,18 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <div>
  * Underlying implementation might buffer frequently or recently updated metadata keys to optimize read/write performance.
- * To further optimize it may provide "lazy committing" of changes where there is application specific way to recover from failures.(Eg. when only length of chunk is changed.)
- * In this case {@link MetadataTransaction#commit(boolean)} can be called.Note that otherwise for each commit the data is written to underlying key-value store.
+ * To further optimize it may provide "lazy committing" of changes where there is application specific way to recover
+ * from failures.(Eg. when only length of chunk is changed.)
+ * In this case {@link MetadataTransaction#commit(boolean)} can be called.Note that otherwise for each commit the data
+ * is written to underlying key-value store.
  *
- * There are two special methods provided to handle metadata about data segments for the underlying key-value store. They are useful in avoiding circular references.
+ * There are two special methods provided to handle metadata about data segments for the underlying key-value store.
+ * They are useful in avoiding circular references.
  * <ul>
- * <li>A record marked as pinned by calling {@link MetadataTransaction#markPinned(StorageMetadata)} is never written to underlying storage.</li>
- * <li>In addition transaction can be committed using {@link MetadataTransaction#commit(boolean, boolean)} to skip validation step that reads any recently evicted changes from underlying storage.</li>
+ * <li>A record marked as pinned by calling {@link MetadataTransaction#markPinned(StorageMetadata)} is never written to
+ * underlying storage.</li>
+ * <li>In addition transaction can be committed using {@link MetadataTransaction#commit(boolean, boolean)} to skip
+ * validation step that reads any recently evicted changes from underlying storage.</li>
  * </ul>
  * </div>
  */
@@ -97,7 +104,7 @@ public class MetadataTransaction implements AutoCloseable {
     /**
      * Constructor.
      *
-     * @param store Underlying metadata store.
+     * @param store   Underlying metadata store.
      * @param version Version number of the transactions.
      */
     public MetadataTransaction(ChunkMetadataStore store, long version) {
@@ -110,8 +117,8 @@ public class MetadataTransaction implements AutoCloseable {
      * Retrieves the metadata for given key.
      *
      * @param key key to use to retrieve metadata.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
      * @return Metadata for given key. Null if key was not found.
+     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
     public StorageMetadata get(String key) throws StorageMetadataException {
         return store.get(this, key);
@@ -130,7 +137,7 @@ public class MetadataTransaction implements AutoCloseable {
     /**
      * Creates a new metadata record.
      *
-     * @param metadata  metadata record.
+     * @param metadata metadata record.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
     public void create(StorageMetadata metadata) throws StorageMetadataException {
@@ -140,7 +147,7 @@ public class MetadataTransaction implements AutoCloseable {
     /**
      * Marks given record as pinned.
      *
-     * @param metadata  metadata record.
+     * @param metadata metadata record.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
     public void markPinned(StorageMetadata metadata) throws StorageMetadataException {
@@ -185,7 +192,7 @@ public class MetadataTransaction implements AutoCloseable {
     /**
      * Commits the transaction.
      *
-     * @param lazyWrite true if data can be written lazily.
+     * @param lazyWrite      true if data can be written lazily.
      * @param skipStoreCheck true if data is not to be reloaded from store.
      * @throws Exception If transaction could not be commited.
      */

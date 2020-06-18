@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 
 package io.pravega.segmentstore.storage.chunklayer;
@@ -37,7 +37,7 @@ public abstract class ChunkStorageProviderTests extends ThreadPooledTestSuite {
     /**
      * Derived classes should return appropriate {@link ChunkStorageProvider}.
      */
-    abstract protected ChunkStorageProvider createChunkStorageProvider()  throws Exception;
+    abstract protected ChunkStorageProvider createChunkStorageProvider() throws Exception;
 
     @Override
     @Before
@@ -57,6 +57,7 @@ public abstract class ChunkStorageProviderTests extends ThreadPooledTestSuite {
 
     /**
      * Populate the data.
+     *
      * @param data
      */
     protected void populate(byte[] data) {
@@ -213,42 +214,41 @@ public abstract class ChunkStorageProviderTests extends ThreadPooledTestSuite {
 
         AssertExtensions.assertThrows(
                 " read should throw exception.",
-                () ->  chunkStorage.read(chunkHandle, 0, -1, readBuffer, 0),
+                () -> chunkStorage.read(chunkHandle, 0, -1, readBuffer, 0),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 " read should throw exception.",
-                () ->  chunkStorage.read(chunkHandle, -1, 0, readBuffer, 0),
+                () -> chunkStorage.read(chunkHandle, -1, 0, readBuffer, 0),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 " read should throw exception.",
-                () ->  chunkStorage.read(chunkHandle, 0, 0, readBuffer, -1),
+                () -> chunkStorage.read(chunkHandle, 0, 0, readBuffer, -1),
                 ex -> ex instanceof IndexOutOfBoundsException);
 
         AssertExtensions.assertThrows(
                 " read should throw exception.",
-                () ->  chunkStorage.read(chunkHandle, 0, 0, null, 0),
+                () -> chunkStorage.read(chunkHandle, 0, 0, null, 0),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 " read should throw exception.",
-                () ->  chunkStorage.read(chunkHandle, 0, length + 1, readBuffer, 0),
+                () -> chunkStorage.read(chunkHandle, 0, length + 1, readBuffer, 0),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 " read should throw exception.",
-                () ->  chunkStorage.read(chunkHandle, 0, length, new byte[length - 1], 0),
+                () -> chunkStorage.read(chunkHandle, 0, length, new byte[length - 1], 0),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 " read should throw exception.",
-                () ->  chunkStorage.read(chunkHandle, 0, length, readBuffer, length),
+                () -> chunkStorage.read(chunkHandle, 0, length, readBuffer, length),
                 ex -> ex instanceof IndexOutOfBoundsException);
 
         chunkStorage.delete(chunkHandle);
     }
-
 
     /**
      * Test one simple scenario involving all operations.
@@ -293,7 +293,7 @@ public abstract class ChunkStorageProviderTests extends ThreadPooledTestSuite {
         assertEquals(totalBytesWritten, chunkInfoA.getLength());
 
         // Write some data to segment B
-        chunkStorage.write(handleB, 0,  bytes.length, new ByteArrayInputStream(bytes));
+        chunkStorage.write(handleB, 0, bytes.length, new ByteArrayInputStream(bytes));
         totalBytesWritten += bytes.length;
         ChunkInfo chunkInfoB = chunkStorage.getInfo(chunknameB);
         assertEquals(chunknameB, chunkInfoB.getName());
@@ -303,7 +303,7 @@ public abstract class ChunkStorageProviderTests extends ThreadPooledTestSuite {
         int totalBytesRead = 0;
         byte[] buffer = new byte[10];
         for (int i = 1; i < 5; i++) {
-            totalBytesRead += chunkStorage.read(handleA, totalBytesRead, i, buffer,  totalBytesRead);
+            totalBytesRead += chunkStorage.read(handleA, totalBytesRead, i, buffer, totalBytesRead);
         }
 
         // Concat
@@ -397,9 +397,9 @@ public abstract class ChunkStorageProviderTests extends ThreadPooledTestSuite {
         assertEquals(1, bytesWritten);
 
         AssertExtensions.assertThrows(
-            " write should throw IllegalArgumentException.",
-            () -> chunkStorage.write(ChunkHandle.readHandle(chunkName), 0, 1, new ByteArrayInputStream(new byte[1])),
-            ex -> ex instanceof IllegalArgumentException);
+                " write should throw IllegalArgumentException.",
+                () -> chunkStorage.write(ChunkHandle.readHandle(chunkName), 0, 1, new ByteArrayInputStream(new byte[1])),
+                ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 " delete should throw IllegalArgumentException.",
