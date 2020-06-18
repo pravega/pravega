@@ -10,6 +10,7 @@
 package io.pravega.client.security.auth;
 
 import com.google.gson.Gson;
+import io.pravega.test.common.JwtBody;
 import java.time.Instant;
 import org.junit.Test;
 

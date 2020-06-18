@@ -10,6 +10,7 @@
 package io.pravega.client.security.auth;
 
 import com.google.gson.Gson;
+import io.pravega.test.common.JwtBody;
 import java.util.Base64;
 
 public class JwtTestUtils {
