@@ -80,11 +80,27 @@ public abstract class AbstractBufferView implements BufferView {
      * own {@link BufferView.Reader} instances based on this class.
      */
     protected static abstract class AbstractReader implements BufferView.Reader {
+        /**
+         * {@inheritDoc}
+         * Default implementation for {@link Reader#readInt()}. Derived classes should make every effort to override this
+         * implementation with one that is as efficient as possible (if the {@link BufferView} implementation allows it).
+         *
+         * @return The read int.
+         * @throws EOFException If {@link #available()} is less than {@link Integer#BYTES}.
+         */
         @Override
         public int readInt() throws EOFException {
             return BitConverter.makeInt(readByte(), readByte(), readByte(), readByte());
         }
 
+        /**
+         * {@inheritDoc}
+         * Default implementation for {@link Reader#readLong()}. Derived classes should make every effort to override this
+         * implementation with one that is as efficient as possible (if the {@link BufferView} implementation allows it).
+         *
+         * @return The read int.
+         * @throws EOFException If {@link #available()} is less than {@link Long#BYTES}.
+         */
         @Override
         public long readLong() throws EOFException {
             return BitConverter.makeLong(readByte(), readByte(), readByte(), readByte(), readByte(), readByte(), readByte(), readByte());

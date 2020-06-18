@@ -332,6 +332,42 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
         }
 
         @Override
+        public int readInt() throws EOFException {
+            int arrayPos = getArrayOffset(this.position);
+            if (CompositeByteArraySegment.this.arraySize - arrayPos >= Integer.BYTES) {
+                int nextPos = this.position + Integer.BYTES;
+                if (nextPos > length) {
+                    throw new EOFException();
+                }
+
+                byte[] array = getArray(getArrayId(this.position), false);
+                int r = array == null ? 0 : BitConverter.readInt(array, arrayPos);
+                this.position = nextPos;
+                return r;
+            }
+
+            return super.readInt();
+        }
+
+        @Override
+        public long readLong() throws EOFException {
+            int arrayPos = getArrayOffset(this.position);
+            if (CompositeByteArraySegment.this.arraySize - arrayPos >= Long.BYTES) {
+                int nextPos = this.position + Long.BYTES;
+                if (nextPos > length) {
+                    throw new EOFException();
+                }
+
+                byte[] array = getArray(getArrayId(this.position), false);
+                long r = array == null ? 0 : BitConverter.readLong(array, arrayPos);
+                this.position = nextPos;
+                return r;
+            }
+
+            return super.readLong();
+        }
+
+        @Override
         public BufferView readSlice(int length) throws EOFException {
             try {
                 BufferView result = slice(this.position, length);

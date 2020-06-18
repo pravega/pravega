@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Predicate;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -218,7 +219,58 @@ public abstract class BufferViewTestBase {
     }
 
     /**
+     * Tests {@link AbstractBufferView.AbstractReader#readInt()}, {@link AbstractBufferView.AbstractReader#readLong()}
+     * and {@link AbstractBufferView.AbstractReader#readFully}.
+     *
+     * @throws Exception if an exception occurred.
+     */
+    @Test
+    public void testBufferViewReaderTypes() throws Exception {
+        val count = 987;
+        val data = new byte[count * (Integer.BYTES + Long.BYTES) / 2];
+        val writeBuffer = ByteBuffer.wrap(data);
+        val rnd = new Random(0);
+        val values = new ArrayList<Long>();
+        Predicate<Integer> isInteger = index -> index % 2 == 0;
+        for (int i = 0; i < count; i++) {
+            long value;
+            if (isInteger.test(i)) {
+                value = rnd.nextInt();
+                writeBuffer.putInt((int) value);
+            } else {
+                value = rnd.nextLong();
+                writeBuffer.putLong(value);
+            }
+
+            values.add(value);
+        }
+
+        @Cleanup("release")
+        val bufferView = toBufferView(new ByteArraySegment(data));
+
+        val reader = bufferView.getBufferViewReader();
+        int expectedAvailable = reader.available();
+        Assert.assertEquals(bufferView.getLength(), expectedAvailable);
+        for (int i = 0; i < count; i++) {
+            boolean isInt = isInteger.test(i);
+            long expectedValue = values.get(i);
+            long actualValue = isInt ? reader.readInt() : reader.readLong();
+            Assert.assertEquals("Unexpected value at index " + i, expectedValue, actualValue);
+
+            expectedAvailable -= isInt ? Integer.BYTES : Long.BYTES;
+            Assert.assertEquals("Unexpected Reader.available() after reading from index " + i, expectedAvailable, reader.available());
+        }
+
+        AssertExtensions.assertThrows("", reader::readInt, ex -> ex instanceof EOFException);
+        AssertExtensions.assertThrows("", reader::readLong, ex -> ex instanceof EOFException);
+
+        val allData = bufferView.getBufferViewReader().readFully(3);
+        Assert.assertEquals("Unexpected result from readFully", new ByteArraySegment(data), allData);
+    }
+
+    /**
      * Tests the ability of {@link BufferView} to return slices of itself.
+     *
      * @throws IOException if an exception occurred.
      */
     @Test

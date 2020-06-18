@@ -345,6 +345,29 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
         }
 
         @Override
+        public int readInt() throws EOFException {
+            int nextPos = this.position + Integer.BYTES;
+            if (nextPos > ByteArraySegment.this.length) {
+                throw new EOFException();
+            }
+            int r = BitConverter.readInt(ByteArraySegment.this.array, ByteArraySegment.this.startOffset + this.position);
+            this.position = nextPos;
+            return r;
+        }
+
+        @Override
+        public long readLong() throws EOFException {
+            int nextPos = this.position + Long.BYTES;
+            if (nextPos > ByteArraySegment.this.length) {
+                throw new EOFException();
+            }
+
+            long r = BitConverter.readLong(ByteArraySegment.this.array, ByteArraySegment.this.startOffset + this.position);
+            this.position = nextPos;
+            return r;
+        }
+
+        @Override
         public BufferView readSlice(int length) throws EOFException {
             try {
                 BufferView result = ByteArraySegment.this.slice(this.position, length);

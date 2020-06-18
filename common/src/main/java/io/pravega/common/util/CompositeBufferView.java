@@ -215,6 +215,30 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
         }
 
         @Override
+        public int readInt() throws EOFException {
+            BufferView.Reader current = getCurrent();
+            if (current != null && current.available() >= Integer.BYTES) {
+                this.available -= Integer.BYTES;
+                assert this.available >= 0;
+                return current.readInt();
+            }
+
+            return super.readInt();
+        }
+
+        @Override
+        public long readLong() throws EOFException {
+            BufferView.Reader current = getCurrent();
+            if (current != null && current.available() >= Long.BYTES) {
+                this.available -= Long.BYTES;
+                assert this.available >= 0;
+                return current.readLong();
+            }
+
+            return super.readLong();
+        }
+
+        @Override
         public BufferView readSlice(final int length) throws EOFException {
             if (length > available()) {
                 throw new EOFException();
