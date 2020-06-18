@@ -466,10 +466,10 @@ public class LocalController implements Controller {
             }
         });
     }
-
+    
     @Override
     public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
-        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
+        throw new UnsupportedOperationException();
     }
 
     @Override

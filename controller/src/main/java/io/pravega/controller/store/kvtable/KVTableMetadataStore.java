@@ -13,6 +13,7 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -165,6 +166,20 @@ public interface KVTableMetadataStore extends AutoCloseable {
     CompletableFuture<KeyValueTableConfiguration> getConfiguration(final String scope, final String name,
                                                             final KVTOperationContext context,
                                                             final Executor executor);
+
+    /**
+     * List existing KeyValueTables in scopes with pagination.
+     * This api continues listing KeyValueTables from the supplied continuation token
+     * and returns a count of limited list of KeyValueTables and a new continuation token.
+     *
+     * @param scopeName Name of the scope
+     * @param continuationToken continuation token
+     * @param limit limit on number of streams to return.
+     * @param executor executor
+     * @return A pair of list of KeyValueTables in scope with the continuation token.
+     */
+    CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final String scopeName, final String continuationToken,
+                                                             final int limit, final Executor executor);
 
     /**
      * Returns a Scope object from scope identifier.
