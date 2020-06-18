@@ -9,8 +9,11 @@
 package io.pravega.client.connection.impl;
 
 import com.google.common.base.Strings;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.ClientConfig;
+import io.pravega.common.Exceptions;
+import io.pravega.common.MathHelpers;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.CertificateUtils;
 import io.pravega.shared.protocol.netty.Append;
@@ -25,10 +28,10 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.SocketChannel;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -50,6 +53,8 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class TcpClientConnection implements ClientConnection {
 
+    private static final int TCP_BUFFER_SIZE = 256 * 1024;
+    
     private final Socket socket;
     private final CommandEncoder encoder;
     private final ConnectionReader reader;
@@ -57,18 +62,59 @@ public class TcpClientConnection implements ClientConnection {
     private final PravegaNodeUri location;
 
     private static class ConnectionReader {
+        
+        private static class IoBuffer {
+            private int maxBufferSize = WireCommands.MAX_WIRECOMMAND_SIZE;
+            private ByteBuffer buffer = null;
+            
+            private ByteBuf sliceOut(int size) {
+                ByteBuf result = Unpooled.wrappedBuffer(buffer.array(), buffer.arrayOffset() + buffer.position(), size);
+                buffer.position(buffer.position() + size);
+                if (!buffer.hasRemaining()) {
+                    buffer = null;
+                }
+                return result;
+            }
+            
+            public ByteBuf getBuffOfSize(InputStream in, int size) throws IOException {
+                if (size > maxBufferSize) {
+                    throw new IllegalArgumentException("Requested buffer size " + size + " is larger than maximum allowed"
+                            + maxBufferSize);
+                }
+                if (buffer == null) {
+                    int bufferSize = MathHelpers.minMax(in.available(), size, maxBufferSize);
+                    byte[] newBuffer = new byte[bufferSize];
+                    int read = in.read(newBuffer);
+                    buffer = ByteBuffer.wrap(newBuffer, 0, read); 
+                } 
+
+                if (buffer.remaining() >= size) {
+                    return sliceOut(size);
+                } else {
+                    int firstSize = buffer.remaining();
+                    ByteBuf first = sliceOut(firstSize);
+                    assert buffer == null; //Should have been fully sliced out
+                    byte[] remaining = new byte[size - firstSize];
+                    for (int offset = 0; offset < remaining.length;) {
+                        offset += in.read(remaining, offset, remaining.length - offset);
+                    }
+                    return Unpooled.wrappedBuffer(first, Unpooled.wrappedBuffer(remaining));
+                }
+            }
+            
+        }
 
         private final String name;
-        private final ReadableByteChannel channel;
+        private final InputStream in;
         private final ReplyProcessor callback;
         private final ScheduledExecutorService thread;
         private final AppendBatchSizeTracker batchSizeTracker;
         private final AtomicBoolean stop = new AtomicBoolean(false);
 
-        public ConnectionReader(String name, ReadableByteChannel channel, ReplyProcessor callback,
+        public ConnectionReader(String name, InputStream in, ReplyProcessor callback,
                                 AppendBatchSizeTracker batchSizeTracker) {
             this.name = name;
-            this.channel = channel;
+            this.in = in;
             this.callback = callback;
             this.thread = ExecutorServiceHelpers.newScheduledThreadPool(1, "Reading from " + name);
             this.batchSizeTracker = batchSizeTracker;
@@ -76,25 +122,25 @@ public class TcpClientConnection implements ClientConnection {
         
         public void start() {
             thread.submit(() -> {
+                IoBuffer buffer = new IoBuffer();
                 while (!stop.get()) {
                     try {
-                        ByteBuffer header = ByteBuffer.allocate(8);
-                        fillFromChannel(header, channel);
+                        ByteBuf header = buffer.getBuffOfSize(in, 8);
 
-                        int t = header.getInt();
+                        int t = header.getInt(0);
                         WireCommandType type = WireCommands.getType(t);
                         if (type == null) {
                             throw new InvalidMessageException("Unknown wire command: " + t);
                         }
 
-                        int length = header.getInt();
+                        int length = header.getInt(4);
                         if (length < 0 || length > WireCommands.MAX_WIRECOMMAND_SIZE) {
                             throw new InvalidMessageException("Event of invalid length: " + length);
                         }
 
-                        ByteBuffer payload = ByteBuffer.allocate(length);
-                        fillFromChannel(payload, channel);
-                        WireCommand command = type.readFrom(new EnhancedByteBufInputStream(Unpooled.wrappedBuffer(payload)), length);
+                        ByteBuf payload = buffer.getBuffOfSize(in, length);
+                        
+                        WireCommand command = type.readFrom(new EnhancedByteBufInputStream(payload), length);
                         if (command instanceof WireCommands.DataAppended) {
                             WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
                             batchSizeTracker.recordAck(dataAppended.getEventNumber());
@@ -111,13 +157,6 @@ public class TcpClientConnection implements ClientConnection {
                 }
             });
         }
-
-        private void fillFromChannel(ByteBuffer buff, ReadableByteChannel chan) throws IOException {
-            while (buff.hasRemaining()) {                
-                chan.read(buff);
-            }
-            buff.flip();
-        }
         
         public void stop() {
             stop.set(true);
@@ -130,13 +169,22 @@ public class TcpClientConnection implements ClientConnection {
                                               ScheduledExecutorService executor) {
         return CompletableFuture.supplyAsync(() -> {
             Socket socket = createClientSocket(location, clientConfig); 
-            SocketChannel channel = socket.getChannel();
-            AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
-            ConnectionReader reader = new ConnectionReader(location.toString(), channel, callback, batchSizeTracker);
-            reader.start();
-            CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, channel, 
+            try {
+                InputStream inputStream = socket.getInputStream();
+                AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
+                ConnectionReader reader = new ConnectionReader(location.toString(), inputStream, callback, batchSizeTracker);
+                reader.start();
+                CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, socket.getOutputStream(), 
                                                             executor);
-            return new TcpClientConnection(socket, encoder, reader, location);
+                return new TcpClientConnection(socket, encoder, reader, location);
+            } catch (IOException e) {
+                try {
+                    socket.close();
+                } catch (IOException e1) {
+                    log.warn("Failed to close socket while failing.", e1);
+                }
+                throw Exceptions.sneakyThrow(e);
+            }
         }, executor);
     }
 
@@ -169,8 +217,7 @@ public class TcpClientConnection implements ClientConnection {
                     trustMgrFactory != null ? trustMgrFactory.getTrustManagers() : null,
                     null);
 
-            SSLSocket s = (SSLSocket) tlsContext.getSocketFactory().createSocket(location.getEndpoint(), location.getPort());
-
+            SSLSocket s = (SSLSocket) tlsContext.getSocketFactory().createSocket();
             // SSLSocket does not perform hostname verification by default. So, we must explicitly enable it.
             if (clientConfig.isValidateHostName()) {
                 SSLParameters tlsParams = new SSLParameters();
@@ -180,9 +227,12 @@ public class TcpClientConnection implements ClientConnection {
             result = s;
 
         } else {
-            result = new Socket(location.getEndpoint(), location.getPort());
+            result = new Socket();
         }
+        result.setSendBufferSize(TCP_BUFFER_SIZE);
+        result.setReceiveBufferSize(TCP_BUFFER_SIZE);
         result.setTcpNoDelay(true);
+        result.connect(new InetSocketAddress(location.getEndpoint(), location.getPort()));
         return result;
     }
 
