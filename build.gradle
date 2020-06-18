@@ -330,6 +330,14 @@ project('segmentstore:storage:impl') {
 }
 
 project ('bindings') {
+    configurations.all {
+        resolutionStrategy {
+                force "com.google.inject.extensions:guice-assistedinject:3.0"
+                force "com.google.inject.extensions:guice-servlet:3.0"
+                force "com.google.inject:guice:3.0"
+                force "com.google.guava:guava:25.0-jre"
+        }
+    }
     dependencies {
         // For HDFS
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
