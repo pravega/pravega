@@ -23,6 +23,7 @@ import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -54,6 +55,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import static io.pravega.shared.protocol.netty.WireCommands.NULL_TABLE_SEGMENT_OFFSET;
 /**
  * A {@link ContainerTableExtension} that implements Table Segments on top of a {@link SegmentContainer}.
  */
@@ -194,22 +196,27 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     @Override
     public CompletableFuture<List<Long>> put(@NonNull String segmentName, @NonNull List<TableEntry> entries, Duration timeout) {
+        return put(segmentName, entries, NULL_TABLE_SEGMENT_OFFSET, timeout);
+    }
+
+    @Override
+    public CompletableFuture<List<Long>> put(@NonNull String segmentName, @NonNull List<TableEntry> entries, long tableSegmentOffset, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // Generate an Update Batch for all the entries (since we need to know their Key Hashes and relative offsets in
         // the batch itself).
         val updateBatch = batch(entries, TableEntry::getKey, this.serializer::getUpdateLength, TableKeyBatch.update());
-        logRequest("put", segmentName, updateBatch.isConditional(), updateBatch.isRemoval(), entries.size(), updateBatch.getLength());
+        logRequest("put", segmentName, updateBatch.isConditional(), tableSegmentOffset, updateBatch.isRemoval(), entries.size(), updateBatch.getLength());
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenComposeAsync(segment -> this.keyIndex.update(segment, updateBatch,
-                        () -> commit(entries, updateBatch.getLength(), this.serializer::serializeUpdate, segment, timer.getRemaining()), timer),
+                        () -> commit(entries, updateBatch.getLength(), this.serializer::serializeUpdate, segment, tableSegmentOffset, timer.getRemaining()), timer),
                         this.executor);
     }
 
     @Override
-    public CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, Duration timeout) {
+    public CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
@@ -220,9 +227,14 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenComposeAsync(segment -> this.keyIndex.update(segment, removeBatch,
-                        () -> commit(keys, removeBatch.getLength(), this.serializer::serializeRemoval, segment, timer.getRemaining()), timer),
+                        () -> commit(keys, removeBatch.getLength(), this.serializer::serializeRemoval, segment, tableSegmentOffset, timer.getRemaining()), timer),
                         this.executor)
                 .thenRun(Runnables.doNothing());
+    }
+
+    @Override
+    public CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, Duration timeout) {
+        return remove(segmentName, keys, NULL_TABLE_SEGMENT_OFFSET, timeout);
     }
 
     @Override
@@ -321,11 +333,17 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     private <T> CompletableFuture<Long> commit(Collection<T> toCommit, int serializationLength, BiConsumer<Collection<T>, byte[]> serializer,
-                                               DirectSegmentAccess segment, Duration timeout) {
+                                               DirectSegmentAccess segment, long tableSegmentOffset, Duration timeout) {
         assert serializationLength <= MAX_BATCH_SIZE;
-        byte[] s = new byte[serializationLength];
-        serializer.accept(toCommit, s);
-        return segment.append(new ByteArraySegment(s), null, timeout);
+        if (tableSegmentOffset == NULL_TABLE_SEGMENT_OFFSET || tableSegmentOffset == segment.getInfo().getLength()) {
+            byte[] s = new byte[serializationLength];
+            serializer.accept(toCommit, s);
+            return segment.append(new ByteArraySegment(s), null, tableSegmentOffset, timeout);
+        } else {
+            CompletableFuture<Long> future = new CompletableFuture<>();
+            future.completeExceptionally(new BadOffsetException(segment.getInfo().getName(), segment.getInfo().getLength(), tableSegmentOffset));
+            return future;
+        }
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, byte[] serializedState,

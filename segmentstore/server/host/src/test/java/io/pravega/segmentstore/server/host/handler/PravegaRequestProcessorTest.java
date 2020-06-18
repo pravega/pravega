@@ -659,8 +659,12 @@ public class PravegaRequestProcessorTest {
         e1 = TableEntry.versioned(keys.get(0), generateValue(rnd), 0L);
         cmd = getTableEntries(singletonList(e1));
         processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, tableSegmentName, "", cmd, WireCommands.NULL_TABLE_SEGMENT_OFFSET));
-        order.verify(connection).send(any());
+        ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
+        order.verify(connection).send(wireCommandsCaptor.capture());
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(true), any());
+
+        List<Long> keyVersions = ((WireCommands.TableEntriesUpdated) wireCommandsCaptor.getAllValues().get(0)).getUpdatedVersions();
+        assertTrue(keyVersions.size() == 1);
 
         // Test with key not present. The table store throws KeyNotExistsException.
         TableEntry e2 = TableEntry.versioned(keys.get(1), generateValue(rnd), 0L);
@@ -676,16 +680,19 @@ public class PravegaRequestProcessorTest {
 
         // Test with valid tableSegmentOffset.
         long tableSegmentOffset = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
-        TableEntry e4 = TableEntry.versioned(keys.get(0), generateValue(rnd), 10L);
+        TableEntry e4 = TableEntry.versioned(keys.get(0), generateValue(rnd), keyVersions.get(0));
         processor.updateTableEntries(new WireCommands.UpdateTableEntries(6, tableSegmentName, "", getTableEntries(singletonList(e4)), tableSegmentOffset));
-        order.verify(connection).send(any());
-        verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(true), any());
+        order.verify(connection).send(wireCommandsCaptor.capture());
+        verify(recorderMock, times(2)).updateEntries(eq(tableSegmentName), eq(1), eq(true), any());
 
+        keyVersions = ((WireCommands.TableEntriesUpdated) wireCommandsCaptor.getAllValues().get(1)).getUpdatedVersions();
+        assertTrue(keyVersions.size() == 1);
         // Test with invalid tableSegmentOffset.
-        TableEntry e5 = TableEntry.versioned(keys.get(0), generateValue(rnd), 10L);
+        TableEntry e5 = TableEntry.versioned(keys.get(0), generateValue(rnd), keyVersions.get(0));
         processor.updateTableEntries(new WireCommands.UpdateTableEntries(7, tableSegmentName, "", getTableEntries(singletonList(e5)), tableSegmentOffset - 1));
-        order.verify(connection).send(new WireCommands.SegmentIsTruncated(7, tableSegmentName, tableSegmentOffset, "", tableSegmentOffset - 1));
-        //verify(recorderMock, times(0)).updateEntries(eq(tableSegmentName), eq(1), eq(true), any());
+        long length = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
+        order.verify(connection).send(new WireCommands.SegmentIsTruncated(7, tableSegmentName, length, "", tableSegmentOffset - 1));
+        verify(recorderMock, times(2)).updateEntries(eq(tableSegmentName), eq(1), eq(true), any());
 
     }
 
@@ -744,6 +751,7 @@ public class PravegaRequestProcessorTest {
         segmentLength = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
         // BadOffsetException should be thrown, prompting a SegmentIsTruncated response.
         order.verify(connection).send(new WireCommands.SegmentIsTruncated(6, tableSegmentName, segmentLength, "", badOffset));
+        verify(recorderMock).removeKeys(eq(tableSegmentName), eq(1), eq(true), any());
     }
 
     @Test(timeout = 30000)

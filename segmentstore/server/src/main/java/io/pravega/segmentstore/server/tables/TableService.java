@@ -82,9 +82,23 @@ public class TableService extends SegmentContainerCollection implements TableSto
     }
 
     @Override
+    public CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, long tableSegmentOffset, Duration timeout) {
+        return invokeExtension(segmentName,
+                e -> e.put(segmentName, entries, tableSegmentOffset, timeout),
+                "put", segmentName, entries.size());
+    }
+
+    @Override
     public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, Duration timeout) {
         return invokeExtension(segmentName,
                 e -> e.remove(segmentName, keys, timeout),
+                "remove", segmentName, keys.size());
+    }
+
+    @Override
+    public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
+        return invokeExtension(segmentName,
+                e -> e.remove(segmentName, keys, tableSegmentOffset, timeout),
                 "remove", segmentName, keys.size());
     }
 
