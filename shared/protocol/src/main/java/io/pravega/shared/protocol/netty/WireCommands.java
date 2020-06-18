@@ -1736,7 +1736,7 @@ public final class WireCommands {
             for (int i = 0; i < numberOfKeys; i++) {
                 keys.add((TableKey) TableKey.readFrom(in, in.available()));
             }
-            long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
+            long tableSegmentOffset = (in.available() >= 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
             return new RemoveTableKeys(requestId, segment, delegationToken, keys, tableSegmentOffset);
         }

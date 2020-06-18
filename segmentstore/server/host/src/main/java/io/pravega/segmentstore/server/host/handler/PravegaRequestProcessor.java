@@ -652,7 +652,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 .thenAccept(versions -> {
                     connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions));
                     this.tableStatsRecorder.updateEntries(updateTableEntries.getSegment(), entries.size(), conditional.get(), timer.getElapsed());
-                }).exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, updateTableEntries.getTableSegmentOffset(), operation, e));
+                })
+                .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, updateTableEntries.getTableSegmentOffset(), operation, e));
     }
 
     @Override
@@ -681,7 +682,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             .thenRun(() -> {
                connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment));
                 this.tableStatsRecorder.removeKeys(removeTableKeys.getSegment(), keys.size(), conditional.get(), timer.getElapsed());
-            }).exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, removeTableKeys.getTableSegmentOffset(), operation, e));
+            })
+            .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, removeTableKeys.getTableSegmentOffset(), operation, e));
     }
 
     @Override
