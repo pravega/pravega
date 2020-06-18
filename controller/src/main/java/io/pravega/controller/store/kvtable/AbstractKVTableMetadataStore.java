@@ -175,6 +175,12 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
         return Futures.completeOn(getKVTable(scope, name, context).getConfiguration(), executor);
     }
 
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(String scopeName, String continuationToken,
+                                                                    int limit, Executor executor) {
+        return getScope(scopeName).listKeyValueTables(limit, continuationToken, executor);
+    }
+
     /**
      * This method retrieves a safe base segment number from which a stream's segment ids may start. In the case of a
      * new stream, this method will return 0 as a starting segment number (default). In the case that a stream with the

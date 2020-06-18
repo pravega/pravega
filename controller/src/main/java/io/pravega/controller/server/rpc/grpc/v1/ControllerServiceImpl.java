@@ -145,6 +145,66 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void listKeyValueTablesInScope(Controller.KVTablesInScopeRequest request, StreamObserver<Controller.KVTablesInScopeResponse> responseObserver) {
+
+        String scopeName = request.getScope().getScope();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "listKeyValueTables", scopeName);
+        log.info(requestTag.getRequestId(), "listKeyValueTables called for scope {}.", scopeName);
+
+        final AuthContext ctx;
+        if (this.grpcAuthHelper.isAuthEnabled()) {
+            ctx = AuthContext.current();
+        } else {
+            ctx = null;
+        }
+
+        authenticateExecuteAndProcessResults(
+                () -> {
+                    String result = this.grpcAuthHelper.checkAuthorization(
+                            AuthResourceRepresentation.ofScope(scopeName),
+                            AuthHandler.Permissions.READ,
+                            ctx);
+                    log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                            AuthResourceRepresentation.ofScope(scopeName), result);
+                    return result;
+                },
+                delegationToken -> controllerService
+                        .listKeyValueTables(scopeName, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
+                        .handle((response, ex) -> {
+                            if (ex != null) {
+                                if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
+                                    return Controller.KVTablesInScopeResponse.newBuilder().setStatus(Controller.KVTablesInScopeResponse.Status.SCOPE_NOT_FOUND).build();
+                                } else {
+                                    throw new CompletionException(ex);
+                                }
+                            } else {
+                                log.debug("All KeyValueTables in scope with continuation token: {}", response);
+                                List<KeyValueTableInfo> kvtables = response
+                                        .getKey().stream()
+                                        .filter(kvtName -> {
+                                            String kvtAuthResource =
+                                                    AuthResourceRepresentation.ofKeyValueTableInScope(scopeName, kvtName);
+
+                                            boolean isAuthorized = grpcAuthHelper.isAuthorized(kvtAuthResource,
+                                                    AuthHandler.Permissions.READ, ctx);
+                                            log.debug("Authorization for [{}] for READ permission was [{}]",
+                                                    kvtAuthResource, isAuthorized);
+                                            return isAuthorized;
+                                        })
+                                        .map(m -> KeyValueTableInfo.newBuilder().setScope(scopeName).setKvtName(m).build())
+                                        .collect(Collectors.toList());
+                                return Controller.KVTablesInScopeResponse
+                                        .newBuilder().addAllKvtables(kvtables)
+                                        .setContinuationToken(Controller.ContinuationToken.newBuilder()
+                                                .setToken(response.getValue()).build())
+                                        .setStatus(Controller.KVTablesInScopeResponse.Status.SUCCESS).build();
+                            }
+                        }), responseObserver, requestTag);
+
+    }
+
+    @Override
     public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {
         String scope = request.getStreamInfo().getScope();
         String stream = request.getStreamInfo().getStream();

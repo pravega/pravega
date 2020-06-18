@@ -147,4 +147,10 @@ public class InMemoryScope implements Scope {
     @Override
     public void refresh() {
     }
+
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(int limit, String continuationToken, Executor executor) {
+        List<String> kvTablesList = kvTablesMap.keySet().stream().collect(Collectors.toList());
+        return CompletableFuture.completedFuture(new ImmutablePair<>(kvTablesList, continuationToken));
+    }
 }

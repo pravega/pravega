@@ -184,4 +184,24 @@ public class PravegaTablesScope implements Scope {
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, kvt, id)));
     }
 
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(int limit, String continuationToken,
+                                                                            Executor executor) {
+        List<String> taken = new ArrayList<>();
+        AtomicReference<String> token = new AtomicReference<>(continuationToken);
+        AtomicBoolean canContinue = new AtomicBoolean(true);
+        return getKVTablesInScopeTableName()
+                .thenCompose(kvtablesInScopeTable -> storeHelper.getKeysPaginated(kvtablesInScopeTable,
+                        Unpooled.wrappedBuffer(Base64.getDecoder().decode(token.get())), limit)
+                        .thenApply(result -> {
+                            if (result.getValue().isEmpty()) {
+                                canContinue.set(false);
+                            } else {
+                                taken.addAll(result.getValue());
+                            }
+                            token.set(Base64.getEncoder().encodeToString(result.getKey().array()));
+                            return new ImmutablePair<>(taken, token.get());
+                        }));
+    }
+
 }

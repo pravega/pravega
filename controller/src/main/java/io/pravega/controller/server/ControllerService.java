@@ -131,6 +131,19 @@ public class ControllerService {
                 .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, kvtName), executor);
     }
 
+    /**
+     * List existing KeyValueTables in specified scope.
+     *
+     * @param scope Name of the scope.
+     * @param token continuation token
+     * @param limit limit for number of KeyValueTables to return.
+     * @return List of KeyValueTables in scope.
+     */
+    public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final String scope, final String token, final int limit) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        return kvtMetadataStore.listKeyValueTables(scope, token, limit, executor);
+    }
+
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
             final long createTimestamp) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
