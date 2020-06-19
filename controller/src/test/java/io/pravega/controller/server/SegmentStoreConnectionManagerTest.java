@@ -11,7 +11,6 @@ package io.pravega.controller.server;
 
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.Flow;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.SegmentStoreConnectionManager.ConnectionWrapper;
 import io.pravega.controller.server.SegmentStoreConnectionManager.ReusableReplyProcessor;

@@ -808,6 +808,13 @@ public class SegmentHelperTest {
         }
 
         @Override
+        public CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri uri, ReplyProcessor rp) {
+            this.rp = rp;
+            this.connection = new MockConnection(rp, failConnection);
+            return CompletableFuture.completedFuture(connection);
+        }
+        
+        @Override
         public ScheduledExecutorService getInternalExecutor() {
             return null;
         }
@@ -817,12 +824,6 @@ public class SegmentHelperTest {
             if (connection != null) {
                 connection.close();
             }
-        }
-
-        @Override
-        public CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri uri, ReplyProcessor rp) {
-            // TODO Auto-generated method stub
-            return null;
         }
 
         @Override
