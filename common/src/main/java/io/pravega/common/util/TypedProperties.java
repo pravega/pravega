@@ -125,27 +125,35 @@ public class TypedProperties {
     }
 
     private <T> T tryGet(Property<T> property, Function<String, T> converter) {
-        String fullKeyName = this.keyPrefix + property.getName();
+        String propNewName = this.keyPrefix + property.getName();
+        String propOldName = this.keyPrefix + property.getLegacyName();
+        String propValue = null;
 
-        // Get value from config.
-        String value = this.properties.getProperty(fullKeyName, null);
-
-        if (value == null && property.hasLegacyName()) {
-            value = this.properties.getProperty(this.keyPrefix + property.getLegacyName(), null);
+        if (property.hasLegacyName()) {
+            // Value of property with old name
+            propValue = this.properties.getProperty(propOldName, null);
         }
-        if (value == null) {
-            // 2. Nothing in the configuration for this Property.
+
+        if (propValue == null) {
+            // Value of property with new name
+            propValue = this.properties.getProperty(propNewName, null);
+        }
+
+        // A property with neither old not new name was defined, so the property value is still null
+        if (propValue == null) {
             if (property.hasDefaultValue()) {
                 return property.getDefaultValue();
             } else {
-                throw new MissingPropertyException(fullKeyName);
+                throw new MissingPropertyException(
+                        String.format("Missing property with name [%s] (new name) / [%s] (old name}",
+                        propNewName, propOldName));
             }
         }
 
         try {
-            return converter.apply(value.trim());
+            return converter.apply(propValue.trim());
         } catch (IllegalArgumentException ex) {
-            throw new InvalidPropertyValueException(fullKeyName, value, ex);
+            throw new InvalidPropertyValueException(propNewName, propValue, ex);
         }
     }
 
