@@ -301,7 +301,7 @@ public class SegmentMetadataClientTest {
         ClientConnection connection1 = mock(ClientConnection.class);
         ClientConnection connection2 = mock(ClientConnection.class);
         AtomicReference<ReplyProcessor> processor = new AtomicReference<>();
-        Mockito.when(cf.getClientConnection(Mockito.eq(endpoint), Mockito.any()))
+        Mockito.when(cf.getClientConnection(Mockito.any(), Mockito.eq(endpoint), Mockito.any()))
                .thenReturn(Futures.failedFuture(new ConnectionFailedException()))
                .thenReturn(CompletableFuture.completedFuture(connection1))
                .thenAnswer(new Answer<CompletableFuture<ClientConnection>>() {
@@ -318,8 +318,7 @@ public class SegmentMetadataClientTest {
                 WireCommands.GetStreamSegmentInfo request = invocation.getArgument(0);
                 requestIds.add(request.getRequestId());
                 if (requestIds.size() == 1) {
-                    ClientConnection.CompletedCallback callback = invocation.getArgument(1);
-                    callback.complete(new ConnectionFailedException());
+                    throw new ConnectionFailedException();
                 } else {
                     processor.get().process(new StreamSegmentInfo(request.getRequestId(), segment.getScopedName(), true, false, false, 0,
                                                                   123, 121));

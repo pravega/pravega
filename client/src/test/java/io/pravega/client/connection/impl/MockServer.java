@@ -13,6 +13,7 @@ import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.test.common.TestUtils;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -57,7 +58,7 @@ class MockServer implements AutoCloseable {
                 WireCommand command = TcpClientConnection.ConnectionReader.readCommand(stream, buffer);
                 readCommands.add(command);
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             stop.set(true);
         }
     }
