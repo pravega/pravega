@@ -74,8 +74,9 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.slf4j.LoggerFactory;
-
+import org.apache.commons.lang3.tuple.Pair;
 /**
  * gRPC Service API implementation for the Controller.
  */
@@ -169,8 +170,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             AuthResourceRepresentation.ofScope(scopeName), result);
                     return result;
                 },
-                delegationToken -> controllerService
-                        .listKeyValueTables(scopeName, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
+                delegationToken -> listKeyValueTablesTillLimit(listStreamsInScopeLimit, scopeName,
+                                                                request.getContinuationToken().getToken(), ctx)
                         .handle((response, ex) -> {
                             if (ex != null) {
                                 if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
@@ -179,23 +180,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                     throw new CompletionException(ex);
                                 }
                             } else {
-                                log.debug("All KeyValueTables in scope with continuation token: {}", response);
-                                List<KeyValueTableInfo> kvtables = response
-                                        .getKey().stream()
-                                        .filter(kvtName -> {
-                                            String kvtAuthResource =
-                                                    AuthResourceRepresentation.ofKeyValueTableInScope(scopeName, kvtName);
-
-                                            boolean isAuthorized = grpcAuthHelper.isAuthorized(kvtAuthResource,
-                                                    AuthHandler.Permissions.READ, ctx);
-                                            log.debug("Authorization for [{}] for READ permission was [{}]",
-                                                    kvtAuthResource, isAuthorized);
-                                            return isAuthorized;
-                                        })
-                                        .map(m -> KeyValueTableInfo.newBuilder().setScope(scopeName).setKvtName(m).build())
+                                List<KeyValueTableInfo> kvTablesList = response.getLeft().stream()
+                                        .map(kvt -> KeyValueTableInfo.newBuilder().setScope(scopeName).setKvtName(kvt).build())
                                         .collect(Collectors.toList());
                                 return Controller.KVTablesInScopeResponse
-                                        .newBuilder().addAllKvtables(kvtables)
+                                        .newBuilder().addAllKvtables(kvTablesList)
                                         .setContinuationToken(Controller.ContinuationToken.newBuilder()
                                                 .setToken(response.getValue()).build())
                                         .setStatus(Controller.KVTablesInScopeResponse.Status.SUCCESS).build();
@@ -586,7 +575,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                 return Controller.StreamsInScopeResponse
                                         .newBuilder().addAllStreams(streams)
                                         .setContinuationToken(Controller.ContinuationToken.newBuilder()
-                                                                                          .setToken(response.getValue()).build())
+                                                                .setToken(response.getValue()).build())
                                         .setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS).build();
                             }
                         }), responseObserver, requestTag);
@@ -744,6 +733,38 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         } else {
             log.error("Controller API call with tag {} failed with error: ", tag, cause);
         }
+    }
+
+    private CompletableFuture<Pair<List<String>, String>> listKeyValueTablesTillLimit(int limit, String scopeName,
+                                                                                      String token, final AuthContext ctx) {
+        return controllerService
+                .listKeyValueTables(scopeName, token, limit)
+                .thenCompose( response -> {
+                    log.debug("All KeyValueTables in scope with continuation token: {}", response.getRight());
+                    List<String> filteredKVTList = getAuthorizedKeyValueTables(scopeName, response.getKey(), ctx);
+                    if (filteredKVTList.size() < limit) {
+                        listKeyValueTablesTillLimit(listStreamsInScopeLimit - limit, scopeName, token, ctx)
+                                .thenApply( kvtPair -> {
+                                    filteredKVTList.addAll(kvtPair.getKey());
+                                    return new ImmutablePair<>(filteredKVTList, kvtPair.getRight());
+                                });
+                    }
+                    return CompletableFuture.completedFuture(new ImmutablePair<>(filteredKVTList, token));
+                });
+    }
+
+    private List<String> getAuthorizedKeyValueTables(String scopeName, List<String> kvtList, AuthContext ctx) {
+        return kvtList.stream()
+                .filter(kvtName -> {
+                    String kvtAuthResource =
+                            AuthResourceRepresentation.ofKeyValueTableInScope(scopeName, kvtName);
+
+                    boolean isAuthorized = grpcAuthHelper.isAuthorized(kvtAuthResource,
+                            AuthHandler.Permissions.READ, ctx);
+                    log.debug("Authorization for [{}] for READ permission was [{}]",
+                            kvtAuthResource, isAuthorized);
+                    return isAuthorized;
+                }).collect(Collectors.toList());
     }
 
     private boolean isAuthEnabled() {

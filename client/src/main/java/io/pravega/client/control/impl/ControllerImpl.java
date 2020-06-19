@@ -1448,7 +1448,7 @@ public class ControllerImpl implements Controller {
                     .createKeyValueTable(kvtConfig, callback);
         }
 
-        public void listKeyValueTables(KVTablesInScopeRequest request,
+        void listKeyValueTables(KVTablesInScopeRequest request,
                                        RPCAsyncCallback<KVTablesInScopeResponse> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .listKeyValueTablesInScope(request, callback);

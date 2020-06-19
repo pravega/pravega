@@ -333,12 +333,6 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 "",
                 () -> this.testController.deleteKeyValueTable("", ""),
                 ex -> ex instanceof UnsupportedOperationException);
-
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.testController.listKeyValueTables(""),
-                ex -> ex instanceof UnsupportedOperationException);
-
     }
 
     @Test
