@@ -664,7 +664,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         if (!verifyToken(segment, removeTableKeys.getRequestId(), removeTableKeys.getDelegationToken(), operation)) {
             return;
         }
-        val segmentInfo = segmentStore.getStreamSegmentInfo(segment, TIMEOUT);
 
         log.info(removeTableKeys.getRequestId(), "Removing table keys {}.", removeTableKeys);
         val keys = new ArrayList<TableKey>(removeTableKeys.getKeys().size());
