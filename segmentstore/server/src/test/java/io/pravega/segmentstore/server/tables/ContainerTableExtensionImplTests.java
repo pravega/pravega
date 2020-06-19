@@ -18,6 +18,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -67,6 +68,7 @@ import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -76,6 +78,7 @@ import org.junit.rules.Timeout;
 /**
  * Unit tests for the {@link ContainerTableExtensionImpl} class.
  */
+@Slf4j
 public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1;
     private static final long SEGMENT_ID = 2L;
@@ -185,6 +188,45 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 "seal() is implemented.",
                 () -> context.ext.seal(SEGMENT_NAME, TIMEOUT),
                 ex -> ex instanceof UnsupportedOperationException);
+    }
+
+    /**
+     * Tests operations that currently accept an offset argument, and whether they fail expectedly.
+     */
+    @Test
+    public void testOffsetAcceptingMethods() {
+        @Cleanup
+        val context = new TestContext();
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
+        val key1 = new ByteArraySegment("key1".getBytes());
+        val key2 = new ByteArraySegment("key2".getBytes());
+        val value = new ByteArraySegment("value".getBytes());
+        val v1 = context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.notExists(key1, value)), TIMEOUT).join();
+
+        // key1 is present.
+        AssertExtensions.assertSuppliedFutureThrows(
+                "deleteSegment(mustBeEmpty==true) worked with non-empty segment #1.",
+                () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
+                ex -> ex instanceof TableSegmentNotEmptyException);
+
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Called a put operation using an invalid offset.",
+                () -> context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.versioned(key1, value, v1.get(0))), 0L, TIMEOUT),
+                ex -> ex instanceof BadOffsetException
+        );
+
+        val v2 = context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.notExists(key2, value)), TIMEOUT).join();
+        // Remove k1.
+        context.ext.remove(SEGMENT_NAME, Collections.singletonList(TableKey.versioned(key1, v1.get(0))), TIMEOUT).join();
+        // Make sure its been removed.
+        val entries = context.ext.get(SEGMENT_NAME, Collections.singletonList(key1), TIMEOUT).join();
+        Assert.assertTrue(entries.size() == 1);
+        // Remove k2 using invalid offset.
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Called a put operation using an invalid offset.",
+                () -> context.ext.remove(SEGMENT_NAME, Collections.singletonList(TableKey.versioned(key2, v2.get(0))), 0L, TIMEOUT),
+                ex -> ex instanceof BadOffsetException
+        );
     }
 
     /**
