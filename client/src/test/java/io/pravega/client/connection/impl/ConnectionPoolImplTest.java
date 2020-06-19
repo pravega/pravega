@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.netty.impl;
+package io.pravega.client.connection.impl;
 //
 //import io.netty.handler.ssl.SslContext;
 //import io.pravega.client.ClientConfig;
