@@ -49,7 +49,7 @@ public class ClientConnectionTest {
             falure.set(true);
         }
     }
-    
+
     @Test(timeout = 10000)
     public void testConnectionSetup() throws Exception {
         ReplyProcessor processor = new ReplyProcessor();
@@ -75,72 +75,72 @@ public class ClientConnectionTest {
         assertFalse(processor.falure.get());
     }
 
-//    @Test
-//    public void testAppendThrows() throws Exception {
-//        ReplyProcessor processor = new ReplyProcessor(); 
-//        Flow flow = new Flow(10, 0);
-//        FlowHandler flowHandler = new FlowHandler("testConnection");
-//        @Cleanup
-//        ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
-//        EmbeddedChannel embeddedChannel = createChannelWithContext(flowHandler);
-//        embeddedChannel.runScheduledPendingTasks();
-//        embeddedChannel.runPendingTasks();
-//        Queue<Object> messages = embeddedChannel.outboundMessages();
-//        assertEquals(1, messages.size());
-//        clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));
-//        embeddedChannel.runPendingTasks();
-//        clientConnection.send(new Append("segment", new UUID(1, 2), 1, new Event(Unpooled.EMPTY_BUFFER), 2));
-//        embeddedChannel.disconnect();
-//        embeddedChannel.runPendingTasks();
-//        assertTrue(processor.falure.get());
-//    }
-//
-//    
-//    static EmbeddedChannel createChannelWithContext(ChannelInboundHandlerAdapter handler) {
-//        return new EmbeddedChannel(new ExceptionLoggingHandler(""), new CommandEncoder(null, NO_OP_METRIC_NOTIFIER),
-//                                   new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4), new CommandDecoder(),
-//                                   new AppendDecoder(), handler);
-//    }
-//    
-//    @Test
-//    public void testThread() throws ConnectionFailedException {
-//        ReplyProcessor processor = new ReplyProcessor(); 
-//        Flow flow = new Flow(10, 0);
-//        FlowHandler flowHandler = new FlowHandler("testConnection");
-//        byte[] payload = new byte[100];
-//        @Cleanup
-//        ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
-//        List<String> threadIds = new Vector<>();
-//        ChannelDuplexHandler spy = new ChannelDuplexHandler() {
-//            @Override
-//            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-//                threadIds.add(Thread.currentThread().getName());
-//                super.write(ctx, msg, promise);
-//            }
-//
-//            @Override
-//            public void flush(ChannelHandlerContext ctx) throws Exception {
-//                threadIds.add(Thread.currentThread().getName());
-//                super.flush(ctx);
-//            }
-//        };
-//        EmbeddedChannel embeddedChannel = new EmbeddedChannel(spy, new CommandEncoder(null, NO_OP_METRIC_NOTIFIER),
-//                                                              new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4), new CommandDecoder(),
-//                                                              new AppendDecoder(), flowHandler);
-//        clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));
-//        for (int i = 0; i < 100; i++) {
-//            clientConnection.send(new Append("segment", new UUID(1, 2), i, new Event(Unpooled.wrappedBuffer(payload)), 2));
-//            embeddedChannel.runPendingTasks();
-//        }
-//        assertTrue(threadIds.size() > 100);
-//        Queue<Object> messages = embeddedChannel.outboundMessages();
-//        assertEquals(102, messages.size());
-//        assertFalse(processor.falure.get());
-//        HashSet<String> uniqueThreads = new HashSet<>();
-//        for (String threadId : threadIds) {
-//            uniqueThreads.add(threadId);
-//        }
-//        assertEquals(1, uniqueThreads.size());
-//    }
+    //    @Test
+    //    public void testAppendThrows() throws Exception {
+    //        ReplyProcessor processor = new ReplyProcessor(); 
+    //        Flow flow = new Flow(10, 0);
+    //        FlowHandler flowHandler = new FlowHandler("testConnection");
+    //        @Cleanup
+    //        ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
+    //        EmbeddedChannel embeddedChannel = createChannelWithContext(flowHandler);
+    //        embeddedChannel.runScheduledPendingTasks();
+    //        embeddedChannel.runPendingTasks();
+    //        Queue<Object> messages = embeddedChannel.outboundMessages();
+    //        assertEquals(1, messages.size());
+    //        clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));
+    //        embeddedChannel.runPendingTasks();
+    //        clientConnection.send(new Append("segment", new UUID(1, 2), 1, new Event(Unpooled.EMPTY_BUFFER), 2));
+    //        embeddedChannel.disconnect();
+    //        embeddedChannel.runPendingTasks();
+    //        assertTrue(processor.falure.get());
+    //    }
+    //
+    //    
+    //    static EmbeddedChannel createChannelWithContext(ChannelInboundHandlerAdapter handler) {
+    //        return new EmbeddedChannel(new ExceptionLoggingHandler(""), new CommandEncoder(null, NO_OP_METRIC_NOTIFIER),
+    //                                   new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4), new CommandDecoder(),
+    //                                   new AppendDecoder(), handler);
+    //    }
+    //    
+    //    @Test
+    //    public void testThread() throws ConnectionFailedException {
+    //        ReplyProcessor processor = new ReplyProcessor(); 
+    //        Flow flow = new Flow(10, 0);
+    //        FlowHandler flowHandler = new FlowHandler("testConnection");
+    //        byte[] payload = new byte[100];
+    //        @Cleanup
+    //        ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
+    //        List<String> threadIds = new Vector<>();
+    //        ChannelDuplexHandler spy = new ChannelDuplexHandler() {
+    //            @Override
+    //            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+    //                threadIds.add(Thread.currentThread().getName());
+    //                super.write(ctx, msg, promise);
+    //            }
+    //
+    //            @Override
+    //            public void flush(ChannelHandlerContext ctx) throws Exception {
+    //                threadIds.add(Thread.currentThread().getName());
+    //                super.flush(ctx);
+    //            }
+    //        };
+    //        EmbeddedChannel embeddedChannel = new EmbeddedChannel(spy, new CommandEncoder(null, NO_OP_METRIC_NOTIFIER),
+    //                                                              new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4), new CommandDecoder(),
+    //                                                              new AppendDecoder(), flowHandler);
+    //        clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));
+    //        for (int i = 0; i < 100; i++) {
+    //            clientConnection.send(new Append("segment", new UUID(1, 2), i, new Event(Unpooled.wrappedBuffer(payload)), 2));
+    //            embeddedChannel.runPendingTasks();
+    //        }
+    //        assertTrue(threadIds.size() > 100);
+    //        Queue<Object> messages = embeddedChannel.outboundMessages();
+    //        assertEquals(102, messages.size());
+    //        assertFalse(processor.falure.get());
+    //        HashSet<String> uniqueThreads = new HashSet<>();
+    //        for (String threadId : threadIds) {
+    //            uniqueThreads.add(threadId);
+    //        }
+    //        assertEquals(1, uniqueThreads.size());
+    //    }
 
 }

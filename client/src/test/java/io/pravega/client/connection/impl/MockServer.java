@@ -6,7 +6,8 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- */package io.pravega.client.connection.impl;
+ */
+package io.pravega.client.connection.impl;
  
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
