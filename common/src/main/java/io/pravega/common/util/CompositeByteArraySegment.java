@@ -14,7 +14,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import java.io.ByteArrayInputStream;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -323,21 +322,21 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
         }
 
         @Override
-        public byte readByte() throws EOFException {
+        public byte readByte() {
             try {
                 return get(this.position++);
             } catch (IndexOutOfBoundsException ex) {
-                throw new EOFException();
+                throw new OutOfBoundsException();
             }
         }
 
         @Override
-        public int readInt() throws EOFException {
+        public int readInt() {
             int arrayPos = getArrayOffset(this.position);
             if (CompositeByteArraySegment.this.arraySize - arrayPos >= Integer.BYTES) {
                 int nextPos = this.position + Integer.BYTES;
                 if (nextPos > length) {
-                    throw new EOFException();
+                    throw new OutOfBoundsException();
                 }
 
                 byte[] array = getArray(getArrayId(this.position), false);
@@ -350,12 +349,12 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
         }
 
         @Override
-        public long readLong() throws EOFException {
+        public long readLong() {
             int arrayPos = getArrayOffset(this.position);
             if (CompositeByteArraySegment.this.arraySize - arrayPos >= Long.BYTES) {
                 int nextPos = this.position + Long.BYTES;
                 if (nextPos > length) {
-                    throw new EOFException();
+                    throw new OutOfBoundsException();
                 }
 
                 byte[] array = getArray(getArrayId(this.position), false);
@@ -368,13 +367,13 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
         }
 
         @Override
-        public BufferView readSlice(int length) throws EOFException {
+        public BufferView readSlice(int length) {
             try {
                 BufferView result = slice(this.position, length);
                 this.position += length;
                 return result;
             } catch (IndexOutOfBoundsException ex) {
-                throw new EOFException();
+                throw new OutOfBoundsException();
             }
         }
     }

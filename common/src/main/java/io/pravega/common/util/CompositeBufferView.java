@@ -11,7 +11,6 @@ package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -202,10 +201,10 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
         }
 
         @Override
-        public byte readByte() throws EOFException {
+        public byte readByte() {
             BufferView.Reader current = getCurrent();
             if (current == null) {
-                throw new EOFException();
+                throw new OutOfBoundsException();
             }
 
             byte result = current.readByte();
@@ -215,11 +214,10 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
         }
 
         @Override
-        public int readInt() throws EOFException {
+        public int readInt() {
             BufferView.Reader current = getCurrent();
             if (current != null && current.available() >= Integer.BYTES) {
                 this.available -= Integer.BYTES;
-                assert this.available >= 0;
                 return current.readInt();
             }
 
@@ -227,11 +225,10 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
         }
 
         @Override
-        public long readLong() throws EOFException {
+        public long readLong() {
             BufferView.Reader current = getCurrent();
             if (current != null && current.available() >= Long.BYTES) {
                 this.available -= Long.BYTES;
-                assert this.available >= 0;
                 return current.readLong();
             }
 
@@ -239,9 +236,9 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
         }
 
         @Override
-        public BufferView readSlice(final int length) throws EOFException {
+        public BufferView readSlice(final int length) {
             if (length > available()) {
-                throw new EOFException();
+                throw new OutOfBoundsException();
             }
 
             if (length == 0) {

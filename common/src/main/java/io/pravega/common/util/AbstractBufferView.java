@@ -11,7 +11,6 @@ package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.hash.HashHelper;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -19,7 +18,6 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import lombok.Getter;
-import lombok.SneakyThrows;
 
 /**
  * Base implementation of {@link BufferView}, providing common functionality.
@@ -53,7 +51,6 @@ public abstract class AbstractBufferView implements BufferView {
      * @param other The other {@link BufferView} instance.
      * @return True if this instance and the other instance have the same contents.
      */
-    @SneakyThrows(IOException.class)
     public boolean equals(BufferView other) {
         int l = getLength();
         if (l != other.getLength()) {
@@ -86,10 +83,10 @@ public abstract class AbstractBufferView implements BufferView {
          * implementation with one that is as efficient as possible (if the {@link BufferView} implementation allows it).
          *
          * @return The read int.
-         * @throws EOFException If {@link #available()} is less than {@link Integer#BYTES}.
+         * @throws BufferView.Reader.OutOfBoundsException If {@link #available()} is less than {@link Integer#BYTES}.
          */
         @Override
-        public int readInt() throws EOFException {
+        public int readInt() {
             return BitConverter.makeInt(readByte(), readByte(), readByte(), readByte());
         }
 
@@ -99,10 +96,10 @@ public abstract class AbstractBufferView implements BufferView {
          * implementation with one that is as efficient as possible (if the {@link BufferView} implementation allows it).
          *
          * @return The read int.
-         * @throws EOFException If {@link #available()} is less than {@link Long#BYTES}.
+         * @throws BufferView.Reader.OutOfBoundsException If {@link #available()} is less than {@link Long#BYTES}.
          */
         @Override
-        public long readLong() throws EOFException {
+        public long readLong() {
             return BitConverter.makeLong(readByte(), readByte(), readByte(), readByte(), readByte(), readByte(), readByte(), readByte());
         }
 
@@ -197,17 +194,17 @@ public abstract class AbstractBufferView implements BufferView {
             }
 
             @Override
-            public byte readByte() throws EOFException {
-                throw new EOFException("Cannot read from Empty BufferView.");
+            public byte readByte() {
+                throw new OutOfBoundsException("Cannot read from Empty BufferView.");
             }
 
             @Override
-            public BufferView readSlice(int length) throws EOFException {
+            public BufferView readSlice(int length) {
                 if (length == 0) {
                     return BufferView.empty();
                 }
 
-                throw new EOFException("Cannot read from Empty BufferView.");
+                throw new OutOfBoundsException("Cannot read from Empty BufferView.");
             }
         }
     }

@@ -21,7 +21,6 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import lombok.AccessLevel;
@@ -111,9 +110,9 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      *                      unless the deserialized segment's Header contains an explicit version.
      * @param serializer    The {@link EntrySerializer} to use for deserializing entries.
      * @return A {@link DeserializedEntry} that contains all the components of the {@link TableEntry}.
-     * @throws IOException If an Exception occurred while deserializing the {@link DeserializedEntry}.
+     * @throws SerializationException If an Exception occurred while deserializing the {@link DeserializedEntry}.
      */
-    static DeserializedEntry readEntryComponents(BufferView.Reader input, long segmentOffset, EntrySerializer serializer) throws IOException {
+    static DeserializedEntry readEntryComponents(BufferView.Reader input, long segmentOffset, EntrySerializer serializer) throws SerializationException {
         val h = serializer.readHeader(input);
         long version = getKeyVersion(h, segmentOffset);
         BufferView key = input.readSlice(h.getKeyLength());

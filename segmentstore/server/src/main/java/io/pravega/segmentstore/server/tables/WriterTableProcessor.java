@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -25,7 +26,6 @@ import io.pravega.segmentstore.server.WriterFlushResult;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -337,7 +337,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * @param timer       Timer for the operation.
      * @return A {@link KeyUpdateCollection}s containing the indexed keys.
      */
-    @SneakyThrows(IOException.class)
+    @SneakyThrows(SerializationException.class)
     private KeyUpdateCollection readKeysFromSegment(DirectSegmentAccess segment, long firstOffset, long lastOffset, TimeoutTimer timer) {
         KeyUpdateCollection keyUpdates = new KeyUpdateCollection();
         val memoryRead = readFromInMemorySegment(segment, firstOffset, lastOffset, timer).getBufferViewReader();
@@ -355,9 +355,9 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * @param entryOffset         The offset within the Segment where this Table Entry begins.
      * @param keyUpdateCollection A Map where to add the result.
      * @return The number of bytes processed from the given InputStream.
-     * @throws IOException If an IOException occurred.
+     * @throws SerializationException If unable to deserialize an entry.
      */
-    private int indexSingleKey(BufferView.Reader input, long entryOffset, KeyUpdateCollection keyUpdateCollection) throws IOException {
+    private int indexSingleKey(BufferView.Reader input, long entryOffset, KeyUpdateCollection keyUpdateCollection) throws SerializationException {
         // Retrieve the next entry, get its Key and hash it.
         val e = AsyncTableEntryReader.readEntryComponents(input, entryOffset, this.connector.getSerializer());
 

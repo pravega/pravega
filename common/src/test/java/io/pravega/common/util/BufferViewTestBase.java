@@ -13,7 +13,6 @@ import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -180,7 +179,8 @@ public abstract class BufferViewTestBase {
                 sliceLength++;
                 position += slice.getLength();
             }
-            AssertExtensions.assertThrows("ReadSlice.End offset " + offset, () -> readSliceReader.readSlice(1), ex -> ex instanceof EOFException);
+            AssertExtensions.assertThrows("ReadSlice.End offset " + offset,
+                    () -> readSliceReader.readSlice(1), ex -> ex instanceof BufferView.Reader.OutOfBoundsException);
 
             // ReadByte.
             val readByteReader = bufferView.slice(offset, length).getBufferViewReader();
@@ -190,7 +190,8 @@ public abstract class BufferViewTestBase {
                 Assert.assertEquals(length - i - 1, readByteReader.available());
             }
 
-            AssertExtensions.assertThrows("ReadByte.End offset " + offset, readByteReader::readByte, ex -> ex instanceof EOFException);
+            AssertExtensions.assertThrows("ReadByte.End offset " + offset, readByteReader::readByte,
+                    ex -> ex instanceof BufferView.Reader.OutOfBoundsException);
             AssertExtensions.assertArrayEquals("ReadByte offset " + offset, expectedData, offset, readByteResult, 0, length);
         }
     }
@@ -261,8 +262,8 @@ public abstract class BufferViewTestBase {
             Assert.assertEquals("Unexpected Reader.available() after reading from index " + i, expectedAvailable, reader.available());
         }
 
-        AssertExtensions.assertThrows("", reader::readInt, ex -> ex instanceof EOFException);
-        AssertExtensions.assertThrows("", reader::readLong, ex -> ex instanceof EOFException);
+        AssertExtensions.assertThrows("", reader::readInt, ex -> ex instanceof BufferView.Reader.OutOfBoundsException);
+        AssertExtensions.assertThrows("", reader::readLong, ex -> ex instanceof BufferView.Reader.OutOfBoundsException);
 
         val allData = bufferView.getBufferViewReader().readFully(3);
         Assert.assertEquals("Unexpected result from readFully", new ByteArraySegment(data), allData);

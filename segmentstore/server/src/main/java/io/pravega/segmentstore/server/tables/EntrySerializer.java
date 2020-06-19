@@ -16,7 +16,6 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
-import java.io.IOException;
 import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -148,9 +147,9 @@ class EntrySerializer {
      *
      * @param input The {@link BufferView.Reader} to read from.
      * @return The Entry Header.
-     * @throws IOException If an invalid header was detected.
+     * @throws SerializationException If an invalid header was detected.
      */
-    Header readHeader(@NonNull BufferView.Reader input) throws IOException {
+    Header readHeader(@NonNull BufferView.Reader input) throws SerializationException {
         byte version = input.readByte();
         int keyLength = input.readInt();
         int valueLength = input.readInt();

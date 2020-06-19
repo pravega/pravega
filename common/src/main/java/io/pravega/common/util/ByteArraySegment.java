@@ -13,7 +13,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -334,9 +333,9 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
         }
 
         @Override
-        public byte readByte() throws EOFException {
+        public byte readByte() {
             if (position >= ByteArraySegment.this.length) {
-                throw new EOFException();
+                throw new OutOfBoundsException();
             }
 
             byte result = ByteArraySegment.this.array[ByteArraySegment.this.startOffset + this.position];
@@ -345,10 +344,10 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
         }
 
         @Override
-        public int readInt() throws EOFException {
+        public int readInt() {
             int nextPos = this.position + Integer.BYTES;
             if (nextPos > ByteArraySegment.this.length) {
-                throw new EOFException();
+                throw new OutOfBoundsException();
             }
             int r = BitConverter.readInt(ByteArraySegment.this.array, ByteArraySegment.this.startOffset + this.position);
             this.position = nextPos;
@@ -356,10 +355,10 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
         }
 
         @Override
-        public long readLong() throws EOFException {
+        public long readLong() {
             int nextPos = this.position + Long.BYTES;
             if (nextPos > ByteArraySegment.this.length) {
-                throw new EOFException();
+                throw new OutOfBoundsException();
             }
 
             long r = BitConverter.readLong(ByteArraySegment.this.array, ByteArraySegment.this.startOffset + this.position);
@@ -368,13 +367,13 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
         }
 
         @Override
-        public BufferView readSlice(int length) throws EOFException {
+        public BufferView readSlice(int length) {
             try {
                 BufferView result = ByteArraySegment.this.slice(this.position, length);
                 this.position += length;
                 return result;
             } catch (IndexOutOfBoundsException ex) {
-                throw new EOFException();
+                throw new OutOfBoundsException();
             }
         }
     }

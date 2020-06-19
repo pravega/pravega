@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -24,8 +25,6 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
-import java.io.EOFException;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -204,7 +203,7 @@ class TableCompactor {
      *                    bytes in it.
      * @return A {@link CompactionArgs} object containing the result.
      */
-    @SneakyThrows(IOException.class)
+    @SneakyThrows(SerializationException.class)
     private CompactionArgs parseEntries(BufferView inputData, long startOffset, int maxLength) {
         val entries = new HashMap<UUID, CandidateSet>();
         int count = 0;
@@ -232,10 +231,10 @@ class TableCompactor {
                 // Update the offset to the beginning of the next entry.
                 nextOffset += e.getHeader().getTotalLength();
             }
-        } catch (EOFException ex) {
+        } catch (BufferView.Reader.OutOfBoundsException ex) {
             // We chose an arbitrary compact length, so it is quite possible we stopped reading in the middle of an entry.
-            // As such, EOFException is the only way to know when to stop. When this happens, we will have collected the
-            // total compact length in segmentOffset.
+            // As such, BufferView.Reader.OutOfBoundsException is the only way to know when to stop. When this happens,
+            // we will have collected the total compact length in segmentOffset.
         }
 
         return new CompactionArgs(startOffset, nextOffset, count, entries);

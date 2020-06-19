@@ -15,7 +15,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.util.AbstractBufferView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -186,38 +185,38 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
         }
 
         @Override
-        public byte readByte() throws EOFException {
+        public byte readByte() {
             try {
                 return this.buf.readByte();
             } catch (IndexOutOfBoundsException ex) {
-                throw new EOFException();
+                throw new OutOfBoundsException();
             }
         }
 
         @Override
-        public int readInt() throws EOFException {
+        public int readInt() {
             try {
                 return this.buf.readInt();
             } catch (IndexOutOfBoundsException ex) {
-                throw new EOFException();
+                throw new OutOfBoundsException();
             }
         }
 
         @Override
-        public long readLong() throws EOFException {
+        public long readLong() {
             try {
                 return this.buf.readLong();
             } catch (IndexOutOfBoundsException ex) {
-                throw new EOFException();
+                throw new OutOfBoundsException();
             }
         }
 
         @Override
-        public BufferView readSlice(int length) throws EOFException {
+        public BufferView readSlice(int length) {
             try {
                 return new ByteBufWrapper(this.buf.readSlice(length));
             } catch (IndexOutOfBoundsException ex) {
-                throw new EOFException();
+                throw new OutOfBoundsException();
             }
         }
     }

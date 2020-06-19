@@ -11,7 +11,6 @@ package io.pravega.common.util;
 
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.test.common.AssertExtensions;
-import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -92,9 +91,9 @@ public class AbstractBufferViewTests {
         val reader = e.getBufferViewReader();
         Assert.assertEquals(0, reader.available());
         Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
-        AssertExtensions.assertThrows("", reader::readByte, ex -> ex instanceof EOFException);
+        AssertExtensions.assertThrows("", reader::readByte, ex -> ex instanceof BufferView.Reader.OutOfBoundsException);
         Assert.assertSame(e, reader.readSlice(0));
-        AssertExtensions.assertThrows("", () -> reader.readSlice(1), ex -> ex instanceof EOFException);
+        AssertExtensions.assertThrows("", () -> reader.readSlice(1), ex -> ex instanceof BufferView.Reader.OutOfBoundsException);
         @Cleanup
         val inputStream = e.getReader();
         Assert.assertEquals(-1, inputStream.read());
