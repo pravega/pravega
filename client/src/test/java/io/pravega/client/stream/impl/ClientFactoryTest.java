@@ -10,7 +10,9 @@
 package io.pravega.client.stream.impl;
 
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
@@ -22,6 +24,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -72,7 +75,8 @@ public class ClientFactoryTest {
         String scope = "scope";
         String stream = "stream1";
         // setup mocks
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controllerClient, connectionFactory);
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controllerClient,  new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory), inFactory, outFactory, condFactory, metaFactory);
         NavigableMap<Double, SegmentWithRange> segments = new TreeMap<>();
         Segment segment = new Segment(scope, stream, 0L);
         segments.put(1.0, new SegmentWithRange(segment, 0.0, 1.0));
@@ -92,6 +96,7 @@ public class ClientFactoryTest {
         String scope = "scope";
         String stream = "stream1";
         // setup mocks
+        @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controllerClient, connectionFactory);
         StreamSegments currentSegments = new StreamSegments(new TreeMap<>(), "");
         when(controllerClient.getCurrentSegments(scope, stream))
@@ -104,6 +109,7 @@ public class ClientFactoryTest {
 
     @Test
     public void testTxnWriter() {
+        @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("scope", controllerClient, connectionFactory);
         EventWriterConfig writerConfig = EventWriterConfig.builder().build();
         val txnWriter = clientFactory.createTransactionalEventWriter("writer1", "stream1", new JavaSerializer<String>(), writerConfig);

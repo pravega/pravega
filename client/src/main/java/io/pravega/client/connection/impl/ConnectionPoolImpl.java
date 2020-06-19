@@ -197,6 +197,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
         log.info("Shutting down connection pool");
         if (closed.compareAndSet(false, true)) {
             metricNotifier.close();
+            connectionFactory.close();
         }
     }
 
