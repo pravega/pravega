@@ -8,12 +8,11 @@
  */
 package io.pravega.client.connection.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
-import io.pravega.common.MathHelpers;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.CertificateUtils;
 import io.pravega.shared.protocol.netty.Append;
@@ -31,7 +30,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.nio.ByteBuffer;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -61,49 +59,9 @@ public class TcpClientConnection implements ClientConnection {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final PravegaNodeUri location;
 
-    private static class ConnectionReader {
+    @VisibleForTesting
+    static class ConnectionReader {
         
-        private static class IoBuffer {
-            private int maxBufferSize = WireCommands.MAX_WIRECOMMAND_SIZE;
-            private ByteBuffer buffer = null;
-            
-            private ByteBuf sliceOut(int size) {
-                ByteBuf result = Unpooled.wrappedBuffer(buffer.array(), buffer.arrayOffset() + buffer.position(), size);
-                buffer.position(buffer.position() + size);
-                if (!buffer.hasRemaining()) {
-                    buffer = null;
-                }
-                return result;
-            }
-            
-            public ByteBuf getBuffOfSize(InputStream in, int size) throws IOException {
-                if (size > maxBufferSize) {
-                    throw new IllegalArgumentException("Requested buffer size " + size + " is larger than maximum allowed"
-                            + maxBufferSize);
-                }
-                if (buffer == null) {
-                    int bufferSize = MathHelpers.minMax(in.available(), size, maxBufferSize);
-                    byte[] newBuffer = new byte[bufferSize];
-                    int read = in.read(newBuffer);
-                    buffer = ByteBuffer.wrap(newBuffer, 0, read); 
-                } 
-
-                if (buffer.remaining() >= size) {
-                    return sliceOut(size);
-                } else {
-                    int firstSize = buffer.remaining();
-                    ByteBuf first = sliceOut(firstSize);
-                    assert buffer == null; //Should have been fully sliced out
-                    byte[] remaining = new byte[size - firstSize];
-                    for (int offset = 0; offset < remaining.length;) {
-                        offset += in.read(remaining, offset, remaining.length - offset);
-                    }
-                    return Unpooled.wrappedBuffer(first, Unpooled.wrappedBuffer(remaining));
-                }
-            }
-            
-        }
-
         private final String name;
         private final InputStream in;
         private final ReplyProcessor callback;
@@ -125,22 +83,7 @@ public class TcpClientConnection implements ClientConnection {
                 IoBuffer buffer = new IoBuffer();
                 while (!stop.get()) {
                     try {
-                        ByteBuf header = buffer.getBuffOfSize(in, 8);
-
-                        int t = header.getInt(0);
-                        WireCommandType type = WireCommands.getType(t);
-                        if (type == null) {
-                            throw new InvalidMessageException("Unknown wire command: " + t);
-                        }
-
-                        int length = header.getInt(4);
-                        if (length < 0 || length > WireCommands.MAX_WIRECOMMAND_SIZE) {
-                            throw new InvalidMessageException("Event of invalid length: " + length);
-                        }
-
-                        ByteBuf payload = buffer.getBuffOfSize(in, length);
-                        
-                        WireCommand command = type.readFrom(new EnhancedByteBufInputStream(payload), length);
+                        WireCommand command = readCommand(in, buffer);
                         if (command instanceof WireCommands.DataAppended) {
                             WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
                             batchSizeTracker.recordAck(dataAppended.getEventNumber());
@@ -156,6 +99,26 @@ public class TcpClientConnection implements ClientConnection {
                     }
                 }
             });
+        }
+
+        @VisibleForTesting
+        static WireCommand readCommand(InputStream in, IoBuffer buffer) throws IOException {
+            ByteBuf header = buffer.getBuffOfSize(in, 8);
+
+            int t = header.getInt(0);
+            WireCommandType type = WireCommands.getType(t);
+            if (type == null) {
+                throw new InvalidMessageException("Unknown wire command: " + t);
+            }
+
+            int length = header.getInt(4);
+            if (length < 0 || length > WireCommands.MAX_WIRECOMMAND_SIZE) {
+                throw new InvalidMessageException("Event of invalid length: " + length);
+            }
+
+            ByteBuf payload = buffer.getBuffOfSize(in, length);
+            
+            return type.readFrom(new EnhancedByteBufInputStream(payload), length);
         }
         
         public void stop() {

@@ -174,6 +174,7 @@ public class CommandEncoder {
             Preconditions.checkState(isChannelFree());
             Preconditions.checkState(pendingWrites.isEmpty());
             writeMessage((WireCommand) msg);
+            flushBuffer();
         } else {
             breakCurrentAppend();
             flushAllToBuffer();
