@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import io.pravega.common.Exceptions;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -137,10 +138,7 @@ public final class BitConverter {
      * @return The read number.
      */
     public static int readInt(byte[] source, int position) {
-        return (source[position] & 0xFF) << 24
-                | (source[position + 1] & 0xFF) << 16
-                | (source[position + 2] & 0xFF) << 8
-                | (source[position + 3] & 0xFF);
+        return makeInt(source[position], source[position + 1], source[position + 2], source[position + 3]);
     }
 
     /**
@@ -151,10 +149,8 @@ public final class BitConverter {
      * @return The read number.
      */
     public static int readInt(ArrayView source, int position) {
-        return (source.get(position) & 0xFF) << 24
-                | (source.get(position + 1) & 0xFF) << 16
-                | (source.get(position + 2) & 0xFF) << 8
-                | (source.get(position + 3) & 0xFF);
+        Exceptions.checkArrayRange(position, Integer.BYTES, source.getLength(), "position", "Integer.BYTES");
+        return readInt(source.array(), source.arrayOffset() + position);
     }
 
     /**
@@ -172,7 +168,7 @@ public final class BitConverter {
         if ((b1 | b2 | b3 | b4) < 0) {
             throw new EOFException();
         } else {
-            return (b1 << 24) + (b2 << 16) + (b3 << 8) + b4;
+            return makeInt(b1, b2, b3, b4);
         }
     }
 
@@ -272,14 +268,8 @@ public final class BitConverter {
      * @return The read number.
      */
     public static long readLong(ArrayView source, int position) {
-        return (long) (source.get(position) & 0xFF) << 56
-                | (long) (source.get(position + 1) & 0xFF) << 48
-                | (long) (source.get(position + 2) & 0xFF) << 40
-                | (long) (source.get(position + 3) & 0xFF) << 32
-                | (long) (source.get(position + 4) & 0xFF) << 24
-                | (source.get(position + 5) & 0xFF) << 16
-                | (source.get(position + 6) & 0xFF) << 8
-                | (source.get(position + 7) & 0xFF);
+        Exceptions.checkArrayRange(position, Long.BYTES, source.getLength(), "position", "Long.BYTES");
+        return readLong(source.array(), source.arrayOffset() + position);
     }
 
     /**
@@ -290,14 +280,8 @@ public final class BitConverter {
      * @return The read number.
      */
     public static long readLong(byte[] source, int position) {
-        return (long) (source[position] & 0xFF) << 56
-                | (long) (source[position + 1] & 0xFF) << 48
-                | (long) (source[position + 2] & 0xFF) << 40
-                | (long) (source[position + 3] & 0xFF) << 32
-                | (long) (source[position + 4] & 0xFF) << 24
-                | (source[position + 5] & 0xFF) << 16
-                | (source[position + 6] & 0xFF) << 8
-                | (source[position + 7] & 0xFF);
+        return makeLong(source[position], source[position + 1], source[position + 2], source[position + 3],
+                source[position + 4], source[position + 5], source[position + 6], source[position + 7]);
     }
 
     /**
@@ -319,7 +303,7 @@ public final class BitConverter {
         if ((b1 | b2 | b3 | b4 | b5 | b6 | b7 | b8) < 0) {
             throw new EOFException();
         } else {
-            return BitConverter.makeLong(b1, b2, b3, b4, b5, b6, b7, b8);
+            return makeLong(b1, b2, b3, b4, b5, b6, b7, b8);
         }
     }
 
