@@ -20,6 +20,7 @@ import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableFactoryImpl;
 import io.pravega.client.tables.impl.KeyValueTableTestBase;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
 
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -29,6 +30,10 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import java.util.Collections;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.extern.slf4j.Slf4j;
@@ -104,12 +109,12 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
      * Smoke Test. Verify that the KeyValueTable can be created and deleted.
      */
     @Test
-    public void testCreateDeleteKeyValueTable() {
+    public void testCreateDeleteListKeyValueTable() {
         Assert.assertTrue(isScopeCreated);
-        val kvt = newKeyValueTableName();
-        boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join();
+        val kvt1 = newKeyValueTableName();
+        boolean created = this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join();
         Assert.assertTrue(created);
-        val segments = this.controller.getCurrentSegmentsForKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName()).join();
+        val segments = this.controller.getCurrentSegmentsForKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName()).join();
         Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), segments.getSegments().size());
 
         for (val s : segments.getSegments()) {
@@ -119,7 +124,37 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         }
 
         // Verify re-creation does not work.
-        Assert.assertFalse(this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join());
+        Assert.assertFalse(this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join());
+
+        // Create 2 more KVTables
+        val kvt2 = newKeyValueTableName();
+        created = this.controller.createKeyValueTable(kvt2.getScope(), kvt2.getKeyValueTableName(), DEFAULT_CONFIG).join();
+        Assert.assertTrue(created);
+
+        val kvt3 = newKeyValueTableName();
+        created = this.controller.createKeyValueTable(kvt3.getScope(), kvt3.getKeyValueTableName(), DEFAULT_CONFIG).join();
+        Assert.assertTrue(created);
+
+        // Check list tables...
+        AsyncIterator<KeyValueTableInfo> kvTablesIterator =  this.controller.listKeyValueTables(SCOPE);
+        Iterator<KeyValueTableInfo> iter = kvTablesIterator.asIterator();
+        Map<String,Integer> countMap = new HashMap<String, Integer>(3);
+        while(iter.hasNext()) {
+            KeyValueTableInfo kvtInfo = iter.next();
+            if(kvtInfo.getScope().equals(SCOPE)) {
+                if (countMap.containsKey(kvtInfo.getKeyValueTableName())) {
+                    Integer newCount = Integer.valueOf(countMap.get(kvtInfo.getKeyValueTableName()).intValue() + 1);
+                    countMap.put(iter.next().getKeyValueTableName(), newCount);
+                } else {
+                    countMap.put(kvtInfo.getKeyValueTableName(), 1);
+                }
+            }
+        }
+        Assert.assertEquals(3, countMap.size());
+        Assert.assertEquals(1, countMap.get(kvt1.getKeyValueTableName()).intValue());
+        Assert.assertEquals(1, countMap.get(kvt2.getKeyValueTableName()).intValue());
+        Assert.assertEquals(1, countMap.get(kvt3.getKeyValueTableName()).intValue());
+
         // Delete and verify segments have been deleted too.
         /*
         val deleted = this.controller.deleteKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName()).join();

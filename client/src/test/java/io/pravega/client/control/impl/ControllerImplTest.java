@@ -1743,10 +1743,6 @@ public class ControllerImplTest {
                 "",
                 () -> this.controllerClient.deleteKeyValueTable("", ""),
                 ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.controllerClient.listKeyValueTables(""),
-                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test

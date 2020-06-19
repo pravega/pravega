@@ -469,7 +469,16 @@ public class LocalController implements Controller {
     
     @Override
     public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
-        throw new UnsupportedOperationException();
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
+                controller.listKeyValueTables(scopeName, token, LIST_STREAM_IN_SCOPE_LIMIT)
+                        .thenApply(result -> {
+                            List<KeyValueTableInfo> kvTablesList = result.getLeft().stream().map(kvt -> new KeyValueTableInfo(scopeName, kvt))
+                                    .collect(Collectors.toList());
+
+                            return new AbstractMap.SimpleEntry<>(result.getValue(), kvTablesList);
+                        });
+
+        return new ContinuationTokenAsyncIterator<>(function, "");
     }
 
     @Override
