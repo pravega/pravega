@@ -11,6 +11,7 @@ package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Properties;
 import java.util.function.Function;
@@ -29,6 +30,7 @@ import java.util.function.Function;
  * </ul>
  * Indicate that namespace "foo" has Key-Values (key1=value1, key2=value2), and namespace "bar" has (key1=value3, key3=value4).
  */
+@Slf4j
 public class TypedProperties {
     //region Members
     private static final String SEPARATOR = ".";
@@ -132,6 +134,10 @@ public class TypedProperties {
         if (property.hasLegacyName()) {
             // Value of property with old name
             propValue = this.properties.getProperty(propOldName, null);
+            if (propValue != null) {
+                log.warn("Deprecated property name '{}' used. Please use '{}' instead. Support for the old " +
+                        "property name will be removed in a future version of Pravega.", propOldName, propNewName);
+            }
         }
 
         if (propValue == null) {
@@ -139,7 +145,7 @@ public class TypedProperties {
             propValue = this.properties.getProperty(propNewName, null);
         }
 
-        // A property with neither old not new name was defined, so the property value is still null
+        // This property wasn't specified using either new or old name, so the property value is still null
         if (propValue == null) {
             if (property.hasDefaultValue()) {
                 return property.getDefaultValue();
