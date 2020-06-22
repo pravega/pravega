@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import io.pravega.common.util.HashedArray;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -44,7 +44,7 @@ public class KeyUpdateCollectionTests {
                 boolean copiedEntry = i % 2 == j % 2;
                 long version = offset / 2 + (copiedEntry ? 1 : -1);
                 long originalOffset = copiedEntry ? version : -1;
-                val update = new BucketUpdate.KeyUpdate(new HashedArray(key), offset, version, false);
+                val update = new BucketUpdate.KeyUpdate(new ByteArraySegment(key), offset, version, false);
                 c.add(update, length, originalOffset);
                 maxOffset = Math.max(maxOffset, offset + length);
                 if (originalOffset >= 0) {
