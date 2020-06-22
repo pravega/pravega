@@ -23,6 +23,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.Retry;
@@ -32,9 +33,11 @@ import io.pravega.shared.controller.event.ControllerEventSerializer;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import lombok.NonNull;
@@ -61,7 +64,8 @@ public class AutoScaleProcessor implements AutoCloseable {
 
     private final EventStreamClientFactory clientFactory;
     private final Cache<String, Pair<Long, Long>> cache;
-    private final AtomicReference<EventStreamWriter<AutoScaleEvent>> writer;
+    private final CompletableFuture<EventStreamWriter<AutoScaleEvent>> writer;
+    private final AtomicBoolean startInitWriter;
     private final AutoScalerConfig configuration;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
     private final ScheduledFuture<?> cacheCleanup;
@@ -88,7 +92,7 @@ public class AutoScaleProcessor implements AutoCloseable {
     AutoScaleProcessor(@NonNull EventStreamWriter<AutoScaleEvent> writer, @NonNull AutoScalerConfig configuration,
                        @NonNull ScheduledExecutorService executor) {
         this(configuration, null, executor);
-        this.writer.set(writer);
+        this.writer.complete(writer);
     }
 
     /**
@@ -102,9 +106,9 @@ public class AutoScaleProcessor implements AutoCloseable {
     AutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory,
                        @NonNull ScheduledExecutorService executor) {
         this.configuration = configuration;
-        this.writer = new AtomicReference<>();
+        this.writer = new CompletableFuture<>();
         this.clientFactory = clientFactory;
-
+        this.startInitWriter = new AtomicBoolean(false);
         this.cache = CacheBuilder.newBuilder()
                 .initialCapacity(INITIAL_CAPACITY)
                 .maximumSize(MAX_CACHE_SIZE)
@@ -127,35 +131,47 @@ public class AutoScaleProcessor implements AutoCloseable {
 
     @Override
     public void close() {
-        val w = this.writer.get();
-        if (w != null) {
-            w.close();
-            this.writer.set(null);
+        writer.cancel(true);
+
+        if (Futures.isSuccessful(writer)) {
+            val w = this.writer.join();
+            if (w != null) {
+                w.close();
+            }
         }
 
-        this.clientFactory.close();
+        if (clientFactory != null) {
+            this.clientFactory.close();
+        }
         this.cacheCleanup.cancel(true);
     }
-
+    
     private void bootstrapRequestWriters(EventStreamClientFactory clientFactory, ScheduledExecutorService executor) {
-        // Starting with initial delay, in case request stream has not been created, to give it time to start
-        // However, we have this wrapped in consumeFailure which means the creation of writer will be retried.
-        // We are introducing a delay to avoid exceptions in the log in case creation of writer is attempted before
-        // creation of requeststream.
-        executor.schedule(
-                () -> Retry.indefinitelyWithExpBackoff(100, 10, 10000, this::handleBootstrapException)
-                        .runInExecutor(() -> bootstrapOnce(clientFactory), executor),
-                10, TimeUnit.SECONDS);
+        AtomicReference<EventStreamWriter<AutoScaleEvent>> w = new AtomicReference<>();
+
+        Futures.completeAfter(() -> Retry.indefinitelyWithExpBackoff(100, 10, 10000, this::handleBootstrapException)
+                                         .runInExecutor(() -> bootstrapOnce(clientFactory, w), 
+                                                 executor).thenApply(v -> w.get()), writer);
     }
 
     private void handleBootstrapException(Throwable e) {
-        log.warn("Unable to create writer for requeststream: {}.", LoggerHelpers.exceptionSummary(log, e));
+        if (startInitWriter.get()) {
+            log.warn("Unable to create writer for requeststream: {}.", LoggerHelpers.exceptionSummary(log, e));
+        }
     }
 
-    private void bootstrapOnce(EventStreamClientFactory clientFactory) {
-        EventWriterConfig writerConfig = EventWriterConfig.builder().build();
-        this.writer.set(clientFactory.createEventWriter(configuration.getInternalRequestStream(), SERIALIZER, writerConfig));
-        log.info("AutoScale Processor Initialized. RequestStream={}", configuration.getInternalRequestStream());
+    @VisibleForTesting
+    void bootstrapOnce(EventStreamClientFactory clientFactory, AtomicReference<EventStreamWriter<AutoScaleEvent>> writerRef) {
+        if (!writer.isDone()) {
+            if (!startInitWriter.get()) {
+                throw new RuntimeException("Init not requested");
+            }
+            EventWriterConfig writerConfig = EventWriterConfig.builder().build();
+            writerRef.set(clientFactory.createEventWriter(configuration.getInternalRequestStream(),
+                    SERIALIZER, writerConfig));
+            log.info("AutoScale Processor Initialized. RequestStream={}",
+                    configuration.getInternalRequestStream());
+        }
     }
 
     private static EventStreamClientFactory createFactory(AutoScalerConfig configuration) {
@@ -192,66 +208,55 @@ public class AutoScaleProcessor implements AutoCloseable {
         return uriScheme.equals("tls") || uriScheme.equals("pravegas");
     }
 
-    private boolean isInitialized() {
-        return this.writer.get() != null;
-    }
-
     private void triggerScaleUp(String streamSegmentName, int numOfSplits) {
-        if (isInitialized()) {
-            Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
-            long lastRequestTs = 0;
+        Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
+        long lastRequestTs = 0;
 
-            if (pair != null && pair.getKey() != null) {
-                lastRequestTs = pair.getKey();
-            }
+        if (pair != null && pair.getKey() != null) {
+            lastRequestTs = pair.getKey();
+        }
 
-            long timestamp = System.currentTimeMillis();
-            long requestId = requestIdGenerator.get();
-            if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
-                log.info(requestId, "sending request for scale up for {}", streamSegmentName);
+        long timestamp = getTimeMillis();
+        long requestId = requestIdGenerator.get();
+        if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
+            log.info(requestId, "sending request for scale up for {}", streamSegmentName);
 
-                Segment segment = Segment.fromScopedName(streamSegmentName);
-                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
-                        AutoScaleEvent.UP, timestamp, numOfSplits, false, requestId);
-                // Mute scale for timestamp for both scale up and down
-                writeRequest(event, () -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
-            }
+            Segment segment = Segment.fromScopedName(streamSegmentName);
+            AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
+                    AutoScaleEvent.UP, timestamp, numOfSplits, false, requestId);
+            // Mute scale for timestamp for both scale up and down
+            writeRequest(event, () -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
         }
     }
 
     private void triggerScaleDown(String streamSegmentName, boolean silent) {
-        if (isInitialized()) {
-            Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
-            long lastRequestTs = 0;
+        Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
+        long lastRequestTs = 0;
 
-            if (pair != null && pair.getValue() != null) {
-                lastRequestTs = pair.getValue();
-            }
+        if (pair != null && pair.getValue() != null) {
+            lastRequestTs = pair.getValue();
+        }
 
-            long timestamp = System.currentTimeMillis();
-            long requestId = requestIdGenerator.get();
-            if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
-                log.info(requestId, "sending request for scale down for {}", streamSegmentName);
+        long timestamp = getTimeMillis();
+        long requestId = requestIdGenerator.get();
+        if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
+            log.info(requestId, "sending request for scale down for {}", streamSegmentName);
 
-                Segment segment = Segment.fromScopedName(streamSegmentName);
-                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
-                        AutoScaleEvent.DOWN, timestamp, 0, silent, requestId);
-                writeRequest(event, () -> {
-                    if (!silent) {
-                        // mute only scale downs
-                        cache.put(streamSegmentName, new ImmutablePair<>(0L, timestamp));
-                    }
-                });
-            }
+            Segment segment = Segment.fromScopedName(streamSegmentName);
+            AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
+                    AutoScaleEvent.DOWN, timestamp, 0, silent, requestId);
+            writeRequest(event, () -> {
+                if (!silent) {
+                    // mute only scale downs
+                    cache.put(streamSegmentName, new ImmutablePair<>(0L, timestamp));
+                }
+            });
         }
     }
 
     private void writeRequest(AutoScaleEvent event, Runnable successCallback) {
-        val writer = this.writer.get();
-        if (writer == null) {
-            log.warn(event.getRequestId(), "Writer not bootstrapped; unable to post Scale Event {}.", event);
-        } else {
-            writer.writeEvent(event.getKey(), event)
+        startInitWriter.set(true);
+        writer.thenCompose(w -> w.writeEvent(event.getKey(), event)
                     .whenComplete((r, e) -> {
                         if (e != null) {
                             log.error(event.getRequestId(), "Unable to post Scale Event to RequestStream '{}'.",
@@ -260,45 +265,43 @@ public class AutoScaleProcessor implements AutoCloseable {
                             log.debug(event.getRequestId(), "Scale Event posted successfully: {}.", event);
                             successCallback.run();
                         }
-                    });
-        }
+                    }));
     }
 
     void report(String streamSegmentName, long targetRate, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
         log.info("received traffic for {} with twoMinute rate = {} and targetRate = {}", streamSegmentName, twoMinuteRate, targetRate);
-        if (isInitialized()) {
-            // note: we are working on caller's thread. We should not do any blocking computation here and return as quickly as
-            // possible.
-            // So we will decide whether to scale or not and then unblock by asynchronously calling 'writeEvent'
-            long currentTime = System.currentTimeMillis();
-            if (currentTime - startTime > configuration.getCooldownDuration().toMillis()) {
-                log.debug("cool down period elapsed for {}", streamSegmentName);
+        // note: we are working on caller's thread. We should not do any blocking computation here and return as quickly as
+        // possible.
+        // So we will decide whether to scale or not and then unblock by asynchronously calling 'writeEvent'
+        long currentTime = getTimeMillis();
+        if (currentTime - startTime > configuration.getCooldownDuration().toMillis()) {
+            log.debug("cool down period elapsed for {}", streamSegmentName);
 
-                // report to see if a scale operation needs to be performed.
-                if ((twoMinuteRate > 5.0 * targetRate && currentTime - startTime > TWO_MINUTES) ||
-                        (fiveMinuteRate > 2.0 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
-                        (tenMinuteRate > targetRate && currentTime - startTime > TEN_MINUTES)) {
-                    int numOfSplits = Math.max(2, (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate));
-                    log.debug("triggering scale up for {} with number of splits {}", streamSegmentName, numOfSplits);
+            // report to see if a scale operation needs to be performed.
+            if ((twoMinuteRate > 5.0 * targetRate && currentTime - startTime > TWO_MINUTES) ||
+                    (fiveMinuteRate > 2.0 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
+                    (tenMinuteRate > targetRate && currentTime - startTime > TEN_MINUTES)) {
+                int numOfSplits = Math.max(2, (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate));
+                log.debug("triggering scale up for {} with number of splits {}", streamSegmentName, numOfSplits);
 
-                    triggerScaleUp(streamSegmentName, numOfSplits);
-                }
+                triggerScaleUp(streamSegmentName, numOfSplits);
+            }
 
-                if (twoMinuteRate < targetRate &&
-                        fiveMinuteRate < targetRate &&
-                        tenMinuteRate < targetRate &&
-                        twentyMinuteRate < targetRate / 2.0 &&
-                        currentTime - startTime > TWENTY_MINUTES) {
-                    log.debug("triggering scale down for {}", streamSegmentName);
+            if (twoMinuteRate < targetRate &&
+                    fiveMinuteRate < targetRate &&
+                    tenMinuteRate < targetRate &&
+                    twentyMinuteRate < targetRate / 2.0 &&
+                    currentTime - startTime > TWENTY_MINUTES) {
+                log.debug("triggering scale down for {}", streamSegmentName);
 
-                    triggerScaleDown(streamSegmentName, false);
-                }
+                triggerScaleDown(streamSegmentName, false);
             }
         }
     }
 
     void notifyCreated(String segmentStreamName) {
-        cache.put(segmentStreamName, new ImmutablePair<>(System.currentTimeMillis(), System.currentTimeMillis()));
+        long timeMillis = getTimeMillis();
+        cache.put(segmentStreamName, new ImmutablePair<>(timeMillis, timeMillis));
     }
 
     void notifySealed(String segmentStreamName) {
@@ -314,6 +317,16 @@ public class AutoScaleProcessor implements AutoCloseable {
     Pair<Long, Long> get(String streamSegmentName) {
         return cache.getIfPresent(streamSegmentName);
     }
+    
+    @VisibleForTesting
+    CompletableFuture<EventStreamWriter<AutoScaleEvent>> getWriterFuture() {
+        return writer;
+    }
+
+    @VisibleForTesting
+    boolean isInitializeStarted() {
+        return startInitWriter.get();
+    }
 
     private static class EventSerializer implements Serializer<AutoScaleEvent> {
         private final ControllerEventSerializer baseSerializer = new ControllerEventSerializer();
@@ -327,6 +340,11 @@ public class AutoScaleProcessor implements AutoCloseable {
         public AutoScaleEvent deserialize(ByteBuffer serializedValue) {
             return (AutoScaleEvent) this.baseSerializer.fromByteBuffer(serializedValue);
         }
+    }
+
+    @VisibleForTesting
+    protected long getTimeMillis() {
+        return System.currentTimeMillis();
     }
 }
 

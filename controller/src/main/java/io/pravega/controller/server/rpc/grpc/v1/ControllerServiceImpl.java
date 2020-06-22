@@ -53,6 +53,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
@@ -65,6 +66,7 @@ import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -191,6 +193,23 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                     .addAllSegmentRanges(segmentRanges)
                                     .setDelegationToken(delegationToken)
                                     .build());
+                },
+                responseObserver);
+    }
+
+    @Override
+    public void getEpochSegments(GetEpochSegmentsRequest request, StreamObserver<SegmentRanges> responseObserver) {
+        log.info("getEpochSegments called for stream {}/{} and epoch {}", request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getEpoch());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getEpochSegments", request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
+                    return controllerService.getEpochSegments(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getEpoch())
+                                            .thenApply(segmentRanges -> SegmentRanges.newBuilder()
+                                                                                     .addAllSegmentRanges(segmentRanges)
+                                                                                     .setDelegationToken(delegationToken)
+                                                                                     .build());
                 },
                 responseObserver);
     }
@@ -610,6 +629,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         }
         if (cause instanceof StoreException.StoreConnectionException) {
             return Status.INTERNAL;
+        }
+        if (cause instanceof TimeoutException) {
+            return Status.DEADLINE_EXCEEDED;
         }
         return Status.UNKNOWN;
     }

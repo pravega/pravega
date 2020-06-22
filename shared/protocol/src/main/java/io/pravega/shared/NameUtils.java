@@ -201,6 +201,16 @@ public final class NameUtils {
     public static boolean isAttributeSegment(String segmentName) {
         return segmentName.endsWith(ATTRIBUTE_SUFFIX);
     }
+  
+    /**
+     * Checks whether given name is a Header Segment.
+     *
+     * @param segmentName The name of the segment.
+     * @return true if the name is Header Segment. False otherwise
+     */
+    public static boolean isHeaderSegment(String segmentName) {
+        return segmentName.endsWith(HEADER_SUFFIX);
+    }
 
     /**
      * Gets the name of the Segment name from its Header Segment Name.
@@ -271,6 +281,16 @@ public final class NameUtils {
      */
     public static int getEpoch(long segmentId) {
         return (int) (segmentId >> 32);
+    }
+
+    /**
+     * Method to extract epoch from given transaction id.
+     *
+     * @param txnId Unique id of the transaction.
+     * @return epoch by extracting it the transaction id.
+     */
+    public static int getEpoch(UUID txnId) {
+        return (int) (txnId.getMostSignificantBits() >> 32);
     }
 
     /**
