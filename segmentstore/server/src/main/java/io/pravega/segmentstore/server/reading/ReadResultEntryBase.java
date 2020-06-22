@@ -42,9 +42,6 @@ public abstract class ReadResultEntryBase implements CompletableReadResultEntry 
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     protected ReadResultEntryBase(ReadResultEntryType type, long streamSegmentOffset, int requestedReadLength) {
-        if (requestedReadLength == 0) {
-            System.out.println();
-        }
         Preconditions.checkArgument(streamSegmentOffset >= 0, "streamSegmentOffset must be a non-negative number.");
         Preconditions.checkArgument(requestedReadLength > 0, "requestedReadLength must be a positive integer.");
 

@@ -15,6 +15,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -555,11 +556,11 @@ public abstract class VersionedSerializer<T> {
         /**
          * Deserializes data from the given ArrayView and creates a new object with the result.
          *
-         * @param data The ArrayView to deserialize from.
+         * @param data The BufferView to deserialize from.
          * @return A new instance of TargetType with the deserialized data.
          * @throws IOException If an IO Exception occurred.
          */
-        public TargetType deserialize(ArrayView data) throws IOException {
+        public TargetType deserialize(BufferView data) throws IOException {
             return deserialize(data.getReader());
         }
 
