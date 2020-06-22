@@ -46,11 +46,10 @@ public class BufferViewBuilder {
      *                   will contain references to the {@link BufferView}s passed via this method and not contain copies
      *                   of their data. Any modifications made to this {@link BufferView} will be reflected in the resulting
      *                   {@link BufferView} and viceversa.
-     * @return This instance.
      */
-    public BufferViewBuilder add(@NonNull BufferView bufferView) {
+    public void add(@NonNull BufferView bufferView) {
         if (bufferView.getLength() == 0) {
-            return this;
+            return;
         }
 
         if (bufferView instanceof CompositeBufferView) {
@@ -60,7 +59,6 @@ public class BufferViewBuilder {
         }
 
         this.length += bufferView.getLength();
-        return this;
     }
 
     /**

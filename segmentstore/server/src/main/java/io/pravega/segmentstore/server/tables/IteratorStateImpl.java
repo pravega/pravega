@@ -16,7 +16,6 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
-import io.pravega.segmentstore.contracts.tables.IteratorState;
 import java.io.IOException;
 import java.util.UUID;
 import lombok.Getter;
@@ -26,7 +25,7 @@ import lombok.SneakyThrows;
 /**
  * Represents the state of a resumable iterator.
  */
-class IteratorStateImpl implements IteratorState {
+class IteratorState {
     private static final Serializer SERIALIZER = new Serializer();
 
     /**
@@ -42,7 +41,7 @@ class IteratorStateImpl implements IteratorState {
      *
      * @param keyHash The Key Hash to use.
      */
-    IteratorStateImpl(@NonNull UUID keyHash) {
+    IteratorState(@NonNull UUID keyHash) {
         Preconditions.checkArgument(KeyHasher.isValid(keyHash), "keyHash must be at least IteratorState.MIN_HASH and at most IteratorState.MAX_HASH.");
         this.keyHash = keyHash;
     }
@@ -57,11 +56,12 @@ class IteratorStateImpl implements IteratorState {
     /**
      * Creates a new instance of the IteratorState class from the given array.
      *
-     * @param data The serialization of an IteratorState. This must have been generated using {@link #serialize()}.
+     * @param data A byte array containing the serialization of an IteratorState. This must have been generated using
+     *             {@link #serialize()}.
      * @return As new instance of the IteratorState class.
      * @throws IOException If unable to deserialize.
      */
-    static IteratorStateImpl deserialize(BufferView data) throws IOException {
+    static IteratorState deserialize(BufferView data) throws IOException {
         return SERIALIZER.deserialize(data);
     }
 
@@ -75,16 +75,16 @@ class IteratorStateImpl implements IteratorState {
         return SERIALIZER.serialize(this);
     }
 
-    private static class IteratorStateBuilder implements ObjectBuilder<IteratorStateImpl> {
+    private static class IteratorStateBuilder implements ObjectBuilder<IteratorState> {
         private UUID keyHash;
 
         @Override
-        public IteratorStateImpl build() {
-            return new IteratorStateImpl(keyHash);
+        public IteratorState build() {
+            return new IteratorState(keyHash);
         }
     }
 
-    private static class Serializer extends VersionedSerializer.WithBuilder<IteratorStateImpl, IteratorStateBuilder> {
+    private static class Serializer extends VersionedSerializer.WithBuilder<IteratorState, IteratorStateBuilder> {
         @Override
         protected IteratorStateBuilder newBuilder() {
             return new IteratorStateBuilder();
@@ -104,7 +104,7 @@ class IteratorStateImpl implements IteratorState {
             builder.keyHash = revisionDataInput.readUUID();
         }
 
-        private void write00(IteratorStateImpl state, RevisionDataOutput revisionDataOutput) throws IOException {
+        private void write00(IteratorState state, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.length(RevisionDataOutput.UUID_BYTES);
             revisionDataOutput.writeUUID(state.keyHash);
         }
