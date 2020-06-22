@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import io.pravega.common.Exceptions;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -137,10 +138,7 @@ public final class BitConverter {
      * @return The read number.
      */
     public static int readInt(byte[] source, int position) {
-        return (source[position] & 0xFF) << 24
-                | (source[position + 1] & 0xFF) << 16
-                | (source[position + 2] & 0xFF) << 8
-                | (source[position + 3] & 0xFF);
+        return makeInt(source[position], source[position + 1], source[position + 2], source[position + 3]);
     }
 
     /**
@@ -151,10 +149,8 @@ public final class BitConverter {
      * @return The read number.
      */
     public static int readInt(ArrayView source, int position) {
-        return (source.get(position) & 0xFF) << 24
-                | (source.get(position + 1) & 0xFF) << 16
-                | (source.get(position + 2) & 0xFF) << 8
-                | (source.get(position + 3) & 0xFF);
+        Exceptions.checkArrayRange(position, Integer.BYTES, source.getLength(), "position", "Integer.BYTES");
+        return readInt(source.array(), source.arrayOffset() + position);
     }
 
     /**
@@ -172,8 +168,24 @@ public final class BitConverter {
         if ((b1 | b2 | b3 | b4) < 0) {
             throw new EOFException();
         } else {
-            return (b1 << 24) + (b2 << 16) + (b3 << 8) + b4;
+            return makeInt(b1, b2, b3, b4);
         }
+    }
+
+    /**
+     * Composes a 32-bit integer from the given byte components (Big-Endian order).
+     *
+     * @param b1 Byte #1.
+     * @param b2 Byte #2.
+     * @param b3 Byte #3.
+     * @param b4 Byte #4.
+     * @return The composed number.
+     */
+    public static int makeInt(int b1, int b2, int b3, int b4) {
+        return (b1 & 0xFF) << 24
+                | (b2 & 0xFF) << 16
+                | (b3 & 0xFF) << 8
+                | (b4 & 0xFF);
     }
 
     /**
@@ -256,14 +268,8 @@ public final class BitConverter {
      * @return The read number.
      */
     public static long readLong(ArrayView source, int position) {
-        return (long) (source.get(position) & 0xFF) << 56
-                | (long) (source.get(position + 1) & 0xFF) << 48
-                | (long) (source.get(position + 2) & 0xFF) << 40
-                | (long) (source.get(position + 3) & 0xFF) << 32
-                | (long) (source.get(position + 4) & 0xFF) << 24
-                | (source.get(position + 5) & 0xFF) << 16
-                | (source.get(position + 6) & 0xFF) << 8
-                | (source.get(position + 7) & 0xFF);
+        Exceptions.checkArrayRange(position, Long.BYTES, source.getLength(), "position", "Long.BYTES");
+        return readLong(source.array(), source.arrayOffset() + position);
     }
 
     /**
@@ -274,14 +280,8 @@ public final class BitConverter {
      * @return The read number.
      */
     public static long readLong(byte[] source, int position) {
-        return (long) (source[position] & 0xFF) << 56
-                | (long) (source[position + 1] & 0xFF) << 48
-                | (long) (source[position + 2] & 0xFF) << 40
-                | (long) (source[position + 3] & 0xFF) << 32
-                | (long) (source[position + 4] & 0xFF) << 24
-                | (source[position + 5] & 0xFF) << 16
-                | (source[position + 6] & 0xFF) << 8
-                | (source[position + 7] & 0xFF);
+        return makeLong(source[position], source[position + 1], source[position + 2], source[position + 3],
+                source[position + 4], source[position + 5], source[position + 6], source[position + 7]);
     }
 
     /**
@@ -303,15 +303,32 @@ public final class BitConverter {
         if ((b1 | b2 | b3 | b4 | b5 | b6 | b7 | b8) < 0) {
             throw new EOFException();
         } else {
-            return ((long) b1 << 56) +
-                    ((long) (b2 & 255) << 48) +
-                    ((long) (b3 & 255) << 40) +
-                    ((long) (b4 & 255) << 32) +
-                    ((long) (b5 & 255) << 24) +
-                    (long) ((b6 & 255) << 16) +
-                    (long) ((b7 & 255) << 8) +
-                    (long) ((b8 & 255));
+            return makeLong(b1, b2, b3, b4, b5, b6, b7, b8);
         }
+    }
+
+    /**
+     * Composes 64-bit long from the given byte components (in Big Endian order).
+     *
+     * @param b1 Byte #1.
+     * @param b2 Byte #2.
+     * @param b3 Byte #3.
+     * @param b4 Byte #4.
+     * @param b5 Byte #5.
+     * @param b6 Byte #6.
+     * @param b7 Byte #7.
+     * @param b8 Byte #8.
+     * @return The composed number.
+     */
+    public static long makeLong(int b1, int b2, int b3, int b4, int b5, int b6, int b7, int b8) {
+        return ((long) b1 << 56) +
+                ((long) (b2 & 255) << 48) +
+                ((long) (b3 & 255) << 40) +
+                ((long) (b4 & 255) << 32) +
+                ((long) (b5 & 255) << 24) +
+                (long) ((b6 & 255) << 16) +
+                (long) ((b7 & 255) << 8) +
+                (long) ((b8 & 255));
     }
 
     /**

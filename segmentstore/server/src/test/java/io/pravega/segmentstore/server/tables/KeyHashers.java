@@ -10,8 +10,8 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.hash.HashHelper;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.BufferView;
 
 /**
  * Key Hashers used throughout testing.
@@ -35,12 +35,12 @@ class KeyHashers {
      */
     static final KeyHasher CONSTANT_HASHER = KeyHasher.custom(KeyHashers::hashConstant);
 
-    private static byte[] hashConstant(ArrayView ignored) {
+    private static byte[] hashConstant(BufferView ignored) {
         return new byte[KeyHasher.HASH_SIZE_BYTES];
     }
 
-    private static byte[] hashWithCollisions(ArrayView arrayView) {
-        int hashValue = HashHelper.seededWith(IndexReaderWriterTests.class.getName()).hashToBucket(arrayView, COLLISION_HASH_BUCKETS);
+    private static byte[] hashWithCollisions(BufferView bufferView) {
+        int hashValue = HashHelper.seededWith(IndexReaderWriterTests.class.getName()).hashToBucket(bufferView, COLLISION_HASH_BUCKETS);
         byte[] result = new byte[KeyHasher.HASH_SIZE_BYTES];
         BitConverter.writeInt(result, 0, hashValue);
         return result;
