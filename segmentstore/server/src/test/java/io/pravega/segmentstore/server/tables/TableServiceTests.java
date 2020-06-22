@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -255,9 +254,6 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         // Check inexistent keys.
         val searchFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
         val iteratorFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
-        // Delta Iteration does not support sorted TableSegments.
-        val unsortedIteratorFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
-        val offsetIteratorFutures = new ArrayList<CompletableFuture<List<IteratorItem<TableEntry>>>>();
         val expectedResult = new ArrayList<Map.Entry<BufferView, EntryData>>();
         for (val e : bySegment.entrySet()) {
             String segmentName = e.getKey();

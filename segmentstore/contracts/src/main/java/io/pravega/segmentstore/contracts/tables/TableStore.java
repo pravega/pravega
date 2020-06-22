@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.contracts.tables;
 
+import com.google.common.annotations.Beta;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -268,8 +269,11 @@ public interface TableStore {
      * or not, it is completely transparent to the caller and it will still iterate through all the {@link TableKey}s in
      * the table.
      *
-     * @param segmentName The name of the Table Segment to iterate over.
-     * @param args        Arguments for the Iterator.
+     * @param segmentName     The name of the Table Segment to iterate over.
+     * @param serializedState (Optional) A {@link BufferView} representing the serialized form of the State. This can be
+     *                        obtained from {@link IteratorItem#getState()}. If provided, the iteration will resume from
+     *                        where it left off, otherwise it will start from the beginning.
+     * @param fetchTimeout    Timeout for each invocation to {@link AsyncIterator#getNext()}.
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
      * over all the {@link TableKey} instances in the Table. If the operation failed, the Future will be failed with the
      * causing exception. Notable exceptions:
@@ -279,15 +283,18 @@ public interface TableStore {
      * </ul>
      * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
-    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args);
+    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout);
 
     /**
      * Creates a new {@link AsyncIterator} over all the {@link TableEntry} instances in the given Table Segment.
      * <p>
      * Please refer to {@link #keyIterator} for notes about consistency and the ability to resume.
      *
-     * @param segmentName The name of the Table Segment to iterate over.
-     * @param args        Arguments for the Iterator.
+     * @param segmentName     The name of the Table Segment to iterate over.
+     * @param serializedState (Optional) A {@link BufferView} representing the serialized form of the State. This can be
+     *                        obtained from {@link IteratorItem#getState()}. If provided, the iteration will resume from
+     *                        where it left off, otherwise it will start from the beginning.
+     * @param fetchTimeout    Timeout for each invocation to {@link AsyncIterator#getNext()}.
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
      * over all the {@link TableEntry} instances in the Table. If the operation failed, the Future will be failed with the
      * causing exception. Notable exceptions:
@@ -297,30 +304,5 @@ public interface TableStore {
      * </ul>
      * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
-    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args);
-
-    /**
-     * Creates a new {@link AsyncIterator} over all the {@link TableEntry} instances in the given Table Segment starting from a given position.
-     *
-     * The entryDeltaIterator directly traverses the underlying contents of the TableSegment and deserializes the read bytes into
-     * {@link TableEntry}s. The bounds of the iteration (start and end positions) are determined prior to instantiation of the underlying
-     * iterator, and are fixed for the duration of the iteration. The 'actual' startPosition is determined by the max
-     * of the fromPosition and the observed {@link TableAttributes#COMPACTION_OFFSET}. Every TableEntry appended to the TableSegment
-     * will be returned (including deletions).
-     *
-     * Please refer to {@link #keyIterator} for notes about consistency and the ability to resume.
-     *
-     * @param segmentName       The name of the Table Segment to iterate over.
-     * @param fromPosition      The position to begin iteration at.
-     * @param fetchTimeout      Timeout for each invocation to {@link AsyncIterator#getNext()}.
-     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
-     * over all the {@link TableEntry} instances starting at {@param fromPosition}. If the operation failed, the Future will be failed with the
-     * causing exception. Notable exceptions:
-     * <ul>
-     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
-     * </ul>
-     * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
-     */
-    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout);
+    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout);
 }

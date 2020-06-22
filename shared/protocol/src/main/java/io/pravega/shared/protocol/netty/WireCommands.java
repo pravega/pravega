@@ -2337,6 +2337,11 @@ public final class WireCommands {
         void releaseInternal() {
             this.entries.release();
         }
+
+        @Override
+        void releaseInternal() {
+            this.tableEntries.release();
+        }
     }
 
     /**

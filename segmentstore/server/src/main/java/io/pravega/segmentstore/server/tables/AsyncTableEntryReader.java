@@ -308,9 +308,10 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             return true; // Now we are truly done.
         }
 
-        private BufferView readKey(BufferView readData, EntrySerializer.Header header) {
-            return readData.slice(header.getKeyOffset(), header.getKeyLength());
-        }
+        private BufferView getKeyData(BufferView soughtKey, BufferView readData, EntrySerializer.Header header) {
+            if (soughtKey == null) {
+                soughtKey = readData.slice(header.getKeyOffset(), header.getKeyLength());
+            }
 
         private BufferView getOrReadKey(BufferView readData, EntrySerializer.Header header) {
             return this.soughtKey != null ? this.soughtKey : readData.slice(header.getKeyOffset(), header.getKeyLength());
