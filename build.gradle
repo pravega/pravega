@@ -109,7 +109,6 @@ allprojects {
     configurations.all {
         resolutionStrategy {
             //failOnVersionConflict()
-            force "com.google.guava:guava:" + guavaVersion
             force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
             force "io.grpc:grpc-context:" + grpcVersion
             force "commons-beanutils:commons-beanutils:" + commonsBeanutilsVersion
@@ -144,6 +143,15 @@ allprojects {
 
 project('common') {
     dependencies {
+        constraints {
+            implementation("com.google.guava:guava") {
+                version {
+                    strictly(guavaVersion)
+                    prefer(guavaVersion)
+                }
+                because("project bindings requires that minimum")
+            }
+        }
         testCompile project(':test:testcommon')
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
@@ -330,16 +338,21 @@ project('segmentstore:storage:impl') {
 }
 
 project ('bindings') {
-    configurations.all {
-        resolutionStrategy {
-                force "com.google.inject.extensions:guice-assistedinject:3.0"
-                force "com.google.inject.extensions:guice-servlet:3.0"
-                force "com.google.inject:guice:3.0"
-                force "com.google.guava:guava:25.0-jre"
-        }
-    }
     dependencies {
+        constraints {
+            implementation("com.google.guava:guava") {
+                version {
+                    strictly(guavaVersion)
+                    prefer(guavaVersion)
+                }
+                because("Guava 26.0-jre removed addCallback API with 2 parameters used by latest hadoop-common")
+            }
+        }
         // For HDFS
+        implementation group: 'com.google.guava', name: 'guava', version: guavaVersion
+        implementation group: 'com.google.inject.extensions', name: 'guice-assistedinject', version: guiceVersion
+        implementation group: 'com.google.inject.extensions', name: 'guice-servlet', version: guiceVersion
+        implementation group: 'com.google.inject', name: 'guice', version: guiceVersion
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
