@@ -25,7 +25,7 @@ import org.junit.Test;
 /**
  * Unit tests for the {@link CompositeByteArraySegment} class.
  */
-public class CompositeByteArraySegmentTests {
+public class CompositeByteArraySegmentTests extends BufferViewTestBase {
     private static final int ARRAY_SIZE = 128;
     private static final int ARRAY_COUNT = 6;
     private static final int LENGTH = ARRAY_SIZE * ARRAY_COUNT - ARRAY_SIZE / 4;
@@ -129,9 +129,10 @@ public class CompositeByteArraySegmentTests {
             val targetData = new byte[s.getLength()];
             val targetOffset = new AtomicInteger();
             val count = new AtomicInteger();
-            s.collect((array, arrayOffset, arrayLength) -> {
-                System.arraycopy(array, arrayOffset, targetData, targetOffset.get(), arrayLength);
-                targetOffset.addAndGet(arrayLength);
+            s.collect(bb -> {
+                int len = bb.remaining();
+                bb.get(targetData, targetOffset.get(), len);
+                targetOffset.addAndGet(len);
                 count.incrementAndGet();
             });
 
@@ -263,6 +264,14 @@ public class CompositeByteArraySegmentTests {
         val rnd = new Random(0);
         rnd.nextBytes(expectedData);
         return expectedData;
+    }
+
+    @Override
+    protected BufferView toBufferView(ArrayView data) {
+        val result = new CompositeByteArraySegment(data.getLength(), ARRAY_SIZE);
+        result.copyFrom(data.getBufferViewReader(), 0, data.getLength());
+        return result;
+
     }
 
     @FunctionalInterface

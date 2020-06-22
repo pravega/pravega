@@ -28,7 +28,7 @@ import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class CompositeBufferViewTests {
+public class CompositeBufferViewTests extends BufferViewTestBase {
     private static final int COMPONENT_COUNT = 10;
 
     /**
@@ -37,8 +37,7 @@ public class CompositeBufferViewTests {
     @Test
     public void testWrap() throws IOException {
         val empty = BufferView.wrap(Collections.emptyList());
-        Assert.assertTrue(empty instanceof ByteArraySegment);
-        Assert.assertEquals(0, empty.getLength());
+        Assert.assertSame(BufferView.empty(), empty);
 
         val b1 = new ByteArraySegment(new byte[]{1});
         val b2 = new ByteArraySegment(new byte[]{2});
@@ -139,22 +138,6 @@ public class CompositeBufferViewTests {
     }
 
     /**
-     * Tests {@link CompositeBufferView#copyTo(ByteBuffer)}.
-     */
-    @Test
-    public void testCopyToByteBuffer() throws IOException {
-        val components = createComponents();
-        val cb = BufferView.wrap(components);
-        val expectedSize = components.stream().mapToInt(BufferView::getLength).sum();
-        val expected = StreamHelpers.readAll(
-                new SequenceInputStream(Iterators.asEnumeration(components.stream().map(BufferView::getReader).iterator())),
-                expectedSize);
-        val actual = new byte[expectedSize];
-        cb.copyTo(ByteBuffer.wrap(actual));
-        Assert.assertArrayEquals("", expected, actual);
-    }
-
-    /**
      * Tests {@link CompositeBufferView#slice(int, int)} and {@link CompositeBufferView#getReader(int, int)}.
      */
     @Test
@@ -175,6 +158,24 @@ public class CompositeBufferViewTests {
             val sliceReaderData = StreamHelpers.readAll(sliceReader, sliceLength);
             AssertExtensions.assertArrayEquals("getReader(offset, length)", expected, i, sliceReaderData, 0, sliceLength);
         }
+    }
+
+    @Override
+    protected BufferView toBufferView(ArrayView data) {
+        int sliceSize = data.getLength() / COMPONENT_COUNT;
+        if (data.getLength() % COMPONENT_COUNT != 0) {
+            sliceSize++;
+        }
+
+        val slices = new ArrayList<BufferView>();
+        int offset = 0;
+        while (offset < data.getLength()) {
+            val slice = data.slice(offset, Math.min(data.getLength() - offset, sliceSize));
+            slices.add(slice);
+            offset += slice.getLength();
+        }
+
+        return new CompositeBufferView(slices, data.getLength());
     }
 
     /**

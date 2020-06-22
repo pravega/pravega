@@ -285,17 +285,17 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout) {
+        public CompletableFuture<List<TableEntry>> get(String segmentName, List<BufferView> keys, Duration timeout) {
             throw new UnsupportedOperationException("get");
         }
 
         @Override
-        public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
+        public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
             throw new UnsupportedOperationException("keyIterator");
         }
 
         @Override
-        public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
+        public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
             throw new UnsupportedOperationException("entryIterator");
         }
     }

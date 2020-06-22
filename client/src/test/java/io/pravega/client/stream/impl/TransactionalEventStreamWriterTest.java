@@ -11,7 +11,6 @@ package io.pravega.client.stream.impl;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
