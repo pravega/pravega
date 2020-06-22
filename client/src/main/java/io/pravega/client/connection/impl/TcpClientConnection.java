@@ -26,10 +26,12 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -93,8 +95,18 @@ public class TcpClientConnection implements ClientConnection {
                         } catch (Exception e) {
                             callback.processingFailure(e);
                         }
+                    } catch (SocketException e) {
+                        if (e.getMessage().equals("Socket closed")) {
+                            log.info("Closing TcpConnection.Reader because socket is closed.");
+                        } else {
+                            log.warn("Error in reading from socket.", e);
+                        }
+                        stop();
+                    } catch (EOFException e) {
+                        log.info("Closing TcpConnection.Reader because end of input readched.");
+                        stop();
                     } catch (Exception e) {
-                        log.error("Error processing data from from server " + name, e);
+                        log.warn("Error processing data from from server " + name, e);
                         stop();
                     }
                 }
