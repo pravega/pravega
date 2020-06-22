@@ -764,11 +764,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             return true;
                         }))
                 .thenAccept(v -> {
+                    WireCommands.TableKeysRead cmd;
                     synchronized (keys) {
-                        log.debug(readTableKeys.getRequestId(), "Iterate Table Segment Keys complete ({}).", keys.size());
-                        connection.send(new WireCommands.TableKeysRead(readTableKeys.getRequestId(), segment, keys, continuationToken.get()));
-                        this.tableStatsRecorder.iterateKeys(readTableKeys.getSegment(), keys.size(), timer.getElapsed());
+                        cmd = new WireCommands.TableKeysRead(readTableKeys.getRequestId(), segment, keys, continuationToken.get());
                     }
+                    log.debug(readTableKeys.getRequestId(), "Iterate Table Segment Keys complete ({}).", cmd.getKeys().size());
+                    connection.send(cmd);
+                    this.tableStatsRecorder.iterateKeys(readTableKeys.getSegment(), cmd.getKeys().size(), timer.getElapsed());
                 }).exceptionally(e -> handleException(readTableKeys.getRequestId(), segment, operation, e));
     }
 
@@ -821,13 +823,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             return true;
                         }))
                 .thenAccept(v -> {
+                    WireCommands.TableEntriesRead cmd;
                     synchronized (entries) {
-                        log.debug(readTableEntries.getRequestId(), "Iterate Table Segment Entries complete ({}).", entries.size());
-                        connection.send(new WireCommands.TableEntriesRead(readTableEntries.getRequestId(), segment,
+                        cmd = new WireCommands.TableEntriesRead(readTableEntries.getRequestId(), segment,
                                 new WireCommands.TableEntries(entries),
-                                continuationToken.get()));
-                        this.tableStatsRecorder.iterateEntries(readTableEntries.getSegment(), entries.size(), timer.getElapsed());
+                                continuationToken.get());
                     }
+                    log.debug(readTableEntries.getRequestId(), "Iterate Table Segment Entries complete ({}).", cmd.getEntries().getEntries().size());
+                    connection.send(cmd);
+                    this.tableStatsRecorder.iterateEntries(readTableEntries.getSegment(), cmd.getEntries().getEntries().size(), timer.getElapsed());
                 }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
     }
 
