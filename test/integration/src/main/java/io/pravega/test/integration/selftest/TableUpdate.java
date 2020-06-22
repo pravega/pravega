@@ -10,7 +10,7 @@
 package io.pravega.test.integration.selftest;
 
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
-import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import java.util.Random;
 import java.util.UUID;
@@ -38,8 +38,8 @@ class TableUpdate implements ProducerUpdate {
     private static final Random RANDOM = new Random();
 
     private final UUID keyId;
-    private final ArrayView key;
-    private final ArrayView value;
+    private final BufferView key;
+    private final BufferView value;
 
     /**
      * If non-null, this is a conditional update/removal, and this represents the condition.
@@ -53,7 +53,7 @@ class TableUpdate implements ProducerUpdate {
 
     //region Constructor
 
-    private TableUpdate(UUID keyId, Long version, ArrayView key, ArrayView value, boolean isRemoval) {
+    private TableUpdate(UUID keyId, Long version, BufferView key, BufferView value, boolean isRemoval) {
         this.keyId = keyId;
         this.version = version;
         this.key = key;
@@ -86,7 +86,7 @@ class TableUpdate implements ProducerUpdate {
 
     //endregion
 
-    static ArrayView generateKey(UUID keyId) {
+    static BufferView generateKey(UUID keyId) {
         // We "serialize" the KeyId using English words for each digit.
         val r = new EnhancedByteArrayOutputStream();
         add(keyId.getMostSignificantBits(), r);
@@ -94,7 +94,7 @@ class TableUpdate implements ProducerUpdate {
         return r.getData();
     }
 
-    private static ArrayView generateValue(int length) {
+    private static BufferView generateValue(int length) {
         val r = new byte[length];
         RANDOM.nextBytes(r);
         return new ByteArraySegment(r);
