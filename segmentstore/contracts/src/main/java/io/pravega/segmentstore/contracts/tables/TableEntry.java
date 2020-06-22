@@ -9,8 +9,7 @@
  */
 package io.pravega.segmentstore.contracts.tables;
 
-import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.HashedArray;
+import io.pravega.common.util.BufferView;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -30,7 +29,7 @@ public class TableEntry {
     /**
      * The Value (data) of the entry.
      */
-    private final ArrayView value;
+    private final BufferView value;
     /**
      * Creates a new instance of the TableEntry class with no desired version.
      *
@@ -39,7 +38,7 @@ public class TableEntry {
      *
      * @return the TableEntry that was created
      */
-    public static TableEntry unversioned(@NonNull ArrayView key, @NonNull ArrayView value) {
+    public static TableEntry unversioned(@NonNull BufferView key, @NonNull BufferView value) {
         return new TableEntry(TableKey.unversioned(key), value);
     }
 
@@ -52,7 +51,7 @@ public class TableEntry {
      * @return newly created TableEntry if one for the key does not already exist.
      *
      */
-    public static TableEntry notExists(@NonNull ArrayView key, @NonNull ArrayView value) {
+    public static TableEntry notExists(@NonNull BufferView key, @NonNull BufferView value) {
         return new TableEntry(TableKey.notExists(key), value);
     }
 
@@ -64,7 +63,7 @@ public class TableEntry {
      * @return newly created TableEntry if one for the key does not already exist.
      *
      */
-    public static TableEntry notExists(@NonNull ArrayView key) {
+    public static TableEntry notExists(@NonNull BufferView key) {
         return new TableEntry(TableKey.notExists(key), null);
     }
 
@@ -77,7 +76,7 @@ public class TableEntry {
      *
      * @return new instance of Table Entry with a specified version
      */
-    public static TableEntry versioned(@NonNull ArrayView key, @NonNull ArrayView value, long version) {
+    public static TableEntry versioned(@NonNull BufferView key, @NonNull BufferView value, long version) {
         return new TableEntry(TableKey.versioned(key, version), value);
     }
 
@@ -97,7 +96,7 @@ public class TableEntry {
             TableEntry other = (TableEntry) obj;
             return this.key.equals(other.key)
                     && ((this.value == null && other.value == null)
-                    || (this.value != null && other.value != null && HashedArray.arrayEquals(this.value, other.getValue())));
+                    || (this.value != null && other.value != null && this.value.equals(other.getValue())));
 
         }
 
