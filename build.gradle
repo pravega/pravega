@@ -142,13 +142,9 @@ allprojects {
     }
 }
 
-def withoutGuavaOnly = {
-                     exclude group: 'com.google.guava', module: 'guava'
-                   }
-
 project('common') {
     dependencies {
-        testCompile project(':test:testcommon'), withoutGuavaOnly
+        testCompile project(':test:testcommon')
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         //Do NOT add any additional dependencies here.
@@ -164,14 +160,6 @@ project('common') {
 
 def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
                       exclude group: 'org.slf4j', module: 'slf4j-simple' }
-def withoutGuava = {
-                     exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-                     exclude group: 'org.slf4j', module: 'slf4j-simple'
-                     exclude group: 'com.google.inject.extensions', module: 'guice-assistedinject'
-                     exclude group: 'com.google.inject.extensions', module: 'guice-servlet'
-                     exclude group: 'com.google.inject', module: 'guice'
-                     exclude group: 'com.google.guava', module: 'guava'
-                   }
 
 project('shared:authplugin') {
     dependencies {
@@ -286,7 +274,7 @@ project('test:testcommon') {
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-common', version: nettyVersion
-        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutGuava
+        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
         compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
     }
     javadoc {
@@ -342,15 +330,19 @@ project('segmentstore:storage:impl') {
 }
 
 project ('bindings') {
+    configurations.all {
+        resolutionStrategy {
+                force "com.google.inject.extensions:guice-assistedinject:3.0"
+                force "com.google.inject.extensions:guice-servlet:3.0"
+                force "com.google.inject:guice:3.0"
+                force "com.google.guava:guava:25.0-jre"
+        }
+    }
     dependencies {
         // For HDFS
-        implementation group: 'com.google.guava', name: 'guava', version: guavaVersion
-        implementation "com.google.inject.extensions:guice-assistedinject:4.0", withoutGuavaOnly
-        implementation "com.google.inject.extensions:guice-servlet:4.0", withoutGuavaOnly
-        implementation "com.google.inject:guice:4.0", withoutGuavaOnly
-        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutGuava
-        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutGuava
-        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutGuava
+        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         // Adding JAXB API and the reference implementation as dependencies here, since they are not available
@@ -361,9 +353,9 @@ project ('bindings') {
 
         //For Extended S3
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
-        testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.5', withoutGuava
+        testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.5'
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
-        testCompile group: 'org.apache.jclouds.provider', name: 'google-cloud-storage', version: '2.1.1', withoutGuava
+        testCompile group: 'org.apache.jclouds.provider', name: 'google-cloud-storage', version: '2.1.1'
 
         compile project(':common')
         compile project(':segmentstore:storage')
@@ -433,11 +425,7 @@ project('segmentstore:server:host') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
-        implementation group: 'com.google.guava', name: 'guava', version: guavaVersion
-        implementation "com.google.inject.extensions:guice-assistedinject:4.0", withoutGuavaOnly
-        implementation "com.google.inject.extensions:guice-servlet:4.0", withoutGuavaOnly
-        implementation "com.google.inject:guice:4.0", withoutGuavaOnly
-        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutGuava
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
         testCompile project(path:':bindings', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
@@ -720,13 +708,9 @@ project('standalone') {
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        implementation group: 'com.google.guava', name: 'guava', version: guavaVersion
-        implementation "com.google.inject.extensions:guice-assistedinject:4.0", withoutGuavaOnly
-        implementation "com.google.inject.extensions:guice-servlet:4.0", withoutGuavaOnly
-        implementation "com.google.inject:guice:4.0", withoutGuavaOnly
-        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutGuava
-        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutGuava
-        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutGuava
+        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
+        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         testCompile project(':test:testcommon')
         testCompile project(path:':common', configuration:'testRuntime')
