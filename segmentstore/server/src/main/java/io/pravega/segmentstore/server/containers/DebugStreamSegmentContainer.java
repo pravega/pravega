@@ -68,7 +68,7 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
                 .length(length)
                 .sealed(isSealed)
                 .build();
-        ArrayView segmentInfo = MetadataStore.SegmentInfo.serialize(MetadataStore.SegmentInfo.builder().properties(segmentProp).build());
+        ArrayView segmentInfo = MetadataStore.SegmentInfo.serialize(MetadataStore.SegmentInfo.recoveredSegment(segmentProp));
         return metadataStore.createSegment(streamSegmentName, segmentInfo, new TimeoutTimer(TIMEOUT));
     }
 }

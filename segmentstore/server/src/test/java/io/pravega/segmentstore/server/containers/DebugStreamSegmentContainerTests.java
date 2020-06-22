@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -53,6 +54,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -63,6 +65,8 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
+    private static final int MIN_SEGMENT_LENGTH = 0;
+    private static final int MAX_SEGMENT_LENGTH = 10100;
     private static final int CONTAINER_ID = 1234567;
     private static final int EXPECTED_PINNED_SEGMENT_COUNT = 1;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
@@ -137,24 +141,22 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Alternate segments are sealed.
         ArrayList<String> segments = new ArrayList<>();
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-        boolean sealed = false;
+        long[] segmentLengths = new long[createdSegmentCount];
+        boolean[] segmentSealedStatus = new boolean[createdSegmentCount];
+        Random randomValue = RandomFactory.create();
         for (int i = 0; i < createdSegmentCount; i++) {
+            segmentLengths[i] = MIN_SEGMENT_LENGTH + randomValue.nextInt(MAX_SEGMENT_LENGTH - MIN_SEGMENT_LENGTH);
+            segmentSealedStatus[i] = randomValue.nextBoolean();
             String name = "Segment_" + i;
             segments.add(name);
-            futures.add(localContainer.createStreamSegment(name, 0L, sealed));
-            sealed = !sealed;
+            futures.add(localContainer.createStreamSegment(name, segmentLengths[i], segmentSealedStatus[i]));
         }
         Futures.allOf(futures).join();
         // Verify the Segments are still there.
-        sealed = false;
-        for (String sn : segments) {
-            SegmentProperties props = localContainer.getStreamSegmentInfo(sn, TIMEOUT).join();
-            if (!sealed) {
-                Assert.assertFalse("segment was marked as unsealed in metadata.", props.isSealed());
-            } else {
-                Assert.assertTrue("segment was marked as sealed in metadata.", props.isSealed());
-            }
-            sealed = !sealed;
+        for (int i = 0; i < createdSegmentCount; i++) {
+            SegmentProperties props = localContainer.getStreamSegmentInfo(segments.get(i), TIMEOUT).join();
+            Assert.assertEquals("Segment length mismatch ", segmentLengths[i], props.getLength());
+            Assert.assertEquals("Segment sealed status mismatch", segmentSealedStatus[i], props.isSealed());
         }
         localContainer.stopAsync().awaitTerminated();
     }
