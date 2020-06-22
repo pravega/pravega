@@ -319,8 +319,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 .toArray(ByteBuf[]::new);
         return Unpooled.wrappedUnmodifiableBuffer(buffers);
     }
+<<<<<<< HEAD
 
     private ByteBuf toByteBuf(BufferView bufferView) {
+=======
+
+    private ByteBuf toByteBuf(BufferView bufferView) {
+        if (bufferView.getLength() == 0) {
+            return EMPTY_BUFFER;
+        }
+
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         val buffers = bufferView.getContents().stream().map(Unpooled::wrappedBuffer).toArray(ByteBuf[]::new);
         return Unpooled.wrappedUnmodifiableBuffer(buffers);
     }
@@ -732,6 +741,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
         final IteratorArgs args = getIteratorArgs(readTableKeys.getContinuationToken(), readTableKeys.getPrefixFilter());
 
+<<<<<<< HEAD
         val result = new IteratorResult<WireCommands.TableKey>(segment.getBytes().length + WireCommands.TableKeysRead.HEADER_BYTES);
         val timer = new Timer();
         tableStore.keyIterator(segment, args)
@@ -741,6 +751,22 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             return false;
                         }
 
+=======
+        BufferView state = null;
+        if (!token.equals(EMPTY_BUFFER)) {
+            state = new ByteBufWrapper(token);
+        }
+
+        val result = new IteratorResult<WireCommands.TableKey>(segment.getBytes().length + WireCommands.TableKeysRead.HEADER_BYTES);
+        val timer = new Timer();
+        tableStore.keyIterator(segment, state, TIMEOUT)
+                .thenCompose(itr -> itr.collectRemaining(e -> {
+                    synchronized (result) {
+                        if (result.getItemCount() >= suggestedKeyCount || result.getSizeBytes() >= MAX_READ_SIZE) {
+                            return false;
+                        }
+
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
                         // Store all TableKeys.
                         for (val key : e.getEntries()) {
                             val k = new WireCommands.TableKey(toByteBuf(key.getKey()), key.getVersion());
@@ -771,17 +797,32 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.debug(readTableEntries.getRequestId(), "Iterate Table Segment Entries: Segment={}, Count={}.",
                 readTableEntries.getSegment(), readTableEntries.getSuggestedEntryCount());
 
+<<<<<<< HEAD
         final int suggestedEntryCount = readTableEntries.getSuggestedEntryCount();
         final IteratorArgs args = getIteratorArgs(readTableEntries.getContinuationToken(), readTableEntries.getPrefixFilter());
 
         val result = new IteratorResult<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>>(segment.getBytes().length + WireCommands.TableEntriesRead.HEADER_BYTES);
         val timer = new Timer();
         tableStore.entryIterator(segment, args)
+=======
+        int suggestedEntryCount = readTableEntries.getSuggestedEntryCount();
+        ByteBuf token = readTableEntries.getContinuationToken();
+
+        BufferView state = null;
+        if (!token.equals(EMPTY_BUFFER)) {
+            state = new ByteBufWrapper(token);
+        }
+
+        val result = new IteratorResult<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>>(segment.getBytes().length + WireCommands.TableEntriesRead.HEADER_BYTES);
+        val timer = new Timer();
+        tableStore.entryIterator(segment, state, TIMEOUT)
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
                 .thenCompose(itr -> itr.collectRemaining(
                         e -> {
                             if (result.getItemCount() >= suggestedEntryCount || result.getSizeBytes() >= MAX_READ_SIZE) {
                                 return false;
                             }
+<<<<<<< HEAD
 
                             // Store all TableEntries.
                             for (val entry : e.getEntries()) {
@@ -813,6 +854,28 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         return args.build();
     }
 
+=======
+
+                            // Store all TableEntries.
+                            for (val entry : e.getEntries()) {
+                                val k = new WireCommands.TableKey(toByteBuf(entry.getKey().getKey()), entry.getKey().getVersion());
+                                val v = new WireCommands.TableValue(toByteBuf(entry.getValue()));
+                                result.add(new AbstractMap.SimpleImmutableEntry<>(k, v), k.size() + v.size());
+                            }
+
+                            // Update the continuation token.
+                            result.setContinuationToken(e.getState());
+                            return true;
+                        }))
+                .thenAccept(v -> {
+                    log.debug(readTableEntries.getRequestId(), "Iterate Table Segment Entries complete ({}).", result.getItemCount());
+                    connection.send(new WireCommands.TableEntriesRead(readTableEntries.getRequestId(), segment,
+                            new WireCommands.TableEntries(result.getItems()), toByteBuf(result.getContinuationToken())));
+                    this.tableStatsRecorder.iterateEntries(readTableEntries.getSegment(), result.getItemCount(), timer.getElapsed());
+                }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
+    }
+
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
     private WireCommands.TableEntries getTableEntriesCommand(final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {
         Preconditions.checkArgument(resultEntries.size() == inputKeys.size(), "Number of input keys should match result entry count.");
         final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries =

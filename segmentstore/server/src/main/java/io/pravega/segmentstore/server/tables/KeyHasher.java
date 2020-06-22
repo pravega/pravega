@@ -137,7 +137,11 @@ abstract class KeyHasher {
         @Override
         public UUID hash(@NonNull BufferView key) {
             val h = HASH.newHasher();
+<<<<<<< HEAD
             key.collect(h::putBytes);
+=======
+            key.getContents().forEach(h::putBytes);
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
             byte[] rawHash = new byte[HASH_SIZE_BYTES];
             int c = h.hash().writeBytesTo(rawHash, 0, rawHash.length);
             assert c == rawHash.length;

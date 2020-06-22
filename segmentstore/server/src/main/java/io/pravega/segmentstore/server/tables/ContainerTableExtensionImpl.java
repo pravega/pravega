@@ -51,7 +51,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+<<<<<<< HEAD
 import java.util.function.BiFunction;
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.Data;
@@ -230,6 +233,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
+<<<<<<< HEAD
                 .thenComposeAsync(segment -> {
                     val segmentInfo = segment.getInfo();
                     val toUpdate = translateItems(entries, segmentInfo, external, KeyTranslator::inbound);
@@ -242,6 +246,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     return this.keyIndex.update(segment, updateBatch,
                             () -> commit(toUpdate, this.serializer::serializeUpdate, segment, timer.getRemaining()), timer);
                 }, this.executor);
+=======
+                .thenComposeAsync(segment -> this.keyIndex.update(segment, updateBatch,
+                        () -> commit(entries, this.serializer::serializeUpdate, segment, timer.getRemaining()), timer),
+                        this.executor);
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
     }
 
     @Override
@@ -254,6 +263,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
+<<<<<<< HEAD
                 .thenComposeAsync(segment -> {
                     val segmentInfo = segment.getInfo();
                     val toRemove = translateItems(keys, segmentInfo, external, KeyTranslator::inbound);
@@ -263,15 +273,23 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     return this.keyIndex.update(segment, removeBatch,
                             () -> commit(toRemove, this.serializer::serializeRemoval, segment, timer.getRemaining()), timer);
                 }, this.executor)
+=======
+                .thenComposeAsync(segment -> this.keyIndex.update(segment, removeBatch,
+                        () -> commit(keys, this.serializer::serializeRemoval, segment, timer.getRemaining()), timer),
+                        this.executor)
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
                 .thenRun(Runnables.doNothing());
     }
 
     @Override
     public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<BufferView> keys, Duration timeout) {
+<<<<<<< HEAD
         return get(segmentName, keys, true, timeout);
     }
 
     private CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<BufferView> keys, boolean external, Duration timeout) {
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         Exceptions.checkNotClosed(this.closed.get(), this);
         logRequest("get", segmentName, keys.size());
         if (keys.isEmpty()) {
@@ -347,6 +365,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     @Override
+<<<<<<< HEAD
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
         return this.segmentContainer.forSegment(segmentName, args.getFetchTimeout())
                 .thenComposeAsync(segment -> {
@@ -373,6 +392,17 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                         return newHashIterator(segment, args, TableBucketReader::entry, KeyTranslator::outbound);
                     }
                 }, this.executor);
+=======
+    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+        logRequest("keyIterator", segmentName);
+        return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::key);
+    }
+
+    @Override
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+        logRequest("entryIterator", segmentName);
+        return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::entry);
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
     }
 
     //endregion
@@ -408,6 +438,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return segment.append(s, null, timeout);
     }
 
+<<<<<<< HEAD
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newSortedIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
                                                                                     @NonNull Function<List<BufferView>, CompletableFuture<List<T>>> toResult) {
         return this.keyIndex.getSortedKeyIndex(segment)
@@ -445,6 +476,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                                                                                   @NonNull GetBucketReader<T> createBucketReader,
                                                                                   @NonNull BiFunction<KeyTranslator, T, T> translateItem) {
         Preconditions.checkArgument(args.getPrefixFilter() == null, "Cannot perform a KeyHash iteration with a prefix.");
+=======
+    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, BufferView serializedState,
+                                                                              @NonNull Duration fetchTimeout,
+                                                                              @NonNull GetBucketReader<T> createBucketReader) {
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         UUID fromHash;
         try {
             fromHash = KeyHasher.getNextHash(args.getSerializedState() == null ? null : IteratorState.deserialize(args.getSerializedState()).getKeyHash());

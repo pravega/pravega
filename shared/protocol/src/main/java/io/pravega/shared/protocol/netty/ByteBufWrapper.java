@@ -168,10 +168,14 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
      */
     @RequiredArgsConstructor
 <<<<<<< HEAD
+<<<<<<< HEAD
     private static class ByteBufReader extends AbstractReader implements Reader {
 =======
     private static class ByteBufReader implements Reader {
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+    private static class ByteBufReader extends AbstractReader implements Reader {
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         private final ByteBuf buf;
 
         @Override
@@ -188,6 +192,9 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
             return len;
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
 
         @Override
         public byte readByte() {
@@ -224,8 +231,11 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
                 throw new OutOfBoundsException();
             }
         }
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
     }
 
     //endregion

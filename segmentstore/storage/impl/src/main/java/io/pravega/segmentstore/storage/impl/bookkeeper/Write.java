@@ -72,10 +72,14 @@ class Write {
         ByteBuf[] components = new ByteBuf[data.getComponentCount()];
         val index = new AtomicInteger();
 <<<<<<< HEAD
+<<<<<<< HEAD
         data.collect(bb -> components[index.getAndIncrement()] = Unpooled.wrappedBuffer(bb));
 =======
         data.collect((array, offset, length) -> components[index.getAndIncrement()] = Unpooled.wrappedBuffer(array, offset, length));
 >>>>>>> Issue 4778: Using Unpooled.wrappedUnmodifableBuffer where possible. (#4787)
+=======
+        data.collect(bb -> components[index.getAndIncrement()] = Unpooled.wrappedBuffer(bb));
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         return Unpooled.wrappedUnmodifiableBuffer(components);
     }
 

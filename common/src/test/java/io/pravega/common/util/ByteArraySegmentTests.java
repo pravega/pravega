@@ -107,6 +107,7 @@ public class ByteArraySegmentTests extends BufferViewTestBase {
 
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
      * Tests the functionality of copyTo(array).
      */
@@ -198,6 +199,8 @@ public class ByteArraySegmentTests extends BufferViewTestBase {
 
     /**
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
      * Tests the functionality of getWriter (the ability to return an OutputStream that can be used to write to the main buffer).
      */
     @Test

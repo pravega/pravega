@@ -14,9 +14,12 @@ import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.mock.MockStreamManager;
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import io.pravega.common.util.ArrayView;
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -293,12 +296,20 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
+<<<<<<< HEAD
         public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
+=======
+        public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
             throw new UnsupportedOperationException("keyIterator");
         }
 
         @Override
+<<<<<<< HEAD
         public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
+=======
+        public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
             throw new UnsupportedOperationException("entryIterator");
         }
     }

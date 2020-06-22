@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import javax.annotation.concurrent.NotThreadSafe;
+import lombok.AccessLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -1667,6 +1668,7 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
 <<<<<<< HEAD
+<<<<<<< HEAD
             TableEntries entries = TableEntries.readFrom(in, in.available());
             long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
@@ -1682,6 +1684,17 @@ public final class WireCommands {
 
             return new UpdateTableEntries(requestId, segment, delegationToken, entries, tableSegmentOffset);
 >>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
+=======
+            TableEntries entries = TableEntries.readFrom(in, in.available());
+            long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
+
+            return new UpdateTableEntries(requestId, segment, delegationToken, entries, tableSegmentOffset).requireRelease();
+        }
+
+        @Override
+        void releaseInternal() {
+            this.tableEntries.release();
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         }
     }
 
@@ -1757,15 +1770,21 @@ public final class WireCommands {
             long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
             return new RemoveTableKeys(requestId, segment, delegationToken, keys, tableSegmentOffset).requireRelease();
         }
 
         @Override
         void releaseInternal() {
             this.keys.forEach(TableKey::release);
+<<<<<<< HEAD
 =======
             return new RemoveTableKeys(requestId, segment, delegationToken, keys, tableSegmentOffset);
 >>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         }
     }
 
@@ -2305,11 +2324,16 @@ public final class WireCommands {
 
     @Data
 <<<<<<< HEAD
+<<<<<<< HEAD
     @EqualsAndHashCode(callSuper = false)
     public static final class TableEntriesDeltaRead extends ReleasableCommand implements Reply, WireCommand {
 =======
     public static final class TableEntriesDeltaRead implements Reply, WireCommand {
 >>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
+=======
+    @EqualsAndHashCode(callSuper = false)
+    public static final class TableEntriesDeltaRead extends ReleasableCommand implements Reply, WireCommand {
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         final WireCommandType type = WireCommandType.TABLE_ENTRIES_DELTA_READ;
         final long requestId;
         final String segment;
@@ -2335,6 +2359,7 @@ public final class WireCommands {
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
@@ -2345,6 +2370,12 @@ public final class WireCommands {
             String segment = in.readUTF();
             TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
 >>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
+=======
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            TableEntries entries = TableEntries.readFrom(in, in.available());
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
             boolean shouldClear = in.readBoolean();
             boolean reachedEnd = in.readBoolean();
             long lastVersion = in.readLong();
@@ -2352,11 +2383,15 @@ public final class WireCommands {
             return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastVersion);
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
 
         @Override
         void releaseInternal() {
             this.tableEntries.release();
         }
+<<<<<<< HEAD
     }
 
     /**
@@ -2366,14 +2401,21 @@ public final class WireCommands {
     public static abstract class ReleasableCommand implements WireCommand {
 =======
 =======
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
     }
 
 >>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
     /**
      * Base class for any command that may require releasing resources.
      */
+<<<<<<< HEAD
     static abstract class ReleasableCommand implements WireCommand {
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    public static abstract class ReleasableCommand implements WireCommand {
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         @Getter
         private boolean released = true;
 

@@ -705,20 +705,28 @@ public class PravegaRequestProcessorTest {
 
         // Remove a Table Key
 <<<<<<< HEAD
+<<<<<<< HEAD
         WireCommands.TableKey key = new WireCommands.TableKey(toByteBuf(e1.getKey().getKey()), 0L);
 =======
         WireCommands.TableKey key = new WireCommands.TableKey(wrappedBuffer(e1.getKey().getKey().array()), 0L);
 >>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
+=======
+        WireCommands.TableKey key = new WireCommands.TableKey(toByteBuf(e1.getKey().getKey()), 0L);
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         processor.removeTableKeys(new WireCommands.RemoveTableKeys(3, tableSegmentName, "", singletonList(key), 0L));
         order.verify(connection).send(new WireCommands.TableKeysRemoved(3, tableSegmentName));
         verify(recorderMock).removeKeys(eq(tableSegmentName), eq(1), eq(true), any());
 
         // Test with non-existent key.
 <<<<<<< HEAD
+<<<<<<< HEAD
         key = new WireCommands.TableKey(toByteBuf(e1.getKey().getKey()), 0L);
 =======
         key = new WireCommands.TableKey(wrappedBuffer(e1.getKey().getKey().array()), 0L);
 >>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
+=======
+        key = new WireCommands.TableKey(toByteBuf(e1.getKey().getKey()), 0L);
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         processor.removeTableKeys(new WireCommands.RemoveTableKeys(4, tableSegmentName, "", singletonList(key), 0L));
         order.verify(connection).send(new WireCommands.TableKeyBadVersion(4, tableSegmentName, ""));
         verifyNoMoreInteractions(recorderMock);
@@ -1054,6 +1062,9 @@ public class PravegaRequestProcessorTest {
     private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
         return ServiceBuilder.newInMemoryBuilder(config, (size, name, threadPriority) -> new InlineExecutor())
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
                 .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
                         setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
     }
@@ -1061,10 +1072,13 @@ public class PravegaRequestProcessorTest {
     private ByteBuf toByteBuf(BufferView bufferView) {
         val buffers = bufferView.getContents().stream().map(Unpooled::wrappedBuffer).toArray(ByteBuf[]::new);
         return Unpooled.wrappedUnmodifiableBuffer(buffers);
+<<<<<<< HEAD
 =======
                              .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
                                      setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
 >>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692)
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
     }
 
     //endregion

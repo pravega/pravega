@@ -308,9 +308,16 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             return true; // Now we are truly done.
         }
 
+<<<<<<< HEAD
         private BufferView readKey(BufferView readData, EntrySerializer.Header header) {
             return readData.slice(header.getKeyOffset(), header.getKeyLength());
         }
+=======
+        private BufferView getKeyData(BufferView soughtKey, BufferView readData, EntrySerializer.Header header) {
+            if (soughtKey == null) {
+                soughtKey = readData.slice(header.getKeyOffset(), header.getKeyLength());
+            }
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
 
         private BufferView getOrReadKey(BufferView readData, EntrySerializer.Header header) {
             return this.soughtKey != null ? this.soughtKey : readData.slice(header.getKeyOffset(), header.getKeyLength());

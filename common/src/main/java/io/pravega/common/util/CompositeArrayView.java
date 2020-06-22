@@ -57,6 +57,7 @@ public interface CompositeArrayView extends BufferView {
     CompositeArrayView slice(int offset, int length);
 
     /**
+<<<<<<< HEAD
      * Gets the number of components in this {@link CompositeArrayView} instance.
      *
      * @return The number of components. This is equivalent to retrieving {@link #getContents()}{@link List#size()} and
@@ -65,6 +66,8 @@ public interface CompositeArrayView extends BufferView {
     int getComponentCount();
 
     /**
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
      * Gets the number of components in this {@link CompositeArrayView} instance.
      *
      * @return The number of components. This is equivalent to retrieving {@link #getContents()}{@link List#size()} and

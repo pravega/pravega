@@ -91,6 +91,7 @@ public class ByteBufWrapperTests extends BufferViewTestBase {
         @Cleanup("release")
         val buf = wrap(data);
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         buf.readerIndex(buf.readerIndex() + SKIP_COUNT);
         val wrap = new ByteBufWrapper(buf);
@@ -157,6 +158,8 @@ public class ByteBufWrapperTests extends BufferViewTestBase {
     public void testSlice() throws IOException {
         val data = newData();
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         @Cleanup("release")
         val bufferView = toBufferView(data);
 

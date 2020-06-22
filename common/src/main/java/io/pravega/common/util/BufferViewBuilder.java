@@ -46,11 +46,18 @@ public class BufferViewBuilder {
      *                   will contain references to the {@link BufferView}s passed via this method and not contain copies
      *                   of their data. Any modifications made to this {@link BufferView} will be reflected in the resulting
      *                   {@link BufferView} and viceversa.
+<<<<<<< HEAD
      * @return This instance.
      */
     public BufferViewBuilder add(@NonNull BufferView bufferView) {
         if (bufferView.getLength() == 0) {
             return this;
+=======
+     */
+    public void add(@NonNull BufferView bufferView) {
+        if (bufferView.getLength() == 0) {
+            return;
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         }
 
         if (bufferView instanceof CompositeBufferView) {
@@ -60,7 +67,10 @@ public class BufferViewBuilder {
         }
 
         this.length += bufferView.getLength();
+<<<<<<< HEAD
         return this;
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
     }
 
     /**

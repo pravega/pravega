@@ -317,10 +317,14 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
     //region Reader
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     private class Reader extends AbstractReader implements BufferView.Reader {
 =======
     private class Reader implements BufferView.Reader {
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+    private class Reader extends AbstractReader implements BufferView.Reader {
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         private int position = 0;
 
         @Override
@@ -336,6 +340,9 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
             return len;
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
 
         @Override
         public byte readByte() {
@@ -381,8 +388,11 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
                 throw new OutOfBoundsException();
             }
         }
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
     }
 
     //endregion

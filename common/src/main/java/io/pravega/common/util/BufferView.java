@@ -169,6 +169,9 @@ public interface BufferView {
 
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
      * Creates a new {@link BufferViewBuilder} that can be used to construct composite {@link BufferView} instances.
      *
      * @return A new {@link BufferViewBuilder} with default initial component count.
@@ -198,8 +201,11 @@ public interface BufferView {
     }
 
     /**
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
      * Defines a reader for a {@link BufferView}.
      */
     interface Reader {
@@ -223,6 +229,9 @@ public interface BufferView {
 
         /**
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
          * Reads one byte and advances the reader position by 1.
          *
          * @return The read byte.
@@ -260,9 +269,12 @@ public interface BufferView {
         /**
          * Copies all the remaining bytes from this {@link BufferView.Reader} into a new {@link ArrayView}. The reader
          * position will be set to the end of the {@link BufferView}.
+<<<<<<< HEAD
 =======
          * Reads all the remaining bytes from this {@link BufferView.Reader} into a new {@link ByteArraySegment}.
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
          *
          * @param bufferSize The maximum number of bytes to copy at each iteration. Set to {@link Integer#MAX_VALUE}
          *                   to attempt to copy the whole buffer at once.
@@ -270,6 +282,9 @@ public interface BufferView {
          */
         @VisibleForTesting
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         ArrayView readFully(int bufferSize);
 
         /**
@@ -282,6 +297,7 @@ public interface BufferView {
 
             public OutOfBoundsException(String message) {
                 super(message);
+<<<<<<< HEAD
             }
         }
     }
@@ -309,10 +325,29 @@ public interface BufferView {
                 int readLength = Math.min(available(), readBuffer.getLength() - readOffset);
                 int readBytes = readBytes(readBuffer.slice(readOffset, Math.min(bufferSize, readLength)));
                 readOffset += readBytes;
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
             }
-            assert available() == 0;
-            return readBuffer;
         }
     }
+<<<<<<< HEAD
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+
+    /**
+     * Defines a collector function that can be applied to a ByteBuffer.
+     *
+     * @param <ExceptionT> Type of exception that this function can throw.
+     */
+    @FunctionalInterface
+    interface Collector<ExceptionT extends Exception> {
+        /**
+         * Processes a ByteBuffer.
+         *
+         * @param buffer The ByteBuffer.
+         * @throws ExceptionT (Optional) Any exception to throw.
+         */
+        void accept(ByteBuffer buffer) throws ExceptionT;
+    }
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
 }

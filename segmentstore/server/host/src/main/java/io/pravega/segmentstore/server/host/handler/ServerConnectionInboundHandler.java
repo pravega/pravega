@@ -21,10 +21,14 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.shared.protocol.netty.WireCommands;
 =======
 
 >>>>>>> Issue 4691: Honor delegation token expiration during appends  (#4692)
+=======
+import io.pravega.shared.protocol.netty.WireCommands;
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;

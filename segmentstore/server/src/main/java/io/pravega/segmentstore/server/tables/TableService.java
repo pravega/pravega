@@ -12,7 +12,10 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.annotations.Beta;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
+<<<<<<< HEAD
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -97,14 +100,22 @@ public class TableService extends SegmentContainerCollection implements TableSto
     }
 
     @Override
+<<<<<<< HEAD
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
+=======
+    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         return invokeExtension(segmentName,
                 e -> e.keyIterator(segmentName, args),
                 "get", segmentName, args);
     }
 
     @Override
+<<<<<<< HEAD
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
+=======
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         return invokeExtension(segmentName,
                 e -> e.entryIterator(segmentName, args),
                 "get", segmentName, args);

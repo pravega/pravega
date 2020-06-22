@@ -722,6 +722,9 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), WireCommands.TableValue.EMPTY));
         testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries), 0L));
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
 
         // Each Key and Value will retain the buffer once. We do not retain anything for the empty Table Key/Value.
         int refCntIncrement = entries.stream()
@@ -732,8 +735,11 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 WireCommands.UpdateTableEntries::readFrom,
                 ce -> ce.tableEntries.getEntries().get(0).getValue().getData().refCnt(),
                 refCntIncrement);
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
     }
 
     @Test
@@ -745,6 +751,9 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     public void testRemoveTableKeys() throws IOException {
         testCommand(new WireCommands.RemoveTableKeys(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buf, 1L),
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
                 new WireCommands.TableKey(buf, 2L)), 0L));
         testReleasableCommand(
                 () -> new WireCommands.RemoveTableKeys(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buf, 1L),
@@ -752,9 +761,12 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 WireCommands.RemoveTableKeys::readFrom,
                 ce -> ce.getKeys().get(0).getData().refCnt(),
                 2);
+<<<<<<< HEAD
 =======
                                                                                        new WireCommands.TableKey(buf, 2L)), 0L));
 >>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
     }
 
     @Test
@@ -867,6 +879,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 WireCommands.TableEntriesRead::readFrom,
                 ce -> ce.getEntries().getEntries().get(0).getKey().getData().refCnt(),
                 2 * entries.size());
+<<<<<<< HEAD
     }
 
 <<<<<<< HEAD
@@ -874,6 +887,8 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     public void testReadTableEntriesDelta() throws IOException {
         WireCommands.ReadTableEntriesDelta cmd = new WireCommands.ReadTableEntriesDelta(l, testString1, "", 1L, 100);
         testCommand(cmd);
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
     }
 
     @Test
@@ -886,14 +901,19 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+<<<<<<< HEAD
     public void testtableEntriesDeltaRead() throws IOException {
 >>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
+=======
+    public void testTableEntriesDeltaRead() throws IOException {
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
                 new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
                 new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l + 1), new WireCommands.TableValue(buf)));
         WireCommands.TableEntries tableEntries = new WireCommands.TableEntries(entries);
 
         WireCommands.TableEntriesDeltaRead cmd = new WireCommands.TableEntriesDeltaRead(
+<<<<<<< HEAD
 <<<<<<< HEAD
                 l, testString1, tableEntries, false, false, WireCommands.TableKey.NO_VERSION);
         testCommand(cmd);
@@ -927,10 +947,23 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
 >>>>>>> Issue 4792: API stubs for supporting offset/version based TableSegment reads. (#4789)
     @SuppressWarnings("unchecked")
+=======
+                l, testString1, tableEntries, false, false, WireCommands.TableKey.NO_VERSION);
+        testCommand(cmd);
+    }
+
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
     private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(
             Supplier<T> fromBuf, WireCommands.Constructor fromStream, Function<T, Integer> getRefCnt) throws IOException {
+        testReleasableCommand(fromBuf, fromStream, getRefCnt, 1);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(
+            Supplier<T> fromBuf, WireCommands.Constructor fromStream, Function<T, Integer> getRefCnt, int refCntIncrement) throws IOException {
         // If we pass in the buffer ourselves, there should be no need to release.
-        int originalRefCnt = buf.refCnt();
+        final int originalRefCnt = buf.refCnt();
+        int expectedRefCnt = originalRefCnt;
         T command = fromBuf.get();
         assertTrue(command.isReleased());
         command.release();
@@ -939,17 +972,25 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         command.release(); // Do this again. The second time should have no effect.
         assertEquals(originalRefCnt, buf.refCnt());
 
+<<<<<<< HEAD
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+        // Deserialize the command.
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         command.writeFields(new DataOutputStream(bout));
         ByteBuf buffer = Unpooled.wrappedBuffer(bout.toByteArray());
         T command2 = (T) fromStream.readFrom(new EnhancedByteBufInputStream(buffer), bout.size());
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         expectedRefCnt += refCntIncrement;
         assertEquals(expectedRefCnt, (int) getRefCnt.apply(command2));
         assertEquals(expectedRefCnt, buffer.refCnt());
 
         // Release the underlying buffer.
+<<<<<<< HEAD
         buffer.release();
         expectedRefCnt--;
         assertEquals(expectedRefCnt, (int) getRefCnt.apply(command2));
@@ -961,11 +1002,20 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 =======
         assertEquals(2, (int) getRefCnt.apply(command2));
         assertEquals(2, buffer.refCnt());
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         buffer.release();
-        assertEquals(1, (int) getRefCnt.apply(command2));
-        assertEquals(1, buffer.refCnt());
+        expectedRefCnt--;
+        assertEquals(expectedRefCnt, (int) getRefCnt.apply(command2));
+        assertEquals(expectedRefCnt, buffer.refCnt());
+
+        // Release the command.
         command2.release();
+<<<<<<< HEAD
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+        expectedRefCnt -= refCntIncrement;
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         assertEquals(0, (int) getRefCnt.apply(command2));
         assertEquals(0, buffer.refCnt());
         command2.release(); // Do this again. The second time should have no effect.

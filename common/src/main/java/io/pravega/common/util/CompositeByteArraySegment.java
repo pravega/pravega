@@ -304,10 +304,14 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
     //region Reader
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     private class CompositeReader extends AbstractReader implements BufferView.Reader {
 =======
     private class CompositeReader implements BufferView.Reader {
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+    private class CompositeReader extends AbstractReader implements BufferView.Reader {
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
         private int position = 0;
 
         @Override
@@ -325,6 +329,9 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
             return len;
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
 
         @Override
         public byte readByte() {
@@ -381,6 +388,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
                 throw new OutOfBoundsException();
             }
         }
+<<<<<<< HEAD
     }
 
     //endregion
@@ -402,4 +410,22 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
 
     //endregion
 >>>>>>> Issue 4764: Optimized AppendDecoder to make fewer buffer copies (#4765)
+=======
+    }
+
+    //endregion
+
+    @FunctionalInterface
+    private interface ArrayCollector<ExceptionT extends Exception> {
+        /**
+         * Processes an array range.
+         *
+         * @param array       The array.
+         * @param arrayOffset The start offset within the array.
+         * @param length      The number of bytes, beginning at startOffset, that need to be processed.
+         * @throws ExceptionT (Optional) Any exception to throw.
+         */
+        void accept(byte[] array, int arrayOffset, int length) throws ExceptionT;
+    }
+>>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
 }
