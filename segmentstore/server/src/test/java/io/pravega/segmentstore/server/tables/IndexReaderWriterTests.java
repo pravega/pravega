@@ -11,7 +11,8 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.util.HashedArray;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -112,7 +113,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             for (int j = 0; j < hashesPerBucket; j++) {
                 byte[] key = new byte[KeyHasher.HASH_SIZE_BYTES * 4];
                 long offset = i * hashesPerBucket + j;
-                keyUpdates.add(new BucketUpdate.KeyUpdate(new HashedArray(key), offset, offset, true));
+                keyUpdates.add(new BucketUpdate.KeyUpdate(new ByteArraySegment(key), offset, offset, true));
                 rnd.nextBytes(key);
                 hashToBuckets.put(KeyHashers.DEFAULT_HASHER.hash(key), bucket);
             }
@@ -241,7 +242,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
         // Generate batches and update them at once.
         long offset = 0;
-        val keys = new HashMap<Long, HashedArray>();
+        val keys = new HashMap<Long, BufferView>();
         while (keys.size() < KEY_COUNT) {
             int batchSize = Math.min(updateBatchSize, KEY_COUNT - keys.size());
             val batch = generateUpdateBatch(batchSize, offset, rnd);
@@ -252,10 +253,10 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         checkIndex(keys.values(), keys, w, hasher, segment);
 
         // Update the keys using the requested batch size.
-        val toUpdate = new ArrayList<HashedArray>(keys.values());
+        val toUpdate = new ArrayList<>(keys.values());
         int i = 0;
         while (i < toUpdate.size()) {
-            val batch = new HashMap<HashedArray, Long>();
+            val batch = new HashMap<BufferView, Long>();
             int batchSize = Math.min(updateBatchSize, toUpdate.size() - i);
             int batchOffset = 0;
             while (batch.size() < batchSize) {
@@ -278,15 +279,15 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         val segment = newMock();
 
         // Bulk-insert all the keys.
-        val keys = new HashMap<Long, HashedArray>();
+        val keys = new HashMap<Long, BufferView>();
         val updateBatch = generateUpdateBatch(KEY_COUNT, 0, rnd);
         long offset = updateKeys(updateBatch, w, keys, segment);
 
         // Remove the keys using the requested batch size.
-        val toRemove = new ArrayList<HashedArray>(keys.values());
+        val toRemove = new ArrayList<>(keys.values());
         int i = 0;
         while (i < toRemove.size()) {
-            val batch = new HashMap<HashedArray, Long>();
+            val batch = new HashMap<BufferView, Long>();
             int batchSize = Math.min(removeBatchSize, toRemove.size() - i);
             int batchOffset = 0;
             while (batch.size() < batchSize) {
@@ -320,8 +321,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
         // Generate batches and update them at once.
         long offset = 0;
-        val existingKeys = new HashMap<Long, HashedArray>();
-        val allKeys = new HashSet<HashedArray>();
+        val existingKeys = new HashMap<Long, BufferView>();
+        val allKeys = new HashSet<BufferView>();
         int maxUpdateBatchSize = batchSizeBase + 1;
         int maxRemoveBatchSize = 1;
         for (int i = 0; i < iterationCount; i++) {
@@ -334,11 +335,11 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             // Remove a set of keys. With every iteration, we remove more and more.
             // Pick existing keys at random, and delete them.
             int removeBatchSize = rnd.nextInt(maxRemoveBatchSize) + 1;
-            val removeBatch = new HashMap<HashedArray, Long>();
-            val remainingKeys = new ArrayList<HashedArray>(existingKeys.values());
+            val removeBatch = new HashMap<BufferView, Long>();
+            val remainingKeys = new ArrayList<>(existingKeys.values());
             int batchOffset = 0;
             while (removeBatch.size() < removeBatchSize && removeBatch.size() < remainingKeys.size()) {
-                HashedArray key;
+                BufferView key;
                 do {
                     key = remainingKeys.get(rnd.nextInt(remainingKeys.size()));
                 } while (removeBatch.containsKey(key));
@@ -347,11 +348,11 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             }
 
             // Pick a non-existing key, and add it too.
-            HashedArray nonExistingKey;
+            BufferView nonExistingKey;
             do {
                 byte[] b = new byte[rnd.nextInt(MAX_KEY_LENGTH) + 1];
                 rnd.nextBytes(b);
-                nonExistingKey = new HashedArray(b);
+                nonExistingKey = new ByteArraySegment(b);
             } while (allKeys.contains(nonExistingKey));
             removeBatch.put(nonExistingKey, encodeOffset(offset + batchOffset, true));
 
@@ -365,7 +366,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         checkIndex(allKeys, existingKeys, w, hasher, segment);
     }
 
-    private long updateKeys(Map<HashedArray, Long> keysWithOffset, IndexWriter w, HashMap<Long, HashedArray> existingKeys, SegmentMock segment) {
+    private long updateKeys(Map<BufferView, Long> keysWithOffset, IndexWriter w, HashMap<Long, BufferView> existingKeys, SegmentMock segment) {
         val timer = new TimeoutTimer(TIMEOUT);
 
         val keyUpdates = keysWithOffset.entrySet().stream()
@@ -389,7 +390,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         for (val builder : builders) {
             w.getBucketOffsets(segment, builder.getBucket(), timer).join()
              .forEach(offset -> {
-                 HashedArray existingKey = existingKeys.getOrDefault(offset, null);
+                 BufferView existingKey = existingKeys.getOrDefault(offset, null);
                  Assert.assertNotNull("Existing bucket points to non-existing key.", existingKey);
                  builder.withExistingKey(new BucketUpdate.KeyInfo(existingKey, offset, offset));
 
@@ -427,7 +428,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         return postIndexOffset;
     }
 
-    private void checkIndex(Collection<HashedArray> allKeys, Map<Long, HashedArray> existingKeysByOffset, IndexWriter w,
+    private void checkIndex(Collection<BufferView> allKeys, Map<Long, BufferView> existingKeysByOffset, IndexWriter w,
                             KeyHasher hasher, SegmentMock segment) {
         val timer = new TimeoutTimer(TIMEOUT);
 
@@ -499,8 +500,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Not expecting any backpointers.", 0, count);
     }
 
-    private HashMap<HashedArray, Long> generateUpdateBatch(int batchSize, long offset, Random rnd) {
-        val batch = new HashMap<HashedArray, Long>();
+    private HashMap<BufferView, Long> generateUpdateBatch(int batchSize, long offset, Random rnd) {
+        val batch = new HashMap<BufferView, Long>();
         int batchOffset = 0;
 
         // Randomly generated keys may be duplicated, so we need to loop as long as we need to fill up the batch.
@@ -521,10 +522,10 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         return new IndexWriter(hasher, executorService());
     }
 
-    private HashedArray newKey(Random rnd) {
+    private BufferView newKey(Random rnd) {
         byte[] key = new byte[Math.max(1, rnd.nextInt(MAX_KEY_LENGTH))];
         rnd.nextBytes(key);
-        return new HashedArray(key);
+        return new ByteArraySegment(key);
     }
 
     private SegmentMock newMock() {
