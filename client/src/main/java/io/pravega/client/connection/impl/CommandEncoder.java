@@ -41,12 +41,14 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.shared.NameUtils.segmentTags;
 import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_APPEND_BLOCK_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 
+@Slf4j
 @RequiredArgsConstructor
 public class CommandEncoder {
     
@@ -406,8 +408,15 @@ public class CommandEncoder {
          */
         @Override
         public void run() {
-            if (tokenCounter.get() == token) {
-                
+            try {
+                blockTimeout(token);
+            } catch (IOException e) {
+                log.error("Failed to time out block. Closeing connection.", e);
+                try {
+                    output.close();
+                } catch (IOException e1) {
+                    log.error("Closing output failed");
+                }
             }
         }
     }
