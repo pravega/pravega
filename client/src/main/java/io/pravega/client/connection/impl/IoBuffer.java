@@ -13,6 +13,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.MathHelpers;
 import io.pravega.shared.protocol.netty.WireCommands;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -39,6 +40,9 @@ class IoBuffer {
             int bufferSize = MathHelpers.minMax(in.available(), size, maxBufferSize);
             byte[] newBuffer = new byte[bufferSize];
             int read = in.read(newBuffer);
+            if (read <= -1) {
+                throw new EOFException();
+            }
             buffer = ByteBuffer.wrap(newBuffer, 0, read); 
         } 
 
@@ -50,7 +54,11 @@ class IoBuffer {
             assert buffer == null; //Should have been fully sliced out
             byte[] remaining = new byte[size - firstSize];
             for (int offset = 0; offset < remaining.length;) {
-                offset += in.read(remaining, offset, remaining.length - offset);
+                int read = in.read(remaining, offset, remaining.length - offset);
+                if (read <= -1) {
+                    throw new EOFException();
+                }
+                offset += read;
             }
             return Unpooled.wrappedBuffer(first, Unpooled.wrappedBuffer(remaining));
         }
