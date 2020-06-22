@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -33,7 +34,9 @@ import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.client.stream.notifications.notifier.EndOfDataNotifier;
 import io.pravega.client.stream.notifications.notifier.SegmentNotifier;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ReusableLatch;
+import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -42,14 +45,17 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.lang.IllegalStateException;
 import java.net.URI;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.time.Duration;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -58,6 +64,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -187,6 +194,89 @@ public class ReaderGroupNotificationTest {
         SegmentNotification segmentNotificationPostScale = notificationResults.take();
         assertEquals(1, segmentNotificationPostScale.getNumOfReaders());
         assertEquals(2, segmentNotificationPostScale.getNumOfSegments());
+    }
+
+    @Test(timeout = 40000)
+    public void testTargetRateNotifications() throws Exception {
+        final String streamName = "stream1";
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.byEventRate(10,2,3))
+                .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controller.createStream(SCOPE, streamName, config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(URI.create("tcp://localhost"))
+                .build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
+        EventStreamWriter<String> writer1 = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        List<String> routingKeys = new ArrayList<>();
+        routingKeys.add("0");
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
+                connectionFactory);
+        groupManager.createReaderGroup("reader", ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, streamName)).groupRefreshTimeMillis(0).build());
+        @Cleanup
+        ReaderGroup readerGroup = groupManager.getReaderGroup("reader");
+        @Cleanup
+        EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
+                ReaderConfig.builder().initialAllocationDelay(0).build());
+
+        val notificationResults = new ArrayBlockingQueue<SegmentNotification>(10);
+
+        //Add segment event listener
+        Listener<SegmentNotification> l1 = notification -> {
+            log.info("Number of Segments: {}, Number of Readers: {}", notification.getNumOfSegments(), notification.getNumOfReaders());
+            notificationResults.add(notification);
+        };
+        SegmentNotifier segmentNotifier = (SegmentNotifier) readerGroup.getSegmentNotifier(executor);
+        segmentNotifier.registerListener(l1);
+
+        long start = System.currentTimeMillis();
+        CompletableFuture.runAsync(() -> {
+            while (System.currentTimeMillis() - start < Duration.ofMinutes(3).toMillis()) {
+                try {
+                    writer1.writeEvent(routingKeys.get(0), "data1").get();
+                } catch (Throwable e) {
+                    System.err.println("test exception writing events " + e.getMessage());
+                    break;
+                }
+            }
+        });
+
+        Retry.withExpBackoff(10, 10, 100, 10000)
+                .retryingOn(IllegalStateException.class)
+                .throwingOn(RuntimeException.class)
+                .runAsync(() -> controller.getCurrentSegments(SCOPE, streamName)
+                        .thenAccept(streamSegments -> {
+                            log.info("segment_size={}", streamSegments.getSegments().size());
+                            segmentNotifier.pollNow();
+                            SegmentNotification initialSegmentNotification = null;
+                            try {
+                                initialSegmentNotification = notificationResults.take();
+                            } catch (InterruptedException e) {
+                                log.error("Exception:", e);
+                                throw new IllegalStateException(e);
+                            }
+                            assertNotNull(initialSegmentNotification);
+                            assertTrue(initialSegmentNotification.getNumOfSegments() > 2);
+                            if (streamSegments.getSegments().size() > 2) {
+                                System.err.println("Success");
+                                log.info("Success");
+                            } else {
+                                throw new IllegalStateException("expected number of segments to be 2");
+                            }
+                        }), executor)
+                .exceptionally(e -> {
+                    System.err.println("Failure");
+                    log.error("Failure");
+                    return null;
+                }).get();
+    ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test(timeout = 40000)
