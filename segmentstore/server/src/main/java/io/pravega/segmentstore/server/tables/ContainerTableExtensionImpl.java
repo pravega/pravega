@@ -52,14 +52,12 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static io.pravega.shared.protocol.netty.WireCommands.NULL_TABLE_SEGMENT_OFFSET;
 /**
  * A {@link ContainerTableExtension} that implements Table Segments on top of a {@link SegmentContainer}.
  */
-@Slf4j
 public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
