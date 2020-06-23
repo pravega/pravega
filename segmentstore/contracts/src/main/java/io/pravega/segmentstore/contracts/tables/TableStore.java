@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.contracts.tables;
 
-import com.google.common.annotations.Beta;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.IllegalDataFormatException;
