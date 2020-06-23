@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -50,7 +50,7 @@ import static io.pravega.segmentstore.storage.metadata.StorageMetadata.toNullabl
  * This creates a circular dependency while reading or writing the data about these segments from the metadata segments.
  * System journal is a mechanism to break this circular dependency by having independent log of all layout changes to system segments.
  * Currently only two actions are considered viz. Addition of new chunks and truncation of segments.
- * This log is replayed when the ChunkStorageManager is booted.
+ * This log is replayed when the ChunkManager is booted.
  * To avoid data corruption. Each instance writes to its own distinct log file.
  * During bootstrap all the system journal files are read and processed to re-create the state of the storage system segments.
  */
@@ -69,7 +69,7 @@ public class SystemJournal {
     private final Object lock = new Object();
 
     @Getter
-    private final ChunkStorageProvider chunkStorage;
+    private final ChunkStorage chunkStorage;
 
     @Getter
     private final ChunkMetadataStore metadataStore;
@@ -112,10 +112,10 @@ public class SystemJournal {
     private long systemJournalOffset;
 
     /**
-     * Configuration {@link ChunkStorageManagerConfig} for the {@link ChunkStorageManager}.
+     * Configuration {@link ChunkManagerConfig} for the {@link ChunkManager}.
      */
     @Getter
-    private final ChunkStorageManagerConfig config;
+    private final ChunkManagerConfig config;
 
     private final AtomicBoolean reentryGuard = new AtomicBoolean();
 
@@ -124,12 +124,12 @@ public class SystemJournal {
      *
      * @param containerId   Container id of the owner container.
      * @param epoch         Epoch of the current container instance.
-     * @param chunkStorage  ChunkStorageProvider instance to use for writing all logs.
+     * @param chunkStorage  ChunkStorage instance to use for writing all logs.
      * @param metadataStore ChunkMetadataStore for owner container.
-     * @param config        Configuration options for this ChunkStorageManager instance.
+     * @param config        Configuration options for this ChunkManager instance.
      * @throws Exception In case of any errors.
      */
-    public SystemJournal(int containerId, long epoch, ChunkStorageProvider chunkStorage, ChunkMetadataStore metadataStore, ChunkStorageManagerConfig config) throws Exception {
+    public SystemJournal(int containerId, long epoch, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, ChunkManagerConfig config) throws Exception {
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
         this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
         this.config = Preconditions.checkNotNull(config, "config");
@@ -196,7 +196,7 @@ public class SystemJournal {
     }
 
     /**
-     * Bootstrap the metadata about critical storage segments by reading and processing the journal.
+     * Bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
      * @throws Exception Exception in case of any error.
      */

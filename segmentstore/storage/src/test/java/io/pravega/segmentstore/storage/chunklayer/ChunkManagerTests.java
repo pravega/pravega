@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -22,9 +22,9 @@ import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
-import io.pravega.segmentstore.storage.mocks.AbstractInMemoryChunkStorageProvider;
+import io.pravega.segmentstore.storage.mocks.AbstractInMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
-import io.pravega.segmentstore.storage.noop.NoOpChunkStorageProvider;
+import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Getter;
@@ -43,12 +43,12 @@ import java.util.UUID;
 import java.util.concurrent.Executor;
 
 /**
- * Unit tests for {@link ChunkStorageManager}.
- * The focus is on testing the ChunkStorageManager implementation itself very thoroughly.
- * It uses either {@link NoOpChunkStorageProvider} as {@link ChunkStorageProvider}.
+ * Unit tests for {@link ChunkManager}.
+ * The focus is on testing the ChunkManager implementation itself very thoroughly.
+ * It uses either {@link NoOpChunkStorage} as {@link ChunkStorage}.
  */
 @Slf4j
-public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
+public class ChunkManagerTests extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
 
     @Rule
@@ -64,8 +64,8 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
         super.after();
     }
 
-    public ChunkStorageProvider createChunkStorageProvider() throws Exception {
-        return new NoOpChunkStorageProvider();
+    public ChunkStorage createChunkStorageProvider() throws Exception {
+        return new NoOpChunkStorage();
     }
 
     public ChunkMetadataStore createMetadataStore() throws Exception {
@@ -76,7 +76,7 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
         return new TestContext(executorService());
     }
 
-    public TestContext getTestContext(ChunkStorageManagerConfig config) throws Exception {
+    public TestContext getTestContext(ChunkManagerConfig config) throws Exception {
         return new TestContext(executorService(), config);
     }
 
@@ -88,7 +88,7 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
     @Test
     public void testSupportsTruncate() throws Exception {
         val storageProvider = createChunkStorageProvider();
-        val storageManager = new ChunkStorageManager(storageProvider, executorService(), ChunkStorageManagerConfig.DEFAULT_CONFIG);
+        val storageManager = new ChunkManager(storageProvider, executorService(), ChunkManagerConfig.DEFAULT_CONFIG);
         Assert.assertTrue(storageManager.supportsTruncation());
     }
 
@@ -102,8 +102,8 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
         val storageProvider = createChunkStorageProvider();
         val metadataStore = createMetadataStore();
         val policy = SegmentRollingPolicy.NO_ROLLING;
-        val config = ChunkStorageManagerConfig.DEFAULT_CONFIG;
-        val storageManager = new ChunkStorageManager(storageProvider, executorService(), config);
+        val config = ChunkManagerConfig.DEFAULT_CONFIG;
+        val storageManager = new ChunkManager(storageProvider, executorService(), config);
         val systemJournal = new SystemJournal(42, 1, storageProvider, metadataStore, config);
 
         testUninitialized(storageManager);
@@ -115,11 +115,11 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
         Assert.assertEquals(policy, storageManager.getConfig().getDefaultRollingPolicy());
         Assert.assertEquals(1, storageManager.getEpoch());
 
-        storageManager.initialize(42, metadataStore, systemJournal);
+        storageManager.bootstrap(42, metadataStore);
         Assert.assertEquals(metadataStore, storageManager.getMetadataStore());
         Assert.assertEquals(storageProvider, storageManager.getChunkStorage());
         Assert.assertEquals(policy, storageManager.getConfig().getDefaultRollingPolicy());
-        Assert.assertEquals(systemJournal, storageManager.getSystemJournal());
+        Assert.assertNotNull(storageManager.getSystemJournal());
         Assert.assertEquals(systemJournal.getConfig().getDefaultRollingPolicy(), policy);
         Assert.assertEquals(1, storageManager.getEpoch());
         Assert.assertEquals(42, storageManager.getContainerId());
@@ -131,7 +131,7 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
 
     }
 
-    private void testUninitialized(ChunkStorageManager storageManager) {
+    private void testUninitialized(ChunkManager storageManager) {
         String testSegmentName = "foo";
         AssertExtensions.assertThrows(
                 "getStreamSegmentInfo succeeded on uninitialized instance.",
@@ -379,7 +379,7 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
         TestContext testContext = getTestContext();
 
-        ((AbstractInMemoryChunkStorageProvider) testContext.storageProvider).setShouldSupportAppend(false);
+        ((AbstractInMemoryChunkStorage) testContext.storageProvider).setShouldSupportAppend(false);
 
         // Step 1: Create segment.
         val h = testContext.storageManager.create(testSegmentName, policy, null).get();
@@ -981,8 +981,8 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
     @Test
     public void testSimpleConcatWithDefrag() throws Exception {
         TestContext testContext = getTestContext();
-        ((AbstractInMemoryChunkStorageProvider) testContext.storageProvider).setShouldSupportConcat(true);
-        ((AbstractInMemoryChunkStorageProvider) testContext.storageProvider).setShouldSupportAppend(true);
+        ((AbstractInMemoryChunkStorage) testContext.storageProvider).setShouldSupportConcat(true);
+        ((AbstractInMemoryChunkStorage) testContext.storageProvider).setShouldSupportAppend(true);
 
         for (int maxChunkLength = 1; maxChunkLength <= 3; maxChunkLength++) {
             testSimpleConcat(testContext, maxChunkLength, 1, 1);
@@ -1186,8 +1186,8 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
     @Test
     public void testBasicConcatWithDefrag() throws Exception {
         TestContext testContext = getTestContext();
-        ((AbstractInMemoryChunkStorageProvider) testContext.storageProvider).setShouldSupportAppend(true);
-        ((AbstractInMemoryChunkStorageProvider) testContext.storageProvider).setShouldSupportConcat(true);
+        ((AbstractInMemoryChunkStorage) testContext.storageProvider).setShouldSupportAppend(true);
+        ((AbstractInMemoryChunkStorage) testContext.storageProvider).setShouldSupportConcat(true);
 
         // Populate segments
         val sourceLayout = new long[]{1, 2, 3, 4, 5};
@@ -1204,13 +1204,13 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
     @Test
     public void testBaseConcatWithDefragWithMinMaxLimits() throws Exception {
         // Set limits.
-        ChunkStorageManagerConfig config = ChunkStorageManagerConfig.DEFAULT_CONFIG.toBuilder()
+        ChunkManagerConfig config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder()
                 .maxSizeLimitForConcat(12)
                 .minSizeLimitForConcat(2)
                 .build();
 
         TestContext testContext = getTestContext(config);
-        ((AbstractInMemoryChunkStorageProvider) testContext.storageProvider).setShouldSupportConcat(true);
+        ((AbstractInMemoryChunkStorage) testContext.storageProvider).setShouldSupportConcat(true);
 
         // Populate segments
         testBaseConcat(testContext, 1024,
@@ -1252,7 +1252,7 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
     @Test
     public void testBaseConcatWithDefrag() throws Exception {
         TestContext testContext = getTestContext();
-        ((AbstractInMemoryChunkStorageProvider) testContext.storageProvider).setShouldSupportConcat(true);
+        ((AbstractInMemoryChunkStorage) testContext.storageProvider).setShouldSupportConcat(true);
 
         // Populate segments
         testBaseConcat(testContext, 1024,
@@ -1525,29 +1525,29 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
      */
     public static class TestContext {
         @Getter
-        protected ChunkStorageProvider storageProvider;
+        protected ChunkStorage storageProvider;
 
         @Getter
         protected ChunkMetadataStore metadataStore;
 
         @Getter
-        protected ChunkStorageManager storageManager;
+        protected ChunkManager storageManager;
 
         @Getter
         protected Executor executor;
 
         public TestContext(Executor executor) throws Exception {
-            this(executor, ChunkStorageManagerConfig.DEFAULT_CONFIG);
+            this(executor, ChunkManagerConfig.DEFAULT_CONFIG);
         }
 
-        public TestContext(Executor executor, ChunkStorageManagerConfig config) throws Exception {
+        public TestContext(Executor executor, ChunkManagerConfig config) throws Exception {
             this.executor = Preconditions.checkNotNull(executor);
             storageProvider = createChunkStorageProvider();
             metadataStore = createMetadataStore();
             this.executor = executor;
             storageProvider = createChunkStorageProvider();
             metadataStore = createMetadataStore();
-            storageManager = new ChunkStorageManager(storageProvider, metadataStore, this.executor, config);
+            storageManager = new ChunkManager(storageProvider, metadataStore, this.executor, config);
             storageManager.initialize(1);
         }
 
@@ -1559,10 +1559,10 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
         }
 
         /**
-         * Gets {@link ChunkStorageProvider} to use for the tests.
+         * Gets {@link ChunkStorage} to use for the tests.
          */
-        public ChunkStorageProvider createChunkStorageProvider() throws Exception {
-            return new NoOpChunkStorageProvider();
+        public ChunkStorage createChunkStorageProvider() throws Exception {
+            return new NoOpChunkStorage();
         }
 
         /**
@@ -1653,10 +1653,10 @@ public class ChunkStorageManagerTests extends ThreadPooledTestSuite {
         */
 
         /**
-         * Adds chunk of specified length to the underlying {@link ChunkStorageProvider}.
+         * Adds chunk of specified length to the underlying {@link ChunkStorage}.
          */
         public void addChunk(String chunkName, long length) {
-            ((AbstractInMemoryChunkStorageProvider) storageProvider).addChunk(chunkName, length);
+            ((AbstractInMemoryChunkStorage) storageProvider).addChunk(chunkName, length);
         }
     }
 }

@@ -5,24 +5,24 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
-import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorageProvider;
+import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 
 import java.util.concurrent.Executor;
 
 /**
- * Unit tests for  {@link ChunkStorageManager} and {@link ChunkStorageProvider} based implementation that exercise scenarios
+ * Unit tests for  {@link ChunkManager} and {@link ChunkStorage} based implementation that exercise scenarios
  * for {@link io.pravega.segmentstore.storage.rolling.RollingStorage}.
  */
 public abstract class ChunkManagerRollingTests extends RollingStorageTestBase {
-    ChunkStorageProvider chunkStorageProvider;
+    ChunkStorage chunkStorage;
     ChunkMetadataStore chunkMetadataStore;
 
     /**
@@ -35,25 +35,25 @@ public abstract class ChunkManagerRollingTests extends RollingStorageTestBase {
         Executor executor = executorService();
         // Initialize
         synchronized (ChunkManagerRollingTests.class) {
-            if (null == chunkStorageProvider) {
+            if (null == chunkStorage) {
                 chunkMetadataStore = getMetadataStore();
-                chunkStorageProvider = getChunkStorage();
+                chunkStorage = getChunkStorage();
             }
         }
-        return new ChunkStorageManager(chunkStorageProvider,
+        return new ChunkManager(chunkStorage,
                 chunkMetadataStore,
                 executor,
-                ChunkStorageManagerConfig.DEFAULT_CONFIG);
+                ChunkManagerConfig.DEFAULT_CONFIG);
     }
 
     /**
-     * Creates a ChunkStorageProvider.
+     * Creates a ChunkStorage.
      *
-     * @return ChunkStorageProvider.
+     * @return ChunkStorage.
      * @throws Exception If any unexpected error occurred.
      */
-    protected ChunkStorageProvider getChunkStorage() throws Exception {
-        return new InMemoryChunkStorageProvider();
+    protected ChunkStorage getChunkStorage() throws Exception {
+        return new InMemoryChunkStorage();
     }
 
     /**

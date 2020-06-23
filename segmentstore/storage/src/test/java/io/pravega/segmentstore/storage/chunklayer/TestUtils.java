@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -177,12 +177,12 @@ public class TestUtils {
     /**
      * Checks if all chunks actually exist in storage for given segment.
      *
-     * @param storageProvider {@link ChunkStorageProvider} instance to check.
+     * @param storageProvider {@link ChunkStorage} instance to check.
      * @param metadataStore   {@link ChunkMetadataStore} instance to check.
      * @param segmentName     Segment name to check.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
-    public static void checkChunksExistInStorage(ChunkStorageProvider storageProvider, ChunkMetadataStore metadataStore, String segmentName) throws Exception {
+    public static void checkChunksExistInStorage(ChunkStorage storageProvider, ChunkMetadataStore metadataStore, String segmentName) throws Exception {
         int chunkCount = 0;
         long dataSize = 0;
         val segmentMetadata = getSegmentMetadata(metadataStore, segmentName);

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 
 package io.pravega.segmentstore.storage.chunklayer;
@@ -26,24 +26,24 @@ import java.util.Random;
 import static org.junit.Assert.*;
 
 /**
- * Unit tests specifically targeted at test {@link ChunkStorageProvider} implementation.
+ * Unit tests specifically targeted at test {@link ChunkStorage} implementation.
  */
-public abstract class ChunkStorageProviderTests extends ThreadPooledTestSuite {
+public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
     Random rnd = new Random();
 
     @Getter
-    ChunkStorageProvider chunkStorage;
+    ChunkStorage chunkStorage;
 
     /**
-     * Derived classes should return appropriate {@link ChunkStorageProvider}.
+     * Derived classes should return appropriate {@link ChunkStorage}.
      */
-    abstract protected ChunkStorageProvider createChunkStorageProvider() throws Exception;
+    abstract protected ChunkStorage createChunkStorage() throws Exception;
 
     @Override
     @Before
     public void before() throws Exception {
         super.before();
-        chunkStorage = createChunkStorageProvider();
+        chunkStorage = createChunkStorage();
     }
 
     @Override

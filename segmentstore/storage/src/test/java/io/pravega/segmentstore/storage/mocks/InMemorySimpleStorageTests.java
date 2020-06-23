@@ -5,15 +5,15 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.mocks;
 
+import io.pravega.segmentstore.storage.chunklayer.ChunkManagerConfig;
 import io.pravega.segmentstore.storage.chunklayer.ChunkManagerRollingTests;
-import io.pravega.segmentstore.storage.chunklayer.ChunkStorageManagerConfig;
-import io.pravega.segmentstore.storage.chunklayer.ChunkStorageManagerTests;
-import io.pravega.segmentstore.storage.chunklayer.ChunkStorageProvider;
-import io.pravega.segmentstore.storage.chunklayer.ChunkStorageProviderTests;
+import io.pravega.segmentstore.storage.chunklayer.ChunkManagerTests;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
 
 import java.io.IOException;
@@ -23,11 +23,11 @@ import java.util.concurrent.ExecutorService;
  * Unit tests for {@link InMemorySimpleStorage} using {@link SimpleStorageTests}.
  */
 public class InMemorySimpleStorageTests extends SimpleStorageTests {
-    private static ChunkStorageProvider getChunkStorageProvider() throws IOException {
-        return new InMemoryChunkStorageProvider();
+    private static ChunkStorage getChunkStorageProvider() throws IOException {
+        return new InMemoryChunkStorage();
     }
 
-    protected ChunkStorageProvider getChunkStorage() throws Exception {
+    protected ChunkStorage getChunkStorage() throws Exception {
         return getChunkStorageProvider();
     }
 
@@ -35,28 +35,28 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
      * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkManagerRollingTests}.
      */
     public static class InMemorySimpleStorageRollingTests extends ChunkManagerRollingTests {
-        protected ChunkStorageProvider getChunkStorage() throws Exception {
+        protected ChunkStorage getChunkStorage() throws Exception {
             return getChunkStorageProvider();
         }
     }
 
     /**
-     * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkStorageProviderTests}.
+     * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkStorageTests}.
      */
-    public static class InMemorySimpleStorageProviderTests extends ChunkStorageProviderTests {
+    public static class InMemorySimpleStorageProviderTests extends ChunkStorageTests {
         @Override
-        protected ChunkStorageProvider createChunkStorageProvider() throws Exception {
+        protected ChunkStorage createChunkStorage() throws Exception {
             return getChunkStorageProvider();
         }
     }
 
     /**
-     * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkStorageManagerTests}.
+     * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkManagerTests}.
      */
-    public static class InMemorySimpleStorage extends ChunkStorageManagerTests {
+    public static class InMemorySimpleStorage extends ChunkManagerTests {
 
         @Override
-        public ChunkStorageProvider createChunkStorageProvider() throws Exception {
+        public ChunkStorage createChunkStorageProvider() throws Exception {
             return InMemorySimpleStorageTests.getChunkStorageProvider();
         }
 
@@ -66,21 +66,21 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
         }
 
         @Override
-        public TestContext getTestContext(ChunkStorageManagerConfig config) throws Exception {
+        public TestContext getTestContext(ChunkManagerConfig config) throws Exception {
             return new InMemorySimpleStorageTestContext(executorService(), config);
         }
 
-        public class InMemorySimpleStorageTestContext extends ChunkStorageManagerTests.TestContext {
+        public class InMemorySimpleStorageTestContext extends ChunkManagerTests.TestContext {
             InMemorySimpleStorageTestContext(ExecutorService executorService) throws Exception {
                 super(executorService);
             }
 
-            InMemorySimpleStorageTestContext(ExecutorService executorService, ChunkStorageManagerConfig config) throws Exception {
+            InMemorySimpleStorageTestContext(ExecutorService executorService, ChunkManagerConfig config) throws Exception {
                 super(executorService, config);
             }
 
             @Override
-            public ChunkStorageProvider createChunkStorageProvider() throws Exception {
+            public ChunkStorage createChunkStorageProvider() throws Exception {
                 return InMemorySimpleStorageTests.getChunkStorageProvider();
             }
         }

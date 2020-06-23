@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -16,15 +16,15 @@ import lombok.Getter;
 import lombok.NonNull;
 
 /**
- * Configuration for {@link ChunkStorageManager}.
+ * Configuration for {@link ChunkManager}.
  */
 @AllArgsConstructor
 @Builder(toBuilder = true)
-public class ChunkStorageManagerConfig {
+public class ChunkManagerConfig {
     /**
-     * Default configuration for {@link ChunkStorageManager}.
+     * Default configuration for {@link ChunkManager}.
      */
-    public static final ChunkStorageManagerConfig DEFAULT_CONFIG = ChunkStorageManagerConfig.builder()
+    public static final ChunkManagerConfig DEFAULT_CONFIG = ChunkManagerConfig.builder()
             .minSizeLimitForConcat(0)
             .maxSizeLimitForConcat(Long.MAX_VALUE)
             .defaultRollingPolicy(SegmentRollingPolicy.NO_ROLLING)

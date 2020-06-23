@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -20,20 +20,53 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Base implementation of {@link ChunkStorageProvider}.
+ * Base implementation of {@link ChunkStorage}.
  * It implements common functionality that can be used by derived classes.
  * Delegates to specific implementations by calling various abstract methods which must be overridden in derived classes.
- * Detailed design is documented here https://github.com/pravega/pravega/wiki/PDP-34:-Simplified-Tier-2
+ * <div>
+ * Below are minimum requirements that any implementation must provide.
+ * Note that it is the responsibility of storage provider specific implementation to make sure following guarantees are provided even
+ * though underlying storage may not provide all primitives or guarantees.
+ * <ul>
+ * <li>Once an operation is executed and acknowledged as successful then the effects must be permanent and consistent (as opposed to eventually consistent)</li>
+ * <li>{@link ChunkStorage#create(String)}  and {@link ChunkStorage#delete(ChunkHandle)} are not idempotent.</li>
+ * <li>{@link ChunkStorage#exists(String)} and {@link ChunkStorage#getInfo(String)} must reflect effects of most recent operation performed.</li>
+ * </ul>
+ * </div>
+ * <div>
+ * There are a few different capabilities that ChunkStorage may provide.
+ * <ul>
+ * <li> Does {@link ChunkStorage} support appending to existing chunks?
+ * This is indicated by {@link ChunkStorage#supportsAppend()}. For example S3 compatible Chunk Storage this would return false. </li>
+ * <li> Does {@link ChunkStorage}  support for concatenating chunks? This is indicated by {@link ChunkStorage#supportsConcat()}.
+ * If this is true then concat operation concat will be invoked otherwise append functionality is invoked.</li>
+ * <li>In addition {@link ChunkStorage} may provide ability to truncate chunks at given offsets (either at front end or at tail end). This is indicated by {@link ChunkStorage#supportsTruncation()}. </li>
+ * </ul>
+ * There are some obvious constraints - If ChunkStorage supports concat but not natively then it must support append .
+ *
+ * For concats, {@link ChunkStorage} supports both native and append, ChunkManager will invoke appropriate method depending on size of target and source chunks. (Eg. ECS)
+ * </div>
+ *
+ * <div>
+ * The implementations in this repository are tested using following test suites.
+ * <ul>
+ * <li>SimpleStorageTests</li>
+ * <li>ChunkManagerRollingTests</li>
+ * <li>ChunkStorageProviderTests</li>
+ * <li>SystemJournalTests</li>
+ * </ul>
+ * </div>
+
  */
 @Slf4j
-public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
+public abstract class BaseChunkStorage implements ChunkStorage {
 
     private final AtomicBoolean closed;
 
     /**
      * Constructor.
      */
-    public BaseChunkStorageProvider() {
+    public BaseChunkStorage() {
         this.closed = new AtomicBoolean(false);
     }
 
@@ -76,7 +109,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
         long traceId = LoggerHelpers.traceEnter(log, "exists", chunkName);
 
         // Call concrete implementation.
-        boolean retValue = checkExist(chunkName);
+        boolean retValue = checkExists(chunkName);
 
         LoggerHelpers.traceLeave(log, "exists", traceId, chunkName);
 
@@ -104,8 +137,8 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
 
         // Record metrics.
         Duration elapsed = timer.getElapsed();
-        ChunkStorageProviderMetrics.CREATE_LATENCY.reportSuccessEvent(elapsed);
-        ChunkStorageProviderMetrics.CREATE_COUNT.inc();
+        ChunkStorageMetrics.CREATE_LATENCY.reportSuccessEvent(elapsed);
+        ChunkStorageMetrics.CREATE_COUNT.inc();
 
         log.debug("Create - chunk={}, latency={}.", chunkName, elapsed.toMillis());
         LoggerHelpers.traceLeave(log, "create", traceId, chunkName);
@@ -133,8 +166,8 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
 
         // Record metrics.
         Duration elapsed = timer.getElapsed();
-        ChunkStorageProviderMetrics.DELETE_LATENCY.reportSuccessEvent(elapsed);
-        ChunkStorageProviderMetrics.DELETE_COUNT.inc();
+        ChunkStorageMetrics.DELETE_LATENCY.reportSuccessEvent(elapsed);
+        ChunkStorageMetrics.DELETE_COUNT.inc();
 
         log.debug("Delete - chunk={}, latency={}.", handle.getChunkName(), elapsed.toMillis());
         LoggerHelpers.traceLeave(log, "delete", traceId, handle.getChunkName());
@@ -223,7 +256,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      * @return int Number of bytes read.
      * @throws ChunkStorageException     Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException  If argument is invalid.
-     * @throws IndexOutOfBoundsException If the index is out of bounds.
+     * @throws IndexOutOfBoundsException If the index is out of bounds or offset is not a valid offset in the underlying file/object.
      */
     @Override
     final public int read(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException, NullPointerException, IndexOutOfBoundsException {
@@ -242,8 +275,8 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
         int bytesRead = doRead(handle, fromOffset, length, buffer, bufferOffset);
 
         Duration elapsed = timer.getElapsed();
-        ChunkStorageProviderMetrics.READ_LATENCY.reportSuccessEvent(elapsed);
-        ChunkStorageProviderMetrics.READ_BYTES.add(bytesRead);
+        ChunkStorageMetrics.READ_LATENCY.reportSuccessEvent(elapsed);
+        ChunkStorageMetrics.READ_BYTES.add(bytesRead);
 
         log.debug("Read - chunk={}, offset={}, bytesRead={}, latency={}.", handle.getChunkName(), fromOffset, length, elapsed.toMillis());
         LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
@@ -254,6 +287,13 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
     /**
      * Writes the given data to the underlying chunk.
      *
+     * <ul>
+     * <li>It is expected that in cases where it can not overwrite the existing data at given offset, the implementation should throw IndexOutOfBoundsException.</li>
+     * For storage where underlying files/objects are immutable once written, the implementation should return false on {@link ChunkStorage#supportsAppend()}.
+     * <li>In such cases only valid offset is 0.</li>
+     * <li>For storages where underlying files/objects can only be appended but not overwritten, it must match actual current length of underlying file/object.</li>
+     * <li>In all cases the offset can not be greater that actual current length of underlying file/object. </li>
+     * </ul>
      * @param handle ChunkHandle of the chunk to write to.
      * @param offset Offset in the chunk to start writing.
      * @param length Number of bytes to write.
@@ -270,6 +310,9 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
         Preconditions.checkArgument(null != data, "data must not be null");
         Preconditions.checkArgument(offset >= 0, "offset must be non-negative");
         Preconditions.checkArgument(length >= 0, "length must be non-negative");
+        if (!supportsAppend()) {
+            Preconditions.checkArgument(offset == 0, "offset must be 0 because storage does not support appends.");
+        }
 
         long traceId = LoggerHelpers.traceEnter(log, "write", handle.getChunkName(), offset, length);
         Timer timer = new Timer();
@@ -279,8 +322,8 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
 
         Duration elapsed = timer.getElapsed();
 
-        ChunkStorageProviderMetrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
-        ChunkStorageProviderMetrics.WRITE_BYTES.add(bytesWritten);
+        ChunkStorageMetrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
+        ChunkStorageMetrics.WRITE_BYTES.add(bytesWritten);
 
         log.debug("Write - chunk={}, offset={}, bytesWritten={}, latency={}.", handle.getChunkName(), offset, length, elapsed.toMillis());
         LoggerHelpers.traceLeave(log, "read", traceId, bytesWritten);
@@ -311,10 +354,10 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
         Duration elapsed = timer.getElapsed();
         log.debug("concat - target={}, latency={}.", chunks[0].getName(), elapsed.toMillis());
 
-        ChunkStorageProviderMetrics.CONCAT_LATENCY.reportSuccessEvent(elapsed);
-        ChunkStorageProviderMetrics.CONCAT_BYTES.add(retValue);
-        ChunkStorageProviderMetrics.CONCAT_COUNT.inc();
-        ChunkStorageProviderMetrics.LARGE_CONCAT_COUNT.inc();
+        ChunkStorageMetrics.CONCAT_LATENCY.reportSuccessEvent(elapsed);
+        ChunkStorageMetrics.CONCAT_BYTES.add(retValue);
+        ChunkStorageMetrics.CONCAT_COUNT.inc();
+        ChunkStorageMetrics.LARGE_CONCAT_COUNT.inc();
 
         LoggerHelpers.traceLeave(log, "concat", traceId, chunks[0].getName());
 
@@ -400,15 +443,6 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
     }
 
     /**
-     * Checks whether this instance is closed or not.
-     *
-     * @return True if this instance is closed, false otherwise.
-     */
-    protected boolean isClosed() {
-        return this.closed.get();
-    }
-
-    /**
      * Retrieves the ChunkInfo for given name.
      *
      * @param chunkName String name of the chunk to read from.
@@ -436,7 +470,7 @@ public abstract class BaseChunkStorageProvider implements ChunkStorageProvider {
      * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
-    abstract protected boolean checkExist(String chunkName) throws ChunkStorageException, IllegalArgumentException;
+    abstract protected boolean checkExists(String chunkName) throws ChunkStorageException, IllegalArgumentException;
 
     /**
      * Deletes a chunk.

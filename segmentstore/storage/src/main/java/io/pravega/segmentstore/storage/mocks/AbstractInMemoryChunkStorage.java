@@ -5,37 +5,37 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.mocks;
 
-import io.pravega.segmentstore.storage.chunklayer.BaseChunkStorageProvider;
+import io.pravega.segmentstore.storage.chunklayer.BaseChunkStorage;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Base class for InMemory mock implementations.
- * Allows to simulate ChunkStorageProvider with different supported properties.
+ * Allows to simulate ChunkStorage with different supported properties.
  */
 @Slf4j
-abstract public class AbstractInMemoryChunkStorageProvider extends BaseChunkStorageProvider {
+abstract public class AbstractInMemoryChunkStorage extends BaseChunkStorage {
     /**
-     * value to return when {@link AbstractInMemoryChunkStorageProvider#supportsTruncation()} is called.
+     * value to return when {@link AbstractInMemoryChunkStorage#supportsTruncation()} is called.
      */
     @Getter
     @Setter
     boolean shouldSupportTruncation = true;
 
     /**
-     * value to return when {@link AbstractInMemoryChunkStorageProvider#supportsAppend()} is called.
+     * value to return when {@link AbstractInMemoryChunkStorage#supportsAppend()} is called.
      */
     @Getter
     @Setter
     boolean shouldSupportAppend = true;
 
     /**
-     * value to return when {@link AbstractInMemoryChunkStorageProvider#supportsConcat()} is called.
+     * value to return when {@link AbstractInMemoryChunkStorage#supportsConcat()} is called.
      */
     @Getter
     @Setter

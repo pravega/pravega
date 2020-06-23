@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -143,7 +143,7 @@ class ReadIndexCache {
     }
 
     /**
-     * Adds a new index entry for given a given chunk in a given segment.
+     * Adds a new index entry for a given chunk in index for the segment.
      *
      * @param streamSegmentName Name of the segment.
      * @param chunkName         Name of the chunk.

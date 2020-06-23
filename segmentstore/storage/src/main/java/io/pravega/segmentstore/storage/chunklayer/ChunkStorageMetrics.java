@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -16,10 +16,10 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 
 /**
- * Defines all Metrics used by the {@link BaseChunkStorageProvider} class.
+ * Defines all Metrics used by the {@link BaseChunkStorage} class.
  */
-public class ChunkStorageProviderMetrics {
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("ChunkStorageProvider");
+public class ChunkStorageMetrics {
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("ChunkStorage");
 
     static final OpStatsLogger READ_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);
     static final OpStatsLogger WRITE_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);

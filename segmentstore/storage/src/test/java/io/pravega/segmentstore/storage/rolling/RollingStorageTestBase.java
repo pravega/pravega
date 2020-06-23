@@ -32,7 +32,7 @@ public abstract class RollingStorageTestBase extends StorageTestBase {
     /**
      * Indicates the layout format to test.
      * For AsycStorageWrapper and RollingStorage it is set to true.
-     * For ChunkStorageManager set to false.
+     * For ChunkManager set to false.
      */
     protected boolean useOldLayout = true;
 

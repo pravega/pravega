@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -31,6 +31,7 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataAlreadyExistsException;
+import io.pravega.segmentstore.storage.metadata.StorageMetadataException;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutException;
 import io.pravega.shared.NameUtils;
 import lombok.Getter;
@@ -53,32 +54,32 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
- * Implements storage for segments using {@link ChunkStorageProvider} and {@link ChunkMetadataStore}.
+ * Implements storage for segments using {@link ChunkStorage} and {@link ChunkMetadataStore}.
  * The metadata about the segments is stored in metadataStore using two types of records {@link SegmentMetadata} and {@link ChunkMetadata}.
  * Any changes to layout must be made inside a {@link MetadataTransaction} which will atomically change the records upon
  * {@link MetadataTransaction#commit()}.
  * Detailed design is documented here https://github.com/pravega/pravega/wiki/PDP-34:-Simplified-Tier-2
  */
 @Slf4j
-public class ChunkStorageManager implements Storage {
+public class ChunkManager implements Storage {
     /**
-     * Configuration options for this ChunkStorageManager instance.
+     * Configuration options for this ChunkManager instance.
      */
     @Getter
-    private final ChunkStorageManagerConfig config;
+    private final ChunkManagerConfig config;
 
     /**
      * Metadata store containing all storage data.
-     * Initialized by segment container via {@link ChunkStorageManager#initialize(int, ChunkMetadataStore, SystemJournal)}.
+     * Initialized by segment container via {@link ChunkManager#bootstrap(int, ChunkMetadataStore)}.
      */
     @Getter
     private ChunkMetadataStore metadataStore;
 
     /**
-     * Underlying {@link ChunkStorageProvider} to use to read and write data.
+     * Underlying {@link ChunkStorage} to use to read and write data.
      */
     @Getter
-    private final ChunkStorageProvider chunkStorage;
+    private final ChunkStorage chunkStorage;
 
     /**
      * Storage executor object.
@@ -92,14 +93,14 @@ public class ChunkStorageManager implements Storage {
 
     /**
      * Current epoch of the {@link Storage} instance.
-     * Initialized by segment container via {@link ChunkStorageManager#initialize(long)}.
+     * Initialized by segment container via {@link ChunkManager#initialize(long)}.
      */
     @Getter
     private long epoch;
 
     /**
      * Id of the current Container.
-     * Initialized by segment container via {@link ChunkStorageManager#initialize(int, ChunkMetadataStore, SystemJournal)}.
+     * Initialized by segment container via {@link ChunkManager#bootstrap(int, ChunkMetadataStore)}.
      */
     @Getter
     private int containerId;
@@ -126,13 +127,13 @@ public class ChunkStorageManager implements Storage {
     private String logPrefix;
 
     /**
-     * Creates a new instance of the ChunkStorageManager class.
+     * Creates a new instance of the ChunkManager class.
      *
-     * @param chunkStorage ChunkStorageProvider instance.
+     * @param chunkStorage ChunkStorage instance.
      * @param executor     An Executor for async operations.
-     * @param config       Configuration options for this ChunkStorageManager instance.
+     * @param config       Configuration options for this ChunkManager instance.
      */
-    public ChunkStorageManager(ChunkStorageProvider chunkStorage, Executor executor, ChunkStorageManagerConfig config) {
+    public ChunkManager(ChunkStorage chunkStorage, Executor executor, ChunkManagerConfig config) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
         this.executor = Preconditions.checkNotNull(executor, "executor");
@@ -143,14 +144,14 @@ public class ChunkStorageManager implements Storage {
     }
 
     /**
-     * Creates a new instance of the ChunkStorageManager class.
+     * Creates a new instance of the ChunkManager class.
      *
-     * @param chunkStorage  ChunkStorageProvider instance.
+     * @param chunkStorage  ChunkStorage instance.
      * @param metadataStore Metadata store.
      * @param executor      An Executor for async operations.
-     * @param config        Configuration options for this ChunkStorageManager instance.
+     * @param config        Configuration options for this ChunkManager instance.
      */
-    public ChunkStorageManager(ChunkStorageProvider chunkStorage, ChunkMetadataStore metadataStore, Executor executor, ChunkStorageManagerConfig config) {
+    public ChunkManager(ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, Executor executor, ChunkManagerConfig config) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
         this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
@@ -162,18 +163,26 @@ public class ChunkStorageManager implements Storage {
     }
 
     /**
-     * Initializes the ChunkStorageManager.
+     * Initializes the ChunkManager and bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
      * @param metadataStore Metadata store.
      * @param containerId   container id.
-     * @param systemJournal SystemJournal that keeps track of changes to system segments and helps with bootstrap.
      * @throws Exception In case of any errors.
      */
-    public void initialize(int containerId, ChunkMetadataStore metadataStore, SystemJournal systemJournal) throws Exception {
+    public void bootstrap(int containerId, ChunkMetadataStore metadataStore) throws Exception {
         this.containerId = containerId;
-        this.logPrefix = String.format("ChunkStorageManager[%d]", containerId);
+        this.logPrefix = String.format("ChunkManager[%d]", containerId);
         this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
-        this.systemJournal = Preconditions.checkNotNull(systemJournal, "systemJournal");
+        this.systemJournal = new SystemJournal(containerId,
+                epoch,
+                chunkStorage,
+                metadataStore,
+                config);
+
+        // Now bootstrap
+        log.info("{} STORAGE BOOT: Started.", logPrefix);
+        this.systemJournal.bootstrap();
+        log.info("{} STORAGE BOOT: Ended.", logPrefix);
     }
 
     @Override
@@ -216,9 +225,10 @@ public class ChunkStorageManager implements Storage {
      *
      * @param txn             Active {@link MetadataTransaction}.
      * @param segmentMetadata {@link SegmentMetadata} for the segment to change ownership for.
-     * @throws Exception In case of any errors.
+     * @throws ChunkStorageException In case of any chunk storage related errors.
+     * @throws StorageMetadataException In case of any chunk metadata store related errors.
      */
-    private void claimOwnership(MetadataTransaction txn, SegmentMetadata segmentMetadata) throws Exception {
+    private void claimOwnership(MetadataTransaction txn, SegmentMetadata segmentMetadata) throws ChunkStorageException, StorageMetadataException {
         // Claim ownership.
         // This is safe because the previous instance is definitely not an owner anymore. (even if this instance is no more owner)
         // If this instance is no more owner, then transaction commit will fail.So it is still safe.
@@ -406,7 +416,7 @@ public class ChunkStorageManager implements Storage {
                         txn.update(segmentMetadata);
                         segmentMetadata.setLastChunkStartOffset(segmentMetadata.getLength());
 
-                        // Clear flag for OwnershipChanged once first chunk after ownership change is written.
+                        //
                         if (isFirstWriteAfterFailover) {
                             segmentMetadata.setOwnerEpoch(this.epoch);
                             isFirstWriteAfterFailover = false;
@@ -444,7 +454,13 @@ public class ChunkStorageManager implements Storage {
                         txn.update(chunkWrittenMetadata);
                         txn.update(segmentMetadata);
                     } catch (IndexOutOfBoundsException e) {
-                        throw new BadOffsetException(streamSegmentName, chunkStorage.getInfo(chunkHandle.getChunkName()).getLength(), offset);
+                        try {
+                            throw new BadOffsetException(streamSegmentName, chunkStorage.getInfo(chunkHandle.getChunkName()).getLength(), offset);
+                        } catch (ChunkStorageException cse) {
+                            log.error("{} write - Error while retrieving ChunkInfo for {}.", logPrefix, chunkHandle.getChunkName());
+                            // The exact expected offset for the  operation does not matter, the StorageWriter will enter reconciliation loop anyway.
+                            throw new BadOffsetException(streamSegmentName, offset, offset);
+                        }
                     }
                 }
 
@@ -485,9 +501,9 @@ public class ChunkStorageManager implements Storage {
     }
 
     /**
-     * Gets whether given segment is a segment to used to storage system metadata.
+     * Gets whether given segment is a critical storage system segment.
      *
-     * @param segmentMetadata Metadata for the segment.
+     * @param segmentMetadata Meatadata for the segment.
      * @return True if this is a storage system segment.
      */
     private boolean isStorageSystemSegment(SegmentMetadata segmentMetadata) {
@@ -682,55 +698,55 @@ public class ChunkStorageManager implements Storage {
     /**
      * Defragments the list of chunks for a given segment.
      * It finds eligible consecutive chunks that can be merged together.
-     * The sublist of eligible chunks is replaced with single new chunk record corresponding to new large chunk.
+     * The sublist such elgible chunks is replaced with single new chunk record corresponding to new large chunk.
      * Conceptually this is like deleting nodes from middle of the list of chunks.
      *
      * <Ul>
-     * <li> In general without defrag the number of chunks in the system just keeps on increasing.
-     * In addition when we have too many small chunks (say because too many small transactions), the segment is fragmented -
-     * this may impact the read throughput but also performance of metadata store.
-     * This problem is further intensified when we have stores that do not support append semantics (eg. vanilla S3) and
-     * each write becomes a separate chunk.
+     * <li> In the absence of defragmentation, the number of chunks for individual segments keeps on increasing.
+     * When we have too many small chunks (say because many transactions with little data on some segments), the segment is fragmented -
+     * this may impact both the read throughputand the performance of the metadata store. This problem is further intensified
+     * when we have stores that do not support append semantics (e.g., stock S3) and each write becomes a separate chunk.
      * </li>
      * <li>
      * If underlying storage provides some facility to stitch together smaller chunks into larger chunks then we do actually
      * want to exploit that. Especially when this operation is supposed to be "metadata only operation" even for them.
-     * We want to leverage multi-part uploads in object stores that support it (e.g., AWS S3, Dell EMC ECS) as they are
-     * typically only metadata operations, reducing the overall cost of the merging them together.
-     * HDFS also has native concat (I think metadata only). NFS has no concept of native concat.
+     * Obviously both ECS and S3 have MPU and is supposed to be metadata only operation for them.
+     * HDFS also natively supprts concat. NFS has no concept of concat.
      * As chunks become larger, it no longer makes sense to concat them using append writes (read source completely and
      * append -ie. write- it back at the end of target.)
-     * We do not always use native concat to implement concat. We also use appends.
      * </li>
+     * <li>
+     * Ideally we want the defrag to be run in the background periodically and not on the write/concat path.
+     * We can then fine tune that background task to run optimally with low overhead.
+     * We might be able to give more knobs to tune its parameters (Eg. threshold on number of chunks).
+     * </li>
+     * <li>
      * <li>
      * Defrag operation will respect max rolling size and will not create chunks greater than that size.
      * </li>
      * </ul>
      *
      * <div>
-     * What controls whether we invoke native concat or simulate through appends?
-     * There are a few different capabilities that ChunkStorageProvider needs to provide.
+     * What controls whether we invoke concat or simulate through appends?
+     * There are a few different capabilities that ChunkStorage needs to provide.
      * <ul>
-     * <li>Does ChunkStorageProvider support appending to existing chunks? For vanilla S3 compatible this would return false.
+     * <li>Does ChunkStorage support appending to existing chunks? For vanilla S3 compatible this would return false.
      * This is indicated by supportsAppend.</li>
-     * <li>Does ChunkStorageProvider support for concatenating chunks natively? This is indicated by supportsConcat.
-     * If this is true then native concat operation concat will be invoked otherwise concatWithAppend is invoked.</li>
-     * <li>There are some obvious constraints - For ChunkStorageProvider support any concat functionality it must support
-     * either append or native concat.</li>
-     * <li>Also when ChunkStorageProvider supports both native and append, ChunkStorageManager will invoke appropriate method
+     * <li>Does ChunkStorage support for concatenating chunks ? This is indicated by supportsConcat.
+     * If this is true then concat operation will be invoked otherwise chunks will be appended.</li>
+     * <li>There are some obvious constraints - For ChunkStorage support any concat functionality it must support either
+     * append or concat.</li>
+     * <li>Also when ChunkStorage supports both concat and append, ChunkManager will invoke appropriate method
      * depending on size of target and source chunks. (Eg. ECS)</li>
      * </ul>
      * </div>
      * <li>
      * What controls defrag?
-     * There are two additional parameters that control when native concat
+     * There are two additional parameters that control when concat
      * <li>minSizeLimitForConcat: Size of chunk in bytes above which it is no longer considered a small object.
-     * For small source objects, concatWithAppend is used instead of using concat. (For really small txn it is rather
-     * efficient to use append than MPU).</li>
-     * <li>maxSizeLimitForConcat: Size of chunk in bytes above which it is no longer considered for concat.
-     * (Eg S3 might have max limit on chunk size).</li>
-     * In short there is a size beyond which using append is not advisable.
-     * Conversely there is a size below which native concat is not efficient.(minSizeLimitForConcat )
+     * For small source objects, append is used instead of using concat. (For really small txn it is rather efficient to use append than MPU).</li>
+     * <li>maxSizeLimitForConcat: Size of chunk in bytes above which it is no longer considered for concat. (Eg S3 might have max limit on chunk size).</li>
+     * In short there is a size beyond which using append is not advisable. Conversely there is a size below which concat is not efficient.(minSizeLimitForConcat )
      * Then there is limit which concating does not make sense maxSizeLimitForConcat
      * </li>
      * <li>
@@ -750,13 +766,14 @@ public class ChunkStorageManager implements Storage {
      * @param segmentMetadata {@link SegmentMetadata} for the segment to defrag.
      * @param startChunkName  Name of the first chunk to start defragmentation.
      * @param lastChunkName   Name of the last chunk before which to stop defragmentation. (last chunk is not concatenated).
-     * @throws Exception In case of any errors.
+     * @throws ChunkStorageException In case of any chunk storage related errors.
+     * @throws StorageMetadataException In case of any chunk metadata store related errors.
      */
-    private void defrag(MetadataTransaction txn, SegmentMetadata segmentMetadata, String startChunkName, String lastChunkName) throws Exception {
+    private void defrag(MetadataTransaction txn, SegmentMetadata segmentMetadata, String startChunkName, String lastChunkName) throws StorageMetadataException, ChunkStorageException {
         // The algorithm is actually very simple.
         // It tries to concat all small chunks using appends first.
-        // Then it tries to concat remaining chunks using native concat if available.
-        // To implement it using single loop we toggle between concat with append and native concat modes. (Instead of two passes.)
+        // Then it tries to concat remaining chunks using concat if available.
+        // To implement it using single loop we toggle between concat with append and concat modes. (Instead of two passes.)
         boolean useAppend = true;
         String targetChunkName = startChunkName;
 
@@ -790,10 +807,10 @@ public class ChunkStorageManager implements Storage {
 
                 nextChunkName = next.getNextChunk();
             }
-            // Note - After above while loop exits, nextChunkName points to chunk next to last one to be concat.
+            // Note - After above while loop is exited nextChunkName points to chunk next to last one to be concat.
             // Which means target should now point to it as next after concat is complete.
 
-            // If there are chunks that can be appended together, then concat them.
+            // If there are chunks that can be appended together then concat them.
             if (chunksToConcat.size() > 1) {
                 // Concat
 

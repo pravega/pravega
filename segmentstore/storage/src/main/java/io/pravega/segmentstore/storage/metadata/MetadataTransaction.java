@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 
 package io.pravega.segmentstore.storage.metadata;
@@ -167,9 +167,9 @@ public class MetadataTransaction implements AutoCloseable {
     /**
      * Commits the transaction.
      *
-     * @throws Exception If transaction could not be commited.
+     * @throws StorageMetadataException If transaction could not be commited.
      */
-    public void commit() throws Exception {
+    public void commit() throws StorageMetadataException {
         Preconditions.checkState(!isCommitted, "Transaction is already committed");
         Preconditions.checkState(!isAborted, "Transaction is already aborted");
         store.commit(this);
@@ -180,9 +180,9 @@ public class MetadataTransaction implements AutoCloseable {
      * Commits the transaction.
      *
      * @param lazyWrite true if data can be written lazily.
-     * @throws Exception If transaction could not be commited.
+     * @throws StorageMetadataException If transaction could not be commited.
      */
-    public void commit(boolean lazyWrite) throws Exception {
+    public void commit(boolean lazyWrite) throws StorageMetadataException {
         Preconditions.checkState(!isCommitted, "Transaction is already committed");
         Preconditions.checkState(!isAborted, "Transaction is already aborted");
         store.commit(this, lazyWrite);
@@ -194,9 +194,9 @@ public class MetadataTransaction implements AutoCloseable {
      *
      * @param lazyWrite      true if data can be written lazily.
      * @param skipStoreCheck true if data is not to be reloaded from store.
-     * @throws Exception If transaction could not be commited.
+     * @throws StorageMetadataException If transaction could not be commited.
      */
-    public void commit(boolean lazyWrite, boolean skipStoreCheck) throws Exception {
+    public void commit(boolean lazyWrite, boolean skipStoreCheck) throws StorageMetadataException {
         Preconditions.checkState(!isCommitted, "Transaction is already committed");
         Preconditions.checkState(!isAborted, "Transaction is already aborted");
         store.commit(this, lazyWrite, skipStoreCheck);
@@ -206,9 +206,9 @@ public class MetadataTransaction implements AutoCloseable {
     /**
      * Aborts the transaction.
      *
-     * @throws Exception If transaction could not be commited.
+     * @throws StorageMetadataException If transaction could not be commited.
      */
-    public void abort() throws Exception {
+    public void abort() throws StorageMetadataException {
         Preconditions.checkState(!isCommitted, "Transaction is already committed");
         Preconditions.checkState(!isAborted, "Transaction is already aborted");
         isAborted = true;

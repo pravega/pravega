@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 
 package io.pravega.segmentstore.storage.chunklayer;
@@ -17,7 +17,7 @@ import io.pravega.segmentstore.storage.metadata.StorageMetadataException;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataVersionMismatchException;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutException;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
-import io.pravega.segmentstore.storage.noop.NoOpChunkStorageProvider;
+import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.val;
@@ -31,7 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-public class ChunkStorageManagerMockTests extends ThreadPooledTestSuite {
+public class ChunkManagerMockTests extends ThreadPooledTestSuite {
 
     @Test
     public void testStorageMetadataWritesFencedOutExceptionDuringCommit() throws Exception {
@@ -62,11 +62,11 @@ public class ChunkStorageManagerMockTests extends ThreadPooledTestSuite {
         String testSegmentName = "test";
         String concatSegmentName = "concat";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkStorageManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         BaseMetadataStore spyMetadataStore = spy(InMemoryMetadataStore.class);
-        BaseChunkStorageProvider spyChunkStorageProvider = spy(NoOpChunkStorageProvider.class);
-        ChunkStorageManager storageManager = new ChunkStorageManager(spyChunkStorageProvider, spyMetadataStore, executorService(), config);
+        BaseChunkStorage spyChunkStorageProvider = spy(NoOpChunkStorage.class);
+        ChunkManager storageManager = new ChunkManager(spyChunkStorageProvider, spyMetadataStore, executorService(), config);
         storageManager.initialize(1);
 
         // Step 1: Create segment and write some data.
@@ -177,11 +177,11 @@ public class ChunkStorageManagerMockTests extends ThreadPooledTestSuite {
         String testSegmentName = "test";
         String concatSegmentName = "concat";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkStorageManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         BaseMetadataStore spyMetadataStore = spy(InMemoryMetadataStore.class);
-        ChunkStorageProvider spyChunkStorageProvider = spy(NoOpChunkStorageProvider.class);
-        ChunkStorageManager storageManager = new ChunkStorageManager(spyChunkStorageProvider, spyMetadataStore, executorService(), config);
+        ChunkStorage spyChunkStorage = spy(NoOpChunkStorage.class);
+        ChunkManager storageManager = new ChunkManager(spyChunkStorage, spyMetadataStore, executorService(), config);
         storageManager.initialize(1);
 
         // Step 1: Create segment and write some data.
@@ -262,12 +262,12 @@ public class ChunkStorageManagerMockTests extends ThreadPooledTestSuite {
     public void testIOExceptionDuringWrite() throws Exception {
         String testSegmentName = "test";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkStorageManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         BaseMetadataStore spyMetadataStore = spy(InMemoryMetadataStore.class);
-        BaseChunkStorageProvider spyChunkStorageProvider = spy(NoOpChunkStorageProvider.class);
-        ((NoOpChunkStorageProvider) spyChunkStorageProvider).setShouldSupportConcat(false);
-        ChunkStorageManager storageManager = new ChunkStorageManager(spyChunkStorageProvider, spyMetadataStore, executorService(), config);
+        BaseChunkStorage spyChunkStorageProvider = spy(NoOpChunkStorage.class);
+        ((NoOpChunkStorage) spyChunkStorageProvider).setShouldSupportConcat(false);
+        ChunkManager storageManager = new ChunkManager(spyChunkStorageProvider, spyMetadataStore, executorService(), config);
         storageManager.initialize(1);
 
         // Step 1: Create segment and write some data.
@@ -294,12 +294,12 @@ public class ChunkStorageManagerMockTests extends ThreadPooledTestSuite {
     public void testFileNotFoundExceptionDuringGarbageCollection() throws Exception {
         String testSegmentName = "test";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkStorageManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         BaseMetadataStore spyMetadataStore = spy(InMemoryMetadataStore.class);
-        BaseChunkStorageProvider spyChunkStorageProvider = spy(NoOpChunkStorageProvider.class);
-        ((NoOpChunkStorageProvider) spyChunkStorageProvider).setShouldSupportConcat(false);
-        ChunkStorageManager storageManager = new ChunkStorageManager(spyChunkStorageProvider, spyMetadataStore, executorService(), config);
+        BaseChunkStorage spyChunkStorageProvider = spy(NoOpChunkStorage.class);
+        ((NoOpChunkStorage) spyChunkStorageProvider).setShouldSupportConcat(false);
+        ChunkManager storageManager = new ChunkManager(spyChunkStorageProvider, spyMetadataStore, executorService(), config);
         storageManager.initialize(1);
 
         // Step 1: Create segment and write some data.
@@ -320,12 +320,12 @@ public class ChunkStorageManagerMockTests extends ThreadPooledTestSuite {
     public void testExceptionDuringGarbageCollection() throws Exception {
         String testSegmentName = "test";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkStorageManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         BaseMetadataStore spyMetadataStore = spy(InMemoryMetadataStore.class);
-        BaseChunkStorageProvider spyChunkStorageProvider = spy(NoOpChunkStorageProvider.class);
-        ((NoOpChunkStorageProvider) spyChunkStorageProvider).setShouldSupportConcat(false);
-        ChunkStorageManager storageManager = new ChunkStorageManager(spyChunkStorageProvider, spyMetadataStore, executorService(), config);
+        BaseChunkStorage spyChunkStorageProvider = spy(NoOpChunkStorage.class);
+        ((NoOpChunkStorage) spyChunkStorageProvider).setShouldSupportConcat(false);
+        ChunkManager storageManager = new ChunkManager(spyChunkStorageProvider, spyMetadataStore, executorService(), config);
         storageManager.initialize(1);
 
         // Step 1: Create segment and write some data.

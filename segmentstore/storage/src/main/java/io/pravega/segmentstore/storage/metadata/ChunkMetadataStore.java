@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.metadata;
 
@@ -21,10 +21,12 @@ package io.pravega.segmentstore.storage.metadata;
  *
  * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction()}
  *
- * Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload of{@link MetadataTransaction#commit()}.
+ * Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload of
+ * {@link MetadataTransaction#commit()}.
  * Transaction is aborted automatically unless committed or when {@link MetadataTransaction#abort()} is called.
  * Transactions are atomic - either all changes in the transaction are committed or none at all.
- * In addition, Transactions provide snaphot isolation which means that transaction fails if any of the metadata records read during the transactions are changed outside the transaction after they were read.
+ * In addition, Transactions provide snaphot isolation which means that transaction fails if any of the metadata records
+ * read during the transactions are changed outside the transaction after they were read.
  *
  * Within a transaction you can perform following actions on per record basis.
  * <ul>
@@ -57,14 +59,18 @@ package io.pravega.segmentstore.storage.metadata;
  * </div>
  *
  * Underlying implementation might buffer frequently or recently updated metadata keys to optimize read/write performance.
- * To further optimize it may provide "lazy committing" of changes where there is application specific way to recover from failures.(Eg. when only length of chunk is changed.)
+ * To further optimize it may provide "lazy committing" of changes where there is application specific way to recover
+ * from failures.(Eg. when only length of chunk is changed.)
  * In this case {@link ChunkMetadataStore#commit(MetadataTransaction, boolean)} can be called. The data is not written to the underlying storage.
  * Note that otherwise for each commit the data is written to underlying key-value store.
  *
- * There are two special methods provided to handle metadata about data segments for the underlying key-value store. They are useful in avoiding circular references.
+ * There are two special methods provided to handle metadata about data segments for the underlying key-value store.
+ * They are useful in avoiding circular references.
  * <ul>
- * <li>A record marked as pinned by calling {@link MetadataTransaction#markPinned(StorageMetadata)} is never written to underlying storage.</li>
- * <li>A transaction can be committed using {@link ChunkMetadataStore#commit(MetadataTransaction, boolean, boolean)} to skip validation step that reads any recently evicted changes from underlying storage.</li>
+ * <li>A record marked as pinned by calling {@link MetadataTransaction#markPinned(StorageMetadata)} is never written to
+ * underlying storage.</li>
+ * <li>A transaction can be committed using {@link ChunkMetadataStore#commit(MetadataTransaction, boolean, boolean)} to
+ * skip validation step that reads any recently evicted changes from underlying storage.</li>
  * </ul>
  */
 public interface ChunkMetadataStore extends AutoCloseable {
@@ -128,7 +134,8 @@ public interface ChunkMetadataStore extends AutoCloseable {
     /**
      * Commits given transaction.
      * If  skipStoreCheck is set to true then the transaction data is validated without realoding.
-     * This call blocks until write to underlying storage is confirmed. This helps avoid circular dependency on storage system segments.
+     * This call blocks until write to underlying storage is confirmed. This helps avoid circular dependency on storage
+     * system segments.
      * If lazyWrite is true then the transaction data is validated but the changes are not commited to underlying storage.
      * Changes are put in the in memory buffer only. Note that in case of crash, the changes in the in buffer are lost.
      * In this case the state must be re-created using application specific recovery/failover logic.

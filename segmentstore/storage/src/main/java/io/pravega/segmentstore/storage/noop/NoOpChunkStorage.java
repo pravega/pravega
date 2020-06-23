@@ -16,7 +16,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
-import io.pravega.segmentstore.storage.mocks.AbstractInMemoryChunkStorageProvider;
+import io.pravega.segmentstore.storage.mocks.AbstractInMemoryChunkStorage;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * NoOp implementation.
  */
 @Slf4j
-public class NoOpChunkStorageProvider extends AbstractInMemoryChunkStorageProvider {
+public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
     @Getter
     @Setter
     ConcurrentHashMap<String, ChunkData> chunkMetadata = new ConcurrentHashMap<>();
@@ -38,7 +38,7 @@ public class NoOpChunkStorageProvider extends AbstractInMemoryChunkStorageProvid
     protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         ChunkData chunkData = chunkMetadata.get(chunkName);
         if (null == chunkData) {
-            throw new ChunkNotFoundException(chunkName, "NoOpChunkStorageProvider::doGetInfo");
+            throw new ChunkNotFoundException(chunkName, "NoOpChunkStorage::doGetInfo");
         }
         return ChunkInfo.builder().name(chunkName).length(chunkData.length).build();
     }
@@ -47,14 +47,14 @@ public class NoOpChunkStorageProvider extends AbstractInMemoryChunkStorageProvid
     protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         ChunkData chunkData = chunkMetadata.get(chunkName);
         if (null != chunkData) {
-            throw new ChunkAlreadyExistsException(chunkName, "NoOpChunkStorageProvider::doCreate");
+            throw new ChunkAlreadyExistsException(chunkName, "NoOpChunkStorage::doCreate");
         }
         chunkMetadata.put(chunkName, new ChunkData());
         return ChunkHandle.writeHandle(chunkName);
     }
 
     @Override
-    protected boolean checkExist(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected boolean checkExists(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         return chunkMetadata.containsKey(chunkName);
     }
 
@@ -64,7 +64,7 @@ public class NoOpChunkStorageProvider extends AbstractInMemoryChunkStorageProvid
         Preconditions.checkNotNull(handle.getChunkName(), "handle");
         ChunkData chunkData = chunkMetadata.get(handle.getChunkName());
         if (null == chunkData) {
-            throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorageProvider::doDelete");
+            throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorage::doDelete");
         }
         if (chunkData.isReadonly) {
             throw new ChunkStorageException(handle.getChunkName(), "chunk is readonly");
@@ -76,7 +76,7 @@ public class NoOpChunkStorageProvider extends AbstractInMemoryChunkStorageProvid
     protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         ChunkData chunkData = chunkMetadata.get(chunkName);
         if (null == chunkData) {
-            throw new ChunkNotFoundException(chunkName, "NoOpChunkStorageProvider::doOpenRead");
+            throw new ChunkNotFoundException(chunkName, "NoOpChunkStorage::doOpenRead");
         }
         return ChunkHandle.readHandle(chunkName);
     }
@@ -85,7 +85,7 @@ public class NoOpChunkStorageProvider extends AbstractInMemoryChunkStorageProvid
     protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         ChunkData chunkData = chunkMetadata.get(chunkName);
         if (null == chunkData) {
-            throw new ChunkNotFoundException(chunkName, "NoOpChunkStorageProvider::doOpenWrite");
+            throw new ChunkNotFoundException(chunkName, "NoOpChunkStorage::doOpenWrite");
         }
         return ChunkHandle.writeHandle(chunkName);
     }
@@ -94,7 +94,7 @@ public class NoOpChunkStorageProvider extends AbstractInMemoryChunkStorageProvid
     protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException, NullPointerException, IndexOutOfBoundsException {
         ChunkData chunkData = chunkMetadata.get(handle.getChunkName());
         if (null == chunkData) {
-            throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorageProvider::doRead");
+            throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorage::doRead");
         }
 
         if (fromOffset >= chunkData.length || fromOffset + length > chunkData.length) {
@@ -115,7 +115,7 @@ public class NoOpChunkStorageProvider extends AbstractInMemoryChunkStorageProvid
 
         ChunkData chunkData = chunkMetadata.get(handle.getChunkName());
         if (null == chunkData) {
-            throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorageProvider::doWrite");
+            throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorage::doWrite");
         }
         if (offset != chunkData.length) {
             throw new IndexOutOfBoundsException("");
@@ -151,7 +151,7 @@ public class NoOpChunkStorageProvider extends AbstractInMemoryChunkStorageProvid
     protected boolean doTruncate(ChunkHandle handle, long offset) throws ChunkStorageException, UnsupportedOperationException {
         ChunkData chunkData = chunkMetadata.get(handle.getChunkName());
         if (null == chunkData) {
-            throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorageProvider::doTruncate");
+            throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorage::doTruncate");
         }
         if (offset < chunkData.length) {
             chunkData.length = offset;
@@ -167,7 +167,7 @@ public class NoOpChunkStorageProvider extends AbstractInMemoryChunkStorageProvid
         String chunkName = handle.getChunkName();
         ChunkData chunkData = chunkMetadata.get(chunkName);
         if (null == chunkData) {
-            throw new ChunkNotFoundException(chunkName, "NoOpChunkStorageProvider::doSetReadOnly");
+            throw new ChunkNotFoundException(chunkName, "NoOpChunkStorage::doSetReadOnly");
         }
         chunkData.isReadonly = isReadOnly;
         return false;

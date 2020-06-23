@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.mocks;
 
@@ -29,10 +29,10 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * In-Memory mock for ChunkStorageProvider. Contents is destroyed when object is garbage collected.
+ * In-Memory mock for ChunkStorage. Contents is destroyed when object is garbage collected.
  */
 @Slf4j
-public class InMemoryChunkStorageProvider extends AbstractInMemoryChunkStorageProvider {
+public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
     private final ConcurrentHashMap<String, InMemoryChunk> chunks = new ConcurrentHashMap<String, InMemoryChunk>();
 
     @Override
@@ -40,7 +40,7 @@ public class InMemoryChunkStorageProvider extends AbstractInMemoryChunkStoragePr
         Preconditions.checkNotNull(chunkName);
         InMemoryChunk chunk = chunks.get(chunkName);
         if (null == chunk) {
-            throw new ChunkNotFoundException(chunkName, "InMemoryChunkStorageProvider::doGetInfo");
+            throw new ChunkNotFoundException(chunkName, "InMemoryChunkStorage::doGetInfo");
         }
         return ChunkInfo.builder()
                 .length(chunk.getLength())
@@ -52,13 +52,13 @@ public class InMemoryChunkStorageProvider extends AbstractInMemoryChunkStoragePr
     protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         Preconditions.checkNotNull(chunkName);
         if (null != chunks.putIfAbsent(chunkName, new InMemoryChunk(chunkName))) {
-            throw new ChunkAlreadyExistsException(chunkName, "InMemoryChunkStorageProvider::doCreate");
+            throw new ChunkAlreadyExistsException(chunkName, "InMemoryChunkStorage::doCreate");
         }
         return new ChunkHandle(chunkName, false);
     }
 
     @Override
-    protected boolean checkExist(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected boolean checkExists(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         return chunks.containsKey(chunkName);
     }
 
@@ -66,7 +66,7 @@ public class InMemoryChunkStorageProvider extends AbstractInMemoryChunkStoragePr
     protected void doDelete(ChunkHandle handle) throws ChunkStorageException, IllegalArgumentException {
         InMemoryChunk chunk = getInMemoryChunk(handle);
         if (null == chunk) {
-            throw new ChunkNotFoundException(handle.getChunkName(), "InMemoryChunkStorageProvider::doDelete");
+            throw new ChunkNotFoundException(handle.getChunkName(), "InMemoryChunkStorage::doDelete");
         }
         if (chunk.isReadOnly) {
             throw new ChunkStorageException(handle.getChunkName(), "chunk is readonly");
@@ -79,7 +79,7 @@ public class InMemoryChunkStorageProvider extends AbstractInMemoryChunkStoragePr
         if (chunks.containsKey(chunkName)) {
             return new ChunkHandle(chunkName, true);
         }
-        throw new ChunkNotFoundException(chunkName, "InMemoryChunkStorageProvider::doOpenRead");
+        throw new ChunkNotFoundException(chunkName, "InMemoryChunkStorage::doOpenRead");
     }
 
     @Override
@@ -87,7 +87,7 @@ public class InMemoryChunkStorageProvider extends AbstractInMemoryChunkStoragePr
         if (chunks.containsKey(chunkName)) {
             return new ChunkHandle(chunkName, false);
         }
-        throw new ChunkNotFoundException(chunkName, "InMemoryChunkStorageProvider::doOpenWrite");
+        throw new ChunkNotFoundException(chunkName, "InMemoryChunkStorage::doOpenWrite");
     }
 
     @Override
@@ -167,7 +167,7 @@ public class InMemoryChunkStorageProvider extends AbstractInMemoryChunkStoragePr
     private InMemoryChunk getInMemoryChunk(String chunkName) throws ChunkNotFoundException {
         InMemoryChunk retValue = chunks.get(chunkName);
         if (null == retValue) {
-            throw new ChunkNotFoundException(chunkName, "InMemoryChunkStorageProvider::getInMemoryChunk");
+            throw new ChunkNotFoundException(chunkName, "InMemoryChunkStorage::getInMemoryChunk");
         }
         return retValue;
     }

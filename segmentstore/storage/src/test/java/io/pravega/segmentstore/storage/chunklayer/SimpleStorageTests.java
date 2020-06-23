@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -31,16 +31,16 @@ import java.util.concurrent.Executor;
 import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 
 /**
- * Scenario tests using ChunkStorageManager, ChunkStorageProvider and ChunkMetadataStore together.
+ * Scenario tests using ChunkManager, ChunkStorage and ChunkMetadataStore together.
  *
- * The derived classes are expected to override getChunkStorage to return instance of specific type derived from ChunkStorageProvider.
- * In addition the method populate can be overriden to handle implementation specific logic. (Eg. NoOpChunkStorageProvider)
+ * The derived classes are expected to override getChunkStorage to return instance of specific type derived from ChunkStorage.
+ * In addition the method populate can be overriden to handle implementation specific logic. (Eg. NoOpChunkStorage)
  */
 @Slf4j
 public abstract class SimpleStorageTests extends StorageTestBase {
 
     private static final int WRITE_COUNT = 5;
-    ChunkStorageProvider chunkStorageProvider;
+    ChunkStorage chunkStorage;
     ChunkMetadataStore chunkMetadataStore;
 
     /**
@@ -51,16 +51,16 @@ public abstract class SimpleStorageTests extends StorageTestBase {
     protected Storage createStorage() throws Exception {
         Executor executor = executorService();
         synchronized (SimpleStorageTests.class) {
-            if (null == chunkStorageProvider) {
+            if (null == chunkStorage) {
                 chunkMetadataStore = getMetadataStore();
-                chunkStorageProvider = getChunkStorage();
+                chunkStorage = getChunkStorage();
             }
         }
-        ChunkStorageManager chunkStorageManager = new ChunkStorageManager(chunkStorageProvider, chunkMetadataStore, executor, ChunkStorageManagerConfig.DEFAULT_CONFIG);
-        return chunkStorageManager;
+        ChunkManager chunkManager = new ChunkManager(chunkStorage, chunkMetadataStore, executor, ChunkManagerConfig.DEFAULT_CONFIG);
+        return chunkManager;
     }
 
-    abstract protected ChunkStorageProvider getChunkStorage() throws Exception;
+    abstract protected ChunkStorage getChunkStorage() throws Exception;
 
     /**
      * Creates a new instance of Storage with forked metadata state.
@@ -71,13 +71,13 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      * @return New forked storage.
      * @throws Exception Exceptions in case of any errors.
      */
-    protected Storage forkStorage(ChunkStorageManager storage) throws Exception {
+    protected Storage forkStorage(ChunkManager storage) throws Exception {
         Executor executor = executorService();
-        ChunkStorageManager forkedChunkStorageManager = new ChunkStorageManager(storage.getChunkStorage(),
+        ChunkManager forkedChunkManager = new ChunkManager(storage.getChunkStorage(),
                 getCloneMetadataStore(storage.getMetadataStore()),
                 executor,
-                ChunkStorageManagerConfig.DEFAULT_CONFIG);
-        return forkedChunkStorageManager;
+                ChunkManagerConfig.DEFAULT_CONFIG);
+        return forkedChunkManager;
     }
 
     /**
@@ -163,12 +163,12 @@ public abstract class SimpleStorageTests extends StorageTestBase {
             verifyWriteOperationsSucceed(handle1, storage1);
             verifyReadOnlyOperationsSucceed(handle1, storage1);
 
-            try (val storage2 = forkStorage((ChunkStorageManager) storage1)) {
+            try (val storage2 = forkStorage((ChunkManager) storage1)) {
                 storage2.initialize(epoch2);
                 // Open the segment in Storage2 (thus Storage2 owns it for now).
                 SegmentHandle handle2 = storage2.openWrite(segmentName).join();
 
-                ((ChunkStorageManager) storage1).getMetadataStore().markFenced();
+                ((ChunkManager) storage1).getMetadataStore().markFenced();
 
                 // Storage1 should be able to execute only read-only operations.
                 verifyWriteOperationsFail(handle1, storage1);
