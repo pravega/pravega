@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.io.Serializable;
 import java.util.Comparator;
 
@@ -87,6 +88,7 @@ public final class ByteArrayComparator implements Comparator<byte[]>, Serializab
      * @param b2 Second instance.
      * @return -1 if b1 should be before b2, 0 if b1 equals b2 and 1 if b1 should be after b2.
      */
+    @VisibleForTesting
     public int compare(BufferView b1, BufferView b2) {
         if (b1 instanceof ArrayView && b2 instanceof ArrayView) {
             return compare((ArrayView) b1, (ArrayView) b2);

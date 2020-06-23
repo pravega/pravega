@@ -251,6 +251,15 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
         return new ByteArraySegment(b);
     }
 
+    /**
+     * Ensures that the given {@link BufferView} is an {@link ArrayView}. If not, a copy is created and wrapped in an
+     * {@link ArrayView}. This is necessary because we may hold on to this {@link BufferView} for a while (cached in the
+     * tail) so, depending on what it is made of, we may inadvertently hold on to more memory than required. In addition,
+     * array comparisons are much faster than comparing general {@link BufferView}.
+     *
+     * @param bufferView The {@link BufferView} to check.
+     * @return An {@link ArrayView}.
+     */
     private static ArrayView toArrayView(BufferView bufferView) {
         if (bufferView == null) {
             return null;
