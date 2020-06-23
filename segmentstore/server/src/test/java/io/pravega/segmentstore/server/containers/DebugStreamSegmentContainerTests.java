@@ -111,7 +111,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testCreateStreamSegment() {
-        int maxSegmentCount = 3;
+        int maxSegmentCount = 100;
         final int createdSegmentCount = maxSegmentCount * 2;
         final ContainerConfig containerConfig = ContainerConfig
                 .builder()
