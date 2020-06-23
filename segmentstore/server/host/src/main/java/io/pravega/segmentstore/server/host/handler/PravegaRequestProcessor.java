@@ -849,16 +849,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             // Store all TableEntries.
                             val k = new WireCommands.TableKey(toByteBuf(entry.getKey().getKey()), entry.getKey().getVersion());
                             val v = new WireCommands.TableValue(toByteBuf(entry.getValue()));
-                            if (!state.isDeletionRecord()) {
-                                result.remove(entry.getValue(), k.size() + v.size());
-                            }
-                            //
-                            Map.Entry<WireCommands.TableKey, WireCommands.TableValue> old = result.getItem(entry.getKey().getKey());
-                            if (old != null) {
-                                int sizeBytes = (k.size() + v.size()) - (old.getKey().size() + old.getValue().size());
-                                result.add(entry.getValue(), new AbstractMap.SimpleImmutableEntry<>(k, v), sizeBytes);
+                            if (state.isDeletionRecord()) {
+                                result.remove(entry.getKey().getKey(), k.size() + v.size());
                             } else {
-                                result.add(entry.getValue(), new AbstractMap.SimpleImmutableEntry<>(k, v), k.size() + v.size());
+                                Map.Entry<WireCommands.TableKey, WireCommands.TableValue> old = result.getItem(entry.getKey().getKey());
+                                if (old != null) {
+                                    int sizeBytes = (k.size() + v.size()) - (old.getKey().size() + old.getValue().size());
+                                    result.add(entry.getKey().getKey(), new AbstractMap.SimpleImmutableEntry<>(k, v), sizeBytes);
+                                } else {
+                                    result.add(entry.getKey().getKey(), new AbstractMap.SimpleImmutableEntry<>(k, v), k.size() + v.size());
+                                }
                             }
                             result.setState(state);
                             // Update total read data.
@@ -1099,6 +1099,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         @Override
         synchronized List<V> getItems() {
             return new ArrayList<>(this.items.values());
+        }
+
+        @Override
+        synchronized int getItemCount() {
+            return this.items.size();
         }
 
     }
