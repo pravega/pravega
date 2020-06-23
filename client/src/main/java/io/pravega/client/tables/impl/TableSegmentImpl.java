@@ -364,6 +364,7 @@ class TableSegmentImpl implements TableSegment {
             return new TableSegmentEntry(key, e.getValue().getData());
         } else {
             // No entry found for this key.
+            key.getKey().release();
             return null;
         }
     }

@@ -15,6 +15,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 
 /**
  * Translates Table Segment Keys from an external form into an internal one and back.
@@ -128,6 +129,7 @@ abstract class KeyTranslator {
         private final byte partition;
 
         @Override
+        @SneakyThrows
         BufferView inbound(BufferView external) {
             return BufferView.builder(2)
                     .add(new ByteArraySegment(new byte[]{this.partition}))
@@ -139,14 +141,15 @@ abstract class KeyTranslator {
         BufferView outbound(BufferView internal) {
             Preconditions.checkArgument(internal.getLength() >= 1,
                     "Key too short. Expected at least 1, given %s.", internal.getLength());
-            byte p = internal.getBufferViewReader().readByte();
+            BufferView.Reader reader = internal.getBufferViewReader();
+            byte p = reader.readByte();
             Preconditions.checkArgument(p == this.partition, "Wrong partition. Expected %s, found %s.", this.partition, p);
-            if (internal.getLength() == 1) {
+            if (reader.available() == 0) {
                 // There was no key to begin with.
                 return BufferView.empty();
             }
 
-            return internal.slice(1, internal.getLength() - 1);
+            return reader.readSlice(reader.available());
         }
 
         @Override
