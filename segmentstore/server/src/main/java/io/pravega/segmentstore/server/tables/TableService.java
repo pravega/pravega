@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.annotations.Beta;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -96,7 +97,6 @@ public class TableService extends SegmentContainerCollection implements TableSto
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
         return invokeExtension(segmentName,
                 e -> e.keyIterator(segmentName, args),

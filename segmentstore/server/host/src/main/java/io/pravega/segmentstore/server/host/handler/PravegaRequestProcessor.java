@@ -733,15 +733,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.debug(readTableKeys.getRequestId(), "Iterate Table Segment Keys: Segment={}, Count={}.",
                 readTableKeys.getSegment(), readTableKeys.getSuggestedKeyCount());
 
-        int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
-        ByteBuf token = readTableKeys.getContinuationToken();
-
         final int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
         final IteratorArgs args = getIteratorArgs(readTableKeys.getContinuationToken(), readTableKeys.getPrefixFilter());
 
         val result = new IteratorResult<WireCommands.TableKey>(segment.getBytes().length + WireCommands.TableKeysRead.HEADER_BYTES);
         val timer = new Timer();
-        tableStore.keyIterator(segment, args, TIMEOUT)
+        tableStore.keyIterator(segment, args)
                 .thenCompose(itr -> itr.collectRemaining(e -> {
                     synchronized (result) {
                         if (result.getItemCount() >= suggestedKeyCount || result.getSizeBytes() >= MAX_READ_SIZE) {
@@ -783,7 +780,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         val result = new IteratorResult<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>>(segment.getBytes().length + WireCommands.TableEntriesRead.HEADER_BYTES);
         val timer = new Timer();
-        tableStore.entryIterator(segment, args, TIMEOUT)
+        tableStore.entryIterator(segment, args)
                 .thenCompose(itr -> itr.collectRemaining(
                         e -> {
                             if (result.getItemCount() >= suggestedEntryCount || result.getSizeBytes() >= MAX_READ_SIZE) {
@@ -812,10 +809,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private IteratorArgs getIteratorArgs(ByteBuf token, ByteBuf prefix) {
         val args = IteratorArgs.builder().fetchTimeout(TIMEOUT);
         if (token != null && !token.equals(EMPTY_BUFFER)) {
-            args.serializedState(getArrayView(token));
+            args.serializedState(new ByteBufWrapper(token));
         }
         if (prefix != null && !prefix.equals(EMPTY_BUFFER)) {
-            args.prefixFilter(getArrayView(prefix));
+            args.prefixFilter(new ByteBufWrapper(prefix));
         }
         return args.build();
     }

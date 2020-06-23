@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.util.Arrays;
@@ -60,12 +59,12 @@ public class KeyTranslatorTests {
             val entry = TableEntry.versioned(keyData, new ByteArraySegment(new byte[]{10, 11}), 64789L);
             val expectedInboundKeyData = externalToInternal.apply(keyData);
 
-            boolean isIdentity = HashedArray.arrayEquals(keyData, expectedInboundKeyData);
+            boolean isIdentity = keyData.equals(expectedInboundKeyData);
             Assert.assertEquals(isIdentity, translator.isInternal(keyData));
             Assert.assertEquals(isIdentity, translator.isInternal(key));
 
             val inboundKeyData = translator.inbound(keyData);
-            Assert.assertTrue(HashedArray.arrayEquals(expectedInboundKeyData, inboundKeyData));
+            Assert.assertEquals(expectedInboundKeyData, inboundKeyData);
             Assert.assertTrue(translator.isInternal(expectedInboundKeyData));
 
             val expectedInboundKey = TableKey.versioned(expectedInboundKeyData, key.getVersion());
@@ -78,7 +77,7 @@ public class KeyTranslatorTests {
             Assert.assertEquals(expectedInboundEntry, inboundEntry);
 
             val outboundKeyData = translator.outbound(inboundKeyData);
-            Assert.assertTrue(HashedArray.arrayEquals(keyData, outboundKeyData));
+            Assert.assertEquals(keyData, outboundKeyData);
 
             val outboundKey = translator.outbound(inboundKey);
             Assert.assertEquals(key, outboundKey);

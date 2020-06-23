@@ -17,8 +17,6 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.function.Function;

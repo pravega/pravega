@@ -11,9 +11,9 @@ package io.pravega.controller.server.v1;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;

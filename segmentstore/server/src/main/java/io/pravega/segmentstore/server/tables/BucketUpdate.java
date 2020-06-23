@@ -36,7 +36,6 @@ class BucketUpdate {
     /**
      * Gets a collection of {@link KeyInfo} instances recorded in this Bucket Update.
      */
-    @Getter
     private final Map<BufferView, KeyInfo> existingKeys;
     private final Map<BufferView, KeyUpdate> updatedKeys;
 
@@ -74,12 +73,12 @@ class BucketUpdate {
     }
 
     /**
-     * Gets a value indicating whether the Key represented by the given {@link HashedArray} previously existed in the index.
+     * Gets a value indicating whether the Key represented by the given {@link BufferView} previously existed in the index.
      *
      * @param key The Key to check
      * @return True if existed before, false otherwise.
      */
-    boolean keyExists(HashedArray key) {
+    boolean keyExists(BufferView key) {
         return this.existingKeys.containsKey(key);
     }
 

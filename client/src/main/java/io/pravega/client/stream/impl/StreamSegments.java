@@ -51,10 +51,6 @@ public class StreamSegments extends SegmentCollection {
         return segments.size();
     }
 
-    public int getNumberOfSegments() {
-        return segments.size();
-    }
-
     public StreamSegments withReplacementRange(Segment segment, StreamSegmentsWithPredecessors replacementRanges) {
         SegmentWithRange replacedSegment = findReplacedSegment(segment);
         verifyReplacementRange(replacedSegment, replacementRanges);

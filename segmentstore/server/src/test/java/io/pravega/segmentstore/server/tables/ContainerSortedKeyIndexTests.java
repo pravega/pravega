@@ -11,8 +11,8 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -93,7 +93,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
         for (val t : testItems) {
             context.segmentIndex.includeTailUpdate(t.batch, t.batchOffset);
             val allKeys = context.getAllKeys();
-            AssertExtensions.assertListEquals("", t.expectedItems, allKeys, HashedArray::arrayEquals);
+            AssertExtensions.assertListEquals("", t.expectedItems, allKeys, BufferView::equals);
         }
     }
 
@@ -106,17 +106,17 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
         val testItems = generateTestData(BATCH_COUNT, 0.25); // We want to have some items left at the end.
 
         // Index the keys by their offsets.
-        val map = new HashMap<HashedArray, CacheBucketOffset>();
+        val map = new HashMap<BufferView, CacheBucketOffset>();
         testItems.forEach(t ->
                 t.batch.getItems().stream().filter(item -> !SortedKeyIndexDataSource.INTERNAL_TRANSLATOR.isInternal(item.getKey()))
-                        .forEach(item -> map.put(new HashedArray(item.getKey().getKey()),
+                        .forEach(item -> map.put(item.getKey().getKey(),
                                 new CacheBucketOffset(t.batchOffset + item.getOffset(), t.batch.isRemoval()))));
 
         // Check includeTailCache.
         context.segmentIndex.includeTailCache(map);
         val expectedItems = testItems.get(testItems.size() - 1).expectedItems;
         val allKeys = context.getAllKeys();
-        AssertExtensions.assertListEquals("After calling includeTailCache().", expectedItems, allKeys, HashedArray::arrayEquals);
+        AssertExtensions.assertListEquals("After calling includeTailCache().", expectedItems, allKeys, BufferView::equals);
 
         // Check notifyOffsetChanged. It's easier to check here since we have already indexed the keys by offsets.
         // Sort surviving keys by offset.
@@ -144,7 +144,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             }
 
             val actualKeys = context.getAllKeys();
-            AssertExtensions.assertListEquals("After trimming to offset " + t.batchOffset, expectedKeys, actualKeys, HashedArray::arrayEquals);
+            AssertExtensions.assertListEquals("After trimming to offset " + t.batchOffset, expectedKeys, actualKeys, BufferView::equals);
         }
     }
 
@@ -166,7 +166,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
 
             val expectedKeys = testItems.get(next - 1).expectedItems;
             val allKeys = context.getAllKeys();
-            AssertExtensions.assertListEquals("", expectedKeys, allKeys, HashedArray::arrayEquals);
+            AssertExtensions.assertListEquals("", expectedKeys, allKeys, BufferView::equals);
             i = next;
             batchSize++;
         }
@@ -193,7 +193,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             context.segmentIndex.persistUpdate(Collections.singleton(bucketUpdate), TIMEOUT).join();
             val actualKeys = context.getAllKeys();
 
-            AssertExtensions.assertListEquals("When overlapping index " + i, expectedKeys, actualKeys, HashedArray::arrayEquals);
+            AssertExtensions.assertListEquals("When overlapping index " + i, expectedKeys, actualKeys, BufferView::equals);
 
             long lastIndexedOffset;
             if (i == testItems.size() - 1) {
@@ -205,7 +205,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
 
             context.containerIndex.notifyIndexOffsetChanged(SEGMENT_ID, lastIndexedOffset);
             AssertExtensions.assertListEquals("After calling notifyIndexOffsetChanged for index " + i,
-                    expectedKeys, actualKeys, HashedArray::arrayEquals);
+                    expectedKeys, actualKeys, BufferView::equals);
         }
     }
 
@@ -240,16 +240,16 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
         }
 
         val allExpectedItems = testItems.get(testItems.size() - 1).expectedItems;
-        AssertExtensions.assertListEquals("Boundless iterator.", allExpectedItems, context.getAllKeys(), HashedArray::arrayEquals);
+        AssertExtensions.assertListEquals("Boundless iterator.", allExpectedItems, context.getAllKeys(), BufferView::equals);
         for (int i = 0; i < maxPrefixValue; i++) {
             // Check prefix iterators, without a start bound (initial iterators).
             byte prefixByte = (byte) i;
             val prefix = SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(new byte[]{prefixByte}));
-            val expectedItems = allExpectedItems.stream().filter(a -> isPrefixOf(prefix, a)).collect(Collectors.toList());
+            val expectedItems = allExpectedItems.stream().filter(a -> isPrefixOf(toArrayView(prefix), a)).collect(Collectors.toList());
             val ir = context.segmentIndex.getIteratorRange(null, prefix);
             val actualItems = context.getKeys(context.segmentIndex.iterator(ir, TIMEOUT));
             AssertExtensions.assertListEquals("Iterator with prefix " + prefixByte,
-                    expectedItems, actualItems, HashedArray::arrayEquals);
+                    expectedItems, actualItems, BufferView::equals);
 
             // Check prefix iterators, with a start bound (resumed iterators).
             for (int j = 0; j < expectedItems.size(); j++) {
@@ -260,7 +260,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
                 val partialResultItems = context.getKeys(context.segmentIndex.iterator(partialRange, TIMEOUT));
 
                 AssertExtensions.assertListEquals("Resumed iterator with prefix " + prefixByte,
-                        expectedPartialResult, partialResultItems, HashedArray::arrayEquals);
+                        expectedPartialResult, partialResultItems, BufferView::equals);
             }
         }
     }
@@ -272,6 +272,10 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             }
         }
         return true;
+    }
+
+    private ArrayView toArrayView(BufferView b) {
+        return b instanceof ArrayView ? (ArrayView) b : new ByteArraySegment(b.getCopy());
     }
 
     private List<TestItem> generateTestData() {
@@ -292,7 +296,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             val batch = isRemoval ? TableKeyBatch.removal() : TableKeyBatch.update();
             val batchSize = Math.max(1, rnd.nextInt(MAX_ITEMS_PER_BATCH));
             val batchItems = new ArrayList<ArrayView>();
-            val previousItems = currentItems.stream().map(HashedArray::new).collect(Collectors.toSet());
+            val previousItems = new HashSet<>(currentItems);
 
             val shuffledItems = new ArrayList<>(currentItems);
             Collections.shuffle(shuffledItems, rnd);
@@ -314,7 +318,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
 
                     // ContainerTableExtensionImpl translates the keys prior to sending them to the SortedKeyIndex.
                     // Simulate that behavior here.
-                    batchItems.add(SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(key)));
+                    batchItems.add(toArrayView(SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(key))));
                 }
                 currentItems.addAll(batchItems);
             }
@@ -342,7 +346,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
         final TableKeyBatch batch;
         final long batchOffset;
         final List<ArrayView> expectedItems;
-        final Set<HashedArray> previousItems;
+        final Set<ArrayView> previousItems;
 
         BucketUpdate getBucketUpdate() {
             val result = BucketUpdate.forBucket(new TableBucket(UUID.randomUUID(), this.batchOffset));
@@ -350,11 +354,11 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
 
             // When generating updates, it is important that the version matches the key offset. If the version is smaller
             // the BucketUpdate builder will ignore it as it will believe it was copied over by compaction.
-            val uniqueKeys = new HashSet<HashedArray>();
+            val uniqueKeys = new HashSet<BufferView>();
             for (val item : this.batch.getItems()) {
-                val key = new HashedArray(item.getKey().getKey());
+                val key = item.getKey().getKey();
                 if (uniqueKeys.add(key)) {
-                    result.withKeyUpdate(new BucketUpdate.KeyUpdate(new HashedArray(item.getKey().getKey()),
+                    result.withKeyUpdate(new BucketUpdate.KeyUpdate(item.getKey().getKey(),
                             this.batchOffset + item.getOffset(), this.batchOffset + item.getOffset(), this.batch.isRemoval()));
                 }
             }
@@ -383,9 +387,9 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             return getKeys(this.segmentIndex.iterator(this.fullRange, TIMEOUT));
         }
 
-        List<ArrayView> getKeys(AsyncIterator<List<ArrayView>> iterator) {
+        List<ArrayView> getKeys(AsyncIterator<List<BufferView>> iterator) {
             val result = new ArrayList<ArrayView>();
-            iterator.forEachRemaining(result::addAll, executorService()).join();
+            iterator.forEachRemaining(items -> items.forEach(i -> result.add(toArrayView(i))), executorService()).join();
             return result;
         }
     }

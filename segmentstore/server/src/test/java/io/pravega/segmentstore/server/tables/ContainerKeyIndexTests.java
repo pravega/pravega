@@ -13,6 +13,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
@@ -68,6 +69,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final KeyHasher HASHER = KeyHashers.DEFAULT_HASHER;
     private static final int TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH = 128 * 1024;
     private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(2);
+    private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
@@ -681,13 +683,13 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         checkSortedKeys(keys, context);
     }
 
-    private void checkSortedKeys(List<ArrayView> expectedSortedKeys, TestContext context) {
-        expectedSortedKeys = expectedSortedKeys.stream().sorted(SegmentSortedKeyIndexImpl.KEY_COMPARATOR).collect(Collectors.toList());
-        val actualSortedKeys = new ArrayList<ArrayView>();
+    private void checkSortedKeys(List<BufferView> expectedSortedKeys, TestContext context) {
+        expectedSortedKeys = expectedSortedKeys.stream().sorted(KEY_COMPARATOR).collect(Collectors.toList());
+        val actualSortedKeys = new ArrayList<BufferView>();
         val si = context.index.getSortedKeyIndex(context.segment).join();
         si.iterator(si.getIteratorRange(null, null), TIMEOUT).forEachRemaining(actualSortedKeys::addAll, executorService()).join();
         AssertExtensions.assertListEquals("Unexpected keys returned by getSortedKeyIndex().iterator.",
-                expectedSortedKeys, actualSortedKeys, HashedArray::arrayEquals);
+                expectedSortedKeys, actualSortedKeys, BufferView::equals);
     }
 
     private void checkBackpointers(List<UpdateItem> updates, TestContext context) {

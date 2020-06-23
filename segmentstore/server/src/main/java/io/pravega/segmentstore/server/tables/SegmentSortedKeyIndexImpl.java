@@ -16,9 +16,9 @@ import com.google.common.collect.Iterators;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import io.pravega.common.util.btree.sets.BTreeSet;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -117,17 +117,17 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
             batch.getItems().stream()
                     .filter(item -> !this.dataSource.isKeyExcluded(item.getKey().getKey()))
                     .forEach(item -> this.tailKeys.put(
-                            item.getKey().getKey(),
+                            toArrayView(item.getKey().getKey()),
                             new CacheBucketOffset(batchSegmentOffset + item.getOffset(), batch.isRemoval())));
         }
     }
 
     @Override
-    public void includeTailCache(Map<? extends ArrayView, CacheBucketOffset> tailUpdates) {
+    public void includeTailCache(Map<? extends BufferView, CacheBucketOffset> tailUpdates) {
         synchronized (this.tailKeys) {
             tailUpdates.forEach((key, offset) -> {
                 if (!this.dataSource.isKeyExcluded(key)) {
-                    this.tailKeys.put(key, offset);
+                    this.tailKeys.put(toArrayView(key), offset);
                 }
             });
         }
@@ -151,7 +151,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     }
 
     @Override
-    public AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout) {
+    public AsyncIterator<List<BufferView>> iterator(IteratorRange range, Duration fetchTimeout) {
         // Get a snapshot of the tail keys at the beginning of the iteration. If the state of this index changes throughout
         // the iteration (i.e., calls to persist() and/or updateSegmentIndexOffset(), we may get inconsistent or incorrect
         // results. Since we do not guarantee that changes AFTER the iterator was initiated will be visible in the iteration,
@@ -165,7 +165,11 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     }
 
     @Override
-    public IteratorRange getIteratorRange(@Nullable ArrayView fromKeyExclusive, @Nullable ArrayView prefix) {
+    public IteratorRange getIteratorRange(@Nullable BufferView fromKeyExclusive, @Nullable BufferView prefix) {
+        return getIteratorRange(toArrayView(fromKeyExclusive), toArrayView(prefix));
+    }
+
+    private IteratorRange getIteratorRange(ArrayView fromKeyExclusive, ArrayView prefix) {
         if (fromKeyExclusive != null && prefix != null) {
             // Validate args.
             Preconditions.checkArgument(KEY_COMPARATOR.compare(fromKeyExclusive, prefix) >= 0,
@@ -213,7 +217,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
 
     private CompletableFuture<ArrayView> getBTreeSetPage(long pageId, Duration timeout) {
         return this.dataSource.getRead().apply(this.segmentName, Collections.singletonList(pageIdToKey(pageId)), timeout)
-                .thenApply(result -> result.isEmpty() || result.get(0) == null ? null : result.get(0).getValue());
+                .thenApply(result -> result.isEmpty() || result.get(0) == null ? null : toArrayView(result.get(0).getValue()));
     }
 
     private CompletableFuture<Void> persistBTreeSet(List<Map.Entry<Long, ArrayView>> toUpdate, Collection<Long> toDelete, Duration timeout) {
@@ -247,12 +251,20 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
         return new ByteArraySegment(b);
     }
 
+    private static ArrayView toArrayView(BufferView bufferView) {
+        if (bufferView == null) {
+            return null;
+        }
+
+        return bufferView instanceof ArrayView ? (ArrayView) bufferView : new ByteArraySegment(bufferView.getCopy());
+    }
+
     //endregion
 
     //region Helper Classes
 
     @RequiredArgsConstructor
-    private static class SortedIterator implements AsyncIterator<List<ArrayView>> {
+    private static class SortedIterator implements AsyncIterator<List<BufferView>> {
         private final NavigableMap<ArrayView, CacheBucketOffset> tailSnapshot;
         private final AsyncIterator<List<ArrayView>> persistedIterator;
         private final IteratorRange range;
@@ -266,21 +278,21 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
         }
 
         @Override
-        public CompletableFuture<List<ArrayView>> getNext() {
+        public CompletableFuture<List<BufferView>> getNext() {
             return this.persistedIterator.getNext().thenApply(keys -> {
                 keys = mixWithTail(keys, this.tailSnapshot, lastKey.get(), range.getTo());
                 if (keys != null && !keys.isEmpty()) {
                     // Keep track of the last key; we'll need it for the next iteration.
                     this.lastKey.set(keys.get(keys.size() - 1));
                 }
-                return keys;
+                return keys == null ? null : keys.stream().map(a -> (BufferView) a).collect(Collectors.toList());
             });
         }
 
         private List<ArrayView> mixWithTail(List<ArrayView> persistedKeys, NavigableMap<ArrayView, CacheBucketOffset> tailSnapshot,
                                             ArrayView fromExclusive, ArrayView toExclusive) {
             val tailResult = new ArrayList<ArrayView>();
-            val tailKeys = new HashSet<HashedArray>();
+            val tailKeys = new HashSet<ArrayView>();
 
             NavigableMap<ArrayView, CacheBucketOffset> tailSection;
             if (persistedKeys == null || persistedKeys.isEmpty()) {
@@ -292,7 +304,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
             }
 
             tailSection.forEach((key, offset) -> {
-                tailKeys.add(new HashedArray(key));
+                tailKeys.add(key);
                 if (!offset.isRemoval()) {
                     tailResult.add(key);
                 }
@@ -307,7 +319,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
             }
 
             // Generate an iterator through the persisted keys that excludes anything that was updated in the tail.
-            val persistedIterator = persistedKeys.stream().filter(key -> !tailKeys.contains(new HashedArray(key))).iterator();
+            val persistedIterator = persistedKeys.stream().filter(key -> !tailKeys.contains(key)).iterator();
             val tailIterator = tailResult.iterator();
             val result = new ArrayList<ArrayView>(persistedKeys.size() + tailResult.size());
             Iterators.mergeSorted(Arrays.asList(persistedIterator, tailIterator), KEY_COMPARATOR).forEachRemaining(result::add);
@@ -316,20 +328,22 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     }
 
     private static class UpdateArgs {
-        final HashSet<HashedArray> insertions = new HashSet<>();
-        final HashSet<HashedArray> deletions = new HashSet<>();
+        final HashSet<ArrayView> insertions = new HashSet<>();
+        final HashSet<ArrayView> deletions = new HashSet<>();
         private long highestKeyOffset = -1;
         private int keyWithHighestOffsetLength = -1;
 
-        void keyInserted(HashedArray key, long offset) {
-            this.insertions.add(key);
-            this.deletions.remove(key);
+        void keyInserted(BufferView key, long offset) {
+            ArrayView internalKey = toArrayView(key);
+            this.insertions.add(internalKey);
+            this.deletions.remove(internalKey);
             updateHighestKeyOffsets(offset, key.getLength());
         }
 
-        void keyDeleted(HashedArray key, long offset) {
-            this.deletions.add(key);
-            this.insertions.remove(key);
+        void keyDeleted(BufferView key, long offset) {
+            ArrayView internalKey = toArrayView(key);
+            this.deletions.add(internalKey);
+            this.insertions.remove(internalKey);
             updateHighestKeyOffsets(offset, key.getLength());
         }
 

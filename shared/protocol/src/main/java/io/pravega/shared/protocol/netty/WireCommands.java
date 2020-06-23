@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import javax.annotation.concurrent.NotThreadSafe;
+import lombok.AccessLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -38,7 +39,6 @@ import lombok.experimental.Accessors;
 
 import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.netty.buffer.Unpooled.wrappedBuffer;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * The complete list of all commands that go over the wire between clients and the server.

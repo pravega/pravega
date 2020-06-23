@@ -81,6 +81,35 @@ public final class ByteArrayComparator implements Comparator<byte[]>, Serializab
     }
 
     /**
+     * Compares two non-null {@link BufferView} using lexicographic bitwise comparison.
+     *
+     * @param b1 First instance.
+     * @param b2 Second instance.
+     * @return -1 if b1 should be before b2, 0 if b1 equals b2 and 1 if b1 should be after b2.
+     */
+    public int compare(BufferView b1, BufferView b2) {
+        if (b1 instanceof ArrayView && b2 instanceof ArrayView) {
+            return compare((ArrayView) b1, (ArrayView) b2);
+        }
+
+        BufferView.Reader r1 = b1.getBufferViewReader();
+        BufferView.Reader r2 = b2.getBufferViewReader();
+        int r;
+        while (r1.available() > 0 && r2.available() > 0) {
+            r = (r1.readByte() & 0xFF) - (r2.readByte() & 0xFF);
+            if (r != 0) {
+                return r;
+            }
+        }
+
+        if (r1.available() == r2.available()) {
+            return 0;
+        } else {
+            return r2.available() > 0 ? -1 : 1;
+        }
+    }
+
+    /**
      * Compares two byte arrays from the given offsets using lexicographic bitwise comparison.
      *
      * @param b1      First array.

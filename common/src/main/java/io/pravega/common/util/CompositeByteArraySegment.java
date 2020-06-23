@@ -303,29 +303,6 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
 
     //region Reader
 
-    private class CompositeReader implements BufferView.Reader {
-        private int position = 0;
-
-        @Override
-        public int available() {
-            return CompositeByteArraySegment.this.length - this.position;
-        }
-
-        @Override
-        public int readBytes(ByteArraySegment segment) {
-            int len = Math.min(available(), segment.getLength());
-            if (len > 0) {
-                slice(this.position, len).copyTo(ByteBuffer.wrap(segment.array(), segment.arrayOffset(), len));
-                this.position += len;
-            }
-            return len;
-        }
-    }
-
-    //endregion
-
-    //region Reader
-
     private class CompositeReader extends AbstractReader implements BufferView.Reader {
         private int position = 0;
 
