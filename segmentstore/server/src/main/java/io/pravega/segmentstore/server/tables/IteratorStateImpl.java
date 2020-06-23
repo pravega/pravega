@@ -15,6 +15,7 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.tables.IteratorState;
 import java.io.IOException;
 import java.util.UUID;
@@ -61,7 +62,7 @@ class IteratorStateImpl implements  IteratorState {
      * @return As new instance of the IteratorState class.
      * @throws IOException If unable to deserialize.
      */
-    static IteratorStateImpl deserialize(byte[] data) throws IOException {
+    static IteratorStateImpl deserialize(BufferView data) throws IOException {
         return SERIALIZER.deserialize(data);
     }
 

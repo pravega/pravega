@@ -136,7 +136,7 @@ public class TableEntryIteratorTests extends ThreadPooledTestSuite {
 
         Assert.assertEquals(actual.size(), expected.size());
         AssertExtensions.assertListEquals("Assert equivalency by TableKey and Value (ignoring version).", expected, actual,
-                (t1, t2) -> compareKeys(t1, t2) &&  Arrays.equals(t1.getValue().array(), t2.getValue().array()));
+                (t1, t2) -> compareKeys(t1, t2) &&  t1.getValue().equals(t2.getValue()));
     }
 
     private static boolean isDeletion(TableEntry entry) {
@@ -160,7 +160,7 @@ public class TableEntryIteratorTests extends ThreadPooledTestSuite {
     }
 
     private boolean compareKeys(TableEntry t1, TableEntry t2) {
-        return  Arrays.equals(t1.getKey().getKey().array(), t2.getKey().getKey().array());
+        return  t1.getKey().getKey().equals(t2.getKey().getKey());
     }
 
 

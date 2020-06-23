@@ -12,14 +12,11 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 
-import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Duration;
 
 import java.util.AbstractMap;
@@ -138,22 +135,21 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
         long currentOffset = startOffset;
         final long maxOffset = startOffset + readLength;
 
-        InputStream input = data.getReader();
+        BufferView.Reader input = data.getBufferViewReader();
         List<Map.Entry<DeltaIteratorState, TableEntry>> entries = new ArrayList<>();
         try {
             while (currentOffset < maxOffset) {
                 val entry = AsyncTableEntryReader.readEntryComponents(input, currentOffset, this.entrySerializer);
                 boolean reachedEnd = currentOffset + entry.getHeader().getTotalLength() >= this.maxLength + startOffset;
                 // We must preserve deletions to accurately construct a delta.
-                byte[] value = entry.getValue() == null ? new byte[0] : entry.getValue();
+                BufferView value = entry.getValue() == null ? BufferView.empty() : entry.getValue();
                 currentOffset += entry.getHeader().getTotalLength();
                 entries.add(new AbstractMap.SimpleEntry<>(
                         new DeltaIteratorState(currentOffset, reachedEnd, this.shouldClear, entry.getHeader().isDeletion()),
-                        TableEntry.versioned(new ByteArraySegment(entry.getKey()), new ByteArraySegment(value), entry.getVersion())));
+                        TableEntry.versioned(entry.getKey(), value, entry.getVersion())));
             }
 
-        } catch (EOFException ex) {
-            input.close();
+        } catch (BufferView.Reader.OutOfBoundsException ex) {
         }
         this.currentBatchOffset = currentOffset;
 
