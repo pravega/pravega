@@ -96,7 +96,7 @@ public final class NameUtils {
     /**
      * This is used in composing segment name for a table segment used for a KeyValueTable
      */
-    private static final String KVTABLE_SUFFIX = "_kvt";
+    private static final String KVTABLE_SUFFIX = "_kvtable";
 
     /**
      * Prefix for identifying system created mark segments for storing watermarks. 

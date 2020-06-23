@@ -147,7 +147,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void listKeyValueTablesInScope(Controller.KVTablesInScopeRequest request, StreamObserver<Controller.KVTablesInScopeResponse> responseObserver) {
-
         String scopeName = request.getScope().getScope();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
                 "listKeyValueTables", scopeName);
@@ -186,7 +185,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                 return Controller.KVTablesInScopeResponse
                                         .newBuilder().addAllKvtables(kvTablesList)
                                         .setContinuationToken(Controller.ContinuationToken.newBuilder()
-                                                .setToken(response.getValue()).build())
+                                                .setToken(response.getRight()).build())
                                         .setStatus(Controller.KVTablesInScopeResponse.Status.SUCCESS).build();
                             }
                         }), responseObserver, requestTag);
@@ -743,13 +742,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     log.debug("All KeyValueTables in scope with continuation token: {}", response.getRight());
                     List<String> filteredKVTList = getAuthorizedKeyValueTables(scopeName, response.getKey(), ctx);
                     if (filteredKVTList.size() < limit) {
-                        listKeyValueTablesTillLimit(listStreamsInScopeLimit - limit, scopeName, token, ctx)
-                                .thenApply( kvtPair -> {
-                                    filteredKVTList.addAll(kvtPair.getKey());
-                                    return new ImmutablePair<>(filteredKVTList, kvtPair.getRight());
+                        listKeyValueTablesTillLimit(listStreamsInScopeLimit - limit, scopeName, response.getValue(), ctx)
+                                .thenApply( nextResponse -> {
+                                    filteredKVTList.addAll(nextResponse.getKey());
+                                    return new ImmutablePair<>(filteredKVTList, nextResponse.getValue());
                                 });
                     }
-                    return CompletableFuture.completedFuture(new ImmutablePair<>(filteredKVTList, token));
+                    return CompletableFuture.completedFuture(new ImmutablePair<>(filteredKVTList, response.getValue()));
                 });
     }
 

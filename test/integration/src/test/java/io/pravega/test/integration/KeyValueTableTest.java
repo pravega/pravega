@@ -138,10 +138,10 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         // Check list tables...
         AsyncIterator<KeyValueTableInfo> kvTablesIterator =  this.controller.listKeyValueTables(SCOPE);
         Iterator<KeyValueTableInfo> iter = kvTablesIterator.asIterator();
-        Map<String,Integer> countMap = new HashMap<String, Integer>(3);
-        while(iter.hasNext()) {
+        Map<String, Integer> countMap = new HashMap<String, Integer>(3);
+        while (iter.hasNext()) {
             KeyValueTableInfo kvtInfo = iter.next();
-            if(kvtInfo.getScope().equals(SCOPE)) {
+            if (kvtInfo.getScope().equals(SCOPE)) {
                 if (countMap.containsKey(kvtInfo.getKeyValueTableName())) {
                     Integer newCount = Integer.valueOf(countMap.get(kvtInfo.getKeyValueTableName()).intValue() + 1);
                     countMap.put(iter.next().getKeyValueTableName(), newCount);
