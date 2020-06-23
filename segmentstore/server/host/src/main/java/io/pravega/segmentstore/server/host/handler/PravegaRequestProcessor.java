@@ -1034,15 +1034,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         synchronized void add(T item, int sizeBytes) {
             this.items.add(item);
-            this.setSizeBytes(this.getSizeBytes() + sizeBytes);
+            this.sizeBytes += sizeBytes;
         }
 
         synchronized int getItemCount() {
             return this.items.size();
-        }
-
-        synchronized void setSizeBytes(int sizeBytes) {
-            this.sizeBytes = sizeBytes;
         }
 
         synchronized int getSizeBytes() {
@@ -1084,12 +1080,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         synchronized void add(K key, V value, int sizeBytes) {
             this.items.put(key, value);
-            this.setSizeBytes(this.getSizeBytes() + sizeBytes);
+            super.sizeBytes += sizeBytes;
         }
 
         synchronized void remove(K item, int sizeBytes) {
             this.items.remove(item);
-            this.setSizeBytes(this.getSizeBytes() - sizeBytes);
+            super.sizeBytes -= sizeBytes;
         }
 
         synchronized V getItem(K key) {
