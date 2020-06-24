@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.annotations.Beta;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -53,7 +54,7 @@ interface SegmentSortedKeyIndex {
      *
      * @param tailUpdates The updates to include.
      */
-    void includeTailCache(Map<? extends ArrayView, CacheBucketOffset> tailUpdates);
+    void includeTailCache(Map<? extends BufferView, CacheBucketOffset> tailUpdates);
 
     /**
      * Notifies that the Table Segment has indexed and durably persisted all updates up to and including the given offset.
@@ -71,7 +72,7 @@ interface SegmentSortedKeyIndex {
      * @param fetchTimeout Timeout for each fetch triggered by {@link AsyncIterator#getNext()}.
      * @return An {@link AsyncIterator} that can be used to iterate keys.
      */
-    AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout);
+    AsyncIterator<List<BufferView>> iterator(IteratorRange range, Duration fetchTimeout);
 
     /**
      * Generates a {@link IteratorRange} that can be used as argument to {@link #iterator} from the given input.
@@ -81,7 +82,7 @@ interface SegmentSortedKeyIndex {
      * @param prefix           The prefix of all keys returned.
      * @return An {@link IteratorRange}.
      */
-    IteratorRange getIteratorRange(@Nullable ArrayView fromKeyExclusive, @Nullable ArrayView prefix);
+    IteratorRange getIteratorRange(@Nullable BufferView fromKeyExclusive, @Nullable BufferView prefix);
 
     /**
      * Arguments for {@link #iterator}.
@@ -118,7 +119,7 @@ interface SegmentSortedKeyIndex {
             }
 
             @Override
-            public void includeTailCache(Map<? extends ArrayView, CacheBucketOffset> tailUpdates) {
+            public void includeTailCache(Map<? extends BufferView, CacheBucketOffset> tailUpdates) {
                 // This method intentionally left blank.
             }
 
@@ -128,12 +129,12 @@ interface SegmentSortedKeyIndex {
             }
 
             @Override
-            public AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout) {
+            public AsyncIterator<List<BufferView>> iterator(IteratorRange range, Duration fetchTimeout) {
                 return () -> CompletableFuture.completedFuture(null);
             }
 
             @Override
-            public IteratorRange getIteratorRange(@Nullable ArrayView fromKeyExclusive, @Nullable ArrayView prefix) {
+            public IteratorRange getIteratorRange(@Nullable BufferView fromKeyExclusive, @Nullable BufferView prefix) {
                 return new IteratorRange(null, null);
             }
         };

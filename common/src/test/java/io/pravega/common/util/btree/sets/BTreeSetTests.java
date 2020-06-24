@@ -13,7 +13,6 @@ import io.pravega.common.MathHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -21,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -187,12 +187,12 @@ public class BTreeSetTests extends ThreadPooledTestSuite {
             config.setMaxPageSize(maxUpdateSize);
             config.setAllowDuplicates(false);
             val toInsert = generate(config, random);
-            val uniqueInserts = toInsert.stream().map(HashedArray::new).collect(Collectors.toSet());
+            val uniqueInserts = new HashSet<>(toInsert);
 
             val removeBatchSize = random.nextInt(maxBatchSize);
             val toRemove = pickRandomly(expectedItems, (double) removeBatchSize / maxBatchSize, random)
                     .stream()
-                    .filter(a -> !uniqueInserts.contains(new HashedArray(a)))
+                    .filter(a -> !uniqueInserts.contains(a))
                     .collect(Collectors.toList());
 
             set.update(toInsert, toRemove, ds::getNextPageId, TIMEOUT).join();
