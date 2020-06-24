@@ -22,7 +22,6 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -196,14 +195,19 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
             }
         }
         // Obtain ReplyProcessor and process the reply.
-        getReplyProcessor(cmd).ifPresent(processor -> {
+        ReplyProcessor processor = getReplyProcessor(cmd);
+        if (processor != null) {
             try {
                 processor.process(cmd);
             } catch (Exception e) {
                 log.warn("ReplyProcessor.process failed for reply {} due to {}", cmd, e.getMessage());
                 processor.processingFailure(e);
             }
-        });
+        } else {
+            if (cmd instanceof WireCommands.ReleasableCommand) {
+                ((WireCommands.ReleasableCommand) cmd).release();
+            }
+        }
     }
 
     @Override
@@ -272,13 +276,13 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         }
     }
 
-    private Optional<ReplyProcessor> getReplyProcessor(Reply cmd) {
+    private ReplyProcessor getReplyProcessor(Reply cmd) {
         int flowId = disableFlow.get() ? FLOW_DISABLED : Flow.toFlowID(cmd.getRequestId());
         final ReplyProcessor processor = flowIdReplyProcessorMap.get(flowId);
         if (processor == null) {
             log.warn("No ReplyProcessor found for the provided flowId {}. Ignoring response", flowId);
         }
-        return Optional.ofNullable(processor);
+        return processor;
     }
 
 }
