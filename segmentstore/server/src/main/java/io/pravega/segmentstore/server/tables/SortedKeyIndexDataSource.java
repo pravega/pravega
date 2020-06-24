@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.time.Duration;
@@ -49,7 +49,7 @@ class SortedKeyIndexDataSource {
      * @param keyContents The Key contents.
      * @return True if the key is an internal key (exclude), false otherwise.
      */
-    boolean isKeyExcluded(ArrayView keyContents) {
+    boolean isKeyExcluded(BufferView keyContents) {
         return INTERNAL_TRANSLATOR.isInternal(keyContents);
     }
 
@@ -65,6 +65,6 @@ class SortedKeyIndexDataSource {
 
     @FunctionalInterface
     public interface Read {
-        CompletableFuture<List<TableEntry>> apply(String segmentName, List<ArrayView> keys, Duration timeout);
+        CompletableFuture<List<TableEntry>> apply(String segmentName, List<BufferView> keys, Duration timeout);
     }
 }
