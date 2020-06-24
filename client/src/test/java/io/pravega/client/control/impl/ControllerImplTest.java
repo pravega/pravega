@@ -74,6 +74,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -955,6 +956,48 @@ public class ControllerImplTest {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
             }
+
+            @Override
+            public void listKeyValueTablesInScope(Controller.KVTablesInScopeRequest request,
+                                                  StreamObserver<Controller.KVTablesInScopeResponse> responseObserver) {
+                if (request.getScope().getScope().equals(NON_EXISTENT)) {
+                    responseObserver.onNext(Controller.KVTablesInScopeResponse
+                            .newBuilder().setStatus(Controller.KVTablesInScopeResponse.Status.SCOPE_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getScope().getScope().equals("deadline")) {
+                    // dont send any response
+                    System.err.println("i am here");
+                } else if (request.getScope().getScope().equals(FAILING)) {
+                    responseObserver.onNext(Controller.KVTablesInScopeResponse
+                            .newBuilder().setStatus(Controller.KVTablesInScopeResponse.Status.FAILURE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (Strings.isNullOrEmpty(request.getContinuationToken().getToken())) {
+                    List<KeyValueTableInfo> list1 = new LinkedList<>();
+                    list1.add(KeyValueTableInfo.newBuilder().setScope(request.getScope().getScope()).setKvtName("kvtable1").build());
+                    list1.add(KeyValueTableInfo.newBuilder().setScope(request.getScope().getScope()).setKvtName("kvtable2").build());
+                    responseObserver.onNext(Controller.KVTablesInScopeResponse
+                            .newBuilder().setStatus(Controller.KVTablesInScopeResponse.Status.SUCCESS).addAllKvtables(list1)
+                            .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("myToken").build()).build());
+                    responseObserver.onCompleted();
+                } else if (request.getContinuationToken().getToken().equals("myToken")) {
+                    List<KeyValueTableInfo> list2 = new LinkedList<>();
+                    list2.add(KeyValueTableInfo.newBuilder().setScope(request.getScope().getScope()).setKvtName("kvtable3").build());
+                    responseObserver.onNext(Controller.KVTablesInScopeResponse
+                            .newBuilder().addAllKvtables(list2).setStatus(Controller.KVTablesInScopeResponse.Status.SUCCESS)
+                            .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("myToken2").build()).build());
+                    responseObserver.onCompleted();
+                } else if (request.getContinuationToken().getToken().equals("myToken2")) {
+                    List<KeyValueTableInfo> list3 = new LinkedList<>();
+                    responseObserver.onNext(Controller.KVTablesInScopeResponse
+                            .newBuilder().addAllKvtables(list3).setStatus(Controller.KVTablesInScopeResponse.Status.SUCCESS)
+                            .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("").build()).build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
         };
 
         serverPort = TestUtils.getAvailableListenPort();
@@ -1783,4 +1826,26 @@ public class ControllerImplTest {
         kvtSegments = controllerClient.getCurrentSegmentsForKeyValueTable("scope1", "kvtable2");
         AssertExtensions.assertFutureThrows("Should throw Exception", kvtSegments, throwable -> true);
     }
+
+    @Test
+    public void testKVTablesInScope() {
+        String scope = "scopeList";
+        AsyncIterator<io.pravega.client.admin.KeyValueTableInfo> iterator = controllerClient.listKeyValueTables(scope);
+
+        io.pravega.client.admin.KeyValueTableInfo m = iterator.getNext().join();
+        assertEquals("kvtable1", m.getKeyValueTableName());
+        m = iterator.getNext().join();
+        assertEquals("kvtable2", m.getKeyValueTableName());
+        m = iterator.getNext().join();
+        assertEquals("kvtable3", m.getKeyValueTableName());
+
+        AssertExtensions.assertFutureThrows("Non existent scope",
+                controllerClient.listKeyValueTables(NON_EXISTENT).getNext(),
+                e -> Exceptions.unwrap(e) instanceof NoSuchScopeException);
+
+        AssertExtensions.assertFutureThrows("failing request",
+                controllerClient.listKeyValueTables(FAILING).getNext(),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+    }
+
 }

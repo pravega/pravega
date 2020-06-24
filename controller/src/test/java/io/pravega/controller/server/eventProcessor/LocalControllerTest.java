@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.StreamCutImpl;
@@ -29,6 +30,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -402,5 +405,16 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 CompletableFuture.completedFuture(segmentsList));
         KeyValueTableSegments segments = this.testController.getCurrentSegmentsForKeyValueTable("scope", "kvtable").get();
         Assert.assertEquals(3, segments.getSegments().size());
+    }
+
+    @Test
+    public void testListKeyValueTable() throws Exception {
+        List<String> tablelist = new ArrayList<String>();
+        tablelist.add("kvtable1");
+        Pair<List<String>, String> listOfKVTables = new ImmutablePair<>(tablelist, "");
+        when(this.mockControllerService.listKeyValueTables(anyString(), anyString(), anyInt())).thenReturn(
+                CompletableFuture.completedFuture(listOfKVTables));
+        KeyValueTableInfo info = this.testController.listKeyValueTables("scope").getNext().get();
+        Assert.assertEquals("kvtable1", info.getKeyValueTableName());
     }
 }

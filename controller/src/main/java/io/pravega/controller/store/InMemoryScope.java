@@ -41,7 +41,7 @@ public class InMemoryScope implements Scope {
     private HashMap<String, Integer> streamsPositionMap;
 
     @GuardedBy("$lock")
-    private HashMap<String, InMemoryKVTable> kvTablesMap;
+    private TreeMap<String, InMemoryKVTable> kvTablesMap;
 
     public InMemoryScope(String scopeName) {
         this.scopeName = scopeName;
@@ -57,7 +57,7 @@ public class InMemoryScope implements Scope {
     public CompletableFuture<Void> createScope() {
         this.sortedStreamsInScope = new TreeMap<>(Integer::compare);
         this.streamsPositionMap = new HashMap<>();
-        this.kvTablesMap =  new HashMap<String, InMemoryKVTable>();
+        this.kvTablesMap =  new TreeMap<String, InMemoryKVTable>();
         return CompletableFuture.completedFuture(null);
     }
 
@@ -150,7 +150,22 @@ public class InMemoryScope implements Scope {
 
     @Override
     public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(int limit, String continuationToken, Executor executor) {
-        List<String> kvTablesList = kvTablesMap.keySet().stream().collect(Collectors.toList());
-        return CompletableFuture.completedFuture(new ImmutablePair<>(kvTablesList, continuationToken));
+        if (kvTablesMap == null) {
+            return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, this.scopeName));
+        }
+        List<String> sortedKVTablesList = kvTablesMap.keySet().stream().collect(Collectors.toList());
+        int start = 0, end = 0;
+        if (!continuationToken.isEmpty()) {
+            start = Integer.valueOf(continuationToken).intValue();
+        }
+
+        if ((start + limit) >= sortedKVTablesList.size()) {
+            end = sortedKVTablesList.size();
+        } else {
+            end = start + limit;
+        }
+        List<String> nextBatchOfTables = sortedKVTablesList.subList(start, end);
+
+        return CompletableFuture.completedFuture(new ImmutablePair<>(nextBatchOfTables, String.valueOf(end)));
     }
 }
