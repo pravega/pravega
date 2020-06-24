@@ -695,10 +695,8 @@ public class KeyValueStoreTest extends AbstractSystemTest {
             }
             log.info("All string values of both entryMap1 and getEntryList1 are equal");
 
-         /*  boolean deleted = manager.deleteKeyValueTable(SCOPE_NAME, NEW_KVT_NAME);
-            assertTrue("The requested KVT must get deleted", deleted);  */
-
-            boolean deleted = this.controller.deleteKeyValueTable(SCOPE_NAME, NEW_KVT_NAME).join();
+            boolean deleted = manager.deleteKeyValueTable(SCOPE_NAME, NEW_KVT_NAME);
+            assertTrue("The requested KVT must get deleted", deleted);
             log.info("KVT '{}' got deleted", NEW_KVT_NAME);
 
             /* Any operation performed over the above deleted Table must fail there upon */
