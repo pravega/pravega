@@ -853,7 +853,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                 result.remove(entry.getKey().getKey(), k.size() + v.size());
                             } else {
                                 Map.Entry<WireCommands.TableKey, WireCommands.TableValue> old = result.getItem(entry.getKey().getKey());
-                                if (old != null) {
+                                if (old != null && old.getKey().getKeyVersion() < entry.getKey().getVersion()) {
                                     int sizeBytes = (k.size() + v.size()) - (old.getKey().size() + old.getValue().size());
                                     result.add(entry.getKey().getKey(), new AbstractMap.SimpleImmutableEntry<>(k, v), sizeBytes);
                                 } else {

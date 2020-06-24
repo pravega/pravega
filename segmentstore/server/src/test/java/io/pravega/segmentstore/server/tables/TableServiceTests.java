@@ -13,6 +13,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -242,6 +243,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         // Check inexistent keys.
         val searchFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
         val iteratorFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
+        val offsetIteratorFutures = new ArrayList<CompletableFuture<List<IteratorItem<TableEntry>>>>();
         val expectedResult = new ArrayList<Map.Entry<BufferView, EntryData>>();
         for (val e : bySegment.entrySet()) {
             String segmentName = e.getKey();
@@ -256,6 +258,13 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                     .thenCompose(ei -> {
                         val result = new ArrayList<TableEntry>();
                         return ei.forEachRemaining(i -> result.addAll(i.getEntries()), executorService())
+                                .thenApply(v -> result);
+                    }));
+            // For simplicity, always start from beginning of TableSegment.
+            offsetIteratorFutures.add(tableStore.entryDeltaIterator(segmentName, 0L, TIMEOUT)
+                    .thenCompose(ei -> {
+                        val result = new ArrayList<IteratorItem<TableEntry>>();
+                        return ei.forEachRemaining(i -> result.add(i), executorService())
                                 .thenApply(v -> result);
                     }));
         }
@@ -284,12 +293,44 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                 .flatMap(List::stream)
                 .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
                 .collect(Collectors.toList());
+        val actualOffsetIteratorList = Futures.allOfWithResults(offsetIteratorFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+                .stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+        val actualOffsetIteratorResults = processDeltaIteratorItems(actualOffsetIteratorList).stream()
+                .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
+                .collect(Collectors.toList());
+
         val expectedIteratorResults = actualResults.stream()
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
                 .collect(Collectors.toList());
-        AssertExtensions.assertListEquals("Unexpected result from entryIterator().", expectedIteratorResults, actualIteratorResults, TableEntry::equals);
 
+        AssertExtensions.assertListEquals("Unexpected result from entryIterator().", expectedIteratorResults, actualIteratorResults, TableEntry::equals);
+        for (val entry : expectedIteratorResults) {
+            Assert.assertNotNull("Missing expected TableEntry from deltaEntryIterator()", actualOffsetIteratorResults.contains(entry));
+        }
+
+    }
+
+    private List<TableEntry> processDeltaIteratorItems(List<IteratorItem<TableEntry>> entries) {
+        Map<BufferView, TableEntry> result = new HashMap<>();
+        for (val item : entries) {
+            TableEntry entry = item.getEntries().iterator().next();
+            DeltaIteratorState state = DeltaIteratorState.deserialize(item.getState().array());
+            if (state.isDeletionRecord() && result.containsKey(entry.getKey().getKey())) {
+                result.remove(entry.getKey().getKey());
+            } else {
+                result.compute(entry.getKey().getKey(), (key, value) -> {
+                    if (value == null) {
+                        return entry;
+                    } else {
+                        return value.getKey().getVersion() < entry.getKey().getVersion() ? entry : value;
+                    }
+                });
+            }
+        }
+        return new ArrayList<>(result.values());
     }
 
     private Map<String, List<Long>> executeUpdates(HashMap<String, ArrayList<TableEntry>> updates, TableStore tableStore) throws Exception {
