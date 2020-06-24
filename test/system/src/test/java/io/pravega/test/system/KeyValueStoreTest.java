@@ -724,11 +724,11 @@ public class KeyValueStoreTest extends AbstractSystemTest {
 
     public String getValue() {
         String value = "Hello World";
-        System.out.println("Initial value length: "+value.getBytes().length);
+        log.debug("Initial value length: {}", value.getBytes().length);
         while (value.getBytes().length <= 10302) {
            value+= ThreadLocalRandom.current().nextInt(1000, 9999);
         }
-        System.out.println("Final value length: "+value.getBytes().length);
+        log.debug("Final value length: {}", value.getBytes().length);
         return value;
     }
 
