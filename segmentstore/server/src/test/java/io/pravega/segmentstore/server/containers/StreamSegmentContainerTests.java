@@ -249,7 +249,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                         i == 0 ? AttributeUpdateType.Replace : AttributeUpdateType.ReplaceIfEquals, i + 1, i));
                 RefCountByteArraySegment appendData = getAppendData(segmentName, i);
                 long expectedLength = lengths.getOrDefault(segmentName, 0L) + appendData.getLength();
-                opFutures.add(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT).thenApply(length -> {
+                val append = (i % 2 == 0) ? context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT) :
+                        context.container.append(segmentName, lengths.get(segmentName), appendData, attributeUpdates, TIMEOUT);
+                opFutures.add(append.thenApply(length -> {
                     assertEquals(expectedLength, length.longValue());
                     return null;
                 }));
