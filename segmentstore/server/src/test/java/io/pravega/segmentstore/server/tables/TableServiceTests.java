@@ -322,6 +322,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         Futures.allOf(updateResult.values()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
     }
+
     private void executeRemovals(HashMap<String, ArrayList<TableKey>> removals, TableStore tableStore) throws Exception {
         val updateResult = removals.entrySet().stream()
                                    .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.remove(e.getKey(), e.getValue(), TIMEOUT)));
