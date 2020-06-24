@@ -16,8 +16,6 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
-import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.HashedArray;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -31,7 +29,6 @@ import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,7 +50,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.Cleanup;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -631,10 +627,9 @@ class ContainerKeyIndex implements AutoCloseable {
         EntrySerializer serializer = new EntrySerializer();
         long nextOffset = startOffset;
         final long maxOffset = startOffset + maxLength;
-        @Cleanup
-        InputStream inputStream = input.getReader();
+        val inputReader = input.getBufferViewReader();
         while (nextOffset < maxOffset) {
-            val e = AsyncTableEntryReader.readEntryComponents(inputStream, nextOffset, serializer);
+            val e = AsyncTableEntryReader.readEntryComponents(inputReader, nextOffset, serializer);
             val hash = this.keyHasher.hash(e.getKey());
             result.add(e.getKey(), hash, nextOffset, e.getHeader().isDeletion());
             nextOffset += e.getHeader().getTotalLength();
@@ -661,14 +656,14 @@ class ContainerKeyIndex implements AutoCloseable {
     @RequiredArgsConstructor
     private static class TailUpdates {
         final Map<UUID, CacheBucketOffset> byBucket = new HashMap<>();
-        final Map<ArrayView, CacheBucketOffset> byKey = new HashMap<>();
+        final Map<BufferView, CacheBucketOffset> byKey = new HashMap<>();
         private final boolean recordByKey;
 
-        void add(byte[] key, UUID keyHash, long offset, boolean isDeletion) {
+        void add(BufferView key, UUID keyHash, long offset, boolean isDeletion) {
             CacheBucketOffset cbo = new CacheBucketOffset(offset, isDeletion);
             this.byBucket.put(keyHash, cbo);
             if (this.recordByKey) {
-                this.byKey.put(new HashedArray(key), cbo);
+                this.byKey.put(key, cbo);
             }
         }
     }

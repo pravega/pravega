@@ -498,7 +498,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> completeRollingTxn(String scope, String name, Map<Long, Long> sealedActiveEpochSegments,
                                                       VersionedMetadata<CommittingTransactionsRecord> record, OperationContext context, Executor executor) {
-        return Futures.completeOn(getStream(scope, name, context).completeRollingTxn(sealedActiveEpochSegments, record), executor);
+
+        CompletableFuture<Void> future = Futures.completeOn(getStream(scope, name, context).completeRollingTxn(sealedActiveEpochSegments, record), executor);
+
+        future.thenCompose(result -> findNumSplitsMerges(scope, name, context, executor).thenAccept(simpleEntry ->
+                StreamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue())));
+
+        return future;
     }
 
     @Override

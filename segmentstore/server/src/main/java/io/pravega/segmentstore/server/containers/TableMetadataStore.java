@@ -16,6 +16,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -126,7 +127,7 @@ class TableMetadataStore extends MetadataStore {
     }
 
     @Override
-    protected CompletableFuture<ArrayView> getSegmentInfoInternal(String segmentName, Duration timeout) {
+    protected CompletableFuture<BufferView> getSegmentInfoInternal(String segmentName, Duration timeout) {
         return applyToSegment(
                 segmentName,
                 (entry, t2) -> CompletableFuture.completedFuture(entry.getValue()),

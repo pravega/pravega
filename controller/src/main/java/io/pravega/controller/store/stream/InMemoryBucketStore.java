@@ -10,7 +10,6 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
-import io.netty.util.internal.ConcurrentSet;
 import io.pravega.controller.store.client.StoreType;
 
 import java.util.Collections;
@@ -18,12 +17,13 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executor;
 
 public class InMemoryBucketStore implements BucketStore {
     private final ImmutableMap<ServiceType, Integer> bucketCountMap;
     
-    private final ConcurrentMap<String, ConcurrentSet<String>> bucketedStreams;
+    private final ConcurrentMap<String, ConcurrentSkipListSet<String>> bucketedStreams;
     
     private final ConcurrentMap<String, BucketChangeListener> listeners;
 
@@ -62,9 +62,9 @@ public class InMemoryBucketStore implements BucketStore {
         int bucketCount = bucketCountMap.get(serviceType);
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
         String bucketName = getBucketName(serviceType, bucket);
-        ConcurrentSet<String> set = bucketedStreams.compute(bucketName, (x, y) -> {
+        ConcurrentSkipListSet<String> set = bucketedStreams.compute(bucketName, (x, y) -> {
             if (y == null) {
-                return new ConcurrentSet<>();
+                return new ConcurrentSkipListSet<>();
             } else {
                 return y;
             }

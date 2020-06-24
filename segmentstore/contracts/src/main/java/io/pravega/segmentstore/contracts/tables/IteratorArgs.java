@@ -10,8 +10,8 @@
 package io.pravega.segmentstore.contracts.tables;
 
 import com.google.common.annotations.Beta;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
 import java.time.Duration;
 import lombok.Builder;
 import lombok.Data;
@@ -31,12 +31,12 @@ public class IteratorArgs {
      * Table Segment will result in an {@link IllegalArgumentException}.
      */
     @Beta
-    private final ArrayView prefixFilter;
+    private final BufferView prefixFilter;
     /**
      * (Optional) The serialized form of the State. This can be obtained from {@link IteratorItem#getState()}.
      * If provided, the iteration will resume from where it left off, otherwise it will start from the beginning.
      */
-    private ArrayView serializedState;
+    private BufferView serializedState;
     /**
      * Timeout for each invocation to {@link AsyncIterator#getNext()}.
      */
