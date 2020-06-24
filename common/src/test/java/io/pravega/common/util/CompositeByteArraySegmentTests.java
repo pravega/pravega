@@ -130,15 +130,21 @@ public class CompositeByteArraySegmentTests extends BufferViewTestBase {
             val targetOffset = new AtomicInteger();
             val count = new AtomicInteger();
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             s.collect(bb -> {
                 int len = bb.remaining();
                 bb.get(targetData, targetOffset.get(), len);
                 targetOffset.addAndGet(len);
+<<<<<<< HEAD
 =======
             s.collect((array, arrayOffset, arrayLength) -> {
                 System.arraycopy(array, arrayOffset, targetData, targetOffset.get(), arrayLength);
                 targetOffset.addAndGet(arrayLength);
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
                 count.incrementAndGet();
             });
 
@@ -167,35 +173,6 @@ public class CompositeByteArraySegmentTests extends BufferViewTestBase {
                     AssertExtensions.assertArrayEquals("Unexpected data sliced for step " + offset,
                             targetData, sliceOffset, actualData, 0, actualData.length);
                 }
-            }
-        });
-    }
-
-    /**
-     * Tests the {@link CompositeByteArraySegment#getBufferViewReader()} method.
-     */
-    @Test
-    public void testGetBufferViewReader() {
-        testProgressiveCopies((expectedData, s, offset, length) -> {
-            val targetData = new byte[s.getLength()];
-            s.copyTo(new FixedByteArrayOutputStream(targetData, 0, targetData.length));
-
-            for (int sliceOffset = 0; sliceOffset <= s.getLength() / 2; sliceOffset++) {
-                val sliceLength = s.getLength() - 2 * sliceOffset;
-                val slice = s.slice(sliceOffset, sliceLength);
-                val reader = slice.getBufferViewReader();
-                if (sliceLength == 0) {
-                    Assert.assertEquals("Unexpected data read for empty slice.", 0, reader.available());
-                } else {
-                    val actualData = reader.readFully(10);
-                    AssertExtensions.assertArrayEquals("Unexpected data sliced for step " + offset,
-                            targetData, sliceOffset, actualData.array(), actualData.arrayOffset(), actualData.getLength());
-                    Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
-                }
-
-                val actualComponentCount = new AtomicInteger();
-                slice.collect((a, o, l) -> actualComponentCount.incrementAndGet());
-                Assert.assertEquals("Unexpected number of components.", actualComponentCount.get(), slice.getComponentCount());
             }
         });
     }

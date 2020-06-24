@@ -12,9 +12,13 @@ package io.pravega.common.util;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import lombok.extern.slf4j.Slf4j;
 =======
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+import lombok.extern.slf4j.Slf4j;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
 import java.util.Properties;
 import java.util.function.Function;
@@ -142,6 +146,7 @@ public class TypedProperties {
                         "property name will be removed in a future version of Pravega.", propOldName, propNewName);
             }
         }
+<<<<<<< HEAD
 
         if (propValue == null) {
             // Value of property with new name
@@ -158,6 +163,16 @@ public class TypedProperties {
         if (value == null) {
             // 2. Nothing in the configuration for this Property.
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+
+        if (propValue == null) {
+            // Value of property with new name
+            propValue = this.properties.getProperty(propNewName, null);
+        }
+
+        // This property wasn't specified using either new or old name, so the property value is still null
+        if (propValue == null) {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             if (property.hasDefaultValue()) {
                 return property.getDefaultValue();
             } else {

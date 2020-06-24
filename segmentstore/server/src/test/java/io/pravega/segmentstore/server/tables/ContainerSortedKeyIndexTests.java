@@ -12,12 +12,17 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 =======
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -99,10 +104,14 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             context.segmentIndex.includeTailUpdate(t.batch, t.batchOffset);
             val allKeys = context.getAllKeys();
 <<<<<<< HEAD
+<<<<<<< HEAD
             AssertExtensions.assertListEquals("", t.expectedItems, allKeys, BufferView::equals);
 =======
             AssertExtensions.assertListEquals("", t.expectedItems, allKeys, HashedArray::arrayEquals);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            AssertExtensions.assertListEquals("", t.expectedItems, allKeys, BufferView::equals);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         }
     }
 
@@ -116,6 +125,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
 
         // Index the keys by their offsets.
 <<<<<<< HEAD
+<<<<<<< HEAD
         val map = new HashMap<BufferView, CacheBucketOffset>();
         testItems.forEach(t ->
                 t.batch.getItems().stream().filter(item -> !SortedKeyIndexDataSource.INTERNAL_TRANSLATOR.isInternal(item.getKey()))
@@ -126,6 +136,12 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
                 t.batch.getItems().stream().filter(item -> !SortedKeyIndexDataSource.INTERNAL_TRANSLATOR.isInternal(item.getKey()))
                         .forEach(item -> map.put(new HashedArray(item.getKey().getKey()),
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+        val map = new HashMap<BufferView, CacheBucketOffset>();
+        testItems.forEach(t ->
+                t.batch.getItems().stream().filter(item -> !SortedKeyIndexDataSource.INTERNAL_TRANSLATOR.isInternal(item.getKey()))
+                        .forEach(item -> map.put(item.getKey().getKey(),
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
                                 new CacheBucketOffset(t.batchOffset + item.getOffset(), t.batch.isRemoval()))));
 
         // Check includeTailCache.
@@ -133,10 +149,14 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
         val expectedItems = testItems.get(testItems.size() - 1).expectedItems;
         val allKeys = context.getAllKeys();
 <<<<<<< HEAD
+<<<<<<< HEAD
         AssertExtensions.assertListEquals("After calling includeTailCache().", expectedItems, allKeys, BufferView::equals);
 =======
         AssertExtensions.assertListEquals("After calling includeTailCache().", expectedItems, allKeys, HashedArray::arrayEquals);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+        AssertExtensions.assertListEquals("After calling includeTailCache().", expectedItems, allKeys, BufferView::equals);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
         // Check notifyOffsetChanged. It's easier to check here since we have already indexed the keys by offsets.
         // Sort surviving keys by offset.
@@ -165,10 +185,14 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
 
             val actualKeys = context.getAllKeys();
 <<<<<<< HEAD
+<<<<<<< HEAD
             AssertExtensions.assertListEquals("After trimming to offset " + t.batchOffset, expectedKeys, actualKeys, BufferView::equals);
 =======
             AssertExtensions.assertListEquals("After trimming to offset " + t.batchOffset, expectedKeys, actualKeys, HashedArray::arrayEquals);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            AssertExtensions.assertListEquals("After trimming to offset " + t.batchOffset, expectedKeys, actualKeys, BufferView::equals);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         }
     }
 
@@ -191,10 +215,14 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             val expectedKeys = testItems.get(next - 1).expectedItems;
             val allKeys = context.getAllKeys();
 <<<<<<< HEAD
+<<<<<<< HEAD
             AssertExtensions.assertListEquals("", expectedKeys, allKeys, BufferView::equals);
 =======
             AssertExtensions.assertListEquals("", expectedKeys, allKeys, HashedArray::arrayEquals);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            AssertExtensions.assertListEquals("", expectedKeys, allKeys, BufferView::equals);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             i = next;
             batchSize++;
         }
@@ -222,10 +250,14 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             val actualKeys = context.getAllKeys();
 
 <<<<<<< HEAD
+<<<<<<< HEAD
             AssertExtensions.assertListEquals("When overlapping index " + i, expectedKeys, actualKeys, BufferView::equals);
 =======
             AssertExtensions.assertListEquals("When overlapping index " + i, expectedKeys, actualKeys, HashedArray::arrayEquals);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            AssertExtensions.assertListEquals("When overlapping index " + i, expectedKeys, actualKeys, BufferView::equals);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
             long lastIndexedOffset;
             if (i == testItems.size() - 1) {
@@ -238,10 +270,14 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             context.containerIndex.notifyIndexOffsetChanged(SEGMENT_ID, lastIndexedOffset);
             AssertExtensions.assertListEquals("After calling notifyIndexOffsetChanged for index " + i,
 <<<<<<< HEAD
+<<<<<<< HEAD
                     expectedKeys, actualKeys, BufferView::equals);
 =======
                     expectedKeys, actualKeys, HashedArray::arrayEquals);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+                    expectedKeys, actualKeys, BufferView::equals);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         }
     }
 
@@ -277,14 +313,19 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
 
         val allExpectedItems = testItems.get(testItems.size() - 1).expectedItems;
 <<<<<<< HEAD
+<<<<<<< HEAD
         AssertExtensions.assertListEquals("Boundless iterator.", allExpectedItems, context.getAllKeys(), BufferView::equals);
 =======
         AssertExtensions.assertListEquals("Boundless iterator.", allExpectedItems, context.getAllKeys(), HashedArray::arrayEquals);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+        AssertExtensions.assertListEquals("Boundless iterator.", allExpectedItems, context.getAllKeys(), BufferView::equals);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         for (int i = 0; i < maxPrefixValue; i++) {
             // Check prefix iterators, without a start bound (initial iterators).
             byte prefixByte = (byte) i;
             val prefix = SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(new byte[]{prefixByte}));
+<<<<<<< HEAD
 <<<<<<< HEAD
             val expectedItems = allExpectedItems.stream().filter(a -> isPrefixOf(toArrayView(prefix), a)).collect(Collectors.toList());
             val ir = context.segmentIndex.getIteratorRange(null, prefix);
@@ -298,6 +339,13 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             AssertExtensions.assertListEquals("Iterator with prefix " + prefixByte,
                     expectedItems, actualItems, HashedArray::arrayEquals);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            val expectedItems = allExpectedItems.stream().filter(a -> isPrefixOf(toArrayView(prefix), a)).collect(Collectors.toList());
+            val ir = context.segmentIndex.getIteratorRange(null, prefix);
+            val actualItems = context.getKeys(context.segmentIndex.iterator(ir, TIMEOUT));
+            AssertExtensions.assertListEquals("Iterator with prefix " + prefixByte,
+                    expectedItems, actualItems, BufferView::equals);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
             // Check prefix iterators, with a start bound (resumed iterators).
             for (int j = 0; j < expectedItems.size(); j++) {
@@ -309,10 +357,14 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
 
                 AssertExtensions.assertListEquals("Resumed iterator with prefix " + prefixByte,
 <<<<<<< HEAD
+<<<<<<< HEAD
                         expectedPartialResult, partialResultItems, BufferView::equals);
 =======
                         expectedPartialResult, partialResultItems, HashedArray::arrayEquals);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+                        expectedPartialResult, partialResultItems, BufferView::equals);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             }
         }
     }
@@ -327,12 +379,18 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     private ArrayView toArrayView(BufferView b) {
         return b instanceof ArrayView ? (ArrayView) b : new ByteArraySegment(b.getCopy());
     }
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     private List<TestItem> generateTestData() {
         return generateTestData(BATCH_COUNT, 0.5);
     }
@@ -352,10 +410,14 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             val batchSize = Math.max(1, rnd.nextInt(MAX_ITEMS_PER_BATCH));
             val batchItems = new ArrayList<ArrayView>();
 <<<<<<< HEAD
+<<<<<<< HEAD
             val previousItems = new HashSet<>(currentItems);
 =======
             val previousItems = currentItems.stream().map(HashedArray::new).collect(Collectors.toSet());
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            val previousItems = new HashSet<>(currentItems);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
             val shuffledItems = new ArrayList<>(currentItems);
             Collections.shuffle(shuffledItems, rnd);
@@ -378,10 +440,14 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
                     // ContainerTableExtensionImpl translates the keys prior to sending them to the SortedKeyIndex.
                     // Simulate that behavior here.
 <<<<<<< HEAD
+<<<<<<< HEAD
                     batchItems.add(toArrayView(SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(key))));
 =======
                     batchItems.add(SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(key)));
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+                    batchItems.add(toArrayView(SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(key))));
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
                 }
                 currentItems.addAll(batchItems);
             }
@@ -410,10 +476,14 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
         final long batchOffset;
         final List<ArrayView> expectedItems;
 <<<<<<< HEAD
+<<<<<<< HEAD
         final Set<ArrayView> previousItems;
 =======
         final Set<HashedArray> previousItems;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+        final Set<ArrayView> previousItems;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
         BucketUpdate getBucketUpdate() {
             val result = BucketUpdate.forBucket(new TableBucket(UUID.randomUUID(), this.batchOffset));
@@ -422,6 +492,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             // When generating updates, it is important that the version matches the key offset. If the version is smaller
             // the BucketUpdate builder will ignore it as it will believe it was copied over by compaction.
 <<<<<<< HEAD
+<<<<<<< HEAD
             val uniqueKeys = new HashSet<BufferView>();
             for (val item : this.batch.getItems()) {
                 val key = item.getKey().getKey();
@@ -429,11 +500,18 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
                     result.withKeyUpdate(new BucketUpdate.KeyUpdate(item.getKey().getKey(),
 =======
             val uniqueKeys = new HashSet<HashedArray>();
+=======
+            val uniqueKeys = new HashSet<BufferView>();
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             for (val item : this.batch.getItems()) {
-                val key = new HashedArray(item.getKey().getKey());
+                val key = item.getKey().getKey();
                 if (uniqueKeys.add(key)) {
+<<<<<<< HEAD
                     result.withKeyUpdate(new BucketUpdate.KeyUpdate(new HashedArray(item.getKey().getKey()),
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+                    result.withKeyUpdate(new BucketUpdate.KeyUpdate(item.getKey().getKey(),
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
                             this.batchOffset + item.getOffset(), this.batchOffset + item.getOffset(), this.batch.isRemoval()));
                 }
             }
@@ -463,6 +541,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         List<ArrayView> getKeys(AsyncIterator<List<BufferView>> iterator) {
             val result = new ArrayList<ArrayView>();
             iterator.forEachRemaining(items -> items.forEach(i -> result.add(toArrayView(i))), executorService()).join();
@@ -471,6 +550,11 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
             val result = new ArrayList<ArrayView>();
             iterator.forEachRemaining(result::addAll, executorService()).join();
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+        List<ArrayView> getKeys(AsyncIterator<List<BufferView>> iterator) {
+            val result = new ArrayList<ArrayView>();
+            iterator.forEachRemaining(items -> items.forEach(i -> result.add(toArrayView(i))), executorService()).join();
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             return result;
         }
     }

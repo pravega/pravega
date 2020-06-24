@@ -11,12 +11,17 @@ package io.pravega.segmentstore.contracts.tables;
 
 import com.google.common.annotations.Beta;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 =======
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import java.time.Duration;
 import lombok.Builder;
 import lombok.Data;
@@ -49,17 +54,25 @@ public class IteratorArgs {
      * Table Segment will result in an {@link IllegalArgumentException}.
      */
     @Beta
+<<<<<<< HEAD
     private final ArrayView prefixFilter;
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+    private final BufferView prefixFilter;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     /**
      * (Optional) The serialized form of the State. This can be obtained from {@link IteratorItem#getState()}.
      * If provided, the iteration will resume from where it left off, otherwise it will start from the beginning.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     private BufferView serializedState;
 =======
     private ArrayView serializedState;
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+    private BufferView serializedState;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     /**
      * Timeout for each invocation to {@link AsyncIterator#getNext()}.
      */

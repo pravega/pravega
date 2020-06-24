@@ -241,9 +241,13 @@ project('shared:protocol') {
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 <<<<<<< HEAD
+<<<<<<< HEAD
         testCompile project(path: ':common', configuration: 'testRuntime')
 =======
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+        testCompile project(path: ':common', configuration: 'testRuntime')
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     }
 }
 
@@ -325,10 +329,14 @@ project('segmentstore:storage:impl') {
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
 <<<<<<< HEAD
+<<<<<<< HEAD
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 =======
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion    
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     }
     javadoc {
         dependsOn delombok

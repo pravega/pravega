@@ -10,10 +10,14 @@
 package io.pravega.segmentstore.server.tables;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
 =======
 import io.pravega.common.util.ArrayView;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+import io.pravega.common.util.BufferView;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.time.Duration;
@@ -54,10 +58,14 @@ class SortedKeyIndexDataSource {
      * @return True if the key is an internal key (exclude), false otherwise.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     boolean isKeyExcluded(BufferView keyContents) {
 =======
     boolean isKeyExcluded(ArrayView keyContents) {
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+    boolean isKeyExcluded(BufferView keyContents) {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         return INTERNAL_TRANSLATOR.isInternal(keyContents);
     }
 
@@ -74,9 +82,13 @@ class SortedKeyIndexDataSource {
     @FunctionalInterface
     public interface Read {
 <<<<<<< HEAD
+<<<<<<< HEAD
         CompletableFuture<List<TableEntry>> apply(String segmentName, List<BufferView> keys, Duration timeout);
 =======
         CompletableFuture<List<TableEntry>> apply(String segmentName, List<ArrayView> keys, Duration timeout);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+        CompletableFuture<List<TableEntry>> apply(String segmentName, List<BufferView> keys, Duration timeout);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     }
 }

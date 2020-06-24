@@ -23,6 +23,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.client.stream.impl.StreamCutImpl;
 =======
 import io.pravega.client.control.impl.Controller;
@@ -31,6 +32,8 @@ import io.pravega.client.control.impl.ControllerImplConfig;
 <<<<<<< HEAD
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
 =======
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import io.pravega.client.stream.impl.StreamCutImpl;
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
 import io.pravega.common.concurrent.ExecutorServiceHelpers;

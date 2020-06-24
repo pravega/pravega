@@ -153,8 +153,12 @@ public class MockController implements Controller {
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
 =======
         return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams,
+<<<<<<< HEAD
                 this::getSegmentsForStream, this::createSegment);
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+                this::getSegmentsForStream, Segment::getScopedName, this::createSegment);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     }
     
     @Synchronized
@@ -261,8 +265,12 @@ public class MockController implements Controller {
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
 =======
         return deleteFromScope(scope, new StreamImpl(scope, streamName), s -> s.streams, this::getSegmentsForStream,
+<<<<<<< HEAD
                 this::deleteSegment);
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+                Segment::getScopedName, this::deleteSegment);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     }
 
     private boolean createSegment(String name) {
@@ -768,14 +776,14 @@ public class MockController implements Controller {
 >>>>>>> Issue 4571: (Key-ValueTables) Client Control Path (#4658)
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
         return createInScope(scope, new KeyValueTableInfo(scope, kvtName), kvtConfig, s -> s.keyValueTables,
-                this::getSegmentsForKeyValueTable, this::createTableSegment);
+                this::getSegmentsForKeyValueTable, Segment::getKVTScopedName, this::createTableSegment);
     }
 
     @Override
     @Synchronized
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
         return deleteFromScope(scope, new KeyValueTableInfo(scope, kvtName), s -> s.keyValueTables,
-                this::getSegmentsForKeyValueTable, this::deleteTableSegment);
+                this::getSegmentsForKeyValueTable, Segment::getKVTScopedName, this::deleteTableSegment);
     }
 
     @Override
@@ -802,6 +810,7 @@ public class MockController implements Controller {
     private <ItemT, ConfigT> CompletableFuture<Boolean> createInScope(String scope, ItemT item, ConfigT config,
                                                                       Function<MockScope, Map<ItemT, ConfigT>> getScopeContents,
                                                                       Function<ItemT, List<Segment>> getSegments,
+                                                                      Function<Segment, String> getSegmentName,
                                                                       Consumer<String> createSegment) {
         MockScope s = createdScopes.get(scope);
         if (s == null) {
@@ -815,21 +824,22 @@ public class MockController implements Controller {
 
         scopeContents.put(item, config);
         for (Segment segment : getSegments.apply(item)) {
-            createSegment.accept(segment.getScopedName());
+            createSegment.accept(getSegmentName.apply(segment));
         }
         return CompletableFuture.completedFuture(true);
     }
 
     @Synchronized
     private <T> CompletableFuture<Boolean> deleteFromScope(String scope, T toDelete, Function<MockScope, Map<T, ?>> getItems,
-                                                           Function<T, List<Segment>> getSegments, Consumer<String> deleteSegment) {
+                                                           Function<T, List<Segment>> getSegments,
+                                                           Function<Segment, String> getSegmentName, Consumer<String> deleteSegment) {
         MockScope s = createdScopes.get(scope);
         if (s == null || !getItems.apply(s).containsKey(toDelete)) {
             return CompletableFuture.completedFuture(false);
         }
 
         for (Segment segment : getSegments.apply(toDelete)) {
-            deleteSegment.accept(segment.getScopedName());
+            deleteSegment.accept(getSegmentName.apply(segment));
         }
         getItems.apply(s).remove(toDelete);
         return CompletableFuture.completedFuture(true);

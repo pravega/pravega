@@ -317,10 +317,14 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
     //region Reader
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     private class Reader extends AbstractReader implements BufferView.Reader {
 =======
     private class Reader implements BufferView.Reader {
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+    private class Reader extends AbstractReader implements BufferView.Reader {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         private int position = 0;
 
         @Override
@@ -336,6 +340,9 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
             return len;
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
         @Override
         public byte readByte() {
@@ -381,8 +388,11 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
                 throw new OutOfBoundsException();
             }
         }
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     }
 
     //endregion

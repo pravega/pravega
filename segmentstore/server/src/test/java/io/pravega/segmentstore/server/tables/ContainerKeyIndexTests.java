@@ -16,9 +16,12 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import io.pravega.common.util.HashedArray;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
@@ -74,9 +77,13 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final int TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH = 128 * 1024;
     private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(2);
 <<<<<<< HEAD
+<<<<<<< HEAD
     private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
 =======
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+    private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
@@ -691,6 +698,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     private void checkSortedKeys(List<BufferView> expectedSortedKeys, TestContext context) {
         expectedSortedKeys = expectedSortedKeys.stream().sorted(KEY_COMPARATOR).collect(Collectors.toList());
         val actualSortedKeys = new ArrayList<BufferView>();
@@ -707,6 +715,15 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         AssertExtensions.assertListEquals("Unexpected keys returned by getSortedKeyIndex().iterator.",
                 expectedSortedKeys, actualSortedKeys, HashedArray::arrayEquals);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+    private void checkSortedKeys(List<BufferView> expectedSortedKeys, TestContext context) {
+        expectedSortedKeys = expectedSortedKeys.stream().sorted(KEY_COMPARATOR).collect(Collectors.toList());
+        val actualSortedKeys = new ArrayList<BufferView>();
+        val si = context.index.getSortedKeyIndex(context.segment).join();
+        si.iterator(si.getIteratorRange(null, null), TIMEOUT).forEachRemaining(actualSortedKeys::addAll, executorService()).join();
+        AssertExtensions.assertListEquals("Unexpected keys returned by getSortedKeyIndex().iterator.",
+                expectedSortedKeys, actualSortedKeys, BufferView::equals);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     }
 
     private void checkBackpointers(List<UpdateItem> updates, TestContext context) {

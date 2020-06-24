@@ -18,10 +18,13 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import java.io.IOException;
 import java.io.InputStream;
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -47,9 +50,13 @@ class EntrySerializer {
     static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
     static final int MAX_SERIALIZATION_LENGTH = TableStore.MAXIMUM_KEY_LENGTH + TableStore.MAXIMUM_VALUE_LENGTH;
 <<<<<<< HEAD
+<<<<<<< HEAD
     static final int MAX_BATCH_SIZE = 32 * MAX_SERIALIZATION_LENGTH;
 =======
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+    static final int MAX_BATCH_SIZE = 32 * MAX_SERIALIZATION_LENGTH;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     private static final int VERSION_POSITION = 0;
     private static final int KEY_POSITION = VERSION_POSITION + 1;
     private static final int VALUE_POSITION = KEY_POSITION + Integer.BYTES;

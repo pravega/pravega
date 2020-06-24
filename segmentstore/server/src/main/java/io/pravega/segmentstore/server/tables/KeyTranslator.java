@@ -11,18 +11,26 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
 =======
 import io.pravega.common.util.ArrayView;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+import io.pravega.common.util.BufferView;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import lombok.RequiredArgsConstructor;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import lombok.SneakyThrows;
 =======
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+import lombok.SneakyThrows;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
 /**
  * Translates Table Segment Keys from an external form into an internal one and back.
@@ -53,6 +61,7 @@ abstract class KeyTranslator {
      * Translates the given external Key data into an internal form.
      *
 <<<<<<< HEAD
+<<<<<<< HEAD
      * @param external The external Key data. This {@link BufferView} instance will not be altered.
      * @return A new {@link BufferView} representing the internal Key data.
      */
@@ -63,6 +72,12 @@ abstract class KeyTranslator {
      */
     abstract ArrayView inbound(ArrayView external);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+     * @param external The external Key data. This {@link BufferView} instance will not be altered.
+     * @return A new {@link BufferView} representing the internal Key data.
+     */
+    abstract BufferView inbound(BufferView external);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
     /**
      * Translates the given external {@link TableKey} data into an internal form.
@@ -89,6 +104,7 @@ abstract class KeyTranslator {
      * Translates the given internal Key data into an external form.
      *
 <<<<<<< HEAD
+<<<<<<< HEAD
      * @param internal The internal Key data. This {@link BufferView} instance will not be altered.
      * @return A new {@link BufferView} representing the external Key data.
      */
@@ -99,6 +115,12 @@ abstract class KeyTranslator {
      */
     abstract ArrayView outbound(ArrayView internal);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+     * @param internal The internal Key data. This {@link BufferView} instance will not be altered.
+     * @return A new {@link BufferView} representing the external Key data.
+     */
+    abstract BufferView outbound(BufferView internal);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
     /**
      * Translates the given internal {@link TableKey} data into an external form.
@@ -125,19 +147,27 @@ abstract class KeyTranslator {
 
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
      * Determines whether the given {@link BufferView} represents a key that has been modified.
 =======
      * Determines whether the given {@link ArrayView} represents a key that has been modified.
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+     * Determines whether the given {@link BufferView} represents a key that has been modified.
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
      *
      * @param key The key to check.
      * @return True if this is the result of a call to {@link #inbound}, false otherwise.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     abstract boolean isInternal(BufferView key);
 =======
     abstract boolean isInternal(ArrayView key);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+    abstract boolean isInternal(BufferView key);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
     /**
      * Determines whether the given {@link TableKey} represents a key that has been modified.
@@ -159,12 +189,16 @@ abstract class KeyTranslator {
 
         @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         @SneakyThrows
         BufferView inbound(BufferView external) {
             return BufferView.builder(2)
                     .add(new ByteArraySegment(new byte[]{this.partition}))
                     .add(external)
                     .build();
+<<<<<<< HEAD
         }
 
         @Override
@@ -197,29 +231,36 @@ abstract class KeyTranslator {
             }
 
             return new ByteArraySegment(data);
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         }
 
         @Override
-        ArrayView outbound(ArrayView internal) {
+        BufferView outbound(BufferView internal) {
             Preconditions.checkArgument(internal.getLength() >= 1,
                     "Key too short. Expected at least 1, given %s.", internal.getLength());
-            byte p = internal.get(0);
+            BufferView.Reader reader = internal.getBufferViewReader();
+            byte p = reader.readByte();
             Preconditions.checkArgument(p == this.partition, "Wrong partition. Expected %s, found %s.", this.partition, p);
-            if (internal.getLength() == 1) {
+            if (reader.available() == 0) {
                 // There was no key to begin with.
-                return new ByteArraySegment(new byte[0]);
+                return BufferView.empty();
             }
 
-            return internal.slice(1, internal.getLength() - 1);
+            return reader.readSlice(reader.available());
         }
 
         @Override
-        boolean isInternal(ArrayView key) {
+        boolean isInternal(BufferView key) {
             if (key.getLength() < 1) {
                 return false;
             }
+<<<<<<< HEAD
             return key.get(0) == this.partition;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            return key.getBufferViewReader().readByte() == this.partition;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         }
     }
 
@@ -230,10 +271,14 @@ abstract class KeyTranslator {
     private static class IdentityTranslator extends KeyTranslator {
         @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
         BufferView inbound(BufferView external) {
 =======
         ArrayView inbound(ArrayView external) {
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+        BufferView inbound(BufferView external) {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             return external;
         }
 
@@ -249,10 +294,14 @@ abstract class KeyTranslator {
 
         @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
         BufferView outbound(BufferView internal) {
 =======
         ArrayView outbound(ArrayView internal) {
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+        BufferView outbound(BufferView internal) {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             return internal;
         }
 
@@ -268,10 +317,14 @@ abstract class KeyTranslator {
 
         @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
         boolean isInternal(BufferView key) {
 =======
         boolean isInternal(ArrayView key) {
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+        boolean isInternal(BufferView key) {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             return true;
         }
     }

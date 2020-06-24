@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.concurrent.Futures;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
@@ -19,6 +20,11 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.HashedArray;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.ByteArraySegment;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -75,10 +81,14 @@ public class TableServiceTests extends ThreadPooledTestSuite {
     private static final int MAX_VALUE_LENGTH = 32;
     private static final String TABLE_SEGMENT_NAME_PREFIX = "TableSegment_";
 <<<<<<< HEAD
+<<<<<<< HEAD
     private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
 =======
     private static final Comparator<ArrayView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+    private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     private static final Duration TIMEOUT = Duration.ofSeconds(30); // Individual call timeout
     @Rule
     public Timeout globalTimeout = new Timeout((int) TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);

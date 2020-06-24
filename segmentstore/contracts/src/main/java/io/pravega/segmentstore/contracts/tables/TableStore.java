@@ -10,9 +10,12 @@
 package io.pravega.segmentstore.contracts.tables;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import io.pravega.common.util.ArrayView;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.IllegalDataFormatException;

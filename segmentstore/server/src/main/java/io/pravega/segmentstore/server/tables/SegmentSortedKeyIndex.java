@@ -13,9 +13,13 @@ import com.google.common.annotations.Beta;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
 =======
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+import io.pravega.common.util.BufferView;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -58,10 +62,14 @@ interface SegmentSortedKeyIndex {
      * @param tailUpdates The updates to include.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     void includeTailCache(Map<? extends BufferView, CacheBucketOffset> tailUpdates);
 =======
     void includeTailCache(Map<? extends ArrayView, CacheBucketOffset> tailUpdates);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+    void includeTailCache(Map<? extends BufferView, CacheBucketOffset> tailUpdates);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
     /**
      * Notifies that the Table Segment has indexed and durably persisted all updates up to and including the given offset.
@@ -80,10 +88,14 @@ interface SegmentSortedKeyIndex {
      * @return An {@link AsyncIterator} that can be used to iterate keys.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     AsyncIterator<List<BufferView>> iterator(IteratorRange range, Duration fetchTimeout);
 =======
     AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+    AsyncIterator<List<BufferView>> iterator(IteratorRange range, Duration fetchTimeout);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
     /**
      * Generates a {@link IteratorRange} that can be used as argument to {@link #iterator} from the given input.
@@ -94,10 +106,14 @@ interface SegmentSortedKeyIndex {
      * @return An {@link IteratorRange}.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     IteratorRange getIteratorRange(@Nullable BufferView fromKeyExclusive, @Nullable BufferView prefix);
 =======
     IteratorRange getIteratorRange(@Nullable ArrayView fromKeyExclusive, @Nullable ArrayView prefix);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+    IteratorRange getIteratorRange(@Nullable BufferView fromKeyExclusive, @Nullable BufferView prefix);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
     /**
      * Arguments for {@link #iterator}.
@@ -135,10 +151,14 @@ interface SegmentSortedKeyIndex {
 
             @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
             public void includeTailCache(Map<? extends BufferView, CacheBucketOffset> tailUpdates) {
 =======
             public void includeTailCache(Map<? extends ArrayView, CacheBucketOffset> tailUpdates) {
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            public void includeTailCache(Map<? extends BufferView, CacheBucketOffset> tailUpdates) {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
                 // This method intentionally left blank.
             }
 
@@ -149,19 +169,27 @@ interface SegmentSortedKeyIndex {
 
             @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
             public AsyncIterator<List<BufferView>> iterator(IteratorRange range, Duration fetchTimeout) {
 =======
             public AsyncIterator<List<ArrayView>> iterator(IteratorRange range, Duration fetchTimeout) {
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            public AsyncIterator<List<BufferView>> iterator(IteratorRange range, Duration fetchTimeout) {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
                 return () -> CompletableFuture.completedFuture(null);
             }
 
             @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
             public IteratorRange getIteratorRange(@Nullable BufferView fromKeyExclusive, @Nullable BufferView prefix) {
 =======
             public IteratorRange getIteratorRange(@Nullable ArrayView fromKeyExclusive, @Nullable ArrayView prefix) {
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            public IteratorRange getIteratorRange(@Nullable BufferView fromKeyExclusive, @Nullable BufferView prefix) {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
                 return new IteratorRange(null, null);
             }
         };

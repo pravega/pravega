@@ -72,10 +72,14 @@ class Write {
         ByteBuf[] components = new ByteBuf[data.getComponentCount()];
         val index = new AtomicInteger();
 <<<<<<< HEAD
+<<<<<<< HEAD
         data.collect(bb -> components[index.getAndIncrement()] = Unpooled.wrappedBuffer(bb));
 =======
         data.collect((array, offset, length) -> components[index.getAndIncrement()] = Unpooled.wrappedBuffer(array, offset, length));
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+        data.collect(bb -> components[index.getAndIncrement()] = Unpooled.wrappedBuffer(bb));
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         return Unpooled.wrappedUnmodifiableBuffer(components);
     }
 

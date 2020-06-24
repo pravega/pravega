@@ -107,6 +107,7 @@ public class ByteArraySegmentTests extends BufferViewTestBase {
 
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
      * Tests the functionality of copyTo(array).
      */
@@ -198,6 +199,8 @@ public class ByteArraySegmentTests extends BufferViewTestBase {
 
     /**
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
      * Tests the functionality of getWriter (the ability to return an OutputStream that can be used to write to the main buffer).
      */
     @Test

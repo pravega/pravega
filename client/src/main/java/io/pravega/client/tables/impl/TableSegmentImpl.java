@@ -389,9 +389,13 @@ class TableSegmentImpl implements TableSegment {
         } else {
             // No entry found for this key.
 <<<<<<< HEAD
+<<<<<<< HEAD
             key.getKey().release();
 =======
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+            key.getKey().release();
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             return null;
         }
     }

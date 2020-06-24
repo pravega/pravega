@@ -12,9 +12,12 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import io.pravega.common.util.HashedArray;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.util.Arrays;
@@ -64,19 +67,27 @@ public class KeyTranslatorTests {
             val expectedInboundKeyData = externalToInternal.apply(keyData);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
             boolean isIdentity = keyData.equals(expectedInboundKeyData);
 =======
             boolean isIdentity = HashedArray.arrayEquals(keyData, expectedInboundKeyData);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            boolean isIdentity = keyData.equals(expectedInboundKeyData);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             Assert.assertEquals(isIdentity, translator.isInternal(keyData));
             Assert.assertEquals(isIdentity, translator.isInternal(key));
 
             val inboundKeyData = translator.inbound(keyData);
 <<<<<<< HEAD
+<<<<<<< HEAD
             Assert.assertEquals(expectedInboundKeyData, inboundKeyData);
 =======
             Assert.assertTrue(HashedArray.arrayEquals(expectedInboundKeyData, inboundKeyData));
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            Assert.assertEquals(expectedInboundKeyData, inboundKeyData);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             Assert.assertTrue(translator.isInternal(expectedInboundKeyData));
 
             val expectedInboundKey = TableKey.versioned(expectedInboundKeyData, key.getVersion());
@@ -90,10 +101,14 @@ public class KeyTranslatorTests {
 
             val outboundKeyData = translator.outbound(inboundKeyData);
 <<<<<<< HEAD
+<<<<<<< HEAD
             Assert.assertEquals(keyData, outboundKeyData);
 =======
             Assert.assertTrue(HashedArray.arrayEquals(keyData, outboundKeyData));
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+            Assert.assertEquals(keyData, outboundKeyData);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
             val outboundKey = translator.outbound(inboundKey);
             Assert.assertEquals(key, outboundKey);

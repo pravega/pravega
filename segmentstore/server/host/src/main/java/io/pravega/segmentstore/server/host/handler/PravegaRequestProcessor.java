@@ -647,11 +647,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         log.debug(updateTableEntries.getRequestId(), "Update Table Segment Entries: Segment={}, Offset={}, Count={}.",
                 updateTableEntries.getSegment(), updateTableEntries.getTableSegmentOffset(), updateTableEntries.getTableEntries().getEntries().size());
 =======
         log.debug(updateTableEntries.getRequestId(), "Updating table segment {}.", updateTableEntries);
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+        log.debug(updateTableEntries.getRequestId(), "Update Table Segment Entries: Segment={}, Offset={}, Count={}.",
+                updateTableEntries.getSegment(), updateTableEntries.getTableSegmentOffset(), updateTableEntries.getTableEntries().getEntries().size());
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         val entries = new ArrayList<TableEntry>(updateTableEntries.getTableEntries().getEntries().size());
         val conditional = new AtomicBoolean(false);
         for (val e : updateTableEntries.getTableEntries().getEntries()) {
@@ -683,11 +688,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         log.debug(removeTableKeys.getRequestId(), "Remove Table Segment Keys: Segment={}, Offset={}, Count={}.",
                 removeTableKeys.getSegment(), removeTableKeys.getTableSegmentOffset(), removeTableKeys.getKeys().size());
 =======
         log.debug(removeTableKeys.getRequestId(), "Removing table keys {}.", removeTableKeys);
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+        log.debug(removeTableKeys.getRequestId(), "Remove Table Segment Keys: Segment={}, Offset={}, Count={}.",
+                removeTableKeys.getSegment(), removeTableKeys.getTableSegmentOffset(), removeTableKeys.getKeys().size());
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         val keys = new ArrayList<TableKey>(removeTableKeys.getKeys().size());
         val conditional = new AtomicBoolean(false);
         for (val k : removeTableKeys.getKeys()) {
@@ -719,11 +729,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         log.debug(readTable.getRequestId(), "Get Table Segment Keys: Segment={}, Count={}.",
                 readTable.getSegment(), readTable.getKeys());
 =======
         log.debug(readTable.getRequestId(), "Reading from table {}.", readTable);
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+        log.debug(readTable.getRequestId(), "Get Table Segment Keys: Segment={}, Count={}.",
+                readTable.getSegment(), readTable.getKeys());
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
         final List<BufferView> keys = readTable.getKeys().stream()
                 .map(k -> new ByteBufWrapper(k.getData()))
@@ -748,17 +763,23 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         log.debug(readTableKeys.getRequestId(), "Iterate Table Segment Keys: Segment={}, Count={}.",
                 readTableKeys.getSegment(), readTableKeys.getSuggestedKeyCount());
 =======
         log.debug(readTableKeys.getRequestId(), "Fetching keys from {}.", readTableKeys);
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+        log.debug(readTableKeys.getRequestId(), "Iterate Table Segment Keys: Segment={}, Count={}.",
+                readTableKeys.getSegment(), readTableKeys.getSuggestedKeyCount());
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
         final int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
         final IteratorArgs args = getIteratorArgs(readTableKeys.getContinuationToken(), readTableKeys.getPrefixFilter());
 <<<<<<< HEAD
 
         val result = new IteratorResult<WireCommands.TableKey>(segment.getBytes().length + WireCommands.TableKeysRead.HEADER_BYTES);
+<<<<<<< HEAD
         val timer = new Timer();
         tableStore.keyIterator(segment, args)
                 .thenCompose(itr -> itr.collectRemaining(e -> {
@@ -825,6 +846,32 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                       this.tableStatsRecorder.iterateKeys(readTableKeys.getSegment(), keys.size(), timer.getElapsed());
                   }).exceptionally(e -> handleException(readTableKeys.getRequestId(), segment, operation, e));
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+        val timer = new Timer();
+        tableStore.keyIterator(segment, args)
+                .thenCompose(itr -> itr.collectRemaining(e -> {
+                    synchronized (result) {
+                        if (result.getItemCount() >= suggestedKeyCount || result.getSizeBytes() >= MAX_READ_SIZE) {
+                            return false;
+                        }
+
+                        // Store all TableKeys.
+                        for (val key : e.getEntries()) {
+                            val k = new WireCommands.TableKey(toByteBuf(key.getKey()), key.getVersion());
+                            result.add(k, k.size());
+                        }
+
+                        // Update the continuation token.
+                        result.setContinuationToken(e.getState());
+                        return true;
+                    }
+                }))
+                .thenAccept(v -> {
+                    log.debug(readTableKeys.getRequestId(), "Iterate Table Segment Keys complete ({}).", result.getItemCount());
+                    connection.send(new WireCommands.TableKeysRead(readTableKeys.getRequestId(), segment, result.getItems(), toByteBuf(result.getContinuationToken())));
+                    this.tableStatsRecorder.iterateKeys(readTableKeys.getSegment(), result.getItemCount(), timer.getElapsed());
+                }).exceptionally(e -> handleException(readTableKeys.getRequestId(), segment, operation, e));
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     }
 
     @Override
@@ -837,11 +884,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         log.debug(readTableEntries.getRequestId(), "Iterate Table Segment Entries: Segment={}, Count={}.",
                 readTableEntries.getSegment(), readTableEntries.getSuggestedEntryCount());
 =======
         log.debug(readTableEntries.getRequestId(), "Fetching keys from {}.", readTableEntries);
 >>>>>>> Issue 4570: (KeyValue Tables) Client Data Path Implementation (#4687)
+=======
+        log.debug(readTableEntries.getRequestId(), "Iterate Table Segment Entries: Segment={}, Count={}.",
+                readTableEntries.getSegment(), readTableEntries.getSuggestedEntryCount());
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
         final int suggestedEntryCount = readTableEntries.getSuggestedEntryCount();
         final IteratorArgs args = getIteratorArgs(readTableEntries.getContinuationToken(), readTableEntries.getPrefixFilter());
@@ -850,6 +902,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         val timer = new Timer();
         tableStore.entryIterator(segment, args)
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
                 .thenCompose(itr -> itr.collectRemaining(
                         e -> {
                             if (result.getItemCount() >= suggestedEntryCount || result.getSizeBytes() >= MAX_READ_SIZE) {
@@ -873,6 +928,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             new WireCommands.TableEntries(result.getItems()), toByteBuf(result.getContinuationToken())));
                     this.tableStatsRecorder.iterateEntries(readTableEntries.getSegment(), result.getItemCount(), timer.getElapsed());
                 }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
+<<<<<<< HEAD
 =======
                   .thenCompose(itr -> itr.collectRemaining(
                           e -> {
@@ -916,19 +972,22 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                                         continuationToken.get()));
                       this.tableStatsRecorder.iterateEntries(readTableEntries.getSegment(), entries.size(), timer.getElapsed());
                   }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     }
 
     private IteratorArgs getIteratorArgs(ByteBuf token, ByteBuf prefix) {
         val args = IteratorArgs.builder().fetchTimeout(TIMEOUT);
         if (token != null && !token.equals(EMPTY_BUFFER)) {
-            args.serializedState(getArrayView(token));
+            args.serializedState(new ByteBufWrapper(token));
         }
         if (prefix != null && !prefix.equals(EMPTY_BUFFER)) {
-            args.prefixFilter(getArrayView(prefix));
+            args.prefixFilter(new ByteBufWrapper(prefix));
         }
         return args.build();
     }
 
+<<<<<<< HEAD
 
     private int getTableKeyBytes(String segment, Collection<TableKey> keys, int continuationTokenLength) {
         int headerLength = WireCommands.TableKeysRead.GET_HEADER_BYTES.apply(keys.size());
@@ -972,6 +1031,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         return args.build();
     }
 
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     private WireCommands.TableEntries getTableEntriesCommand(final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {
         Preconditions.checkArgument(resultEntries.size() == inputKeys.size(), "Number of input keys should match result entry count.");
         final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries =

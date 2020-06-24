@@ -61,10 +61,14 @@ class IteratorState {
      * @throws IOException If unable to deserialize.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     static IteratorState deserialize(BufferView data) throws IOException {
 =======
     static IteratorState deserialize(ArrayView data) throws IOException {
 >>>>>>> Issue 4333: (Key-Value Tables) Table Segment Client (#4659)
+=======
+    static IteratorState deserialize(BufferView data) throws IOException {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         return SERIALIZER.deserialize(data);
     }
 

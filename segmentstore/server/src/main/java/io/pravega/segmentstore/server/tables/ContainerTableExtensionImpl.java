@@ -49,9 +49,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import java.util.function.BiConsumer;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -244,10 +247,14 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                             toUpdate.size(), updateBatch.getLength());
                     return this.keyIndex.update(segment, updateBatch,
 <<<<<<< HEAD
+<<<<<<< HEAD
                             () -> commit(toUpdate, this.serializer::serializeUpdate, segment, timer.getRemaining()), timer);
 =======
                             () -> commit(toUpdate, updateBatch.getLength(), this.serializer::serializeUpdate, segment, timer.getRemaining()), timer);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+                            () -> commit(toUpdate, this.serializer::serializeUpdate, segment, timer.getRemaining()), timer);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
                 }, this.executor);
     }
 
@@ -269,15 +276,20 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                             toRemove.size(), removeBatch.getLength());
                     return this.keyIndex.update(segment, removeBatch,
 <<<<<<< HEAD
+<<<<<<< HEAD
                             () -> commit(toRemove, this.serializer::serializeRemoval, segment, timer.getRemaining()), timer);
 =======
                             () -> commit(toRemove, removeBatch.getLength(), this.serializer::serializeRemoval, segment, timer.getRemaining()), timer);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+                            () -> commit(toRemove, this.serializer::serializeRemoval, segment, timer.getRemaining()), timer);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
                 }, this.executor)
                 .thenRun(Runnables.doNothing());
     }
 
     @Override
+<<<<<<< HEAD
 <<<<<<< HEAD
     public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<BufferView> keys, Duration timeout) {
         return get(segmentName, keys, true, timeout);
@@ -291,6 +303,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     private CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<ArrayView> keys, boolean external, Duration timeout) {
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+    public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<BufferView> keys, Duration timeout) {
+        return get(segmentName, keys, true, timeout);
+    }
+
+    private CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<BufferView> keys, boolean external, Duration timeout) {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         Exceptions.checkNotClosed(this.closed.get(), this);
         logRequest("get", segmentName, keys.size());
         if (keys.isEmpty()) {
@@ -451,10 +470,14 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newSortedIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
 <<<<<<< HEAD
+<<<<<<< HEAD
                                                                                     @NonNull Function<List<BufferView>, CompletableFuture<List<T>>> toResult) {
 =======
                                                                                     @NonNull Function<List<ArrayView>, CompletableFuture<List<T>>> toResult) {
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+                                                                                    @NonNull Function<List<BufferView>, CompletableFuture<List<T>>> toResult) {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         return this.keyIndex.getSortedKeyIndex(segment)
                 .thenApply(index -> {
                     val prefix = translateItem(args.getPrefixFilter(), SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR, KeyTranslator::inbound);
@@ -466,10 +489,14 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     private <T> CompletableFuture<IteratorItem<T>> toSortedIteratorItem(List<BufferView> keys, Function<List<BufferView>,
 =======
     private <T> CompletableFuture<IteratorItem<T>> toSortedIteratorItem(List<ArrayView> keys, Function<List<ArrayView>,
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+    private <T> CompletableFuture<IteratorItem<T>> toSortedIteratorItem(List<BufferView> keys, Function<List<BufferView>,
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
             CompletableFuture<List<T>>> toResult, SegmentProperties segmentInfo) {
         if (keys == null || keys.isEmpty()) {
             // End of iteration.
@@ -652,10 +679,14 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Data
     private static class IteratorItemImpl<T> implements IteratorItem<T> {
 <<<<<<< HEAD
+<<<<<<< HEAD
         private final BufferView state;
 =======
         private final ArrayView state;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+        private final BufferView state;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         private final Collection<T> entries;
     }
 

@@ -168,10 +168,14 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
      */
     @RequiredArgsConstructor
 <<<<<<< HEAD
+<<<<<<< HEAD
     private static class ByteBufReader extends AbstractReader implements Reader {
 =======
     private static class ByteBufReader implements Reader {
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+    private static class ByteBufReader extends AbstractReader implements Reader {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         private final ByteBuf buf;
 
         @Override
@@ -188,6 +192,9 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
             return len;
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
         @Override
         public byte readByte() {
@@ -224,8 +231,11 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
                 throw new OutOfBoundsException();
             }
         }
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     }
 
     //endregion

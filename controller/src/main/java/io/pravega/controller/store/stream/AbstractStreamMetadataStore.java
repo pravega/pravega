@@ -499,6 +499,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Void> completeRollingTxn(String scope, String name, Map<Long, Long> sealedActiveEpochSegments,
                                                       VersionedMetadata<CommittingTransactionsRecord> record, OperationContext context, Executor executor) {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
         CompletableFuture<Void> future = Futures.completeOn(getStream(scope, name, context).completeRollingTxn(sealedActiveEpochSegments, record), executor);
 
@@ -506,9 +509,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 StreamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue())));
 
         return future;
+<<<<<<< HEAD
 =======
         return Futures.completeOn(getStream(scope, name, context).completeRollingTxn(sealedActiveEpochSegments, record), executor);
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     }
 
     @Override

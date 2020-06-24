@@ -13,11 +13,16 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArrayComparator;
 =======
 import io.pravega.common.util.ArrayView;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArrayComparator;
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -406,6 +411,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     private void checkSortedKeyIndex(HashMap<BufferView, TableEntry> existingEntries, TestContext context) {
         val expectedKeys = new ArrayList<>(existingEntries.keySet());
         expectedKeys.sort(new ByteArrayComparator()::compare);
@@ -415,13 +421,20 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertListEquals("", expectedKeys, actualKeys, BufferView::equals);
 =======
     private void checkSortedKeyIndex(HashMap<HashedArray, TableEntry> existingEntries, TestContext context) {
+=======
+    private void checkSortedKeyIndex(HashMap<BufferView, TableEntry> existingEntries, TestContext context) {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         val expectedKeys = new ArrayList<>(existingEntries.keySet());
-        expectedKeys.sort(SegmentSortedKeyIndexImpl.KEY_COMPARATOR);
-        val actualKeys = new ArrayList<ArrayView>();
+        expectedKeys.sort(new ByteArrayComparator()::compare);
+        val actualKeys = new ArrayList<BufferView>();
         context.sortedKeyIndex.iterator(context.sortedKeyIndex.getIteratorRange(null, null), TIMEOUT)
                 .forEachRemaining(actualKeys::addAll, executorService()).join();
+<<<<<<< HEAD
         AssertExtensions.assertListEquals("", expectedKeys, actualKeys, HashedArray::arrayEquals);
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+        AssertExtensions.assertListEquals("", expectedKeys, actualKeys, BufferView::equals);
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     }
 
     private ArrayList<TestBatchData> generateAndPopulateEntries(TestContext context) {
@@ -461,10 +474,14 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
                 // Run the key through the external translator to ensure that we don't clash with internal keys by chance.
                 // (this is done for us by ContainerTableExtensionImpl already, so we're only simulating the same behavior).
 <<<<<<< HEAD
+<<<<<<< HEAD
                 val key = SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(keyData));
 =======
                 val key = new HashedArray(SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(keyData)));
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+                val key = SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(keyData));
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
                 val offset = context.metadata.getLength();
                 val entry = TableEntry.versioned(key, new ByteArraySegment(valueData), offset);
                 append = generateRawAppend(entry, offset, context);

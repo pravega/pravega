@@ -91,6 +91,7 @@ public class ByteBufWrapperTests extends BufferViewTestBase {
         @Cleanup("release")
         val buf = wrap(data);
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         buf.readerIndex(buf.readerIndex() + SKIP_COUNT);
         val wrap = new ByteBufWrapper(buf);
@@ -157,6 +158,8 @@ public class ByteBufWrapperTests extends BufferViewTestBase {
     public void testSlice() throws IOException {
         val data = newData();
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         @Cleanup("release")
         val bufferView = toBufferView(data);
 

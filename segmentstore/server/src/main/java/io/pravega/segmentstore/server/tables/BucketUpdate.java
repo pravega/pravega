@@ -34,15 +34,21 @@ class BucketUpdate {
     private final TableBucket bucket;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
     /**
      * Gets a collection of {@link KeyInfo} instances recorded in this Bucket Update.
      */
     private final Map<BufferView, KeyInfo> existingKeys;
     private final Map<BufferView, KeyUpdate> updatedKeys;
+<<<<<<< HEAD
 =======
     private final Map<HashedArray, KeyInfo> existingKeys;
     private final Map<HashedArray, KeyUpdate> updatedKeys;
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
 
     /**
      * The bucket offset, or -1 if no such offset (i.e., if everything in this bucket was deleted).
@@ -79,28 +85,40 @@ class BucketUpdate {
 
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
      * Gets a value indicating whether the Key represented by the given {@link BufferView} previously existed in the index.
 =======
      * Gets a value indicating whether the Key represented by the given {@link HashedArray} previously existed in the index.
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+     * Gets a value indicating whether the Key represented by the given {@link BufferView} previously existed in the index.
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
      *
      * @param key The Key to check
      * @return True if existed before, false otherwise.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     boolean keyExists(BufferView key) {
 =======
     boolean keyExists(HashedArray key) {
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+    boolean keyExists(BufferView key) {
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
         return this.existingKeys.containsKey(key);
     }
 
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
      * Gets a value indicating whether the Key represented by the given {@link BufferView} is recorded as being updated.
 =======
      * Gets a value indicating whether the Key represented by the given {@link HashedArray} is recorded as being updated.
 >>>>>>> Issue 4656: (KeyValue Tables) Sorted Table Segments (#4763)
+=======
+     * Gets a value indicating whether the Key represented by the given {@link BufferView} is recorded as being updated.
+>>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
      *
      * @param key The Key to check.
      * @return True if updated, false otherwise.
