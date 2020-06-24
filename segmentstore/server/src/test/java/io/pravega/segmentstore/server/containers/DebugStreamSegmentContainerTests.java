@@ -10,10 +10,10 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.DataRecoveryTestUtils;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -34,14 +34,17 @@ import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import io.pravega.shared.segment.SegmentToContainerMapper;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.val;
@@ -50,11 +53,16 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -68,10 +76,11 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int MIN_SEGMENT_LENGTH = 0;
     private static final int MAX_SEGMENT_LENGTH = 10100;
     private static final int CONTAINER_ID = 1234567;
-    private static final int EXPECTED_PINNED_SEGMENT_COUNT = 1;
+    private static final int EXPECTED_PINNED_SEGMENT_COUNT = 4;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final int TEST_TIMEOUT_MILLIS = 100 * 1000;
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
+    private static final Random RANDOM = new Random(1234);
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
@@ -143,10 +152,9 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         long[] segmentLengths = new long[createdSegmentCount];
         boolean[] segmentSealedStatus = new boolean[createdSegmentCount];
-        Random randomValue = RandomFactory.create();
         for (int i = 0; i < createdSegmentCount; i++) {
-            segmentLengths[i] = MIN_SEGMENT_LENGTH + randomValue.nextInt(MAX_SEGMENT_LENGTH - MIN_SEGMENT_LENGTH);
-            segmentSealedStatus[i] = randomValue.nextBoolean();
+            segmentLengths[i] = MIN_SEGMENT_LENGTH + RANDOM.nextInt(MAX_SEGMENT_LENGTH - MIN_SEGMENT_LENGTH);
+            segmentSealedStatus[i] = RANDOM.nextBoolean();
             String name = "Segment_" + i;
             segments.add(name);
             futures.add(localContainer.createStreamSegment(name, segmentLengths[i], segmentSealedStatus[i]));
@@ -161,9 +169,84 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         localContainer.stopAsync().awaitTerminated();
     }
 
-    //endregion
+    @Test
+    public void testEndToEnd() throws Exception {
+        int containerCount = 4;
+        @Cleanup
+        val baseStorage = new InMemoryStorage();
+        @Cleanup
+        val s = new RollingStorage(baseStorage, new SegmentRollingPolicy(1));
+        Set<String> sealedSegments = new HashSet<>();
+        s.initialize(1);
+        int segmentsToCreateCount = 50;
+        byte[] data = "data".getBytes();
+        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
 
-    //region MetadataCleanupContainer
+        int segmentsCountByContainer[] = new int[containerCount];
+        List<List<String>> segmentByContainers = new ArrayList<>();
+        for (int containerId = 0; containerId<containerCount; containerId++) {
+            List<String> segmentList = new ArrayList<>();
+            segmentByContainers.add(segmentList);
+        }
+
+        for (int i = 0; i < segmentsToCreateCount; i++) {
+            String segmentName = "segment-" + RANDOM.nextInt();
+            segmentsCountByContainer[segToConMapper.getContainerId(segmentName)]++;
+            segmentByContainers.get(segToConMapper.getContainerId(segmentName)).add(segmentName);
+            val wh1 = s.create(segmentName); // Use segmentName to map to different containers
+            // Write data.
+            s.write(wh1, 0, new ByteArrayInputStream(data), data.length);
+            if (RANDOM.nextInt(2) == 1) {
+                s.seal(wh1);
+                sealedSegments.add(segmentName);
+            }
+        }
+
+        int segmentsRecoveredCount = 0;
+
+        List<List<SegmentProperties>> segments = DataRecoveryTestUtils.listAllSegments(new AsyncStorageWrapper(s,
+                DataRecoveryTestUtils.createExecutorService(10)), containerCount); // HashMap for containers to segments list
+        for (int i=0; i<segments.size(); i++) {
+            segmentsRecoveredCount += segments.get(i).size();
+            Assert.assertTrue("Number of recovered segments is less than number of created segments with this container",
+                    segments.get(i).size() >= segmentsCountByContainer[i]);
+        }
+        Assert.assertTrue("Number of recovered segments is less than number of created segments",
+                segmentsRecoveredCount>=segmentsToCreateCount);
+        final ContainerConfig containerConfig = ContainerConfig
+                .builder()
+                .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
+                .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, segmentsToCreateCount + EXPECTED_PINNED_SEGMENT_COUNT)
+                .build();
+
+        // We need a special DL config so that we can force truncations after every operation - this will speed up metadata
+        // eviction eligibility.
+        final DurableLogConfig durableLogConfig = DurableLogConfig
+                .builder()
+                .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
+                .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
+                .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
+                .build();
+
+        @Cleanup
+        TestContext context = createContext();
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(durableLogConfig, context.dataLogFactory, DataRecoveryTestUtils.createExecutorService(10));
+
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            @Cleanup
+            MetadataCleanupContainer localContainer = new MetadataCleanupContainer(containerId, containerConfig, localDurableLogFactory,
+                    context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                    context.getDefaultExtensions(), DataRecoveryTestUtils.createExecutorService(10));
+            localContainer.startAsync().awaitRunning();
+            DataRecoveryTestUtils.createAllSegments(localContainer, containerId, segments.get(containerId));
+
+            for (String segmentName : segmentByContainers.get(containerId)) {
+                SegmentProperties props = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+                Assert.assertEquals("Segment length mismatch ", data.length, props.getLength());
+            }
+            localContainer.stopAsync().awaitTerminated();
+        }
+    }
 
     private static class MetadataCleanupContainer extends DebugStreamSegmentContainer {
         private final ScheduledExecutorService executor;

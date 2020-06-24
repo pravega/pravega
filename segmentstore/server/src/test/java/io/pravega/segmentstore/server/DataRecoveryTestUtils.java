@@ -1,57 +1,73 @@
-package io.pravega.segmentstore.server.containers.dataRecovery;
+package io.pravega.segmentstore.server;
 
 import com.google.common.base.Charsets;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
+import io.pravega.segmentstore.storage.Storage;
+import io.pravega.shared.segment.SegmentToContainerMapper;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Scanner;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 
 @Slf4j
-public class CreateSegments implements Runnable {
-    private final int containerId;
-    private final DebugStreamSegmentContainer container;
+public class DataRecoveryTestUtils {
     private static final Duration timeout = Duration.ofSeconds(10);
-    ScheduledExecutorService executorService = ListAllSegments.createExecutorService(100);
+    private static final ScheduledExecutorService executorService = createExecutorService(100);
 
-    public CreateSegments(DebugStreamSegmentContainer container, int containerId){
-        this.container = container;
-        this.containerId = containerId;
+    public static List<List<SegmentProperties>> listAllSegments(Storage tier2, int containerCount) throws IOException {
+        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
+        List<List<SegmentProperties>> segmentToContainers = new ArrayList<>();
+        for (int containerId = 0; containerId<containerCount; containerId++) {
+            segmentToContainers.add(new ArrayList<>());
+        }
+        log.info("Generating container files with the segments they own...");
+
+        Iterator<SegmentProperties> it = tier2.listSegments();
+        while(it.hasNext()) {
+            SegmentProperties curr = it.next();
+            int containerId = segToConMapper.getContainerId(curr.getName());
+            segmentToContainers.get(containerId).add(curr);
+        }
+        return segmentToContainers;
     }
 
-    @Override
-    public void run() {
+    public static ScheduledExecutorService createExecutorService(int threadPoolSize) {
+        ScheduledThreadPoolExecutor es = new ScheduledThreadPoolExecutor(threadPoolSize);
+        es.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+        es.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        es.setRemoveOnCancelPolicy(true);
+        return es;
+    }
+
+    public static void createAllSegments(DebugStreamSegmentContainer container, int containerId, List<SegmentProperties> segments) {
         System.out.format("Recovery started for container# %s\n", containerId);
-        Scanner s = null;
-        try {
-            s = new Scanner(new File(String.valueOf(containerId)));
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-            return;
-        }
+
         ContainerTableExtension ext = container.getExtension(ContainerTableExtension.class);
         AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(containerId), null, Duration.ofSeconds(10)).join();
         Set<TableKey> segmentsInMD = new HashSet<>();
         it.forEachRemaining(k -> segmentsInMD.addAll(k.getEntries()), executorService).join();
-        while (s.hasNextLine()) {
-            String[] fields = s.nextLine().split("\t");
-            int len = Integer.parseInt(fields[0]);
-            boolean isSealed = Boolean.parseBoolean(fields[1]);
-            String segmentName = fields[2];
+        for (SegmentProperties segment : segments) {
+            long len = segment.getLength();
+            boolean isSealed = segment.isSealed();
+            String segmentName = segment.getName();
             segmentsInMD.remove(TableKey.unversioned(getTableKey(segmentName)));
                 /*
                     1. segment exists in both metadata and storage, update SegmentMetadata
@@ -59,7 +75,7 @@ public class CreateSegments implements Runnable {
                     3. segment only in storage, re-create it
                  */
 
-            container.getStreamSegmentInfo(segmentName, timeout)
+            container.getStreamSegmentInfo(segment.getName(), timeout)
                     .thenAccept(e -> {
                         container.createStreamSegment(segmentName, len, isSealed)
                                 .exceptionally(ex1 -> {
