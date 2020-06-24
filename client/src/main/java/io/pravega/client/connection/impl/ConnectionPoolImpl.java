@@ -76,6 +76,12 @@ public class ConnectionPoolImpl implements ConnectionPool {
             int v2 = Futures.isSuccessful(o.getFlowHandler()) ? o.getFlowCount() : Integer.MAX_VALUE;
             return Integer.compare(v1, v2);
         }
+        
+        public void close() {
+            if (Futures.isSuccessful(flowHandler)) {
+                flowHandler.join().close();
+            }
+        }
     }
     
     private final ClientConfig clientConfig;
@@ -198,6 +204,12 @@ public class ConnectionPoolImpl implements ConnectionPool {
         if (closed.compareAndSet(false, true)) {
             metricNotifier.close();
             connectionFactory.close();
+            for (List<Connection> connections : connectionMap.values()) {
+                for (Connection connection : connections) {
+                    connection.close();
+                }
+            }
+            connectionMap.clear();
         }
     }
 
