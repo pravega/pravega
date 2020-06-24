@@ -41,7 +41,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
-import org.apache.hadoop.hdfs.protocol.AclException;
+import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.util.Progressable;
 import org.junit.After;
 import org.junit.Assert;
@@ -437,7 +437,7 @@ public class HDFSStorageTest extends StorageTestBase {
         @Override
         public FSDataOutputStream append(Path f, int bufferSize, Progressable progress) throws IOException {
             if (getFileStatus(f).getPermission().getUserAction() == FsAction.READ) {
-                throw new AclException(f.getName());
+                throw new AccessControlException(f.getName());
             }
 
             return super.append(f, bufferSize, progress);
@@ -446,7 +446,7 @@ public class HDFSStorageTest extends StorageTestBase {
         @Override
         public void concat(Path targetPath, Path[] sourcePaths) throws IOException {
             if (getFileStatus(targetPath).getPermission().getUserAction() == FsAction.READ) {
-                throw new AclException(targetPath.getName());
+                throw new AccessControlException(targetPath.getName());
             }
 
             super.concat(targetPath, sourcePaths);
