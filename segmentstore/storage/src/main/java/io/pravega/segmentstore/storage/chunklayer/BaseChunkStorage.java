@@ -56,7 +56,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <li>SystemJournalTests</li>
  * </ul>
  * </div>
-
  */
 @Slf4j
 public abstract class BaseChunkStorage implements ChunkStorage {

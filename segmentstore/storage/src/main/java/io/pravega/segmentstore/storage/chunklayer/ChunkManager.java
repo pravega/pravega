@@ -206,9 +206,7 @@ public class ChunkManager implements Storage {
                     claimOwnership(txn, segmentMetadata);
                 }
                 // If created by newer instance then abort.
-                if (segmentMetadata.getOwnerEpoch() > this.epoch) {
-                    throw new StorageNotPrimaryException(streamSegmentName);
-                }
+                checkOwnership(streamSegmentName, segmentMetadata);
 
                 // This instance is the owner, return a handle.
                 val retValue = SegmentStorageHandle.writeHandle(streamSegmentName);
@@ -335,15 +333,13 @@ public class ChunkManager implements Storage {
 
                 // Validate preconditions.
                 checkSegmentExists(streamSegmentName, segmentMetadata);
-
                 segmentMetadata.checkInvariants();
+                checkNotSealed(streamSegmentName, segmentMetadata);
+                checkOwnership(streamSegmentName, segmentMetadata);
 
-                if (segmentMetadata.isSealed()) {
-                    throw new StreamSegmentSealedException(streamSegmentName);
-                }
-
-                if (segmentMetadata.getOwnerEpoch() > this.epoch) {
-                    throw new StorageNotPrimaryException(streamSegmentName);
+                // Validate that offset is correct.
+                if ((segmentMetadata.getLength()) != offset) {
+                    throw new BadOffsetException(streamSegmentName, segmentMetadata.getLength(), offset);
                 }
 
                 boolean isSystemSegment = isStorageSystemSegment(segmentMetadata);
@@ -351,25 +347,17 @@ public class ChunkManager implements Storage {
                 // Check if this is a first write after ownership changed.
                 boolean isFirstWriteAfterFailover = segmentMetadata.isOwnershipChanged();
 
-                // Write data  to the last segment.
+                ChunkMetadata lastChunkMetadata = null;
+                ChunkHandle chunkHandle = null;
                 int bytesRemaining = length;
                 long currentOffset = offset;
 
-                ChunkMetadata lastChunkMetadata = null;
-                ChunkHandle chunkHandle = null;
-                ChunkMetadata chunkWrittenMetadata = null;
+                // Get the last chunk segmentMetadata for the segment.
+                if (null != segmentMetadata.getLastChunk()) {
+                    lastChunkMetadata = (ChunkMetadata) txn.get(segmentMetadata.getLastChunk());
+                }
 
                 while (bytesRemaining > 0) {
-                    // Validate that offset is correct.
-                    if ((segmentMetadata.getLength()) != currentOffset) {
-                        throw new BadOffsetException(streamSegmentName, segmentMetadata.getLength(), currentOffset);
-                    }
-
-                    // Get the last chunk segmentMetadata for the segment.
-                    if (null != segmentMetadata.getLastChunk()) {
-                        lastChunkMetadata = (ChunkMetadata) txn.get(segmentMetadata.getLastChunk());
-                    }
-
                     // Check if new chunk needs to be added.
                     // This could be either because there are no existing chunks or last chunk has reached max rolling length.
                     if (null == lastChunkMetadata
@@ -380,88 +368,57 @@ public class ChunkManager implements Storage {
                         // Create new chunk
                         String newChunkName = getNewChunkName(streamSegmentName,
                                 segmentMetadata.getLength());
-
-                        chunkWrittenMetadata = ChunkMetadata.builder()
-                                .name(newChunkName)
-                                .build();
                         chunkHandle = chunkStorage.create(newChunkName);
 
+                        String previousLastChunkName = lastChunkMetadata == null ? null : lastChunkMetadata.getName();
+
+                        // update first and last chunks.
+                        lastChunkMetadata = updateMetadataForChunkAddition(txn,
+                                segmentMetadata,
+                                newChunkName,
+                                isFirstWriteAfterFailover,
+                                lastChunkMetadata);
+
                         // Record the creation of new chunk.
-                        chunksAddedCount++;
                         if (isSystemSegment) {
                             addSystemLogRecord(systemLogRecords,
                                     streamSegmentName,
                                     segmentMetadata.getLength(),
-                                    lastChunkMetadata == null ? null : lastChunkMetadata.getName(),
+                                    previousLastChunkName,
                                     newChunkName);
-                            txn.markPinned(chunkWrittenMetadata);
+                            txn.markPinned(lastChunkMetadata);
                         }
                         // Update read index.
                         newReadIndexEntries.add(new ChunkNameOffsetPair(segmentMetadata.getLength(), newChunkName));
 
-                        // update first and last chunks.
-                        segmentMetadata.setLastChunk(newChunkName);
-                        if (lastChunkMetadata == null) {
-                            segmentMetadata.setFirstChunk(newChunkName);
-                        } else {
-                            lastChunkMetadata.setNextChunk(newChunkName);
-                        }
-                        segmentMetadata.incrementChunkCount();
-
-                        // Update the transaction.
-                        txn.update(chunkWrittenMetadata);
-                        if (lastChunkMetadata != null) {
-                            txn.update(lastChunkMetadata);
-                        }
-                        txn.update(segmentMetadata);
-                        segmentMetadata.setLastChunkStartOffset(segmentMetadata.getLength());
-
-                        // Reset ownershipChanged flag after first write is done.
-                        if (isFirstWriteAfterFailover) {
-                            segmentMetadata.setOwnerEpoch(this.epoch);
-                            isFirstWriteAfterFailover = false;
-                            segmentMetadata.setOwnershipChanged(false);
-                            log.debug("{} write - First write after failover - segment={}.", logPrefix, streamSegmentName);
-                        }
+                        isFirstWriteAfterFailover = false;
                         didSegmentLayoutChange = true;
-                        log.debug("{} write - New chunk added - segment={}, chunk={}, offset={}.", logPrefix, streamSegmentName, newChunkName, segmentMetadata.getLength());
+                        chunksAddedCount++;
+
+                        log.debug("{} write - New chunk added - segment={}, chunk={}, offset={}.",
+                                logPrefix, streamSegmentName, newChunkName, segmentMetadata.getLength());
                     } else {
                         // No new chunk needed just write data to existing chunk.
-                        chunkWrittenMetadata = lastChunkMetadata;
                         chunkHandle = chunkStorage.openWrite(lastChunkMetadata.getName());
                     }
 
                     // Calculate the data that needs to be written.
                     long offsetToWriteAt = currentOffset - segmentMetadata.getLastChunkStartOffset();
-                    int bytesToWrite = (int) Math.min(bytesRemaining, segmentMetadata.getMaxRollinglength() - offsetToWriteAt);
-                    Preconditions.checkState(0 != bytesToWrite, "Attempt to write zero bytes");
+                    int writeSize = (int) Math.min(bytesRemaining, segmentMetadata.getMaxRollinglength() - offsetToWriteAt);
 
-                    try {
-                        int bytesWritten;
-                        // Finally write the data.
-                        try (BoundedInputStream bis = new BoundedInputStream(data, bytesToWrite)) {
-                            bytesWritten = chunkStorage.write(chunkHandle, offsetToWriteAt, bytesToWrite, bis);
-                        }
+                    // Write data to last chunk.
+                    int bytesWritten = writeToChunk(txn,
+                            segmentMetadata,
+                            offset,
+                            data,
+                            chunkHandle,
+                            lastChunkMetadata,
+                            offsetToWriteAt,
+                            writeSize);
 
-                        // Update the counts
-                        bytesRemaining -= bytesWritten;
-                        currentOffset += bytesWritten;
-
-                        // Update the metadata for segment and chunk.
-                        Preconditions.checkState(bytesWritten >= 0);
-                        segmentMetadata.setLength(segmentMetadata.getLength() + bytesWritten);
-                        chunkWrittenMetadata.setLength(chunkWrittenMetadata.getLength() + bytesWritten);
-                        txn.update(chunkWrittenMetadata);
-                        txn.update(segmentMetadata);
-                    } catch (IndexOutOfBoundsException e) {
-                        try {
-                            throw new BadOffsetException(streamSegmentName, chunkStorage.getInfo(chunkHandle.getChunkName()).getLength(), offset);
-                        } catch (ChunkStorageException cse) {
-                            log.error("{} write - Error while retrieving ChunkInfo for {}.", logPrefix, chunkHandle.getChunkName());
-                            // The exact expected offset for the  operation does not matter, the StorageWriter will enter reconciliation loop anyway.
-                            throw new BadOffsetException(streamSegmentName, offset, offset);
-                        }
-                    }
+                    // Update the counts
+                    bytesRemaining -= bytesWritten;
+                    currentOffset += bytesWritten;
                 }
 
                 // Check invariants.
@@ -498,6 +455,78 @@ public class ChunkManager implements Storage {
                 }
             }
         });
+    }
+
+    /**
+     * Updates the segment metadata for the newly added chunk.
+     */
+    private ChunkMetadata updateMetadataForChunkAddition(MetadataTransaction txn,
+                                                         SegmentMetadata segmentMetadata,
+                                                         String newChunkName,
+                                                         boolean isFirstWriteAfterFailover,
+                                                         ChunkMetadata lastChunkMetadata) throws StorageMetadataException {
+        ChunkMetadata newChunkMetadata = ChunkMetadata.builder()
+                .name(newChunkName)
+                .build();
+        segmentMetadata.setLastChunk(newChunkName);
+        if (lastChunkMetadata == null) {
+            segmentMetadata.setFirstChunk(newChunkName);
+        } else {
+            lastChunkMetadata.setNextChunk(newChunkName);
+            txn.update(lastChunkMetadata);
+        }
+        segmentMetadata.setLastChunkStartOffset(segmentMetadata.getLength());
+
+        // Reset ownershipChanged flag after first write is done.
+        if (isFirstWriteAfterFailover) {
+            segmentMetadata.setOwnerEpoch(this.epoch);
+            segmentMetadata.setOwnershipChanged(false);
+            log.debug("{} write - First write after failover - segment={}.", logPrefix, segmentMetadata.getName());
+        }
+        segmentMetadata.incrementChunkCount();
+
+        // Update the transaction.
+        txn.update(newChunkMetadata);
+        txn.update(segmentMetadata);
+        return newChunkMetadata;
+    }
+
+    /**
+     * Write to chunk.
+     */
+    private int writeToChunk(MetadataTransaction txn,
+                             SegmentMetadata segmentMetadata,
+                             long offset,
+                             InputStream data,
+                             ChunkHandle chunkHandle,
+                             ChunkMetadata chunkWrittenMetadata,
+                             long offsetToWriteAt,
+                             int bytesCount) throws IOException, StorageMetadataException, BadOffsetException {
+        int bytesWritten;
+        Preconditions.checkState(0 != bytesCount, "Attempt to write zero bytes");
+        try {
+
+            // Finally write the data.
+            try (BoundedInputStream bis = new BoundedInputStream(data, bytesCount)) {
+                bytesWritten = chunkStorage.write(chunkHandle, offsetToWriteAt, bytesCount, bis);
+            }
+
+            // Update the metadata for segment and chunk.
+            Preconditions.checkState(bytesWritten >= 0);
+            segmentMetadata.setLength(segmentMetadata.getLength() + bytesWritten);
+            chunkWrittenMetadata.setLength(chunkWrittenMetadata.getLength() + bytesWritten);
+            txn.update(chunkWrittenMetadata);
+            txn.update(segmentMetadata);
+        } catch (IndexOutOfBoundsException e) {
+            try {
+                throw new BadOffsetException(segmentMetadata.getName(), chunkStorage.getInfo(chunkHandle.getChunkName()).getLength(), offset);
+            } catch (ChunkStorageException cse) {
+                log.error("{} write - Error while retrieving ChunkInfo for {}.", logPrefix, chunkHandle.getChunkName());
+                // The exact expected offset for the  operation does not matter, the StorageWriter will enter reconciliation loop anyway.
+                throw new BadOffsetException(segmentMetadata.getName(), offset, offset);
+            }
+        }
+        return bytesWritten;
     }
 
     /**
@@ -565,10 +594,7 @@ public class ChunkManager implements Storage {
                 SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(streamSegmentName);
                 // Validate preconditions.
                 checkSegmentExists(streamSegmentName, segmentMetadata);
-
-                if (segmentMetadata.getOwnerEpoch() > this.epoch) {
-                    throw new StorageNotPrimaryException(streamSegmentName);
-                }
+                checkOwnership(streamSegmentName, segmentMetadata);
 
                 // seal if it is not already sealed.
                 if (!segmentMetadata.isSealed()) {
@@ -601,32 +627,23 @@ public class ChunkManager implements Storage {
 
             try (MetadataTransaction txn = metadataStore.beginTransaction()) {
 
-                // Validate preconditions.
                 SegmentMetadata targetSegmentMetadata = (SegmentMetadata) txn.get(targetSegmentName);
+
+                // Validate preconditions.
                 checkSegmentExists(targetSegmentName, targetSegmentMetadata);
-
                 targetSegmentMetadata.checkInvariants();
-
-                if (targetSegmentMetadata.isSealed()) {
-                    throw new StreamSegmentSealedException(targetSegmentName);
-                }
+                checkNotSealed(targetSegmentName, targetSegmentMetadata);
 
                 SegmentMetadata sourceSegmentMetadata = (SegmentMetadata) txn.get(sourceSegment);
                 checkSegmentExists(sourceSegment, sourceSegmentMetadata);
-
                 sourceSegmentMetadata.checkInvariants();
 
                 // This is a critical assumption at this point which should not be broken,
                 Preconditions.checkState(!targetSegmentMetadata.isStorageSystemSegment(), "Storage system segments cannot be concatenated.");
                 Preconditions.checkState(!sourceSegmentMetadata.isStorageSystemSegment(), "Storage system segments cannot be concatenated.");
 
-                if (!sourceSegmentMetadata.isSealed()) {
-                    throw new IllegalStateException("Source segment must be sealed.");
-                }
-
-                if (targetSegmentMetadata.getOwnerEpoch() > this.epoch) {
-                    throw new StorageNotPrimaryException(targetSegmentMetadata.getName());
-                }
+                checkSealed(sourceSegmentMetadata);
+                checkOwnership(targetSegmentMetadata.getName(), targetSegmentMetadata);
 
                 if (sourceSegmentMetadata.getStartOffset() != 0) {
                     throw new StreamSegmentTruncatedException(sourceSegment, sourceSegmentMetadata.getLength(), 0);
@@ -890,11 +907,9 @@ public class ChunkManager implements Storage {
             try (MetadataTransaction txn = metadataStore.beginTransaction()) {
                 SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(streamSegmentName);
 
+                // Check preconditions
                 checkSegmentExists(streamSegmentName, segmentMetadata);
-
-                if (segmentMetadata.getOwnerEpoch() > this.epoch) {
-                    throw new StorageNotPrimaryException(streamSegmentName);
-                }
+                checkOwnership(streamSegmentName, segmentMetadata);
 
                 segmentMetadata.setActive(false);
 
@@ -930,12 +945,6 @@ public class ChunkManager implements Storage {
         });
     }
 
-    private void checkSegmentExists(String streamSegmentName, SegmentMetadata segmentMetadata) throws StreamSegmentNotExistsException {
-        if (null == segmentMetadata || !segmentMetadata.isActive()) {
-            throw new StreamSegmentNotExistsException(streamSegmentName);
-        }
-    }
-
     @Override
     public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
         checkInitialized();
@@ -951,15 +960,10 @@ public class ChunkManager implements Storage {
             try (MetadataTransaction txn = metadataStore.beginTransaction()) {
                 SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(streamSegmentName);
 
+                // Check preconditions
                 checkSegmentExists(streamSegmentName, segmentMetadata);
-
-                if (segmentMetadata.isSealed()) {
-                    throw new StreamSegmentSealedException(streamSegmentName);
-                }
-
-                if (segmentMetadata.getOwnerEpoch() > this.epoch) {
-                    throw new StorageNotPrimaryException(streamSegmentName);
-                }
+                checkNotSealed(streamSegmentName, segmentMetadata);
+                checkOwnership(streamSegmentName, segmentMetadata);
 
                 if (segmentMetadata.getLength() < offset || segmentMetadata.getStartOffset() > offset) {
                     throw new IllegalArgumentException(String.format("offset %d is outside of valid range [%d, %d) for segment %s",
@@ -1270,6 +1274,30 @@ public class ChunkManager implements Storage {
 
     private String getNewChunkName(String segmentName, long offset) throws Exception {
         return NameUtils.getSegmentChunkName(segmentName, epoch, offset);
+    }
+
+    private void checkSegmentExists(String streamSegmentName, SegmentMetadata segmentMetadata) throws StreamSegmentNotExistsException {
+        if (null == segmentMetadata || !segmentMetadata.isActive()) {
+            throw new StreamSegmentNotExistsException(streamSegmentName);
+        }
+    }
+
+    private void checkOwnership(String streamSegmentName, SegmentMetadata segmentMetadata) throws StorageNotPrimaryException {
+        if (segmentMetadata.getOwnerEpoch() > this.epoch) {
+            throw new StorageNotPrimaryException(streamSegmentName);
+        }
+    }
+
+    private void checkNotSealed(String streamSegmentName, SegmentMetadata segmentMetadata) throws StreamSegmentSealedException {
+        if (segmentMetadata.isSealed()) {
+            throw new StreamSegmentSealedException(streamSegmentName);
+        }
+    }
+
+    private void checkSealed(SegmentMetadata sourceSegmentMetadata) {
+        if (!sourceSegmentMetadata.isSealed()) {
+            throw new IllegalStateException("Source segment must be sealed.");
+        }
     }
 
     private void checkInitialized() {
