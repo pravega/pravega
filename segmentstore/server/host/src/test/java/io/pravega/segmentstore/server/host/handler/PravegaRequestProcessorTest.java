@@ -738,7 +738,7 @@ public class PravegaRequestProcessorTest {
         long segmentLength = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
         // Test when providing a matching tableSegmentOffset.
         TableEntry e2 = TableEntry.unversioned(keys.get(1), generateValue(rnd));
-        key = new WireCommands.TableKey(wrappedBuffer(e2.getKey().getKey().array()), e2.getKey().getVersion());
+        key = new WireCommands.TableKey(toByteBuf(e2.getKey().getKey()), e2.getKey().getVersion());
         processor.removeTableKeys(new WireCommands.RemoveTableKeys(5, tableSegmentName, "", singletonList(key), segmentLength));
         order.verify(connection).send(new WireCommands.TableKeysRemoved(5, tableSegmentName));
         verify(recorderMock).removeKeys(eq(tableSegmentName), eq(1), eq(true), any());
@@ -746,7 +746,7 @@ public class PravegaRequestProcessorTest {
         //// Test when providing a mismatching tableSegmentOffset.
         long badOffset = segmentLength - 1;
         TableEntry e3 = TableEntry.unversioned(keys.get(2), generateValue(rnd));
-        key = new WireCommands.TableKey(wrappedBuffer(e3.getKey().getKey().array()), e3.getKey().getVersion());
+        key = new WireCommands.TableKey(toByteBuf(e3.getKey().getKey()), e3.getKey().getVersion());
         processor.removeTableKeys(new WireCommands.RemoveTableKeys(6, tableSegmentName, "", singletonList(key), badOffset));
         segmentLength = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
         // BadOffsetException should be thrown, prompting a SegmentIsTruncated response.

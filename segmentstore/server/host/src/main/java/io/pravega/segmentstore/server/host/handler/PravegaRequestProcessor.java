@@ -690,7 +690,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment));
                     this.tableStatsRecorder.removeKeys(removeTableKeys.getSegment(), keys.size(), conditional.get(), timer.getElapsed());
                 })
-                .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e))
+                .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, removeTableKeys.getTableSegmentOffset(), operation, e))
                 .whenComplete((r, ex) -> removeTableKeys.release());
     }
 

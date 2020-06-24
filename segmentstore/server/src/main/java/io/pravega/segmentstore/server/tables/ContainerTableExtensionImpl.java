@@ -210,7 +210,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenComposeAsync(segment -> this.keyIndex.update(segment, updateBatch,
-                        () -> commit(entries, this.serializer::serializeUpdate, segment, timer.getRemaining()), timer),
+                        () -> commit(entries, this.serializer::serializeUpdate, segment, tableSegmentOffset, timer.getRemaining()), timer),
                         this.executor);
     }
 
@@ -226,7 +226,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenComposeAsync(segment -> this.keyIndex.update(segment, removeBatch,
-                        () -> commit(keys, this.serializer::serializeRemoval, segment, timer.getRemaining()), timer),
+                        () -> commit(keys, this.serializer::serializeRemoval, segment, tableSegmentOffset, timer.getRemaining()), timer),
                         this.executor)
                 .thenRun(Runnables.doNothing());
     }
@@ -332,18 +332,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     private <T> CompletableFuture<Long> commit(Collection<T> toCommit, Function<Collection<T>, BufferView> serializer,
-                                               DirectSegmentAccess segment, Duration timeout) {
-        BufferView s = serializer.apply(toCommit);
-        return segment.append(s, null, timeout);
-    }
-
-    private <T> CompletableFuture<Long> commit(Collection<T> toCommit, int serializationLength, BiConsumer<Collection<T>, byte[]> serializer,
                                                DirectSegmentAccess segment, long tableSegmentOffset, Duration timeout) {
-        assert serializationLength <= MAX_BATCH_SIZE;
         if (tableSegmentOffset == NULL_TABLE_SEGMENT_OFFSET || tableSegmentOffset == segment.getInfo().getLength()) {
-            byte[] s = new byte[serializationLength];
-            serializer.accept(toCommit, s);
-            return segment.append(new ByteArraySegment(s), null, tableSegmentOffset, timeout);
+            BufferView s = serializer.apply(toCommit);
+            return segment.append(s, null, timeout);
         } else {
             CompletableFuture<Long> future = new CompletableFuture<>();
             future.completeExceptionally(new BadOffsetException(segment.getInfo().getName(), segment.getInfo().getLength(), tableSegmentOffset));
