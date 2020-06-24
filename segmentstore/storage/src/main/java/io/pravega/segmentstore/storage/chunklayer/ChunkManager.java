@@ -416,7 +416,7 @@ public class ChunkManager implements Storage {
                         txn.update(segmentMetadata);
                         segmentMetadata.setLastChunkStartOffset(segmentMetadata.getLength());
 
-                        //
+                        // Reset ownershipChanged flag after first write is done.
                         if (isFirstWriteAfterFailover) {
                             segmentMetadata.setOwnerEpoch(this.epoch);
                             isFirstWriteAfterFailover = false;
@@ -621,7 +621,7 @@ public class ChunkManager implements Storage {
                 Preconditions.checkState(!sourceSegmentMetadata.isStorageSystemSegment(), "Storage system segments cannot be concatenated.");
 
                 if (!sourceSegmentMetadata.isSealed()) {
-                    throw new IllegalStateException();
+                    throw new IllegalStateException("Source segment must be sealed.");
                 }
 
                 if (targetSegmentMetadata.getOwnerEpoch() > this.epoch) {
@@ -703,17 +703,21 @@ public class ChunkManager implements Storage {
      *
      * <Ul>
      * <li> In the absence of defragmentation, the number of chunks for individual segments keeps on increasing.
-     * When we have too many small chunks (say because many transactions with little data on some segments), the segment is fragmented -
-     * this may impact both the read throughputand the performance of the metadata store. This problem is further intensified
-     * when we have stores that do not support append semantics (e.g., stock S3) and each write becomes a separate chunk.
+     * When we have too many small chunks (say because many transactions with little data on some segments), the segment
+     * is fragmented - this may impact both the read throughputand the performance of the metadata store.
+     * This problem is further intensified when we have stores that do not support append semantics (e.g., stock S3) and
+     * each write becomes a separate chunk.
      * </li>
      * <li>
-     * If underlying storage provides some facility to stitch together smaller chunks into larger chunks then we do actually
-     * want to exploit that. Especially when this operation is supposed to be "metadata only operation" even for them.
-     * Obviously both ECS and S3 have MPU and is supposed to be metadata only operation for them.
-     * HDFS also natively supprts concat. NFS has no concept of concat.
-     * As chunks become larger, it no longer makes sense to concat them using append writes (read source completely and
-     * append -ie. write- it back at the end of target.)
+     * If the underlying storage provides some facility to stitch together smaller chunk into larger chunks, then we do
+     * actually want to exploit that, specially when the underlying implementation is only a metadata operation. We want
+     * to leverage multi-part uploads in object stores that support it (e.g., AWS S3, Dell EMC ECS) as they are typically
+     * only metadata operations, reducing the overall cost of the merging them together. HDFS also supports merges,
+     * whereas NFS has no concept of merging natively.
+     *
+     * As chunks become larger, append writes (read source completely and append-i.e., write- it back at the end of target)
+     * become inefficient. Consequently, a native option for merging is desirable. We use such native merge capability
+     * when available, and if not available, then we use appends.
      * </li>
      * <li>
      * Ideally we want the defrag to be run in the background periodically and not on the write/concat path.
