@@ -321,10 +321,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private ByteBuf toByteBuf(BufferView bufferView) {
-        if (bufferView.getLength() == 0) {
-            return EMPTY_BUFFER;
-        }
-
         val buffers = bufferView.getContents().stream().map(Unpooled::wrappedBuffer).toArray(ByteBuf[]::new);
         return Unpooled.wrappedUnmodifiableBuffer(buffers);
     }
