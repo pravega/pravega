@@ -156,7 +156,7 @@ public class InMemoryScope implements Scope {
         List<String> sortedKVTablesList = kvTablesMap.keySet().stream().collect(Collectors.toList());
         int start = 0, end = 0;
         if (!continuationToken.isEmpty()) {
-            start = Integer.valueOf(continuationToken).intValue();
+            start = Integer.parseInt(continuationToken);
         }
 
         if ((start + limit) >= sortedKVTablesList.size()) {
