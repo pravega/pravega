@@ -38,8 +38,8 @@ import static org.junit.Assert.*;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @RunWith(SystemTestRunner.class)
 public class KeyValueTest extends AbstractSystemTest {
-    private final static String SCOPE_NAME = "TestScope32";
-    private final static String SCOPE_NAME1 = "DiffScope2";
+    private final static String SCOPE_NAME = "TestScope";
+    private final static String SCOPE_NAME1 = "DiffScope";
     private final static String KVT_NAME = "TestKVT";
     private static final Serializer<Integer> KEY_SERIALIZER = new IntegerSerializer();
     private static final Serializer<String> VALUE_SERIALIZER = new UTF8StringSerializer();
