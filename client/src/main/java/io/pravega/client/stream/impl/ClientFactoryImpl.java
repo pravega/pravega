@@ -60,6 +60,8 @@ import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Supplier;
+
+import lombok.Getter;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
@@ -74,6 +76,7 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
     private final SegmentOutputStreamFactory outFactory;
     private final ConditionalOutputStreamFactory condFactory;
     private final SegmentMetadataClientFactory metaFactory;
+    @Getter
     private final ConnectionPool connectionPool;
     private final ScheduledExecutorService watermarkReaderThreads = newScheduledThreadPool(getThreadPoolSize(), "WatermarkReader");
 
@@ -108,11 +111,25 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
      */
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
+        this(scope, controller, connectionFactory, new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory));
+    }
+    
+    /**
+     * Creates a new instance of the ClientFactory class.
+     * Note: ConnectionFactory  and Controller is closed when {@link ClientFactoryImpl#close()} is invoked.
+     *
+     * @param scope             The scope string.
+     * @param controller        The reference to Controller.
+     * @param connectionFactory The reference to Connection Factory impl.
+     * @param pool				The connection pool
+     */
+    @VisibleForTesting
+    public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory, ConnectionPool pool) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         this.scope = scope;
         this.controller = controller;
-        this.connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory);
+        this.connectionPool = pool;
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
         this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);

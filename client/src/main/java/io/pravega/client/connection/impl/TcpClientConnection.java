@@ -60,6 +60,7 @@ public class TcpClientConnection implements ClientConnection {
     private final ConnectionReader reader;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final PravegaNodeUri location;
+    private final Runnable onClose;
 
     @VisibleForTesting
     static class ConnectionReader {
@@ -141,7 +142,7 @@ public class TcpClientConnection implements ClientConnection {
     }
 
     public static CompletableFuture<TcpClientConnection> connect(PravegaNodeUri location, ClientConfig clientConfig, ReplyProcessor callback,
-                                              ScheduledExecutorService executor) {
+                                              ScheduledExecutorService executor, Runnable onClose) {
         return CompletableFuture.supplyAsync(() -> {
             Socket socket = createClientSocket(location, clientConfig); 
             try {
@@ -151,9 +152,10 @@ public class TcpClientConnection implements ClientConnection {
                 reader.start();
                 CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, socket.getOutputStream(), 
                                                             executor);
-                return new TcpClientConnection(socket, encoder, reader, location);
+                return new TcpClientConnection(socket, encoder, reader, location, onClose);
             } catch (IOException e) {
                 try {
+                	onClose.run();
                     socket.close();
                 } catch (IOException e1) {
                     log.warn("Failed to close socket while failing.", e1);
@@ -244,6 +246,7 @@ public class TcpClientConnection implements ClientConnection {
         if (closed.compareAndSet(false, true)) {
             reader.stop();
             try {
+            	onClose.run();
                 socket.close();
             } catch (IOException e) {
                 log.warn("Error closing socket", e);

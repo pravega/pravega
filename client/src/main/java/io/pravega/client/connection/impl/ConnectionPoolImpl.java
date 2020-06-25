@@ -10,20 +10,8 @@
 
 package io.pravega.client.connection.impl;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import io.netty.channel.Channel;
-import io.netty.channel.group.ChannelGroup;
-import io.netty.channel.group.DefaultChannelGroup;
-import io.netty.util.concurrent.GlobalEventExecutor;
-import io.pravega.client.ClientConfig;
-import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.metrics.ClientMetricUpdater;
-import io.pravega.shared.metrics.MetricListener;
-import io.pravega.shared.metrics.MetricNotifier;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.ReplyProcessor;
+import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -35,14 +23,23 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+
 import javax.annotation.concurrent.GuardedBy;
-import lombok.AccessLevel;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+
+import io.pravega.client.ClientConfig;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.metrics.ClientMetricUpdater;
+import io.pravega.shared.metrics.MetricListener;
+import io.pravega.shared.metrics.MetricNotifier;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.ReplyProcessor;
 import lombok.Data;
-import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
-
-import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 
 @Slf4j
 public class ConnectionPoolImpl implements ConnectionPool {
@@ -87,9 +84,6 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private final ClientConfig clientConfig;
     private final MetricNotifier metricNotifier;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    @VisibleForTesting
-    @Getter(AccessLevel.PACKAGE)
-    private final ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
     @GuardedBy("$lock")
     private final Map<PravegaNodeUri, List<Connection>> connectionMap = new HashMap<>();
     private ConnectionFactory connectionFactory;
@@ -170,17 +164,14 @@ public class ConnectionPoolImpl implements ConnectionPool {
         }
     }
 
-    @Override
-    public int getActiveChannelCount() {
-        return getActiveChannels().size();
-    }
-
     @VisibleForTesting
-    public List<Channel> getActiveChannels() {
-        return this.channelGroup.stream().filter(Channel::isActive)
-                                .peek(ch -> log.debug("Channel with id {} localAddress {} and remoteAddress {} is active.", ch.id(),
-                                                      ch.localAddress(), ch.remoteAddress()))
-                                .collect(Collectors.toList());
+    @Synchronized
+    public List<Connection> getActiveChannels() {
+    	ArrayList<Connection> result = new ArrayList<Connection>();
+        for (List<Connection> connection : this.connectionMap.values()) {
+        	result.addAll(connection);
+        }
+        return result;
     }
 
     /**
@@ -191,11 +182,6 @@ public class ConnectionPoolImpl implements ConnectionPool {
      */
     private CompletableFuture<FlowHandler> establishConnection(PravegaNodeUri location) {
         return FlowHandler.openConnection(location, clientConfig, metricNotifier, connectionFactory);
-        //TODO: set handler as callback 
-
-        //  log.info("Connection established with endpoint {} on channel {}", connectionName, ch);
-        //  ch.writeAndFlush(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), ch.voidPromise()); 
-        // return FlowHandler
     }
 
     @Override
