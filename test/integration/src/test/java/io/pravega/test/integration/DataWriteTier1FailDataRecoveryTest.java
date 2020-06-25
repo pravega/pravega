@@ -460,6 +460,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         //DebugSegmentContainer debugSegmentContainer = debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
         debugStreamSegmentContainer.startAsync().awaitRunning();
         DataRecoveryTestUtils.createAllSegments(debugStreamSegmentContainer, CONTAINER_ID, segmentsToCreate.get(CONTAINER_ID));
+        sleep(20000);
         debugStreamSegmentContainer.stopAsync().awaitTerminated();
         this.dataLogFactory.close();
         sleep(5000);
@@ -519,9 +520,10 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         writer.flush();
     }
 
-    private void readAllEvents(String streamName, ClientFactoryImpl clientFactory, ReaderGroupManager readerGroupManager, String readerGroupName, String readerName, int time) {
+    private void readAllEvents(String streamName, ClientFactoryImpl clientFactory, ReaderGroupManager readerGroupManager,
+                               String readerGroupName, String readerName, int time) {
         log.info("Creating Reader group : {}", readerGroupName);
-        String timeth = time + "th";
+        String timeTh = time + "th";
         readerGroupManager.createReaderGroup(readerGroupName,
                 ReaderGroupConfig
                         .builder()
@@ -538,7 +540,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             try {
                 String eventRead2 = reader.readNextEvent(SECONDS.toMillis(500)).getEvent();
                 Assert.assertNotNull(eventRead2);
-                log.info("Reading event {} {}", eventRead2, timeth);
+                log.info("Reading event {} {}", eventRead2, timeTh);
                 q++;
             } catch (ReinitializationRequiredException e) {
                 log.warn("Test Exception while reading from the stream", e);

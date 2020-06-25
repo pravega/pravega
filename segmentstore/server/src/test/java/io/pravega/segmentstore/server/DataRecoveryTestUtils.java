@@ -1,6 +1,7 @@
 package io.pravega.segmentstore.server;
 
 import com.google.common.base.Charsets;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
@@ -21,7 +22,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
@@ -41,6 +41,9 @@ public class DataRecoveryTestUtils {
         log.info("Generating container files with the segments they own...");
 
         Iterator<SegmentProperties> it = tier2.listSegments();
+        if (it == null) {
+            return segmentToContainers;
+        }
         while(it.hasNext()) {
             SegmentProperties curr = it.next();
             int containerId = segToConMapper.getContainerId(curr.getName());
@@ -85,8 +88,7 @@ public class DataRecoveryTestUtils {
                     })
                     .exceptionally(e -> {
                         log.error("Got an exception on getStreamSegmentInfo", e);
-                        Throwable cause = e.getCause();
-                        if (cause instanceof StreamSegmentNotExistsException) {
+                        if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
                             container.createStreamSegment(segmentName, len, isSealed)
                                     .exceptionally(ex2 -> {
                                         log.error("Got an error while creating segment", ex2);

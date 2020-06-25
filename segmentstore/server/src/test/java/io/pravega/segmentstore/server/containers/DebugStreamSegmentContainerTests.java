@@ -248,25 +248,25 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    private static class MetadataCleanupContainer extends DebugStreamSegmentContainer {
+    public static class MetadataCleanupContainer extends DebugStreamSegmentContainer {
         private final ScheduledExecutorService executor;
 
-        MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
-                                 ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory,
-                                 WriterFactory writerFactory, StorageFactory storageFactory,
-                                 SegmentContainerFactory.CreateExtensions createExtensions, ScheduledExecutorService executor) {
+        public MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
+                                        ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory,
+                                        WriterFactory writerFactory, StorageFactory storageFactory,
+                                        SegmentContainerFactory.CreateExtensions createExtensions, ScheduledExecutorService executor) {
             super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory,
                     storageFactory, createExtensions, executor);
             this.executor = executor;
         }
     }
 
-    TestContext createContext() {
+    public TestContext createContext() {
         return new TestContext(DEFAULT_CONFIG, null);
     }
 
 
-    private class TestContext implements AutoCloseable {
+    public class TestContext implements AutoCloseable {
         final SegmentContainerFactory containerFactory;
         final SegmentContainer container;
         private final WatchableInMemoryStorageFactory storageFactory;

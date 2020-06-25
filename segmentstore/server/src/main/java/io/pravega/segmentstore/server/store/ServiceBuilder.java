@@ -241,6 +241,10 @@ public class ServiceBuilder implements AutoCloseable {
         getSingleton(this.containerManager, this.segmentContainerManagerCreator).initialize();
     }
 
+    public StorageFactory getStorageFactory() {
+        return this.storageFactory.get();
+    }
+
     /**
      * Creates or gets the instance of the SegmentContainerRegistry used throughout this ServiceBuilder.
      */

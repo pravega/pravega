@@ -21,6 +21,7 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
+import org.junit.Test;
 
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
@@ -30,7 +31,7 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     //region Test Configuration and Setup
 
     private MiniDFSCluster hdfsCluster = null;
-
+    private HDFSStorageFactory hdfsStorageFactory = null;
     /**
      * Starts BookKeeper and HDFS MiniCluster.
      */
@@ -72,11 +73,11 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     @Override
     protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId) {
         ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
+        this.hdfsStorageFactory = new HDFSStorageFactory(HDFSStorageConfig.builder().build(), executorService());
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withStorageFactory(setup -> new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor()))
+                .withStorageFactory(setup -> this.hdfsStorageFactory)
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), getBookkeeper().getZkClient(), setup.getCoreExecutor()));
     }
-
     //endregion
 }
