@@ -268,7 +268,7 @@ project('client') {
 }
 
 project('test:testcommon') {
-    configurations.compile {
+    configurations.testRuntimeClasspath {
         resolutionStrategy {
                 force "com.google.inject.extensions:guice-assistedinject:" + guiceVersion
                 force "com.google.inject.extensions:guice-servlet:" + guiceVersion

@@ -14,6 +14,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
@@ -360,6 +361,12 @@ public class HDFSStorageTest extends StorageTestBase {
                 s2.openWrite(segmentName).join();
             }
         }
+    }
+
+    @Test
+    public void testSegmentSealedException() {
+        StreamSegmentException e = HDFSExceptionHelpers.convertException("", new AccessControlException("test"));
+        Assert.assertTrue(e instanceof StreamSegmentSealedException);
     }
 
     // endregion
