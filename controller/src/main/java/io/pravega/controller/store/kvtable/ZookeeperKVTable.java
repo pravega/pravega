@@ -245,6 +245,11 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     }
 
     @Override
+    public CompletableFuture<Void> delete() {
+        return zkStoreHelper.deleteTree(kvtablePath);
+    }
+
+    @Override
     CompletableFuture<Void> createStateIfAbsent(KVTStateRecord state) {
         return Futures.toVoid(zkStoreHelper.createZNodeIfNotExist(statePath, state.toBytes()));
     }

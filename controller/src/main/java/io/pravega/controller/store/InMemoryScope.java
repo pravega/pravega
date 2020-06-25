@@ -168,4 +168,11 @@ public class InMemoryScope implements Scope {
 
         return CompletableFuture.completedFuture(new ImmutablePair<>(nextBatchOfTables, String.valueOf(end)));
     }
+
+    @Synchronized
+    public CompletableFuture<Void> removeKVTableFromScope(String kvtName) {
+        kvTablesMap.remove(kvtName);
+        return CompletableFuture.completedFuture(null);
+    }
+
 }

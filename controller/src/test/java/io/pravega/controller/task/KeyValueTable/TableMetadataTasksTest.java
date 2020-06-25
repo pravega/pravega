@@ -17,6 +17,7 @@ import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.mocks.EventHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
@@ -82,7 +83,9 @@ public abstract class TableMetadataTasksTest {
         kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
                  "host", GrpcAuthHelper.getDisabledAuthHelper(),
                 requestTracker, helper));
-        this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks, executor), this.kvtStore, executor);
+        this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
+                                                            new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
+                                                            this.kvtStore, executor);
     }
 
     public abstract void setupStores() throws Exception;

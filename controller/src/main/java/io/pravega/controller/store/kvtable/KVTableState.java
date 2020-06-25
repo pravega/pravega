@@ -20,6 +20,7 @@ import java.util.Set;
 public enum KVTableState {
     UNKNOWN,
     CREATING,
+    DELETING,
     ACTIVE;
 
     private enum StateTransitions {

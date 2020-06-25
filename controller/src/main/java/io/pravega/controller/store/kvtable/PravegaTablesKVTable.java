@@ -191,11 +191,14 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<Void> createKVTableMetadata() {
-        return getId().thenCompose(id -> {
-            String metadataTable = getMetadataTableName(id);
-            return CompletableFuture.allOf(storeHelper.createTable(metadataTable))
-                    .thenAccept(v -> log.debug("kvtable {}/{} metadata table {} created", getScopeName(), getName(), metadataTable));
-        });
+        return getId().thenCompose(id -> CompletableFuture.allOf(storeHelper.createTable(getMetadataTableName(id)))
+                .thenAccept(v -> log.debug("kvtable {}/{} metadata table {} created", getScopeName(),
+                                                                getName(), getMetadataTableName(id))));
+    }
+
+    @Override
+    public CompletableFuture<Void> delete() {
+        return getId().thenCompose(id -> storeHelper.deleteTable(getMetadataTableName(id), false));
     }
 
     @Override
@@ -256,4 +259,5 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
                     return storeHelper.getCachedData(metadataTable, key, KVTEpochRecord::fromBytes);
                 });
     }
+
 }

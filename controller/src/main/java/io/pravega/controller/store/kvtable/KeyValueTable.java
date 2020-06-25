@@ -120,4 +120,17 @@ public interface KeyValueTable {
      */
     CompletableFuture<KVTEpochRecord> getEpochRecord(int epoch);
 
+    /**
+     * Returns the currently active KeyValueTable epoch.
+     *
+     * @param ignoreCached if ignore cache is set to true then fetch the value from the store.
+     * @return currently active kvtable epoch.
+     */
+    CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached);
+
+    /**
+     * Deletes this KeyValueTable.
+     */
+    CompletableFuture<Void> delete();
+
 }

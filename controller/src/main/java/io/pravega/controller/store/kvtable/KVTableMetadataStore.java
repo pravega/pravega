@@ -188,4 +188,18 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * @return Scope object.
      */
     Scope newScope(final String scopeName);
+
+    /**
+     * Api to Delete the kvtable related metadata.
+     *
+     * @param scopeName       scope name
+     * @param kvtName         KeyValueTable name
+     * @param context         operation context
+     * @param executor        callers executor
+     * @return future
+     */
+    CompletableFuture<Void> deleteKeyValueTable(final String scopeName,
+                                         final String kvtName,
+                                         final KVTOperationContext context,
+                                         final Executor executor);
 }

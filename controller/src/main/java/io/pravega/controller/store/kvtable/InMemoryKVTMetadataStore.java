@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.kvtable;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.controller.store.InMemoryScope;
@@ -67,6 +68,23 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
             kvt = kvTable.orElse(new InMemoryKVTable(scope, name));
         }
         return kvt;
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteFromScope(final String scope,
+                                                   final String name,
+                                                   final KVTOperationContext context,
+                                                   final Executor executor) {
+        return Futures.completeOn(((InMemoryScope) getScope(scope)).removeKVTableFromScope(name),
+                executor);
+    }
+
+    @Override
+    CompletableFuture<Void> recordLastKVTableSegment(String scope, String kvtable, int lastActiveSegment, KVTOperationContext context, Executor executor) {
+        Integer oldLastActiveSegment = deletedKVTables.put(getScopedKVTName(scope, kvtable), lastActiveSegment);
+        Preconditions.checkArgument(oldLastActiveSegment == null || lastActiveSegment >= oldLastActiveSegment);
+        log.debug("Recording last segment {} for kvtable {}/{} on deletion.", lastActiveSegment, scope, kvtable);
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

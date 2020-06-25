@@ -23,21 +23,27 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTOperationContext;
 import io.pravega.controller.store.kvtable.KVTableState;
 import io.pravega.controller.store.stream.StoreException;
 
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
+import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 import lombok.Synchronized;
 import org.slf4j.LoggerFactory;
 
@@ -145,6 +151,60 @@ public class TableMetadataTasks implements AutoCloseable {
                         return CreateKeyValueTableStatus.Status.FAILURE;
                     } else {
                         return result;
+                    }
+                });
+    }
+
+
+    /**
+     * Delete a KeyValueTable.
+     *
+     * @param scope      scope.
+     * @param kvtName    KeyValueTable name.
+     * @param contextOpt optional context
+     * @return delete status.
+     */
+    public CompletableFuture<DeleteKVTableStatus.Status> deleteKeyValueTable(final String scope, final String kvtName,
+                                                                     final KVTOperationContext contextOpt) {
+        final KVTOperationContext context = contextOpt == null ? kvtMetadataStore.createContext(scope, kvtName) : contextOpt;
+        final long requestId = requestTracker.getRequestIdFor("deleteKeyValueTable", scope, kvtName);
+
+        return Futures.exceptionallyExpecting(
+                kvtMetadataStore.getState(scope, kvtName, false, context, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
+                .thenCompose(state -> {
+                            if (KVTableState.UNKNOWN.equals(state)) {
+                                return CompletableFuture.completedFuture(DeleteKVTableStatus.Status.TABLE_NOT_FOUND);
+                            }
+                            return kvtMetadataStore.getKVTable(scope, kvtName, context).getId()
+                                    .thenCompose(id -> {
+                                        DeleteTableEvent deleteEvent = new DeleteTableEvent(scope, kvtName, requestId, UUID.fromString(id));
+                                        return eventHelper.addIndexAndSubmitTask(deleteEvent,
+                                                () -> kvtMetadataStore.setState(scope, kvtName, KVTableState.DELETING, context, executor))
+                                                .thenCompose(x -> eventHelper.checkDone(() -> isDeleted(scope, kvtName, context))
+                                                .thenApply(y -> DeleteKVTableStatus.Status.SUCCESS));
+                                    });
+                        })
+                .exceptionally(ex -> {
+                    log.warn(requestId, "Exception thrown while deleting kvtable {}", ex.getMessage());
+                    Throwable cause = Exceptions.unwrap(ex);
+                    if (cause instanceof TimeoutException) {
+                        throw new CompletionException(cause);
+                    } else {
+                        log.warn(requestId, "Delete kvtable failed.", ex);
+                        return DeleteKVTableStatus.Status.FAILURE;
+                    }
+                });
+    }
+
+    private CompletableFuture<Boolean> isDeleted(String scope, String kvtName, KVTOperationContext context) {
+        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, context, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
+                .thenCompose(state -> {
+                    if (state.equals(KVTableState.UNKNOWN)) {
+                        return CompletableFuture.completedFuture(Boolean.TRUE);
+                    } else {
+                        return CompletableFuture.completedFuture(Boolean.FALSE);
                     }
                 });
     }

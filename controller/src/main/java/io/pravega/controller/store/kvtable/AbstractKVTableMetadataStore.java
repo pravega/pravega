@@ -13,6 +13,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.VersionedMetadata;
@@ -29,9 +30,12 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 @Slf4j
 public abstract class AbstractKVTableMetadataStore implements KVTableMetadataStore {
+    public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
+
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, KeyValueTable> cache;
     @Getter
@@ -181,6 +185,36 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
         return getScope(scopeName).listKeyValueTables(limit, continuationToken, executor);
     }
 
+    @Override
+    public CompletableFuture<Void> deleteKeyValueTable(final String scope,
+                                                final String name,
+                                                final KVTOperationContext context,
+                                                final Executor executor) {
+        KeyValueTable kvt = getKVTable(scope, name, context);
+        return Futures.exceptionallyExpecting(kvt.getActiveEpochRecord(true)
+                        .thenApply(epoch -> epoch.getSegments().stream().map(KVTSegmentRecord::getSegmentNumber)
+                                .reduce(Integer::max).get())
+                        .thenCompose(lastActiveSegment -> recordLastKVTableSegment(scope, name, lastActiveSegment, context, executor)),
+                DATA_NOT_FOUND_PREDICATE, null)
+                .thenCompose(v -> deleteFromScope(scope, name, context, executor))
+                .thenCompose(v -> Futures.completeOn(kvt.delete(), executor))
+                .thenAccept(v -> cache.invalidate(new ImmutablePair<>(scope, name)));
+    }
+
+    /**
+     * This method stores the last active segment for a stream upon its deletion. Persistently storing this value is
+     * necessary in the case of a stream re-creation for picking an appropriate starting segment number.
+     *
+     * @param scope scope
+     * @param kvtable kvtable
+     * @param lastActiveSegment segment with highest number for a kvtable
+     * @param context context
+     * @param executor executor
+     * @return CompletableFuture which indicates the task completion related to persistently store lastActiveSegment.
+     */
+    abstract CompletableFuture<Void> recordLastKVTableSegment(final String scope, final String kvtable, int lastActiveSegment,
+                                                             KVTOperationContext context, final Executor executor);
+
     /**
      * This method retrieves a safe base segment number from which a stream's segment ids may start. In the case of a
      * new stream, this method will return 0 as a starting segment number (default). In the case that a stream with the
@@ -200,4 +234,9 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                                                   final String kvtName,
                                                                   final byte[] id,
                                                                   final Executor executor);
+
+    public abstract CompletableFuture<Void> deleteFromScope(final String scope,
+                                                                   final String name,
+                                                                   final KVTOperationContext context,
+                                                                   final Executor executor);
 }

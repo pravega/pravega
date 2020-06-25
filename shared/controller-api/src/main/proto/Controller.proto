@@ -48,6 +48,7 @@ service ControllerService {
     rpc createKeyValueTable(KeyValueTableConfig) returns (CreateKeyValueTableStatus);
     rpc getCurrentSegmentsKeyValueTable(KeyValueTableInfo) returns (SegmentRanges);
     rpc listKeyValueTablesInScope(KVTablesInScopeRequest) returns (KVTablesInScopeResponse);
+    rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
 }
 
 message ServerRequest {
@@ -93,6 +94,15 @@ message KVTablesInScopeResponse {
         SCOPE_NOT_FOUND = 2;
     }
     Status status = 3;
+}
+
+message DeleteKVTableStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        TABLE_NOT_FOUND = 2;
+    }
+    Status status = 1;
 }
 
 message CreateStreamStatus {

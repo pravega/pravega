@@ -326,6 +326,11 @@ public class ZKScope implements Scope {
                 .thenCompose(x -> store.setData(path, id, new Version.IntVersion(0)))));
     }
 
+    public CompletableFuture<Void> removeKVTableFromScope(String name) {
+        return Futures.toVoid(getKVTableInScopeZNodePath(this.scopeName, name)
+                .thenApply(path -> store.deletePath(path, true)));
+    }
+
     public CompletableFuture<Pair<List<String>, String>>  listKeyValueTables(final int limit, final String continuationToken,
                                                       final Executor executor) {
         String scopePath = String.format(KVTABLES_IN_SCOPE_ROOT_PATH, scopeName);

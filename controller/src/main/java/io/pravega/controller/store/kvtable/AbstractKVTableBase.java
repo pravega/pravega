@@ -125,7 +125,8 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
                 .thenCompose(v -> getActiveEpochRecord(true).thenApply(epochRecord -> epochRecord.getSegments()));
     }
 
-    private CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached) {
+    @Override
+    public CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached) {
         return getCurrentEpochRecordData(ignoreCached).thenApply(VersionedMetadata::getObject);
     }
 
