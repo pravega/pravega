@@ -15,6 +15,7 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import java.io.IOException;
 import java.util.UUID;
 import lombok.Getter;
@@ -60,7 +61,7 @@ class IteratorState {
      * @return As new instance of the IteratorState class.
      * @throws IOException If unable to deserialize.
      */
-    static IteratorState deserialize(byte[] data) throws IOException {
+    static IteratorState deserialize(BufferView data) throws IOException {
         return SERIALIZER.deserialize(data);
     }
 
