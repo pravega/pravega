@@ -21,6 +21,7 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
+import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
@@ -426,6 +427,7 @@ public class ControllerService {
      */
     public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Timer timer = new Timer();
         try {
             NameUtils.validateScopeName(scope);
         } catch (IllegalArgumentException | NullPointerException e) {
@@ -433,7 +435,7 @@ public class ControllerService {
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
                     CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
         }
-        return streamStore.createScope(scope);
+        return streamStore.createScope(scope).thenApply(r -> reportCreateScopeMetrics(scope, r, timer.getElapsed()));
     }
 
     /**
@@ -444,7 +446,7 @@ public class ControllerService {
      */
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
-        return streamStore.deleteScope(scope);
+        return streamStore.deleteScope(scope).thenApply(r -> reportDeleteScopeMetrics(scope, r, timer.getElapsed()));;
     }
 
     /**
@@ -502,6 +504,15 @@ public class ControllerService {
         }
     }
 
+    private CompletableFuture<CreateScopeStatus> reportCreateScopeMetrics(String scope, CreateScopeStatus status, Duration latency) {
+        if (status.equals(CreateScopeStatus.SUCCESS)) {
+            StreamMetrics.getInstance().createScope(scope, latency);
+        } else if (status.equals(CreateScopeStatus.FAILURE)) {
+            StreamMetrics.getInstance().createScopeFailed(scope);
+        }
+        return CompletableFuture.completedFuture(status);
+    }
+
     private void reportUpdateStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().updateStream(scope, streamName, latency);
@@ -532,6 +543,15 @@ public class ControllerService {
         } else if (status.equals(DeleteStreamStatus.Status.FAILURE)) {
             StreamMetrics.getInstance().deleteStreamFailed(scope, streamName);
         }
+    }
+
+    private CompletableFuture<DeleteScopeStatus> reportDeleteScopeMetrics(String scope, DeleteScopeStatus status, Duration latency) {
+        if (status.equals(DeleteScopeStatus.SUCCESS)) {
+            StreamMetrics.getInstance().deleteScope(scope, latency);
+        } else if (status.equals(DeleteScopeStatus.FAILURE)) {
+            StreamMetrics.getInstance().deleteScopeFailed(scope);
+        }
+        return CompletableFuture.completedFuture(status);
     }
 
     public CompletableFuture<Controller.TimestampResponse> noteTimestampFromWriter(String scope, String stream, String writerId, long timestamp, Map<Long, Long> streamCut) {
