@@ -40,13 +40,6 @@ public interface ConnectionPool extends AutoCloseable {
      */
     CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri uri, ReplyProcessor rp);
 
-    /**
-     * Fetch the current active {@link io.netty.channel.Channel} count, which represents the number of active connections being
-     * managed by the connection pool.
-     * @return the number of active Channel.
-     */
-    int getActiveChannelCount();
-
     @Override
     void close();
 

@@ -26,6 +26,8 @@ import lombok.extern.slf4j.Slf4j;
 public class SocketConnectionFactoryImpl implements ConnectionFactory {
 
     private static final AtomicInteger POOLCOUNT = new AtomicInteger();
+    
+    private final AtomicInteger openSocketCount = new AtomicInteger();
 
     private final ClientConfig clientConfig;
     @Getter
@@ -51,9 +53,12 @@ public class SocketConnectionFactoryImpl implements ConnectionFactory {
 
 
     @Override
-    public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
-        return TcpClientConnection.connect(endpoint, clientConfig, rp, internalExecutor).thenApply(c -> c);
-    }
+	public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
+    	openSocketCount.incrementAndGet();
+		return TcpClientConnection
+				.connect(endpoint, clientConfig, rp, internalExecutor, openSocketCount::decrementAndGet)
+				.thenApply(c -> c);
+	}
 
 
     private int getThreadPoolSize(Integer threadCount) {
@@ -74,4 +79,9 @@ public class SocketConnectionFactoryImpl implements ConnectionFactory {
             ExecutorServiceHelpers.shutdown(internalExecutor);
         }
     }
+
+    @VisibleForTesting
+	public int getOpenSocketCount() {
+		return openSocketCount.get();
+	}
 }
