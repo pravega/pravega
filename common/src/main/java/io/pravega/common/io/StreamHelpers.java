@@ -37,7 +37,7 @@ public final class StreamHelpers {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(target, "target");
         Preconditions.checkElementIndex(startOffset, target.length, "startOffset");
-        Exceptions.checkArgument(maxLength >= 0, "maxLength", "maxLength must be a non-negative number.");
+        Exceptions.checkArgument(maxLength >= 0, "maxLength", "must be a non-negative number.");
 
         int totalBytesRead = 0;
         while (totalBytesRead < maxLength) {
