@@ -10,6 +10,7 @@
 package io.pravega.common.io;
 
 import io.pravega.test.common.AssertExtensions;
+import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -66,6 +67,46 @@ public class StreamHelpersTests {
                 "readAll accepted a length higher than the given input stream length.",
                 () -> StreamHelpers.readAll(new TestInputStream(buffer), buffer.length + 1),
                 ex -> ex instanceof EOFException);
+    }
+
+    /**
+     * Confirm StreamHelpers#readAll throws on null input stream
+     */
+    @Test
+    public void readAllThrowsOnNullInputStream() {
+        AssertExtensions.assertThrows("stream parameter cannot be null",
+                () -> StreamHelpers.readAll(null, null, 0, 0),
+                e -> e instanceof NullPointerException && e.getMessage().equals("stream"));
+    }
+
+    /**
+     * Confirm StreamHelpers#readAll throws on null target byte array
+     */
+    @Test
+    public void readAllThrowsOnNullTargetBuffer() {
+        AssertExtensions.assertThrows("target parameter cannot be null",
+                () -> StreamHelpers.readAll(new ByteArrayInputStream(new byte[0]), null, 0, 0),
+                e -> e instanceof NullPointerException && e.getMessage().equals("target"));
+    }
+
+    /**
+     * Confirm StreamHelpers#readAll throws on illegal offset
+     */
+    @Test
+    public void readAllThrowsOnIllegalOffset() {
+        AssertExtensions.assertThrows("start offset must be less than target buffer length",
+                () -> StreamHelpers.readAll(new ByteArrayInputStream(new byte[0]), new byte[0], 0, 0),
+                e -> e instanceof IndexOutOfBoundsException && e.getMessage().equals("startOffset (0) must be less than size (0)"));
+    }
+
+    /**
+     * Confirm StreamHelpers#readAll throws on illegal max length
+     */
+    @Test
+    public void readAllThrowsOnIllegalMaxLength() throws Exception {
+        AssertExtensions.assertThrows("max length must be non-negative",
+                () -> StreamHelpers.readAll(new ByteArrayInputStream(new byte[0]), new byte[1], 0, -1),
+                e -> e instanceof IllegalArgumentException && e.getMessage().equals("maxLength: must be a non-negative number."));
     }
 
     private static class TestInputStream extends InputStream {
