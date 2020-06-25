@@ -15,6 +15,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
@@ -122,6 +123,19 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 "Segment not deleted.",
                 () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
+    }
+
+    /**
+     * Tests to make sure that any invalid state passed to an iterator during instantiation is handled accordingly.
+     */
+    @Test
+    public void testInvalidIteratorState() {
+        @Cleanup
+        val context = new TestContext();
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
+        AssertExtensions.assertThrows("Invalid entryIterator state.",
+                () -> context.ext.entryIterator(SEGMENT_NAME, new ByteArraySegment("INVALID".getBytes()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                ex -> ex instanceof IllegalDataFormatException);
     }
 
     /**
@@ -674,6 +688,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
     @SneakyThrows
     private void checkIterators(Map<BufferView, BufferView> expectedEntries, ContainerTableExtension ext) {
+        // Check that invalid serializer state is handled properly.
+        val emptyEntryIterator = ext.entryIterator(SEGMENT_NAME, new IteratorState(KeyHasher.MAX_HASH).serialize(), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val actualEmptyEntries = collectIteratorItems(emptyEntryIterator);
+        Assert.assertTrue("No entries is returned.", actualEmptyEntries.size() == 0);
+
         // Collect and verify all Table Entries.
         val entryIterator = ext.entryIterator(SEGMENT_NAME, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualEntries = collectIteratorItems(entryIterator);
