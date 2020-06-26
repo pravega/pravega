@@ -40,8 +40,8 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private final AtomicLong lastAppendTime;
     private final AtomicLong lastAckNumber;
     private final ExponentialMovingAverage eventSize = new ExponentialMovingAverage(1024, 0.01, true);
-    private final ExponentialMovingAverage nanosBetweenAppends = new ExponentialMovingAverage(10 * NANOS_PER_MILLI, 0.0001, false);
-    private final ExponentialMovingAverage appendsOutstanding = new ExponentialMovingAverage(20, 0.0001, false);
+    private final ExponentialMovingAverage nanosBetweenAppends = new ExponentialMovingAverage(10 * NANOS_PER_MILLI, 0.001, false);
+    private final ExponentialMovingAverage appendsOutstanding = new ExponentialMovingAverage(20, 0.001, false);
 
     public AppendBatchSizeTrackerImpl() {
         clock = System::nanoTime;
@@ -56,6 +56,7 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         long last = lastAppendTime.getAndSet(now);
         lastAppendNumber.set(eventNumber);
         nanosBetweenAppends.addNewSample(now - last);
+        appendsOutstanding.addNewSample(lastAppendNumber.get() - eventNumber);
         eventSize.addNewSample(size);
     }
 
@@ -77,8 +78,10 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         if (numInflight <= 1) {
             return 0;
         }
-        double appendsInTime = Math.max(1.0, BASE_TIME_NANOS / nanosBetweenAppends.getCurrentValue());
-        double appendsInBatch = appendsOutstanding.getCurrentValue() * OUTSTANDING_FRACTION + appendsInTime;
+        double nanosPerAppend = nanosBetweenAppends.getCurrentValue();
+        double appendsInMaxBatchTime = (MAX_BATCH_TIME_MILLIS * NANOS_PER_MILLI) / nanosPerAppend;
+        double appendsInTime = Math.max(1.0, BASE_TIME_NANOS / nanosPerAppend);
+        double appendsInBatch = Math.min(appendsOutstanding.getCurrentValue() * OUTSTANDING_FRACTION + appendsInTime, appendsInMaxBatchTime);
         int size = (int) (appendsInBatch * eventSize.getCurrentValue()) + BASE_SIZE;
         return MathHelpers.minMax(size, 0, MAX_BATCH_SIZE);
     }
