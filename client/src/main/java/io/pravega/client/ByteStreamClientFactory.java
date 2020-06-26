@@ -46,7 +46,7 @@ public interface ByteStreamClientFactory extends AutoCloseable {
                            connectionFactory.getInternalExecutor());
         val connectionPool = new ConnectionPoolImpl(config, Preconditions.checkNotNull(connectionFactory));
         val inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
-        val outputStreamFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
+        val outputStreamFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
         val metaStreamFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
         return new ByteStreamClientImpl(scope, controller, connectionPool, inputStreamFactory, outputStreamFactory, metaStreamFactory);
     }

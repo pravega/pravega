@@ -260,7 +260,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
-        SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
+        SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup

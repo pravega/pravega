@@ -96,7 +96,7 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
         SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(config);
         this.connectionPool = new ConnectionPoolImpl(config, connectionFactory);
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
-        this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
+        this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
         this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
     }
@@ -111,7 +111,7 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
      */
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
-        this(scope, controller, connectionFactory, new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory));
+        this(scope, controller, new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory));
     }
     
     /**
@@ -120,18 +120,17 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
      *
      * @param scope             The scope string.
      * @param controller        The reference to Controller.
-     * @param connectionFactory The reference to Connection Factory impl.
      * @param pool				The connection pool
      */
     @VisibleForTesting
-    public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory, ConnectionPool pool) {
+    public ClientFactoryImpl(String scope, Controller controller, ConnectionPool pool) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         this.scope = scope;
         this.controller = controller;
         this.connectionPool = pool;
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
-        this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
+        this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
         this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
     }

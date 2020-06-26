@@ -49,7 +49,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
      * attributes. (e.g: FlowCount, WriterCount)
      */
     @Data
-    private class Connection implements Comparable<Connection> {
+    private class Connection implements Comparable<Connection>, AutoCloseable {
         private final PravegaNodeUri uri;
         /**
          * A future that completes when the connection is first established.
@@ -74,6 +74,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
             return Integer.compare(v1, v2);
         }
         
+        @Override
         public void close() {
             if (Futures.isSuccessful(flowHandler)) {
                 flowHandler.join().close();
