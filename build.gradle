@@ -268,6 +268,14 @@ project('client') {
 }
 
 project('test:testcommon') {
+    configurations.testRuntimeClasspath {
+        resolutionStrategy {
+                force "com.google.inject.extensions:guice-assistedinject:" + guiceVersion
+                force "com.google.inject.extensions:guice-servlet:" + guiceVersion
+                force "com.google.inject:guice:" + guiceVersion
+                force "com.google.guava:guava:25.0-jre"
+        }
+    }
     dependencies {
         compile group: 'junit', name :'junit', version: junitVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
@@ -330,6 +338,14 @@ project('segmentstore:storage:impl') {
 }
 
 project ('bindings') {
+    configurations.testRuntimeClasspath {
+        resolutionStrategy {
+                force "com.google.inject.extensions:guice-assistedinject:" + guiceVersion
+                force "com.google.inject.extensions:guice-servlet:" + guiceVersion
+                force "com.google.inject:guice:" + guiceVersion
+                force "com.google.guava:guava:25.0-jre"
+        }
+    }
     dependencies {
         // For HDFS
         implementation group: 'com.google.guava', name: 'guava', version: guavaVersion
@@ -404,6 +420,16 @@ project('segmentstore:server:host') {
 
     applicationDistribution.from('src/config') {
         into "conf"
+    }
+
+
+    configurations.testRuntimeClasspath {
+        resolutionStrategy {
+                force "com.google.inject.extensions:guice-assistedinject:3.0"
+                force "com.google.inject.extensions:guice-servlet:3.0"
+                force "com.google.inject:guice:3.0"
+                force "com.google.guava:guava:25.0-jre"
+        }
     }
 
     dependencies {
@@ -684,6 +710,15 @@ project('standalone') {
             scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
             def winScriptFile = file getWindowsScript()
             winScriptFile.text = winScriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+        }
+    }
+
+    configurations.testRuntimeClasspath {
+        resolutionStrategy {
+                force "com.google.inject.extensions:guice-assistedinject:" + guiceVersion
+                force "com.google.inject.extensions:guice-servlet:" + guiceVersion
+                force "com.google.inject:guice:" + guiceVersion
+                force "com.google.guava:guava:25.0-jre"
         }
     }
 

@@ -365,8 +365,10 @@ public class HDFSStorageTest extends StorageTestBase {
 
     @Test
     public void testSegmentSealedException() {
-        StreamSegmentException e = HDFSExceptionHelpers.convertException("", new AccessControlException("test"));
+        Exception e = HDFSExceptionHelpers.convertException("", new AccessControlException("test"));
         Assert.assertTrue(e instanceof StreamSegmentSealedException);
+        e = HDFSExceptionHelpers.segmentSealedException("");
+        Assert.assertTrue(e instanceof AccessControlException);
     }
 
     // endregion
