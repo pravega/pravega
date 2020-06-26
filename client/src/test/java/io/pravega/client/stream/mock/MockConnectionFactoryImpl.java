@@ -70,9 +70,4 @@ public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionP
     public CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri uri, ReplyProcessor rp) {
         return establishConnection(uri, rp);
     }
-
-    @Override
-    public int getActiveChannelCount() {
-        return 0;
-    }
 }
