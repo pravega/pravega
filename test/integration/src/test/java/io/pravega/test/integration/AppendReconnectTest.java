@@ -9,7 +9,19 @@
  */
 package io.pravega.test.integration;
 
-import io.netty.channel.Channel;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+
+import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
@@ -35,18 +47,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
-import java.nio.ByteBuffer;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import lombok.Cleanup;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 
 public class AppendReconnectTest extends LeakDetectorTestSuite {
     private ServiceBuilder serviceBuilder;
@@ -84,7 +85,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
-        SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
+        SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
@@ -92,7 +93,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
                 DelegationTokenProviderFactory.createWithEmptyToken());
         CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(payload), ack));
-        for (Channel c : connectionPool.getActiveChannels()) {
+        for (AutoCloseable c : connectionPool.getActiveChannels()) {
             c.close();
         }
         CompletableFuture<Void> ack2 = new CompletableFuture<>();
@@ -131,7 +132,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
         @Cleanup
         ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment, DelegationTokenProviderFactory.createWithEmptyToken(), EventWriterConfig.builder().build());
         assertTrue(out.write(ByteBuffer.wrap(payload), 0));
-        for (Channel c : connectionPool.getActiveChannels()) {
+        for (AutoCloseable c : connectionPool.getActiveChannels()) {
             c.close();
         }
         assertTrue(out.write(ByteBuffer.wrap(payload), payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE));

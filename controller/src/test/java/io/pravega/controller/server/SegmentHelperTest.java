@@ -825,12 +825,6 @@ public class SegmentHelperTest {
                 connection.close();
             }
         }
-
-        @Override
-        public int getActiveChannelCount() {
-            // TODO Auto-generated method stub
-            return 0;
-        }
     }
 
     private class MockConnection implements ClientConnection {

@@ -129,7 +129,7 @@ public class ByteClientTest extends AbstractSystemTest {
                                                        connectionFactory.getInternalExecutor());
         ConnectionPool pool = new ConnectionPoolImpl(config, connectionFactory);
         val inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, pool);
-        val outputStreamFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
+        val outputStreamFactory = new SegmentOutputStreamFactoryImpl(controller, pool);
         val metaStreamFactory = new SegmentMetadataClientFactoryImpl(controller, pool);
         return new ByteStreamClientImpl(scope, controller, pool, inputStreamFactory, outputStreamFactory, metaStreamFactory);
     }

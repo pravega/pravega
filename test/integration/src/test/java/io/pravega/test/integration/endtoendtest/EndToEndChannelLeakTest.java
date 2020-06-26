@@ -119,13 +119,18 @@ public class EndToEndChannelLeakTest {
 
         @Cleanup
         SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig, new InlineExecutor());
-        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory);
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, connectionPool);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionPool);
 
         //Create a writer.
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(SCOPE, serializer, writerConfig);
+
+        //Write an event.
+        writer.writeEvent("0", "zero").get();
+        
+        assertChannelCount(1, connectionPool, connectionFactory);
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
@@ -133,11 +138,10 @@ public class EndToEndChannelLeakTest {
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                        .stream(Stream.of(SCOPE, STREAM_NAME)).build());
 
+        
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, serializer,
-                ReaderConfig.builder().disableTimeWindows(true).build());
-        //Write an event.
-        writer.writeEvent("0", "zero").get();
+        		ReaderConfig.builder().disableTimeWindows(true).build());
 
         //Read an event.
         EventRead<String> event = reader1.readNextEvent(10000);
@@ -196,7 +200,7 @@ public class EndToEndChannelLeakTest {
         SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig, executor);
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, connectionPool);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionPool);
         int expectedChannelCount = 0; // open socket count.
         assertChannelCount(expectedChannelCount, connectionPool, connectionFactory);
         
@@ -287,7 +291,7 @@ public class EndToEndChannelLeakTest {
         @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, connectionPool);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionPool);
 
         int channelCount = 0;
         assertChannelCount(channelCount, connectionPool, connectionFactory);
@@ -399,7 +403,7 @@ public class EndToEndChannelLeakTest {
         @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, connectionPool);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionPool);
         int expectedChannelCount = 0; // open socket count.
         assertChannelCount(expectedChannelCount, connectionPool, connectionFactory);
         
