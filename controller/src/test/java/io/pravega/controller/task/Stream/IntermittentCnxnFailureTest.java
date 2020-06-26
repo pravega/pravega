@@ -19,6 +19,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
@@ -104,7 +105,7 @@ public class IntermittentCnxnFailureTest {
 
         controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
-
+        StreamMetrics.initialize();
         controllerService.createScope(SCOPE).get();
     }
 
@@ -116,6 +117,7 @@ public class IntermittentCnxnFailureTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
+        StreamMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
