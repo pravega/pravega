@@ -48,10 +48,15 @@ import static com.google.common.base.Strings.nullToEmpty;
  * Storage system segments are the segments that the storage subsystem uses to store all metadata.
  * This creates a circular dependency while reading or writing the data about these segments from the metadata segments.
  * System journal is a mechanism to break this circular dependency by having independent log of all layout changes to system segments.
- * Currently only two actions are considered viz. Addition of new chunks and truncation of segments.
- * This log is replayed when the ChunkManager is booted.
- * To avoid data corruption. Each instance writes to its own distinct log file.
  * During bootstrap all the system journal files are read and processed to re-create the state of the storage system segments.
+ * Currently only two actions are considered viz. Addition of new chunks {@link ChunkAddedRecord} and truncation of segments {@link TruncationRecord}.
+ * In addition to these two records, log also contains system snapshot records {@link SystemSnapshotRecord} which contains the state
+ * of each storage system segments ({@link SegmentSnapshotRecord}) after replaying all available logs at the time of snapshots.
+ * These snapshot records help avoid replaying entire log evey time. Each container instance records snapshot immediately after bootstrap.
+ * To avoid data corruption, each instance writes to its own distinct log file/object.
+ * The bootstrap algorithm also correctly ignores invalid log entries written by running instance which is no longer owner of the given container.
+ * To prevent applying partial changes resulting from unexpected crash, the log records are written as {@link SystemJournalRecordBatch}.
+ * In such cases either a full batch is read and applied completely or no records in the batch are applied.
  */
 @Slf4j
 public class SystemJournal {
@@ -135,7 +140,7 @@ public class SystemJournal {
         this.systemSegments = getChunkStorageSystemSegments(containerId);
         this.systemSegmentsPrefix = NameUtils.INTERNAL_SCOPE_NAME;
 
-        Preconditions.checkState(!chunkStorage.exists(getSystemJournalFileName()));
+        Preconditions.checkState(!chunkStorage.exists(getSystemJournalChunkName()));
     }
 
     /**
@@ -144,7 +149,7 @@ public class SystemJournal {
      * @throws Exception Exception if any.
      */
     public void initialize() throws Exception {
-        chunkStorage.create(getSystemJournalFileName());
+        chunkStorage.create(getSystemJournalChunkName());
     }
 
     /**
@@ -175,7 +180,7 @@ public class SystemJournal {
         try {
             bytes = BATCH_SERIALIZER.serialize(batch);
         } catch (IOException e) {
-            throw new ChunkStorageException(getSystemJournalFileName(), "Unable to serialize", e);
+            throw new ChunkStorageException(getSystemJournalChunkName(), "Unable to serialize", e);
         }
         // Persist
         synchronized (lock) {
@@ -238,14 +243,14 @@ public class SystemJournal {
 
         // Find latest epoch with snapshot.
         for (epochToCheck = epoch - 1; epochToCheck >= 0; epochToCheck--) {
-            snapshotFile = getSystemJournalFileName(containerId, epochToCheck, 0);
+            snapshotFile = getSystemJournalChunkName(containerId, epochToCheck, 0);
             if (chunkStorage.exists(snapshotFile)) {
                 // Read contents.
                 byte[] contents = getContents(snapshotFile);
                 SystemSnapshotRecord systemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(contents);
                 if (null != systemSnapshot) {
-                    log.debug("SystemJournal[{}] Processing system log snalpshot {}.", containerId, systemSnapshot);
-                    // Initialize the segments and thier chunks.
+                    log.debug("SystemJournal[{}] Processing system log snapshot {}.", containerId, systemSnapshot);
+                    // Initialize the segments and their chunks.
                     for (SegmentSnapshotRecord segmentSnapshot : systemSnapshot.segmentSnapshotRecords) {
                         // Update segment data.
                         segmentSnapshot.segmentMetadata.setActive(true)
@@ -322,9 +327,9 @@ public class SystemJournal {
         for (long epochToRecover = epochToStartScanning; epochToRecover < epoch; epochToRecover++) {
             // Start scan with file index 1.
             int fileIndexToRecover = 1;
-            while (chunkStorage.exists(getSystemJournalFileName(containerId, epochToRecover, fileIndexToRecover))) {
+            while (chunkStorage.exists(getSystemJournalChunkName(containerId, epochToRecover, fileIndexToRecover))) {
                 // Read contents.
-                val systemLogName = getSystemJournalFileName(containerId, epochToRecover, fileIndexToRecover);
+                val systemLogName = getSystemJournalChunkName(containerId, epochToRecover, fileIndexToRecover);
                 byte[] contents = getContents(systemLogName);
                 var input = new ByteArrayInputStream(contents);
 
@@ -458,17 +463,17 @@ public class SystemJournal {
         txn.update(segmentMetadata);
     }
 
-    private String getSystemJournalFileName() {
-        return getSystemJournalFileName(containerId, epoch, currentFileIndex);
+    private String getSystemJournalChunkName() {
+        return getSystemJournalChunkName(containerId, epoch, currentFileIndex);
     }
 
-    private String getSystemJournalFileName(int containerId, long epoch, long currentFileIndex) {
+    private String getSystemJournalChunkName(int containerId, long epoch, long currentFileIndex) {
         return NameUtils.getSystemJournalFileName(containerId, epoch, currentFileIndex);
     }
 
     private ChunkHandle getChunkHandleForSystemJournal() throws ChunkStorageException {
         ChunkHandle h;
-        val systemLogName = getSystemJournalFileName();
+        val systemLogName = getSystemJournalChunkName();
         try {
             h = chunkStorage.openWrite(systemLogName);
         } catch (ChunkNotFoundException e) {
@@ -555,13 +560,13 @@ public class SystemJournal {
         }
 
         // Write snapshot
-        val snapshotFile = getSystemJournalFileName(containerId, epoch, 0);
+        val snapshotFile = getSystemJournalChunkName(containerId, epoch, 0);
         ChunkHandle h = chunkStorage.create(snapshotFile);
         ByteArraySegment bytes;
         try {
             bytes = SYSTEM_SNAPSHOT_SERIALIZER.serialize(systemSnapshot);
         } catch (IOException e) {
-            throw new ChunkStorageException(getSystemJournalFileName(), "Unable to serialize", e);
+            throw new ChunkStorageException(getSystemJournalChunkName(), "Unable to serialize", e);
         }
         // Persist
         synchronized (lock) {
@@ -636,7 +641,7 @@ public class SystemJournal {
     @Builder(toBuilder = true)
     @Data
     @EqualsAndHashCode
-    public static class SystemJournalRecordBatch {
+    static class SystemJournalRecordBatch {
         @NonNull
         private final Collection<SystemJournalRecord> systemJournalRecords;
 
@@ -686,7 +691,7 @@ public class SystemJournal {
     @Builder(toBuilder = true)
     @Data
     @EqualsAndHashCode(callSuper = true)
-    public static class ChunkAddedRecord extends SystemJournalRecord {
+    static class ChunkAddedRecord extends SystemJournalRecord {
         /**
          * Name of the segment.
          */
@@ -756,7 +761,7 @@ public class SystemJournal {
     @Builder(toBuilder = true)
     @Data
     @EqualsAndHashCode(callSuper = true)
-    public static class TruncationRecord extends SystemJournalRecord {
+    static class TruncationRecord extends SystemJournalRecord {
         /**
          * Name of the segment.
          */
@@ -826,7 +831,7 @@ public class SystemJournal {
     @Builder(toBuilder = true)
     @Data
     @EqualsAndHashCode(callSuper = true)
-    public static class SegmentSnapshotRecord extends SystemJournalRecord {
+    static class SegmentSnapshotRecord extends SystemJournalRecord {
         /**
          * Data about the segment.
          */
@@ -885,7 +890,7 @@ public class SystemJournal {
     @Builder(toBuilder = true)
     @Data
     @EqualsAndHashCode(callSuper = true)
-    public static class SystemSnapshotRecord extends SystemJournalRecord {
+    static class SystemSnapshotRecord extends SystemJournalRecord {
         /**
          * Epoch of the snapshot
          */

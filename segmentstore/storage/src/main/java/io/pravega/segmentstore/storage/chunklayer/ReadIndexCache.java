@@ -230,7 +230,7 @@ class ReadIndexCache {
     }
 
     /**
-     * Truncate the read index for given segment by removing all the chunks that are below given offset.
+     * Truncates the read index for given segment by removing all the chunks that are below given offset.
      *
      * @param streamSegmentName
      * @param startOffset
@@ -314,7 +314,7 @@ class ReadIndexCache {
             }
         }
 
-        // Step 2 : Determine upto what generation to delete.
+        // Step 2 : Determine up to what generation to delete.
         long deletedUpToGen = 0;
         int runningCount = 0;
         for (val entry : counts.entrySet()) {
