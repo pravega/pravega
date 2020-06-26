@@ -11,7 +11,6 @@ package io.pravega.client.connection.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.metrics.MetricNotifier;
@@ -24,9 +23,10 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +42,8 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     private ClientConnection channel; //Final (set in factory after construction)
     @Getter
     private final MetricNotifier metricNotifier;
-    private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
+    private final KeepAliveTask keepAliveTask = new KeepAliveTask();
+    private ScheduledFuture<?> keepAliveFuture; //Final (set in factory after construction)
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -50,7 +51,6 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     @Getter(AccessLevel.PACKAGE)
     private final ConcurrentHashMap<Integer, ReplyProcessor> flowIdReplyProcessorMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, AppendBatchSizeTracker> flowIDBatchSizeTrackerMap = new ConcurrentHashMap<>();
-
     private final AtomicBoolean disableFlow = new AtomicBoolean(false);
 
     private FlowHandler(PravegaNodeUri location, MetricNotifier updateMetric) {
@@ -60,10 +60,9 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
 
     static CompletableFuture<FlowHandler> openConnection(PravegaNodeUri location, ClientConfig clientConfig, MetricNotifier updateMetric, ConnectionFactory connectionFactory) {
         FlowHandler flowHandler = new FlowHandler(location, updateMetric);
-        KeepAliveTask keepAliveTask = flowHandler.new KeepAliveTask(); 
-        return connectionFactory.establishConnection(location, flowHandler).thenApply(connection -> {            
+        return connectionFactory.establishConnection(location, flowHandler).thenApply(connection -> {
             flowHandler.channel = connection;
-            connectionFactory.getInternalExecutor().scheduleWithFixedDelay(keepAliveTask, 20, 10, TimeUnit.SECONDS);
+            flowHandler.keepAliveFuture = connectionFactory.getInternalExecutor().scheduleWithFixedDelay(flowHandler.keepAliveTask, 20, 10, TimeUnit.SECONDS);
             try {
                 connection.send(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
             } catch (ConnectionFailedException e) {
@@ -235,9 +234,8 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            ScheduledFuture<?> future = keepAliveFuture.get();
-            if (future != null) {
-                future.cancel(false);
+            if (keepAliveFuture != null) {
+                keepAliveFuture.cancel(false);
             }
             log.info("Connection closed observed with endpoint {}", location);
             flowIdReplyProcessorMap.forEach((flowId, rp) -> {
@@ -266,7 +264,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         @Override
         public void run() {
             try {
-                if (!recentMessage.getAndSet(false)) {
+                if (!recentMessage.getAndSet(false) && !closed.get()) {
                     channel.send(new WireCommands.KeepAlive());
                 }
             } catch (Exception e) {
