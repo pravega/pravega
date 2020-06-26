@@ -86,11 +86,10 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
             .build();
 
-    // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
     private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = DurableLogConfig
             .builder()
-            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
-            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
+            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
+            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
             .with(DurableLogConfig.START_RETRY_DELAY_MILLIS, 20)
             .build();
@@ -128,8 +127,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                 .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, maxSegmentCount + EXPECTED_PINNED_SEGMENT_COUNT)
                 .build();
 
-        // We need a special DL config so that we can force truncations after every operation - this will speed up metadata
-        // eviction eligibility.
         final DurableLogConfig durableLogConfig = DurableLogConfig
                 .builder()
                 .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
@@ -146,8 +143,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                 context.getDefaultExtensions(), executorService());
         localContainer.startAsync().awaitRunning();
 
-        // Create the segments.
-        // Alternate segments are sealed.
         ArrayList<String> segments = new ArrayList<>();
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         long[] segmentLengths = new long[createdSegmentCount];
@@ -160,7 +155,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             futures.add(localContainer.createStreamSegment(name, segmentLengths[i], segmentSealedStatus[i]));
         }
         Futures.allOf(futures).join();
-        // Verify the Segments are still there.
+
+        // Verify the Segments are still there with their length & sealed status.
         for (int i = 0; i < createdSegmentCount; i++) {
             SegmentProperties props = localContainer.getStreamSegmentInfo(segments.get(i), TIMEOUT).join();
             Assert.assertEquals("Segment length mismatch ", segmentLengths[i], props.getLength());
@@ -169,6 +165,10 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         localContainer.stopAsync().awaitTerminated();
     }
 
+    /**
+     * Tests list segments from a storage after creating them and then recreate the segments using DebugStreamSegmentContainer.
+     * @throws Exception in case of an exception encountered during execution.
+     */
     @Test
     public void testEndToEnd() throws Exception {
         int containerCount = 4;
@@ -189,6 +189,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             segmentByContainers.add(segmentList);
         }
 
+        // Create some segments and get their container Id and names to verify.
         for (int i = 0; i < segmentsToCreateCount; i++) {
             String segmentName = "segment-" + RANDOM.nextInt();
             segmentsCountByContainer[segToConMapper.getContainerId(segmentName)]++;
@@ -203,9 +204,10 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         int segmentsRecoveredCount = 0;
-
+        // List all segments
         List<List<SegmentProperties>> segments = DataRecoveryTestUtils.listAllSegments(new AsyncStorageWrapper(s,
-                DataRecoveryTestUtils.createExecutorService(10)), containerCount); // HashMap for containers to segments list
+                DataRecoveryTestUtils.createExecutorService(10)), containerCount);
+        // Check every segments count by container Id
         for (int i=0; i<segments.size(); i++) {
             segmentsRecoveredCount += segments.get(i).size();
             Assert.assertTrue("Number of recovered segments is less than number of created segments with this container",
@@ -213,36 +215,33 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
         Assert.assertTrue("Number of recovered segments is less than number of created segments",
                 segmentsRecoveredCount>=segmentsToCreateCount);
+
         final ContainerConfig containerConfig = ContainerConfig
                 .builder()
                 .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
                 .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, segmentsToCreateCount + EXPECTED_PINNED_SEGMENT_COUNT)
                 .build();
-
-        // We need a special DL config so that we can force truncations after every operation - this will speed up metadata
-        // eviction eligibility.
-        final DurableLogConfig durableLogConfig = DurableLogConfig
-                .builder()
-                .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
-                .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
-                .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
-                .build();
-
         @Cleanup
         TestContext context = createContext();
-        OperationLogFactory localDurableLogFactory = new DurableLogFactory(durableLogConfig, context.dataLogFactory, DataRecoveryTestUtils.createExecutorService(10));
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory,
+                DataRecoveryTestUtils.createExecutorService(10));
 
+        // Recover all segments
         for (int containerId = 0; containerId < containerCount; containerId++) {
             @Cleanup
             MetadataCleanupContainer localContainer = new MetadataCleanupContainer(containerId, containerConfig, localDurableLogFactory,
                     context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
                     context.getDefaultExtensions(), DataRecoveryTestUtils.createExecutorService(10));
             localContainer.startAsync().awaitRunning();
-            DataRecoveryTestUtils.createAllSegments(localContainer, containerId, segments.get(containerId));
+            DataRecoveryTestUtils.createAllSegments(localContainer, segments.get(containerId));
 
+            //
             for (String segmentName : segmentByContainers.get(containerId)) {
                 SegmentProperties props = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).join();
                 Assert.assertEquals("Segment length mismatch ", data.length, props.getLength());
+                if (sealedSegments.contains(segmentName)) {
+                    Assert.assertTrue("Segment should have been sealed", props.isSealed());
+                }
             }
             localContainer.stopAsync().awaitTerminated();
         }

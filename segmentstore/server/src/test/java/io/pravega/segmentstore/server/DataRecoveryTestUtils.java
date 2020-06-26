@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.segmentstore.server;
 
 import com.google.common.base.Charsets;
@@ -30,8 +39,15 @@ import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 @Slf4j
 public class DataRecoveryTestUtils {
     private static final Duration timeout = Duration.ofSeconds(10);
-    private static final ScheduledExecutorService executorService = createExecutorService(100);
+    private static final ScheduledExecutorService executorService = createExecutorService(10);
 
+    /**
+     * Lists all segments from a given long term storage.
+     * @param tier2 Long term storage.
+     * @param containerCount Total number of segment containers.
+     * @return A 2D list containing segments by container Ids.
+     * @throws IOException in case of exception during the execution.
+     */
     public static List<List<SegmentProperties>> listAllSegments(Storage tier2, int containerCount) throws IOException {
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
         List<List<SegmentProperties>> segmentToContainers = new ArrayList<>();
@@ -60,29 +76,38 @@ public class DataRecoveryTestUtils {
         return es;
     }
 
-    public static void createAllSegments(DebugStreamSegmentContainer container, int containerId, List<SegmentProperties> segments) {
+    /**
+     * Creates all segments given in the list with the given DebugStreamSegmentContainer.
+     * @param container The DebugStreamSegmentContainer instance which will used to create segments.
+     * @param segments List of segments to be created.
+     */
+    public static void createAllSegments(DebugStreamSegmentContainer container, List<SegmentProperties> segments) {
+        int containerId = container.getId();
         System.out.format("Recovery started for container# %s\n", containerId);
-
         ContainerTableExtension ext = container.getExtension(ContainerTableExtension.class);
-        AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(containerId), null, Duration.ofSeconds(10)).join();
+        AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(containerId), null,
+                Duration.ofSeconds(10)).join();
+
+        // Add all segments present in the container metadata in a set.
         Set<TableKey> segmentsInMD = new HashSet<>();
         it.forEachRemaining(k -> segmentsInMD.addAll(k.getEntries()), executorService).join();
+
         for (SegmentProperties segment : segments) {
             long len = segment.getLength();
             boolean isSealed = segment.isSealed();
             String segmentName = segment.getName();
-            segmentsInMD.remove(TableKey.unversioned(getTableKey(segmentName)));
-                /*
-                    1. segment exists in both metadata and storage, update SegmentMetadata
-                    2. segment only in metadata, delete
-                    3. segment only in storage, re-create it
-                 */
 
+            /*
+                1. segment exists in both metadata and storage, update SegmentMetadata
+                2. segment only in metadata, delete
+                3. segment only in storage, re-create it
+             */
+            segmentsInMD.remove(TableKey.unversioned(getTableKey(segmentName)));
             container.getStreamSegmentInfo(segment.getName(), timeout)
                     .thenAccept(e -> {
                         container.createStreamSegment(segmentName, len, isSealed)
-                                .exceptionally(ex1 -> {
-                                    log.error("Got an error while creating segment", ex1);
+                                .exceptionally(ex -> {
+                                    log.error("Exception occurred while creating segment", ex);
                                     return null;
                                 }).join();
                     })
@@ -90,8 +115,8 @@ public class DataRecoveryTestUtils {
                         log.error("Got an exception on getStreamSegmentInfo", e);
                         if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
                             container.createStreamSegment(segmentName, len, isSealed)
-                                    .exceptionally(ex2 -> {
-                                        log.error("Got an error while creating segment", ex2);
+                                    .exceptionally(ex -> {
+                                        log.error("Exception occurred while creating segment", ex);
                                         return null;
                                     }).join();
                         }
