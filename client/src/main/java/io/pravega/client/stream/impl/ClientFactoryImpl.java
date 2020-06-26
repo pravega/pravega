@@ -231,10 +231,8 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
                                                                        SynchronizerConfig config) {
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-
                                                                                                           segment.getStreamName()), RuntimeException::new);
-        DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(
-                delegationToken, controller, segment);
+        DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProvider);
         return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider);

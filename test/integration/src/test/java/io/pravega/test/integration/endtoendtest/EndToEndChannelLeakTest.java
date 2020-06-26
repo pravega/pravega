@@ -134,7 +134,7 @@ public class EndToEndChannelLeakTest {
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                connectionFactory);
+                                                                     clientFactory.getConnectionPool());
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                        .stream(Stream.of(SCOPE, STREAM_NAME)).build());
 
@@ -214,7 +214,7 @@ public class EndToEndChannelLeakTest {
         
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                connectionFactory);
+                                                                     clientFactory.getConnectionPool());
         assertChannelCount(expectedChannelCount, connectionPool, connectionFactory); // no changes expected.
       
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
@@ -276,7 +276,7 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(5, connectionPool, connectionFactory);
     }
     
-    @Test(timeout = 30000)
+    @Test//(timeout = 30000)
     public void testDetectChannelLeakSegmentSealed() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
@@ -298,7 +298,7 @@ public class EndToEndChannelLeakTest {
         
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                                                                     connectionFactory);
+                                                                     connectionPool);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                        .stream(Stream.of(SCOPE, STREAM_NAME)).build());
         
@@ -417,7 +417,7 @@ public class EndToEndChannelLeakTest {
         
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                connectionFactory);
+                                                                     clientFactory.getConnectionPool());
         assertChannelCount(expectedChannelCount, connectionPool, connectionFactory); // no changes expected.
       
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)

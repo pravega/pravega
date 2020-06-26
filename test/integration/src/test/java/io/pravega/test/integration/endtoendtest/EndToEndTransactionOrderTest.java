@@ -128,7 +128,7 @@ public class EndToEndTransactionOrderTest {
         controller.createStream("test", "test", config).get();
 
         clientFactory = new MockClientFactory("test", controller);
-        readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
+        readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, internalCF.getConnectionPool());
         readerGroupManager.createReaderGroup("readergrp",
                                              ReaderGroupConfig.builder()
                                                               .automaticCheckpointIntervalMillis(2000)

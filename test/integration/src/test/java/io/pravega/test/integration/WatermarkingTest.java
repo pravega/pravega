@@ -16,6 +16,7 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
@@ -177,6 +178,8 @@ public class WatermarkingTest {
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         @Cleanup
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
+        @Cleanup
         SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
 
         String markStream = NameUtils.getMarkStreamForStream(stream);
@@ -196,7 +199,7 @@ public class WatermarkingTest {
         
         // read events from the stream
         @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory, connectionFactory);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory, connectionPool);
         
         Watermark watermark0 = watermarks.take();
         Watermark watermark1 = watermarks.take();
@@ -345,6 +348,8 @@ public class WatermarkingTest {
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         @Cleanup
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
+        @Cleanup
         SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
 
         String markStream = NameUtils.getMarkStreamForStream(stream);
@@ -364,7 +369,7 @@ public class WatermarkingTest {
 
         // read events from the stream
         @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory, connectionFactory);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory, connectionPool);
 
         Watermark watermark0 = watermarks.take();
         Watermark watermark1 = watermarks.take();

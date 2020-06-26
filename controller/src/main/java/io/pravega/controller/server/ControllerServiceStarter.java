@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.common.LoggerHelpers;
@@ -89,6 +90,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ScheduledExecutorService watermarkingExecutor;
 
     private ConnectionFactory connectionFactory;
+    private ConnectionPool connectionPool;
     private StreamMetadataStore streamStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
@@ -220,7 +222,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             
             ClientConfig clientConfig = clientConfigBuilder.build();
             connectionFactory = connectionFactoryRef.orElse(new SocketConnectionFactoryImpl(clientConfig));
-            segmentHelper = segmentHelperRef.orElse(new SegmentHelper(new ConnectionPoolImpl(clientConfig, connectionFactory), hostStore));
+            connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
+            segmentHelper = segmentHelperRef.orElse(new SegmentHelper(connectionPool, hostStore));
 
             GrpcAuthHelper authHelper = new GrpcAuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                                                            grpcServerConfig.getTokenSigningKey(),
@@ -284,7 +287,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        bucketStore, connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
+                        bucketStore, connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
                         eventExecutor);
 
                 // Bootstrap and start it asynchronously.
@@ -452,7 +455,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("closing segment helper");
                 segmentHelper.close();
             }
-
+            log.info("Closing connection pool");
+            connectionPool.close();
+            
             log.info("Closing connection factory");
             connectionFactory.close();
 

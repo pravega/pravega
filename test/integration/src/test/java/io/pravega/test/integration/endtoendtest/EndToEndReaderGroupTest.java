@@ -77,7 +77,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                                                                     connectionFactory);
+                                                                     clientFactory.getConnectionPool());
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                  .stream("test/test").build());
 
@@ -124,7 +124,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                                                                     connectionFactory);
+                                                                     clientFactory.getConnectionPool());
         // Create a ReaderGroup
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                  .stream("test/test").build());
@@ -184,7 +184,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(defaultScope, controller, clientFactory,
-                                                                     connectionFactory);
+                                                                     clientFactory.getConnectionPool());
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder()
                                                                  .disableAutomaticCheckpoints()
                                                                  .stream(Stream.of(scopeA, streamName))

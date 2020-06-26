@@ -16,6 +16,7 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
@@ -130,6 +131,8 @@ public class WatermarkingTest extends AbstractSystemTest {
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        @Cleanup
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
                                                        connectionFactory.getInternalExecutor());
         
@@ -216,7 +219,7 @@ public class WatermarkingTest extends AbstractSystemTest {
         Map<Stream, StreamCut> end = Collections.singletonMap(streamObj, streamCutEnd);
 
         @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controller, syncClientFactory, connectionFactory);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controller, syncClientFactory, connectionPool);
         String readerGroup = "rg";
 
         readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)

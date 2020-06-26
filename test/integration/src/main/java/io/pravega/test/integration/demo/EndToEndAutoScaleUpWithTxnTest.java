@@ -126,7 +126,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             Thread.sleep(1000);
 
             @Cleanup
-            ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
+            ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, internalCF.getConnectionPool());
             readerGroupManager.createReaderGroup("readergrp", ReaderGroupConfig.builder().stream("test/test").build());
 
             final EventStreamReader<String> reader = clientFactory.createReader("1",
