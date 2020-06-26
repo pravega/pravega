@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import com.google.common.util.concurrent.Runnables;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -28,8 +29,15 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.IteratorItem;
+import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -45,6 +53,7 @@ import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryI
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerFactory;
+import io.pravega.segmentstore.server.containers.StreamSegmentContainerTests;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
@@ -73,6 +82,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
@@ -92,16 +102,23 @@ import java.io.File;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 
+import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 import static java.lang.Thread.sleep;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -143,6 +160,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private final String readerGroupName = "testMetricsReaderGroup";
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
+    private StreamSegmentStore store;
 
     @After
     public void tearDown() throws Exception {
@@ -370,7 +388,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         }
 
         this.serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService(); // Creating SS
+        this.store = serviceBuilder.createStreamSegmentService(); // Creating SS
         this.monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
@@ -424,12 +442,19 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         readAllEvents(stream1, clientFactory, readerGroupManager, readerGroupName1, readerName, ++time);
         log.info("Second Read");
 
-        sleep(120000); // Sleep for 120 s for tier2 flush
+        ContainerTableExtension ext = .getExtension(ContainerTableExtension.class);
+        AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(containerId), null,
+                Duration.ofSeconds(10)).join();
+        Set<TableKey> segmentsInMD = new HashSet<>();
+        it.forEachRemaining(k -> segmentsInMD.addAll(k.getEntries()), executorService).join();
+
+        //sleep(120000); // Sleep for 120 s for tier2 flush
+        waitForSegmentInStorage();
 
         this.controller.close(); // Shuts down controller
         this.controllerWrapper.close();
 
-        sleep(60000); // Tier2 Flush
+        //sleep(60000); // Tier2 Flush
 
         this.server.close();
         serviceBuilder.close(); // Shutdown SS
@@ -456,10 +481,11 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         List<List<SegmentProperties>> segmentsToCreate = DataRecoveryTestUtils.listAllSegments(tier2, containerCount);
 
         log.info("Start DebugStreamSegmentContainer");
-        DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer) debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
+        DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer)
+                debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
         //DebugSegmentContainer debugSegmentContainer = debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
         debugStreamSegmentContainer.startAsync().awaitRunning();
-        DataRecoveryTestUtils.createAllSegments(debugStreamSegmentContainer, CONTAINER_ID, segmentsToCreate.get(CONTAINER_ID));
+        DataRecoveryTestUtils.createAllSegments(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID));
         sleep(20000);
         debugStreamSegmentContainer.stopAsync().awaitTerminated();
         this.dataLogFactory.close();
@@ -478,6 +504,61 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("third Read");
         readAllEvents(stream1, clientFactory, readerGroupManager, readerGroupName1, readerName, ++time);
         log.info("fourth Read");
+    }
+
+    private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, SegmentContainer container,
+                                                             StreamSegmentContainerTests.TestContext context) {
+        ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
+        for (String segmentName : segmentNames) {
+            SegmentProperties sp = container.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            segmentsCompletion.add(waitForSegmentInStorage(sp, context));
+        }
+
+        return Futures.allOf(segmentsCompletion);
+    }
+
+    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties metadataProps, StreamSegmentContainerTests.TestContext context) {
+        if (metadataProps.getLength() == 0) {
+            // Empty segments may or may not exist in Storage, so don't bother complicating ourselves with this.
+            return CompletableFuture.completedFuture(null);
+        }
+
+        // Check if the Storage Segment is caught up. If sealed, we want to make sure that both the Segment and its
+        // Attribute Segment are sealed (or the latter has been deleted - for transactions). For all other, we want to
+        // ensure that the length and truncation offsets have  caught up.
+        BiFunction<SegmentProperties, SegmentProperties, Boolean> meetsConditions = (segmentProps, attrProps) ->
+                metadataProps.isSealed() == (segmentProps.isSealed() && (attrProps.isSealed() || attrProps.isDeleted()))
+                        && segmentProps.getLength() >= metadataProps.getLength()
+                        && context.storageFactory.truncationOffsets.getOrDefault(metadataProps.getName(), 0L) >= metadataProps.getStartOffset();
+
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataProps.getName());
+        AtomicBoolean canContinue = new AtomicBoolean(true);
+        TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
+        return Futures.loop(
+                canContinue::get,
+                () -> {
+                    val segInfo = getStorageSegmentInfo(metadataProps.getName(), timer, context);
+                    val attrInfo = getStorageSegmentInfo(attributeSegmentName, timer, context);
+                    return CompletableFuture.allOf(segInfo, attrInfo)
+                            .thenCompose(v -> {
+                                if (meetsConditions.apply(segInfo.join(), attrInfo.join())) {
+                                    canContinue.set(false);
+                                    return CompletableFuture.completedFuture(null);
+                                } else if (!timer.hasRemaining()) {
+                                    return Futures.failedFuture(new TimeoutException());
+                                } else {
+                                    return Futures.delayedFuture(Duration.ofMillis(10), executorService());
+                                }
+                            }).thenRun(Runnables.doNothing());
+                },
+                executorService());
+    }
+
+    private CompletableFuture<SegmentProperties> getStorageSegmentInfo(String segmentName, TimeoutTimer timer, StreamSegmentContainerTests.TestContext context) {
+        return Futures.exceptionallyExpecting(
+                context.storage.getStreamSegmentInfo(segmentName, timer.getRemaining()),
+                ex -> ex instanceof StreamSegmentNotExistsException,
+                StreamSegmentInformation.builder().name(segmentName).deleted(true).build());
     }
 
     public static ScheduledExecutorService createExecutorService(int threadPoolSize) {
