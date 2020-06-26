@@ -151,6 +151,35 @@ public class StreamMetricsTest {
     }
 
     @Test(timeout = 30000)
+    public void testStreamsAndScopesBasicMetricsTests() throws Exception {
+        String scopeName = "scopeBasic";
+        String streamName = "streamBasic";
+
+        // Here, the system scope and streams are already created.
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
+        assertEquals(6, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
+
+        controllerWrapper.getControllerService().createScope(scopeName).get();
+        if (!controller.createStream(scopeName, streamName, config).get()) {
+            log.error("Stream {} for basic testing already existed, exiting", scopeName + "/" + scopeName);
+            return;
+        }
+        // Check that the new scope and stream are accounted in metrics.
+        assertEquals(2, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
+        assertEquals(7, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
+
+        // Seal the Stream.
+        controllerWrapper.getControllerService().sealStream(scopeName, streamName).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
+
+        // Delete the Stream and Scope and check for the respective metrics.
+        controllerWrapper.getControllerService().deleteStream(scopeName, streamName).get();
+        controllerWrapper.getControllerService().deleteScope(scopeName).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
+    }
+
+    @Test(timeout = 30000)
     public void testSegmentSplitMerge() throws Exception {
         String scaleScopeName = "scaleScope";
         String scaleStreamName = "scaleStream";

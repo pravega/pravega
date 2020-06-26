@@ -506,7 +506,7 @@ public class ControllerService {
 
     private CreateScopeStatus reportCreateScopeMetrics(String scope, CreateScopeStatus status, Duration latency) {
         if (status.getStatus().equals(CreateScopeStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().createScope(scope, latency);
+            StreamMetrics.getInstance().createScope(latency);
         } else if (status.getStatus().equals(CreateScopeStatus.Status.FAILURE)) {
             StreamMetrics.getInstance().createScopeFailed(scope);
         }
@@ -547,7 +547,7 @@ public class ControllerService {
 
     private DeleteScopeStatus reportDeleteScopeMetrics(String scope, DeleteScopeStatus status, Duration latency) {
         if (status.getStatus().equals(DeleteScopeStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().deleteScope(scope, latency);
+            StreamMetrics.getInstance().deleteScope(latency);
         } else if (status.getStatus().equals(DeleteScopeStatus.Status.FAILURE)) {
             StreamMetrics.getInstance().deleteScopeFailed(scope);
         }

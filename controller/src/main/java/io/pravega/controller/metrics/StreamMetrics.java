@@ -105,13 +105,11 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the global and Scope-specific counters of Scope creations and reports the latency of the
-     * operation.
+     * This method increments the global counter of Scope creations and reports the latency of the operation.
      *
-     * @param scope             Scope.
      * @param latency           Latency of the createStream operation.
      */
-    public void createScope(String scope, Duration latency) {
+    public void createScope(Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(CREATE_SCOPE, 1);
         createScopeLatency.reportSuccessValue(latency.toMillis());
     }
@@ -153,13 +151,11 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the global and Scope-specific counters of Stream deletions and reports the latency of
-     * the operation.
+     * This method increments the global counter of Scope deletions and reports the latency of the operation.
      *
-     * @param scope         Scope.
      * @param latency       Latency of the deleteStream operation.
      */
-    public void deleteScope(String scope, Duration latency) {
+    public void deleteScope(Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(DELETE_SCOPE, 1);
         deleteScopeLatency.reportSuccessValue(latency.toMillis());
     }
