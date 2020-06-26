@@ -56,6 +56,7 @@ import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
+import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
@@ -119,6 +120,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
     private StorageFactory storageFactory = null;
+    private StorageFactory readOnlyStorageFactory = null;
+
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
@@ -319,11 +322,50 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             log.info("Finished waiting for segments in Storage.");
 
-            if(getStorageFactory().createStorageAdapter() == null) {
-                log.info("Storage factory is null");
+            Storage tier2 = getReadOnlyStorageFactory().createStorageAdapter();
+
+            try {
+                deleteSegment("_system/containers/metadata_0", tier2);
+            } catch (Throwable e) {
+                log.info("Couldn't delete");
+            }
+            try {
+                deleteSegment("_system/containers/metadata_0$attributes.index", tier2);
+            } catch (Throwable e) {
+                log.info("Couldn't delete");
+            }
+            try {
+                deleteSegment("_system/containers/metadata_1", tier2);
+            } catch (Throwable e) {
+                log.info("Couldn't delete");
+            }
+            try {
+                deleteSegment("_system/containers/metadata_1$attributes.index", tier2);
+            } catch (Throwable e) {
+                log.info("Couldn't delete");
+            }
+            try {
+                deleteSegment("_system/containers/metadata_2", tier2);
+            } catch (Throwable e) {
+                log.info("Couldn't delete");
+            }
+            try {
+                deleteSegment("_system/containers/metadata_2$attributes.index", tier2);
+            } catch (Throwable e) {
+                log.info("Couldn't delete");
+            }
+            try {
+                deleteSegment("_system/containers/metadata_3", tier2);
+            } catch (Throwable e) {
+                log.info("Couldn't delete");
+            }
+            try {
+                deleteSegment("_system/containers/metadata_3$attributes.index", tier2);
+            } catch (Throwable e) {
+                log.info("Couldn't delete");
             }
 
-            List<List<SegmentProperties>> segments = DataRecoveryTestUtils.listAllSegments(getStorageFactory().createStorageAdapter(), CONTAINER_COUNT);
+            List<List<SegmentProperties>> segments = DataRecoveryTestUtils.listAllSegments(tier2, CONTAINER_COUNT);
             log.info("No of segments to be recovered in container 0: {}", segments.get(0).size());
             log.info("No of segments to be recovered in container 1: {}", segments.get(1).size());
             log.info("No of segments to be recovered in container 2: {}", segments.get(2).size());
@@ -361,6 +403,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 localContainer.stopAsync().awaitTerminated();
             }
         }
+    }
+
+    private void deleteSegment(String segmentName, Storage tier2) {
+        SegmentHandle segmentHandle = tier2.openWrite(segmentName).join();
+        tier2.delete(segmentHandle, TIMEOUT).join();
     }
 
     /**
@@ -600,6 +647,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return this.storageFactory;
     }
 
+    private StorageFactory getReadOnlyStorageFactory() {
+        return this.readOnlyStorageFactory;
+    }
     /**
      * When overridden in a derived class, creates a ServiceBuilder using the given configuration.
      *
@@ -622,7 +672,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
         val builder = createBuilder(configBuilder, instanceId);
         builder.initialize();
-        this.storageFactory = builder.getStorageFactory();
+        this.readOnlyStorageFactory = builder.getStorageFactory();
         return builder;
     }
 

@@ -560,7 +560,7 @@ public class ExtendedS3Storage implements SyncStorage {
      */
     private class ExtendedS3SegmentIterator implements Iterator<SegmentProperties> {
         private final java.util.function.Predicate<S3Object> patternMatchPredicate;
-        private final ListObjectsResult results;
+        private ListObjectsResult results;
         private Iterator<SegmentProperties> innerIterator;
         private boolean nextBatch;
 
@@ -580,6 +580,8 @@ public class ExtendedS3Storage implements SyncStorage {
          * @return A SegmentProperties object.
          */
         public SegmentProperties toSegmentProperties(S3Object s3Object) {
+            Preconditions.checkNotNull(s3Object);
+            log.info("length = {}", s3Object.getSize());
             AccessControlList acls = client.getObjectAcl(config.getBucket(), s3Object.getKey());
             boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
             return StreamSegmentInformation.builder()
@@ -599,19 +601,27 @@ public class ExtendedS3Storage implements SyncStorage {
             if (innerIterator == null) {
                 return false;
             }
-            if (innerIterator.hasNext()) {
-                return true;
-            } else {
+            try {
+                if (innerIterator.hasNext()) {
+                    return true;
+                }
+            } catch (Throwable e) {
+                log.info("Error on hasNext()");
+            }
+            try {
                 if (nextBatch || results.getObjects().size() < results.getMaxKeys()) {
                     return false;
                 }
-                innerIterator = client.listMoreObjects(results).getObjects().stream()
-                        .filter(patternMatchPredicate)
-                        .map(this::toSegmentProperties)
-                        .iterator();
-                nextBatch = true;
-                return innerIterator.hasNext();
+            } catch (Throwable e) {
+                log.info("Error on results");
             }
+            //results = client.listMoreObjects(results);
+            innerIterator = client.listMoreObjects(results).getObjects().stream()
+                    .filter(patternMatchPredicate)
+                    .map(this::toSegmentProperties)
+                    .iterator();
+            nextBatch = true;
+            return innerIterator.hasNext();
         }
 
         /**
