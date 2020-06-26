@@ -116,7 +116,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
     }
 
     /**
-     * Creates a new file.
+     * Creates a new chunk.
      *
      * @param chunkName Name of the chunk to create.
      * @return ChunkHandle A writable handle for the recently created chunk.
@@ -434,10 +434,9 @@ public abstract class BaseChunkStorage implements ChunkStorage {
     /**
      * Closes.
      *
-     * @throws Exception In case of any error.
      */
     @Override
-    public void close() throws Exception {
+    public void close() {
         this.closed.set(true);
     }
 

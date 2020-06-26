@@ -84,20 +84,19 @@ class ReadIndexCache {
      * Retrieves the read index for given segment.
      *
      * @param streamSegmentName Name of the segment.
-     * @return Read index correpsonding to the given segment. A new empty index is created if it doesn't already exist.
+     * @return Read index corresponding to the given segment. A new empty index is created if it doesn't already exist.
      */
     private SegmentReadIndex getSegmentReadIndex(String streamSegmentName) {
-        SegmentReadIndex readIndex;
-        if (segmentsToReadIndexMap.containsKey(streamSegmentName)) {
-            readIndex = segmentsToReadIndexMap.get(streamSegmentName);
-        } else {
+        SegmentReadIndex readIndex = segmentsToReadIndexMap.get(streamSegmentName);
+
+        if (null == readIndex) {
             // Evict segments if required.
             if (maxIndexedSegments < segmentsToReadIndexMap.size() + 1 || maxIndexedChunks < totalChunkCount.get() + 1) {
                 evictSegmentsFromOldestGeneration();
             }
             val newReadIndex = SegmentReadIndex.builder()
                     .chunkIndex(new ConcurrentSkipListMap<Long, SegmentReadIndexEntry>())
-                    .generation(currentGeneration.get())
+                    .generation(new AtomicLong(currentGeneration.get()))
                     .build();
             val oldReadIndex = segmentsToReadIndexMap.putIfAbsent(streamSegmentName, newReadIndex);
             readIndex = null != oldReadIndex ? oldReadIndex : newReadIndex;
@@ -162,9 +161,9 @@ class ReadIndexCache {
             segmentReadIndex.chunkIndex.put(startOffset,
                     SegmentReadIndexEntry.builder()
                             .chunkName(chunkName)
-                            .generation(currentGeneration.get())
+                            .generation(new AtomicLong(currentGeneration.get()))
                             .build());
-            segmentReadIndex.setGeneration(currentGeneration.get());
+            segmentReadIndex.generation.set(currentGeneration.get());
             totalChunkCount.incrementAndGet();
         }
     }
@@ -187,8 +186,9 @@ class ReadIndexCache {
             segmentReadIndex.chunkIndex.put(entry.getOffset(),
                     SegmentReadIndexEntry.builder()
                             .chunkName(entry.getChunkName())
-                            .generation(currentGeneration.get()).build());
-            segmentReadIndex.setGeneration(currentGeneration.get());
+                            .generation(new AtomicLong(currentGeneration.get()))
+                            .build());
+            segmentReadIndex.generation.set(currentGeneration.get());
 
         }
         totalChunkCount.getAndAdd(newReadIndexEntries.size());
@@ -220,8 +220,8 @@ class ReadIndexCache {
             val floorEntry = segmentReadIndex.chunkIndex.floorEntry(offset);
             if (null != floorEntry) {
                 // mark with current generation
-                segmentReadIndex.setGeneration(currentGeneration.get());
-                floorEntry.getValue().setGeneration(currentGeneration.get());
+                segmentReadIndex.generation.set(currentGeneration.get());
+                floorEntry.getValue().generation.set(currentGeneration.get());
                 // return value.
                 return new ChunkNameOffsetPair(floorEntry.getKey(), floorEntry.getValue().getChunkName());
             }
@@ -254,7 +254,7 @@ class ReadIndexCache {
                 }
             }
             if (segmentReadIndex.chunkIndex.size() > 0) {
-                segmentReadIndex.setGeneration(currentGeneration.get());
+                segmentReadIndex.generation.set(currentGeneration.get());
             }
         }
     }
@@ -271,7 +271,7 @@ class ReadIndexCache {
         int removed = 0;
         while (iterator.hasNext() && (segmentsToReadIndexMap.size() >= maxIndexedSegments || total >= maxIndexedChunks)) {
             val entry = iterator.next();
-            if (entry.getValue().getGeneration() <= oldGen) {
+            if (entry.getValue().generation.get() <= oldGen) {
                 val size = entry.getValue().chunkIndex.size();
                 removed += size;
                 total -= size;
@@ -305,7 +305,7 @@ class ReadIndexCache {
         val iterator = segmentReadIndex.chunkIndex.entrySet().iterator();
         while (iterator.hasNext()) {
             val entry = iterator.next();
-            long generation = entry.getValue().getGeneration();
+            long generation = entry.getValue().generation.get();
             val cnt = counts.get(generation);
             if (null == cnt) {
                 counts.put(generation, 1);
@@ -330,7 +330,7 @@ class ReadIndexCache {
         val iterator2 = segmentReadIndex.chunkIndex.entrySet().iterator();
         while (iterator2.hasNext() && removed < toRemoveCount) {
             val entry = iterator2.next();
-            val gen = entry.getValue().getGeneration();
+            val gen = entry.getValue().generation.get();
             if (gen <= deletedUpToGen) {
                 iterator2.remove();
                 removed++;
@@ -366,7 +366,7 @@ class ReadIndexCache {
     @Data
     private static class SegmentReadIndex {
         private final ConcurrentSkipListMap<Long, SegmentReadIndexEntry> chunkIndex;
-        private long generation;
+        private final AtomicLong generation;
     }
 
     /**
@@ -377,6 +377,6 @@ class ReadIndexCache {
     @Data
     private static class SegmentReadIndexEntry {
         private final String chunkName;
-        private long generation;
+        private final AtomicLong generation;
     }
 }

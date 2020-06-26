@@ -26,7 +26,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import lombok.var;
@@ -35,13 +34,13 @@ import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static io.pravega.segmentstore.storage.metadata.StorageMetadata.fromNullableString;
-import static io.pravega.segmentstore.storage.metadata.StorageMetadata.toNullableString;
+import static com.google.common.base.Strings.emptyToNull;
+import static com.google.common.base.Strings.nullToEmpty;
 
 /**
  * This class implements system journaling functionality for critical storage system segments which is useful for bootstrap after failover.
@@ -96,14 +95,12 @@ public class SystemJournal {
      * String prefix for all system segments.
      */
     @Getter
-    @Setter
     private String systemSegmentsPrefix;
 
     /**
      * System segments to track.
      */
     @Getter
-    @Setter
     private String[] systemSegments;
 
     /**
@@ -157,7 +154,7 @@ public class SystemJournal {
      * @throws ChunkStorageException Exception if any.
      */
     public void commitRecord(SystemJournalRecord record) throws ChunkStorageException {
-        commitRecords(Arrays.asList(record));
+        commitRecords(Collections.singletonList(record));
     }
 
     /**
@@ -344,7 +341,7 @@ public class SystemJournal {
                                     val chunkAddedRecord = (ChunkAddedRecord) record;
                                     applyChunkAddition(txn, chunkStartOffsets,
                                             chunkAddedRecord.getSegmentName(),
-                                            fromNullableString(chunkAddedRecord.getOldChunkName()),
+                                            nullToEmpty(chunkAddedRecord.getOldChunkName()),
                                             chunkAddedRecord.getNewChunkName(),
                                             chunkAddedRecord.getOffset());
                                 }
@@ -739,15 +736,15 @@ public class SystemJournal {
 
             private void write00(ChunkAddedRecord object, RevisionDataOutput output) throws IOException {
                 output.writeUTF(object.segmentName);
-                output.writeUTF(fromNullableString(object.newChunkName));
-                output.writeUTF(fromNullableString(object.oldChunkName));
+                output.writeUTF(nullToEmpty(object.newChunkName));
+                output.writeUTF(nullToEmpty(object.oldChunkName));
                 output.writeCompactLong(object.offset);
             }
 
             private void read00(RevisionDataInput input, ChunkAddedRecordBuilder b) throws IOException {
                 b.segmentName(input.readUTF());
-                b.newChunkName(toNullableString(input.readUTF()));
-                b.oldChunkName(toNullableString(input.readUTF()));
+                b.newChunkName(emptyToNull(input.readUTF()));
+                b.oldChunkName(emptyToNull(input.readUTF()));
                 b.offset(input.readCompactLong());
             }
         }

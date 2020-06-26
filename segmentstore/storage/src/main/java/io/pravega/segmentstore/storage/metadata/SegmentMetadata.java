@@ -20,6 +20,9 @@ import lombok.EqualsAndHashCode;
 
 import java.io.IOException;
 
+import static com.google.common.base.Strings.emptyToNull;
+import static com.google.common.base.Strings.nullToEmpty;
+
 /**
  * Represents segment metadata.
  Following metadata is stored.
@@ -308,8 +311,8 @@ public class SegmentMetadata extends StorageMetadata {
             output.writeCompactLong(object.startOffset);
             output.writeCompactInt(object.status);
             output.writeCompactLong(object.maxRollinglength);
-            output.writeUTF(fromNullableString(object.firstChunk));
-            output.writeUTF(fromNullableString(object.lastChunk));
+            output.writeUTF(nullToEmpty(object.firstChunk));
+            output.writeUTF(nullToEmpty(object.lastChunk));
             output.writeCompactLong(object.lastModified);
             output.writeCompactLong(object.firstChunkStartOffset);
             output.writeCompactLong(object.lastChunkStartOffset);
@@ -323,8 +326,8 @@ public class SegmentMetadata extends StorageMetadata {
             b.startOffset(input.readCompactLong());
             b.status(input.readCompactInt());
             b.maxRollinglength(input.readCompactLong());
-            b.firstChunk(toNullableString(input.readUTF()));
-            b.lastChunk(toNullableString(input.readUTF()));
+            b.firstChunk(emptyToNull(input.readUTF()));
+            b.lastChunk(emptyToNull(input.readUTF()));
             b.lastModified(input.readCompactLong());
             b.firstChunkStartOffset(input.readCompactLong());
             b.lastChunkStartOffset(input.readCompactLong());

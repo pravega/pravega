@@ -19,6 +19,9 @@ import lombok.EqualsAndHashCode;
 
 import java.io.IOException;
 
+import static com.google.common.base.Strings.emptyToNull;
+import static com.google.common.base.Strings.nullToEmpty;
+
 /**
  * Represents chunk metadata.
  * Following metadata is stored.
@@ -95,13 +98,13 @@ public class ChunkMetadata extends StorageMetadata {
         private void write00(ChunkMetadata object, RevisionDataOutput output) throws IOException {
             output.writeUTF(object.name);
             output.writeCompactLong(object.length);
-            output.writeUTF(fromNullableString(object.nextChunk));
+            output.writeUTF(nullToEmpty(object.nextChunk));
         }
 
         private void read00(RevisionDataInput input, ChunkMetadataBuilder b) throws IOException {
             b.name(input.readUTF());
             b.length(input.readCompactLong());
-            b.nextChunk(toNullableString(input.readUTF()));
+            b.nextChunk(emptyToNull(input.readUTF()));
         }
     }
 }

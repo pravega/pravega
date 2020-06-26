@@ -17,7 +17,7 @@ import lombok.Getter;
  */
 public final class SegmentRollingPolicy {
     /**
-     * Max rolling length is 2^62 so that we can use CompactLong in serialization everywhere.
+     * Max rolling length is 2^61-1 therefore it requires only 62 bits. This allows us to use CompactLong in serialization everywhere.
      */
     public static final SegmentRollingPolicy NO_ROLLING = new SegmentRollingPolicy(Long.MAX_VALUE / 4);
 

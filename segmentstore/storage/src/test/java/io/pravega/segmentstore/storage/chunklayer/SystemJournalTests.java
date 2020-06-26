@@ -152,10 +152,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         // Init
-        SystemJournal journalBefore = new SystemJournal(containerId, epoch, storageProvider, metadataStoreBeforeCrash, config);
-        journalBefore.setSystemSegmentsPrefix(systemSegmentName);
-        journalBefore.setSystemSegments(getSystemSegments(systemSegmentName));
-
         long offset = 0;
 
         // Start container with epoch 1
@@ -179,9 +175,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Step 2
         // Start container with epoch 2
         epoch++;
-        SystemJournal journalAfter = new SystemJournal(containerId, epoch, storageProvider, metadataStoreAfterCrash, config);
-        journalAfter.setSystemSegments(getSystemSegments(systemSegmentName));
-        journalAfter.setSystemSegmentsPrefix(systemSegmentName);
 
         ChunkManager chunkManager2 = new ChunkManager(storageProvider, executorService(), config);
         chunkManager2.initialize(epoch);
@@ -628,8 +621,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         // Inital set of additions
         SystemJournal systemJournalBefore = new SystemJournal(containerId, epoch, chunkStorage, metadataStoreBeforeCrash, config);
-        systemJournalBefore.setSystemSegmentsPrefix(systemSegmentName);
-        systemJournalBefore.setSystemSegments(getSystemSegments(systemSegmentName));
 
         systemJournalBefore.bootstrap();
 
@@ -654,8 +645,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Failover
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
         SystemJournal systemJournalAfter = new SystemJournal(containerId, epoch + 1, chunkStorage, metadataStoreAfterCrash, config);
-        systemJournalAfter.setSystemSegmentsPrefix(systemSegmentName);
-        systemJournalAfter.setSystemSegments(getSystemSegments(systemSegmentName));
 
         systemJournalAfter.bootstrap();
 
@@ -664,8 +653,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         ChunkMetadataStore metadataStoreAfterCrash2 = getMetadataStore();
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, epoch + 2, chunkStorage, metadataStoreAfterCrash2, config);
-        systemJournalAfter2.setSystemSegmentsPrefix(systemSegmentName);
-        systemJournalAfter2.setSystemSegments(getSystemSegments(systemSegmentName));
 
         systemJournalAfter2.bootstrap();
 
@@ -683,17 +670,14 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
 
-        String systemSegmentName = "test";
         int containerId = 42;
+        String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(2);
         val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         // Step 1: Initial set of additions
         SystemJournal systemJournalBefore = new SystemJournal(containerId, epoch, chunkStorage, metadataStoreBeforeCrash, config);
-        systemJournalBefore.setSystemSegmentsPrefix(systemSegmentName);
-        systemJournalBefore.setSystemSegments(getSystemSegments(systemSegmentName));
-
         systemJournalBefore.bootstrap();
 
         String lastChunk = null;
@@ -717,8 +701,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Step 2: First failover, truncate first 5 chunks.
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
         SystemJournal systemJournalAfter = new SystemJournal(containerId, 2, chunkStorage, metadataStoreAfterCrash, config);
-        systemJournalAfter.setSystemSegmentsPrefix(systemSegmentName);
-        systemJournalAfter.setSystemSegments(getSystemSegments(systemSegmentName));
 
         systemJournalAfter.bootstrap();
 
@@ -739,8 +721,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Step 3: Second failover, truncate last 5 chunks.
         ChunkMetadataStore metadataStoreAfterCrash2 = getMetadataStore();
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, 3, chunkStorage, metadataStoreAfterCrash2, config);
-        systemJournalAfter2.setSystemSegmentsPrefix(systemSegmentName);
-        systemJournalAfter2.setSystemSegments(getSystemSegments(systemSegmentName));
 
         systemJournalAfter2.bootstrap();
 
@@ -761,8 +741,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Step 4: third failover validate.
         ChunkMetadataStore metadataStoreAfterCrash3 = getMetadataStore();
         SystemJournal systemJournalAfter3 = new SystemJournal(containerId, 4, chunkStorage, metadataStoreAfterCrash3, config);
-        systemJournalAfter3.setSystemSegmentsPrefix(systemSegmentName);
-        systemJournalAfter3.setSystemSegments(getSystemSegments(systemSegmentName));
 
         systemJournalAfter3.bootstrap();
 

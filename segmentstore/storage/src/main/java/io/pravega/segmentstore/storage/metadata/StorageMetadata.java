@@ -41,32 +41,6 @@ public abstract class StorageMetadata implements Serializable {
     public abstract StorageMetadata deepCopy();
 
     /**
-     * Helper method that converts empty string to null value.
-     *
-     * @param toConvert String to convert.
-     * @return If toConvert is null then it returns empty string. Otherwise returns original string.
-     */
-    public static String toNullableString(String toConvert) {
-        if (toConvert.length() == 0) {
-            return null;
-        }
-        return toConvert;
-    }
-
-    /**
-     * Helper method that converts null value to empty string.
-     *
-     * @param toConvert String to convert.
-     * @return If toConvert is null then it returns empty string. Otherwise returns original string.
-     */
-    public static String fromNullableString(String toConvert) {
-        if (null == toConvert) {
-            return "";
-        }
-        return toConvert;
-    }
-
-    /**
      * Serializer that implements {@link VersionedSerializer}.
      */
     public static class StorageMetadataSerializer extends VersionedSerializer.MultiType<StorageMetadata> {

@@ -86,7 +86,7 @@ public final class NameUtils {
     /**
      * Format for Container System Journal file name.
      */
-    private static final String SYSJOURNAL_NAME_FORMAT = "_sysjournal.epoch%d.container%d.file%d";
+    private static final String SYSJOURNAL_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.file%d";
 
     /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
