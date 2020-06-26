@@ -17,7 +17,7 @@ volumes:
       device: ":${NFS_PATH}"
 services:
   zookeeper:
-    image: zookeeper:3.5.4-beta
+    image: zookeeper:3.5.5
     ports:
       - "2181:2181"
 
@@ -66,7 +66,6 @@ services:
       REST_SERVER_PORT: 10080
       JAVA_OPTS: |
         -Dcontroller.service.rpc.listener.port=9090
-        -Dconfig.controller.metricenableCSVReporter=false
         -Xmx512m
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError
@@ -92,7 +91,6 @@ services:
       ZK_URL: zookeeper:2181
       CONTROLLER_URL: tcp://${HOST_IP}:9090
       JAVA_OPTS: |
-        -Dmetrics.enableCSVReporter=false
         -Dpravegaservice.service.published.host.nameOrIp=${HOST_IP}
         -Dbookkeeper.ensemble.size=2
         -Dbookkeeper.ack.quorum.size=2
