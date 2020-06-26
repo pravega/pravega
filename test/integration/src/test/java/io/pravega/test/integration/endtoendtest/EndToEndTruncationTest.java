@@ -236,7 +236,7 @@ public class EndToEndTruncationTest {
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                connectionFactory);
+                                                                     clientFactory.getConnectionPool());
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                   .stream("test/test").build());
 
@@ -296,7 +296,7 @@ public class EndToEndTruncationTest {
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                connectionFactory);
+                                                                     clientFactory.getConnectionPool());
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream("test/test").build());
 
@@ -421,7 +421,7 @@ public class EndToEndTruncationTest {
         //Read the event back.
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                connectionFactory);
+                                                                     clientFactory.getConnectionPool());
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                                                   .stream("test/test").build());
         @Cleanup
@@ -591,7 +591,7 @@ public class EndToEndTruncationTest {
 
         // Instantiate readers to consume from Stream.
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, clientFactory.getConnectionPool());
         groupManager.createReaderGroup(readerGroupName,
                                        ReaderGroupConfig.builder()
                                                         .automaticCheckpointIntervalMillis(100)

@@ -70,11 +70,11 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory);
     }
 
-    public ReaderGroupManagerImpl(String scope, Controller controller, SynchronizerClientFactory clientFactory, ConnectionFactory connectionFactory) {
+    public ReaderGroupManagerImpl(String scope, Controller controller, SynchronizerClientFactory clientFactory, ConnectionPool connectionPool) {
         this.scope = scope;
         this.clientFactory = clientFactory;
         this.controller = controller;
-        this.connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory);
+        this.connectionPool = connectionPool;
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {

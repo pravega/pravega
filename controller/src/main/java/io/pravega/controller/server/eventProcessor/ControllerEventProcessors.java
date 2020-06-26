@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
@@ -100,11 +101,11 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
                                      final BucketStore bucketStore,
-                                     final ConnectionFactory connectionFactory,
+                                     final ConnectionPool connectionPool,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                      final ScheduledExecutorService executor) {
-        this(host, config, controller, checkpointStore, streamMetadataStore, bucketStore, connectionFactory,
+        this(host, config, controller, checkpointStore, streamMetadataStore, bucketStore, connectionPool,
                 streamMetadataTasks, streamTransactionMetadataTasks, null, executor);
     }
 
@@ -115,7 +116,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
                                      final BucketStore bucketStore,
-                                     final ConnectionFactory connectionFactory,
+                                     final ConnectionPool connectionPool,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                      final EventProcessorSystem system,
@@ -124,9 +125,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.config = config;
         this.checkpointStore = checkpointStore;
         this.controller = controller;
-        this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionFactory);
+        this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionPool);
         this.system = system == null ? new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
-                new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory, connectionFactory)) : system;
+                new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory, connectionPool)) : system;
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamMetadataStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamMetadataStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamMetadataStore, bucketStore, executor),

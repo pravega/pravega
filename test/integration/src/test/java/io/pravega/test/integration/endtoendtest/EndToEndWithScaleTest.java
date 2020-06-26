@@ -133,7 +133,7 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
             writer.writeEvent("0", "txntest2" + i).get();
             @Cleanup
             ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory,
-                    connectionFactory);
+                                                                         clientFactory.getConnectionPool());
             groupManager.createReaderGroup("reader" + i, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0).
                     stream(Stream.of(scope, streamName).getScopedName()).build());
             @Cleanup

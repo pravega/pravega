@@ -128,7 +128,7 @@ public class StreamCutsTest {
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                connectionFactory);
+                                                                     clientFactory.getConnectionPool());
         groupManager.createReaderGroup("cuts", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().stream("test/test").groupRefreshTimeMillis(0).build());
         @Cleanup

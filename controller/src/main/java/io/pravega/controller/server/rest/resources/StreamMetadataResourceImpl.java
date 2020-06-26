@@ -310,7 +310,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this.localController);
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, this.localController,
-                clientFactory, this.connectionFactory);
+                                                                           clientFactory, clientFactory.getConnectionPool());
         ReaderGroupProperty readerGroupProperty = new ReaderGroupProperty();
         readerGroupProperty.setScopeName(scopeName);
         readerGroupProperty.setReaderGroupName(readerGroupName);

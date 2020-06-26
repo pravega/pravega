@@ -13,6 +13,7 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Service;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.concurrent.Futures;
@@ -85,7 +86,7 @@ public class ControllerEventProcessorsTest {
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
         HostControllerStore hostStore = mock(HostControllerStore.class);
-        ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
+        ConnectionPool connectionPool = mock(ConnectionPool.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
@@ -170,7 +171,7 @@ public class ControllerEventProcessorsTest {
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
-                connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
+                connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
                 system, executor);
         processors.startAsync();
         processors.awaitRunning();
@@ -185,7 +186,7 @@ public class ControllerEventProcessorsTest {
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
-        ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
+        ConnectionPool connectionPool = mock(ConnectionPool.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
@@ -235,7 +236,7 @@ public class ControllerEventProcessorsTest {
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
-                connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
+                connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
                 system, executor);
 
         // call bootstrap on ControllerEventProcessors

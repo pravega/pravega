@@ -60,7 +60,6 @@ public class SocketConnectionFactoryImpl implements ConnectionFactory {
 				.thenApply(c -> c);
 	}
 
-
     private int getThreadPoolSize(Integer threadCount) {
         if (threadCount != null) {
             return threadCount;
