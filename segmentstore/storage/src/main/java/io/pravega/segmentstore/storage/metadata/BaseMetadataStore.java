@@ -30,7 +30,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -102,11 +101,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * Maximum number of metadata entries to keep in recent transaction buffer.
      */
     private static final int MAX_ENTRIES_IN_TXN_BUFFER = 5000;
-
-    /**
-     * List of pinned keys. These keys should not be read or written.
-     */
-    private final ConcurrentSkipListSet<String> pinnedKeys = new ConcurrentSkipListSet<>();
 
     /**
      * Lock for synchronization.
@@ -213,7 +207,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 }
             }
         }
-
         // Step 2 : Check whether transaction is safe to commit.
         // This check needs to be atomic, with absolutely no possibility of re-entry
         synchronized (lock) {
@@ -315,6 +308,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         if (null == key) {
             return null;
         }
+        StorageMetadata retValue = null;
 
         Map<String, TransactionData> txnData = txn.getData();
         TransactionData data = txnData.get(key);
@@ -343,9 +337,10 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         }
 
         if (data != null) {
-            return data.getValue();
+            retValue = data.getValue();
         }
-        return null;
+
+        return retValue;
     }
 
     /**
@@ -449,8 +444,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         data.setValue(metadata);
         data.setPinned(true);
         data.setVersion(txn.getVersion());
-
-        pinnedKeys.add(metadata.getKey());
     }
 
     /**
@@ -514,16 +507,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     public void markFenced() {
         this.fenced.set(true);
-    }
-
-    /**
-     * Return whether record for the given key is pinned or not.
-     *
-     * @param key Key to check.
-     * @return True if record for the given key is pinned, false otherwise.
-     */
-    protected boolean isPinnedKey(String key) {
-        return pinnedKeys.contains(key);
     }
 
     /**
