@@ -98,15 +98,17 @@ public class TypedPropertiesTests {
         assertEquals("configValue", config);
     }
 
+
+
     @Test
-    public void testNewPropertyTakesPrecedenceOverLegacy() {
+    public void testLegacyPropertyTakesPrecedenceOverNewOnesWhenSpecified() {
         Properties props1 = new Properties();
-        props1.setProperty("ns1.newPropertyKey", "configValue");
-        props1.setProperty("ns1.legacyPropertyKey", "configValue");
+        props1.setProperty("ns1.newPropertyKey", "new");
+        props1.setProperty("ns1.legacyPropertyKey", "old");
         TypedProperties typedProps = new TypedProperties(props1, "ns1");
         String config = typedProps.get(Property.named(
                 "newPropertyKey", "default", "legacyPropertyKey"));
-        assertEquals("configValue", config);
+        assertEquals("old", config);
     }
 
     private <T> void testData(Properties props, ExtractorFunction<T> methodToTest, Predicate<String> valueValidator) throws Exception {
