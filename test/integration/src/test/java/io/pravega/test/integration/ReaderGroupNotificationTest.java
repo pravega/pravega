@@ -34,7 +34,6 @@ import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.client.stream.notifications.notifier.EndOfDataNotifier;
 import io.pravega.client.stream.notifications.notifier.SegmentNotifier;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -45,7 +44,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import java.lang.IllegalStateException;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -58,7 +56,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -68,7 +65,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -204,7 +200,7 @@ public class ReaderGroupNotificationTest {
     public void testTargetRateNotifications() throws Exception {
         final String streamName = "stream1";
         StreamConfiguration config = StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.byEventRate(10,2,3))
+                .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 3))
                 .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
@@ -246,7 +242,7 @@ public class ReaderGroupNotificationTest {
                 try {
                     writer1.writeEvent(routingKeys.get(0), "data1").get();
                 } catch (Throwable e) {
-                    System.err.println("test exception writing events " + e.getMessage());
+                    log.error("test exception: ", e);
                     break;
                 }
             }
@@ -267,16 +263,14 @@ public class ReaderGroupNotificationTest {
                                 throw new IllegalStateException(e);
                             }
                             assertNotNull(initialSegmentNotification);
-                            assertTrue(initialSegmentNotification.getNumOfSegments() > 2);
-                            if (streamSegments.getSegments().size() > 2) {
-                                System.err.println("Success");
+                            assertTrue(initialSegmentNotification.getNumOfSegments() == 3);
+                            if (streamSegments.getSegments().size() == 3) {
                                 log.info("Success");
                             } else {
-                                throw new IllegalStateException("expected number of segments to be 2");
+                                throw new IllegalStateException("expected number of segments to be 3");
                             }
                         }), executor)
                 .exceptionally(e -> {
-                    System.err.println("Failure");
                     log.error("Failure");
                     return null;
                 }).get();
