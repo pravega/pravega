@@ -115,12 +115,12 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
     }
     
     /**
-     * Creates a new instance of the ClientFactory class.
-     * Note: ConnectionFactory  and Controller is closed when {@link ClientFactoryImpl#close()} is invoked.
+     * Creates a new instance of the ClientFactory class. Note: ConnectionFactory and Controller is
+     * closed when {@link ClientFactoryImpl#close()} is invoked.
      *
-     * @param scope             The scope string.
-     * @param controller        The reference to Controller.
-     * @param pool				The connection pool
+     * @param scope The scope string.
+     * @param controller The reference to Controller.
+     * @param pool The connection pool
      */
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionPool pool) {

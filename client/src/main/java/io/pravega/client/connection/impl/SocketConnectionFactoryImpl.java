@@ -53,12 +53,12 @@ public class SocketConnectionFactoryImpl implements ConnectionFactory {
 
 
     @Override
-	public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
-    	openSocketCount.incrementAndGet();
-		return TcpClientConnection
-				.connect(endpoint, clientConfig, rp, internalExecutor, openSocketCount::decrementAndGet)
-				.thenApply(c -> c);
-	}
+    public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
+        openSocketCount.incrementAndGet();
+        return TcpClientConnection
+            .connect(endpoint, clientConfig, rp, internalExecutor, openSocketCount::decrementAndGet)
+            .thenApply(c -> c);
+    }
 
     private int getThreadPoolSize(Integer threadCount) {
         if (threadCount != null) {
@@ -80,7 +80,7 @@ public class SocketConnectionFactoryImpl implements ConnectionFactory {
     }
 
     @VisibleForTesting
-	public int getOpenSocketCount() {
-		return openSocketCount.get();
-	}
+    public int getOpenSocketCount() {
+        return openSocketCount.get();
+    }
 }

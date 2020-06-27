@@ -704,6 +704,6 @@ public class SegmentHelper implements AutoCloseable {
 
     @Override
     public void close() {
-    	connectionPool.close();
+        connectionPool.close();
     }
 }

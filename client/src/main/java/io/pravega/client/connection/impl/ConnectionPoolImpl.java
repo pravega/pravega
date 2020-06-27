@@ -168,9 +168,9 @@ public class ConnectionPoolImpl implements ConnectionPool {
     @VisibleForTesting
     @Synchronized
     public List<Connection> getActiveChannels() {
-    	ArrayList<Connection> result = new ArrayList<Connection>();
+        ArrayList<Connection> result = new ArrayList<Connection>();
         for (List<Connection> connection : this.connectionMap.values()) {
-        	result.addAll(connection);
+            result.addAll(connection);
         }
         return result;
     }
