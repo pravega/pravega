@@ -56,7 +56,6 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         long last = lastAppendTime.getAndSet(now);
         lastAppendNumber.set(eventNumber);
         nanosBetweenAppends.addNewSample(now - last);
-        appendsOutstanding.addNewSample(lastAppendNumber.get() - eventNumber);
         eventSize.addNewSample(size);
     }
 
