@@ -590,10 +590,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                              log.info("Establishing connection to {} for {}, writerID: {}", uri, segmentName, writerId);
                              return establishConnection(uri);
                          }, connectionPool.getInternalExecutor())
-
-                         .thenCombineAsync(tokenProvider.retrieveToken(), AbstractMap.SimpleEntry<ClientConnection, String>::new,
-                        		 connectionPool.getInternalExecutor())
-
+                         .thenCombineAsync(tokenProvider.retrieveToken(),
+                                           AbstractMap.SimpleEntry<ClientConnection, String>::new,
+                                           connectionPool.getInternalExecutor())
                          .thenComposeAsync(pair -> {
                              ClientConnection connection = pair.getKey();
                              String token = pair.getValue();
@@ -631,11 +630,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
 
     private CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri uri) {
-		if (useConnectionPooling) {
-			return connectionPool.getClientConnection(Flow.from(requestId), uri, responseProcessor);
-		} else {
-			return connectionPool.getClientConnection(uri, responseProcessor);
-		}
+        if (useConnectionPooling) {
+            return connectionPool.getClientConnection(Flow.from(requestId), uri, responseProcessor);
+        } else {
+            return connectionPool.getClientConnection(uri, responseProcessor);
+        }
     }
 
     /**

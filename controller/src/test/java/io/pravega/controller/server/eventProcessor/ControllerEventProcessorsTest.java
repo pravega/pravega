@@ -12,7 +12,6 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Service;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.impl.Controller;

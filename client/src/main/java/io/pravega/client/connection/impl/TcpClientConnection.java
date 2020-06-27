@@ -155,7 +155,7 @@ public class TcpClientConnection implements ClientConnection {
                 return new TcpClientConnection(socket, encoder, reader, location, onClose);
             } catch (IOException e) {
                 try {
-                	onClose.run();
+                    onClose.run();
                     socket.close();
                 } catch (IOException e1) {
                     log.warn("Failed to close socket while failing.", e1);
@@ -246,7 +246,7 @@ public class TcpClientConnection implements ClientConnection {
         if (closed.compareAndSet(false, true)) {
             reader.stop();
             try {
-            	onClose.run();
+                onClose.run();
                 socket.close();
             } catch (IOException e) {
                 log.warn("Error closing socket", e);

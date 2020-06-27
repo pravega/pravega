@@ -137,11 +137,10 @@ public class EndToEndChannelLeakTest {
                                                                      clientFactory.getConnectionPool());
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                        .stream(Stream.of(SCOPE, STREAM_NAME)).build());
-
         
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, serializer,
-        		ReaderConfig.builder().disableTimeWindows(true).build());
+                                                                       ReaderConfig.builder().disableTimeWindows(true).build());
 
         //Read an event.
         EventRead<String> event = reader1.readNextEvent(10000);
@@ -503,12 +502,12 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(expectedChannelCount, connectionPool, connectionFactory);
     }
     
-	private void assertChannelCount(int expectedChannelCount, ConnectionPoolImpl connectionPool,
-			SocketConnectionFactoryImpl factory) throws Exception {
-		assertEventuallyEquals(expectedChannelCount, () -> {
-			connectionPool.pruneUnusedConnections();
-			return factory.getOpenSocketCount();
-		}, ASSERT_TIMEOUT);
-	}
-    
+    private void assertChannelCount(int expectedChannelCount, ConnectionPoolImpl connectionPool,
+            SocketConnectionFactoryImpl factory) throws Exception {
+        assertEventuallyEquals(expectedChannelCount, () -> {
+            connectionPool.pruneUnusedConnections();
+            return factory.getOpenSocketCount();
+        }, ASSERT_TIMEOUT);
+    }
+
 }
