@@ -271,7 +271,7 @@ public class ReaderGroupNotificationTest {
                             }
                         }), executor)
                 .exceptionally(e -> {
-                    log.error("Failure");
+                    log.error("Failure", e);
                     return null;
                 }).get();
     ExecutorServiceHelpers.shutdown(executor);
