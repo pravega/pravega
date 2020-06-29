@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
