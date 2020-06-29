@@ -179,6 +179,12 @@ public class PravegaTablesScope implements Scope {
                         storeHelper.getEntry(tableName, stream, x -> x).thenApply(v -> true), false));
     }
 
+    public CompletableFuture<Boolean> checkKeyValueTableExistsInScope(String kvt) {
+        return getKVTablesInScopeTableName()
+                .thenCompose(tableName -> storeHelper.expectingDataNotFound(
+                        storeHelper.getEntry(tableName, kvt, x -> x).thenApply(v -> true), false));
+    }
+
     public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
         return getKVTablesInScopeTableName()
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, kvt, id)));

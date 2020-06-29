@@ -95,6 +95,12 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
 
     @Override
     @Synchronized
+    public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt) {
+        return CompletableFuture.completedFuture((InMemoryScope) getScope(scopeName)).thenApply(scope -> scope.checkTableExists(kvt));
+    }
+
+    @Override
+    @Synchronized
     public Scope newScope(final String scopeName) {
         if (scopes.containsKey(scopeName)) {
             return scopes.get(scopeName);

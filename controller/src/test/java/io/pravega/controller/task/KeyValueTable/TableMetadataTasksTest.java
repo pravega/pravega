@@ -29,6 +29,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
 
@@ -48,8 +49,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.spy;
 
 public abstract class TableMetadataTasksTest {
@@ -127,6 +127,26 @@ public abstract class TableMetadataTasksTest {
                 requestTracker, mockHelper));
         CreateKeyValueTableStatus.Status status = kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime).get();
         assertEquals(CreateKeyValueTableStatus.Status.FAILURE, status);
+    }
+
+    @Test(timeout = 30000)
+    public void testDeleteKeyValueTable() throws ExecutionException, InterruptedException {
+        Assert.assertTrue(isScopeCreated);
+        long creationTime = System.currentTimeMillis();
+        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).build();
+        CompletableFuture<Controller.CreateKeyValueTableStatus.Status> createOperationFuture
+                = kvtMetadataTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime);
+
+        assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
+        assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
+
+        // delete KVTable
+        CompletableFuture<DeleteKVTableStatus.Status> future = kvtMetadataTasks.deleteKeyValueTable(SCOPE, kvtable1, null);
+        assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
+
+        assertEquals(Controller.DeleteKVTableStatus.Status.SUCCESS, future.get());
+
+        assertFalse(kvtStore.checkTableExists(SCOPE, kvtable1).join());
     }
 
     private CompletableFuture<Void> processEvent(TableMetadataTasksTest.WriterMock requestEventWriter) throws InterruptedException {

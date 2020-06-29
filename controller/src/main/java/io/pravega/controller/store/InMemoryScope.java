@@ -137,6 +137,10 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(null);
     }
 
+    public Boolean checkTableExists(String kvt) {
+        return kvTablesMap.containsKey(kvt);
+    }
+
     public Optional<InMemoryKVTable> getKVTableFromScope(String kvt) throws StoreException {
         if (kvTablesMap.containsKey(kvt)) {
             return Optional.of(kvTablesMap.get(kvt));

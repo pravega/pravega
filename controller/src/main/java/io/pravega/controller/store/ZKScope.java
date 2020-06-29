@@ -338,6 +338,10 @@ public class ZKScope implements Scope {
 
     }
 
+    public CompletableFuture<Boolean> checkKeyValueTableExistsInScope(String kvt) {
+        return getKVTableInScopeZNodePath(this.scopeName, kvt).thenCompose(path -> store.checkExists(path));
+    }
+
     public static CompletableFuture<String> getKVTableInScopeZNodePath(String scopeName, String kvtName) {
         return CompletableFuture.completedFuture(String.format(KVTABLES_IN_SCOPE_ROOT_PATH_FORMAT, scopeName, kvtName));
     }

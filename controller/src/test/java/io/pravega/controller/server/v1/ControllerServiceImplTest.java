@@ -38,6 +38,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -289,6 +290,42 @@ public abstract class ControllerServiceImplTest {
         assertEquals(nonExistentScopeResponse.get().getStatus(), Controller.KVTablesInScopeResponse.Status.SCOPE_NOT_FOUND);
     }
 
+    @Test
+    public void deleteKeyValueTableTests() {
+        // Try deleting a non-existent KeyValueTable.
+        ResultObserver<DeleteKVTableStatus> result2 = new ResultObserver<>();
+        this.controllerService.deleteKeyValueTable(ModelHelper.createKeyValueTableInfo(SCOPE4, "dummyKvt"), result2);
+        DeleteKVTableStatus deleteKVTStatus = result2.get();
+        assertEquals("Delete Non-existent KeyValueTable",
+                DeleteKVTableStatus.Status.TABLE_NOT_FOUND, deleteKVTStatus.getStatus());
+
+        // Try deleting a non-existent KeyValueTable with non-existent scope.
+        ResultObserver<DeleteKVTableStatus> result3 = new ResultObserver<>();
+        this.controllerService.deleteKeyValueTable(ModelHelper.createKeyValueTableInfo("dummyScope", "dummyKeyValueTable"), result3);
+        deleteKVTStatus = result3.get();
+        assertEquals("Delete Non-existent KeyValueTable with non-existent Scope",
+                DeleteKVTableStatus.Status.TABLE_NOT_FOUND, deleteKVTStatus.getStatus());
+
+        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).build();
+
+        //Create a test KeyValueTable
+        ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
+        ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(SCOPE4).build();
+        this.controllerService.createScope(scopeInfo, result);
+        CreateScopeStatus createScopeStatus = result.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        ResultObserver<CreateKeyValueTableStatus> result1 = new ResultObserver<>();
+        this.controllerService.createKeyValueTable(ModelHelper.decode(SCOPE4, KVTABLE1, config1), result1);
+        CreateKeyValueTableStatus createStatus = result1.get();
+        assertEquals("Create KeyValueTable", CreateKeyValueTableStatus.Status.SUCCESS, createStatus.getStatus());
+
+        // Delete the KeyValueTable.
+        ResultObserver<DeleteKVTableStatus> result7 = new ResultObserver<>();
+        this.controllerService.deleteKeyValueTable(ModelHelper.createKeyValueTableInfo(SCOPE4, KVTABLE1), result7);
+        deleteKVTStatus = result7.get();
+        assertEquals("Delete KeyValueTable", DeleteKVTableStatus.Status.SUCCESS, deleteKVTStatus.getStatus());
+    }
 
     @Test
     public void deleteScopeTests() {

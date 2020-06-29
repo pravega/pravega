@@ -60,6 +60,11 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
     }
 
     @Override
+    public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt) {
+        return Futures.completeOn(((ZKScope) getScope(scopeName)).checkKeyValueTableExistsInScope(kvt), executor);
+    }
+
+    @Override
     public CompletableFuture<Void> createEntryForKVTable(String scopeName, String kvtName, byte[] id,  Executor executor) {
         return Futures.completeOn(
                 CompletableFuture.completedFuture((ZKScope) getScope(scopeName))

@@ -107,6 +107,11 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
                 false), executor);
     }
 
+    @Override
+    public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt) {
+        return Futures.completeOn(((PravegaTablesScope) getScope(scopeName)).checkKeyValueTableExistsInScope(kvt), executor);
+    }
+
     public CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                          final String kvtName,
                                                          final byte[] id,

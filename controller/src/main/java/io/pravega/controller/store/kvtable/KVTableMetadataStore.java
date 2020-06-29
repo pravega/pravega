@@ -39,6 +39,8 @@ public interface KVTableMetadataStore extends AutoCloseable {
 
     CompletableFuture<Boolean> checkScopeExists(String scope);
 
+    CompletableFuture<Boolean> checkTableExists(String scope, String kvt);
+
     /**
      * Creates a new stream with the given name and configuration.
      *

@@ -62,6 +62,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 
 import java.util.List;
@@ -190,6 +191,19 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             }
                         }), responseObserver, requestTag);
 
+    }
+
+    @Override
+    public void deleteKeyValueTable(KeyValueTableInfo request, StreamObserver<DeleteKVTableStatus> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteKeyValueTable",
+                request.getScope(), request.getKvtName());
+
+        log.info(requestTag.getRequestId(), "deleteKeyValueTable called for KVTable {}/{}.",
+                request.getScope(), request.getKvtName());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                AuthResourceRepresentation.ofKeyValueTableInScope(request.getScope(), request.getKvtName()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.deleteKeyValueTable(request.getScope(), request.getKvtName()), responseObserver, requestTag);
     }
 
     @Override
