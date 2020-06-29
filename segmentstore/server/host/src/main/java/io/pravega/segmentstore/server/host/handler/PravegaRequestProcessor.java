@@ -833,7 +833,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final int suggestedEntryCount = readTableEntriesDelta.getSuggestedEntryCount();
         final long fromPosition = readTableEntriesDelta.getFromPosition();
 
-        log.info(readTableEntriesDelta.getRequestId(), "Fetching keys from {}.", readTableEntriesDelta);
+        log.info(readTableEntriesDelta.getRequestId(), "Iterate Table Entries Delta: Segment={} Count={} FromPositon={}.",
+                readTableEntriesDelta.getSegment(),
+                readTableEntriesDelta.getSuggestedEntryCount(),
+                readTableEntriesDelta.getFromPosition());
 
         val timer = new Timer();
         val result = new DeltaIteratorResult<BufferView, Map.Entry<WireCommands.TableKey, WireCommands.TableValue>, DeltaIteratorState>(
@@ -865,6 +868,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             return true;
                         }))
                 .thenAccept(v -> {
+                    log.debug(readTableEntriesDelta.getRequestId(), "Iterate Table Segment Entries Delta complete ({}).", result.getItemCount());
                     connection.send(new WireCommands.TableEntriesDeltaRead(
                             readTableEntriesDelta.getRequestId(),
                             segment,
@@ -1078,7 +1082,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         @Override
         synchronized void add(V item, int sizeBytes) {}
 
-        synchronized V add(K key, V value, int sizeBytes) {
+        synchronized void add(K key, V value, int sizeBytes) {
+            this.items.put(key, value);
             super.sizeBytes += sizeBytes;
         }
 
