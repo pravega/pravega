@@ -132,9 +132,13 @@ public class DataRecoveryTestUtils {
                     }).join();
         }
         for (TableKey k : segmentsInMD) {
-            String segmentName = new String(k.getKey().array(), Charsets.UTF_8);
+            String segmentName = k.getKey().toString();
             log.info("Deleting segment : {} as it is not in storage", segmentName);
-            container.deleteStreamSegment(segmentName, TIMEOUT).join();
+            try {
+                container.deleteStreamSegment(segmentName, TIMEOUT).join();
+            } catch (Throwable e) {
+                log.error("Error while deleting the segment = {}", segmentName);
+            }
         }
         System.out.format("Recovery done for container# %s\n", containerId);
     }

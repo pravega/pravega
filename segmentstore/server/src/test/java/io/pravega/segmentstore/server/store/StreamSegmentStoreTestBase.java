@@ -502,6 +502,14 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
+    private StorageFactory getStorageFactory() {
+        return this.storageFactory;
+    }
+
+    private StorageFactory getReadOnlyStorageFactory() {
+        return this.readOnlyStorageFactory;
+    }
+
     private ServiceBuilder createBuilder(int instanceId) throws Exception {
         val builder = createBuilder(this.configBuilder, instanceId);
         try {
@@ -512,14 +520,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             throw ex;
         }
         return builder;
-    }
-
-    private StorageFactory getStorageFactory() {
-        return this.storageFactory;
-    }
-
-    private StorageFactory getReadOnlyStorageFactory() {
-        return this.readOnlyStorageFactory;
     }
 
     /**
