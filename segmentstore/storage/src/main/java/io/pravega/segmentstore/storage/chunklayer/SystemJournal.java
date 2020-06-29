@@ -153,6 +153,42 @@ public class SystemJournal {
     }
 
     /**
+     * Bootstrap the metadata about storage metadata segments by reading and processing the journal.
+     *
+     * @throws Exception Exception in case of any error.
+     */
+    public void bootstrap() throws Exception {
+        Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
+        try (val txn = metadataStore.beginTransaction()) {
+            // Keep track of offsets at which chunks were added to the system segments.
+            val chunkStartOffsets = new HashMap<String, Long>();
+
+            // Keep track of offsets at which system segments were truncated.
+            // We don't need to apply each truncate operation, only need to apply the final truncate offset.
+            val finalTruncateOffsets = new HashMap<String, Long>();
+            val finalFirstChunkStartsAtOffsets = new HashMap<String, Long>();
+
+            // Step 1: Create metadata records for system segments from latest snapshot.
+            val epochToStart = applyLatestSnapshot(txn, chunkStartOffsets);
+
+            // Step 2: For each epoch, find the corresponding system journal files, process them and apply operations recorded.
+            applySystemLogOperations(txn, epochToStart, chunkStartOffsets, finalTruncateOffsets, finalFirstChunkStartsAtOffsets);
+
+            // Step 3: Adjust the length of the last chunk.
+            adjustLastChunkLengths(txn);
+
+            // Step 4: Apply the truncate offsets.
+            applyFinalTruncateOffsets(txn, finalTruncateOffsets, finalFirstChunkStartsAtOffsets);
+
+            // Step 5: Validate and save a snapshot.
+            validateAndSaveSnapshot(txn);
+
+            // Step 5: Finally commit all data.
+            txn.commit(true, true);
+        }
+    }
+
+    /**
      * Commits a given system log record to the underlying log chunk.
      *
      * @param record Record to persist.
@@ -195,42 +231,6 @@ public class SystemJournal {
             }
         }
         log.debug("SystemJournal[{}] Logging system log records - file={}, batch ={}.", containerId, h.getChunkName(), batch);
-    }
-
-    /**
-     * Bootstrap the metadata about storage metadata segments by reading and processing the journal.
-     *
-     * @throws Exception Exception in case of any error.
-     */
-    public void bootstrap() throws Exception {
-        Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
-        try (val txn = metadataStore.beginTransaction()) {
-            // Keep track of offsets at which chunks were added to the system segments.
-            val chunkStartOffsets = new HashMap<String, Long>();
-
-            // Keep track of offsets at which system segments were truncated.
-            // We don't need to apply each truncate operation, only need to apply the final truncate offset.
-            val finalTruncateOffsets = new HashMap<String, Long>();
-            val finalFirstChunkStartsAtOffsets = new HashMap<String, Long>();
-
-            // Step 1: Create metadata records for system segments from latest snapshot.
-            val epochToStart = applyLatestSnapshot(txn, chunkStartOffsets);
-
-            // Step 2: For each epoch, find the corresponding system journal files, process them and apply operations recorded.
-            applySystemLogOperations(txn, epochToStart, chunkStartOffsets, finalTruncateOffsets, finalFirstChunkStartsAtOffsets);
-
-            // Step 3: Adjust the length of the last chunk.
-            adjustLastChunkLengths(txn);
-
-            // Step 4: Apply the truncate offsets.
-            applyFinalTruncateOffsets(txn, finalTruncateOffsets, finalFirstChunkStartsAtOffsets);
-
-            // Step 5: Validate and save a snapshot.
-            validateAndSaveSnapshot(txn);
-
-            // Step 5: Finally commit all data.
-            txn.commit(true, true);
-        }
     }
 
     /**
