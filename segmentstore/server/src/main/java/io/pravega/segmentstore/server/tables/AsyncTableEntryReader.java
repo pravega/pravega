@@ -11,12 +11,9 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
-import io.pravega.common.io.StreamHelpers;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.BufferViewBuilder;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
@@ -24,8 +21,6 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
-import java.io.IOException;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import lombok.AccessLevel;
@@ -48,7 +43,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     //region Members
 
     private final TimeoutTimer timer;
-    private final EnhancedByteArrayOutputStream readData;
+    private final BufferViewBuilder readData;
     @Getter
     private final CompletableFuture<ResultT> result;
     private final EntrySerializer serializer;
@@ -71,7 +66,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         this.keyVersion = keyVersion;
         this.serializer = serializer;
         this.timer = timer;
-        this.readData = new EnhancedByteArrayOutputStream();
+        this.readData = BufferView.builder();
         this.result = new CompletableFuture<>();
     }
 
@@ -79,7 +74,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      * Creates a new {@link AsyncTableEntryReader} that can be used to read a {@link TableEntry} with a an optional
      * matching key.
      *
-     * @param soughtKey  (Optional) An {@link ArrayView} representing the Key to match. If provided, a {@link TableEntry}
+     * @param soughtKey  (Optional) A {@link BufferView} representing the Key to match. If provided, a {@link TableEntry}
      *                   will only be returned if its {@link TableEntry#getKey()} matches this value.
      * @param keyVersion The version of the {@link TableEntry} that is located at this position. This will be used for
      *                   constructing the result and has no bearing on the reading/matching logic.
@@ -88,7 +83,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      * @return A new instance of the {@link AsyncTableEntryReader} class. The {@link #getResult()} will be completed with
      * a {@link TableEntry} instance once the Key is matched.
      */
-    static AsyncTableEntryReader<TableEntry> readEntry(ArrayView soughtKey, long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
+    static AsyncTableEntryReader<TableEntry> readEntry(BufferView soughtKey, long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
         return new EntryReader(soughtKey, keyVersion, serializer, timer);
     }
 
@@ -115,13 +110,14 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      *                      unless the deserialized segment's Header contains an explicit version.
      * @param serializer    The {@link EntrySerializer} to use for deserializing entries.
      * @return A {@link DeserializedEntry} that contains all the components of the {@link TableEntry}.
-     * @throws IOException If an Exception occurred while reading from the given InputStream.
+     * @throws SerializationException If an Exception occurred while deserializing the {@link DeserializedEntry}.
      */
-    static DeserializedEntry readEntryComponents(InputStream input, long segmentOffset, EntrySerializer serializer) throws IOException {
+    static DeserializedEntry readEntryComponents(BufferView.Reader input, long segmentOffset, EntrySerializer serializer) throws SerializationException {
         val h = serializer.readHeader(input);
         long version = getKeyVersion(h, segmentOffset);
-        byte[] key = StreamHelpers.readAll(input, h.getKeyLength());
-        byte[] value = h.isDeletion() ? null : (h.getValueLength() == 0 ? new byte[0] : StreamHelpers.readAll(input, h.getValueLength()));
+        BufferView key = input.readSlice(h.getKeyLength());
+        BufferView value = h.isDeletion() ? null :
+                (h.getValueLength() == 0 ? BufferView.empty() : input.readSlice(h.getValueLength()));
         return new DeserializedEntry(h, version, key, value);
     }
 
@@ -132,11 +128,11 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     /**
      * When implemented in a derived class, this will process the data read so far.
      *
-     * @param readData A {@link ByteArraySegment} representing the generated result data so far
+     * @param readData A {@link BufferView} representing the generated result data so far
      * @return True if the data read so far are enough to generate a result (in which case the read processing will abort),
      * or false if more data are needed (in which case the processing will attempt to resume).
      */
-    protected abstract boolean processReadData(ByteArraySegment readData);
+    protected abstract boolean processReadData(BufferView readData);
 
     /**
      * Completes the result with the given value.
@@ -174,15 +170,14 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
         try {
             Preconditions.checkArgument(entry.getContent().isDone(), "Entry Contents is not yet fetched.");
-            BufferView contents = entry.getContent().join();
-            contents.copyTo(this.readData);
-            if (this.header == null && this.readData.size() >= EntrySerializer.HEADER_LENGTH) {
+            this.readData.add(entry.getContent().join());
+            if (this.header == null && this.readData.getLength() >= EntrySerializer.HEADER_LENGTH) {
                 // We now have enough to read the header.
-                this.header = this.serializer.readHeader(this.readData.getData());
+                this.header = this.serializer.readHeader(this.readData.build().getBufferViewReader());
             }
 
             if (this.header != null) {
-                return !processReadData(this.readData.getData());
+                return !processReadData(this.readData.build());
             }
 
             return true; // Not done yet.
@@ -223,13 +218,13 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         }
 
         @Override
-        protected boolean processReadData(ByteArraySegment readData) {
+        protected boolean processReadData(BufferView readData) {
             val header = getHeader();
             assert header != null : "acceptResult called with no header loaded.";
 
             if (readData.getLength() >= EntrySerializer.HEADER_LENGTH + header.getKeyLength()) {
                 // We read enough information.
-                ArrayView keyData = readData.slice(header.getKeyOffset(), header.getKeyLength());
+                BufferView keyData = readData.slice(header.getKeyOffset(), header.getKeyLength());
                 if (header.isDeletion()) {
                     complete(TableKey.notExists(keyData));
                 } else {
@@ -251,10 +246,10 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      * AsyncTableEntryReader implementation that matches a particular Key and returns its TableEntry's Header.
      */
     private static class EntryReader extends AsyncTableEntryReader<TableEntry> {
-        private final ArrayView soughtKey;
+        private final BufferView soughtKey;
         private boolean keyValidated;
 
-        private EntryReader(ArrayView soughtKey, long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
+        private EntryReader(BufferView soughtKey, long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
             super(keyVersion, serializer, timer);
             this.soughtKey = soughtKey;
             this.keyValidated = soughtKey == null;
@@ -262,7 +257,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
         @Override
         @SuppressWarnings("ReturnCount")
-        protected boolean processReadData(ByteArraySegment readData) {
+        protected boolean processReadData(BufferView readData) {
             val header = getHeader();
             assert header != null : "acceptResult called with no header loaded.";
 
@@ -280,13 +275,11 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
             if (!this.keyValidated) {
                 // Compare the sought key and the data we read, byte-by-byte.
-                ByteArraySegment keyData = readData.slice(header.getKeyOffset(), header.getKeyLength());
-                for (int i = 0; i < this.soughtKey.getLength(); i++) {
-                    if (this.soughtKey.get(i) != keyData.get(i)) {
-                        // Key mismatch; no point in continuing.
-                        complete(null);
-                        return true;
-                    }
+                BufferView keyData = readData.slice(header.getKeyOffset(), header.getKeyLength());
+                if (!this.soughtKey.equals(keyData)) {
+                    // Key mismatch.
+                    complete(null);
+                    return true;
                 }
 
                 this.keyValidated = true;
@@ -294,7 +287,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
             if (header.isDeletion()) {
                 // Deleted key. We cannot read more.
-                complete(TableEntry.notExists(getKeyData(this.soughtKey, readData, header)));
+                complete(TableEntry.notExists(getOrReadKey(readData, header)));
                 return true;
             }
 
@@ -304,23 +297,23 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             }
 
             // Fetch the value and finish up.
-            ArrayView valueData;
+            BufferView valueData;
             if (header.getValueLength() == 0) {
-                valueData = new ByteArraySegment(new byte[0]);
+                valueData = BufferView.empty();
             } else {
                 valueData = readData.slice(header.getValueOffset(), header.getValueLength());
             }
 
-            complete(TableEntry.versioned(getKeyData(this.soughtKey, readData, header), valueData, getKeyVersion()));
+            complete(TableEntry.versioned(readKey(readData, header), valueData, getKeyVersion()));
             return true; // Now we are truly done.
         }
 
-        private ArrayView getKeyData(ArrayView soughtKey, ByteArraySegment readData, EntrySerializer.Header header) {
-            if (soughtKey == null) {
-                soughtKey = readData.slice(header.getKeyOffset(), header.getKeyLength());
-            }
+        private BufferView readKey(BufferView readData, EntrySerializer.Header header) {
+            return readData.slice(header.getKeyOffset(), header.getKeyLength());
+        }
 
-            return soughtKey;
+        private BufferView getOrReadKey(BufferView readData, EntrySerializer.Header header) {
+            return this.soughtKey != null ? this.soughtKey : readData.slice(header.getKeyOffset(), header.getKeyLength());
         }
     }
 
@@ -343,11 +336,11 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         /**
          * Key Data.
          */
-        private final byte[] key;
+        private final BufferView key;
 
         /**
          * Value data. Null if a deletion.
          */
-        private final byte[] value;
+        private final BufferView value;
     }
 }

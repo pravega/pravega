@@ -21,9 +21,9 @@ For standalone mode servers, you may enable SSL/TLS, and/ `auth` (short for Auth
 
 ## Enabling SSL/TLS and Auth
 
-The configuration parameter `singlenode.enableTls` determines whether SSL/TLS is enabled in a standalone mode server. Its default value is `false`, and therefore, SSL/TLS is disabled by default.
+The configuration parameter `singlenode.security.tls.enable` determines whether SSL/TLS is enabled in a standalone mode server. Its default value is `false`, and therefore, SSL/TLS is disabled by default.
 
-Similarly, the configuration parameter `singlenode.enableAuth` determines whether `auth` is enabled. It is disabled by default as well.
+Similarly, the configuration parameter `singlenode.security.auth.enable` determines whether `auth` is enabled. It is disabled by default as well.
 
 The following steps explain how to enable and configure SSL/TLS and/ `auth`:
 
@@ -44,22 +44,22 @@ The following steps explain how to enable and configure SSL/TLS and/ `auth`:
    If you are using custom material, replace the paths of the files accordingly.
 
    ```java
-   singlenode.enableTls=true
-   singlenode.keyFile=../config/server-key.key
-   singlenode.certFile=../config/server-cert.crt
-   singlenode.keyStoreJKS=../config/server.keystore.jks
-   singlenode.keyStoreJKSPasswordFile=../config/server.keystore.jks.passwd
-   singlenode.trustStoreJKS=../config/client.truststore.jks
+   singlenode.security.tls.enable=true
+   singlenode.security.tls.privateKey.location=../config/server-key.key
+   singlenode.security.tls.certificate.location=../config/server-cert.crt
+   singlenode.security.tls.keyStore.location=../config/server.keystore.jks
+   singlenode.security.tls.keyStore.pwd.location=../config/server.keystore.jks.passwd
+   singlenode.security.tls.trustStore.location=../config/client.truststore.jks
    ```
    For descriptions of these properties, see [Pravega Security Configurations](./security-configurations.md).  
 
 3. If enabling `auth`, configure `auth` parameters.
 
    ```java
-   singlenode.enableAuth=true
-   singlenode.userName=admin
-   singlenode.passwd=1111_aaaa
-   singlenode.passwdFile=../config/passwd
+   singlenode.security.auth.enable=true
+   singlenode.security.auth.credentials.username=admin
+   singlenode.security.auth.credentials.pwd=1111_aaaa
+   singlenode.security.auth.pwdAuthHandler.accountsDb.location=../config/passwd
    ```
    For descriptions of these properties, see [Pravega Security Configurations](./security-configurations.md).
 

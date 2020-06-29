@@ -290,7 +290,7 @@ public abstract class ControllerServiceImplTest {
         assertEquals(nonExistentScopeResponse.get().getStatus(), Controller.KVTablesInScopeResponse.Status.SCOPE_NOT_FOUND);
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void deleteKeyValueTableTests() {
         // Try deleting a non-existent KeyValueTable.
         ResultObserver<DeleteKVTableStatus> result2 = new ResultObserver<>();

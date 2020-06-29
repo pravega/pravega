@@ -15,6 +15,7 @@ import io.pravega.common.lang.AtomicInt96;
 import io.pravega.controller.store.InMemoryScope;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.index.InMemoryHostIndex;
+import io.pravega.controller.store.stream.StoreException;
 import lombok.Setter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -63,6 +64,9 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
             assert kvt.getScopeName().equals(scope);
             assert kvt.getName().equals(name);
         } else {
+            if (!scopes.containsKey(scope)) {
+                return new InMemoryKVTable(scope, name);
+            }
             InMemoryScope kvtScope = scopes.get(scope);
             Optional<InMemoryKVTable> kvTable = kvtScope.getKVTableFromScope(name);
             kvt = kvTable.orElse(new InMemoryKVTable(scope, name));

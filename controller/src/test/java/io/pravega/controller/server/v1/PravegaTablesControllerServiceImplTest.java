@@ -73,6 +73,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -179,7 +180,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         StreamMetrics.reset();
         TransactionMetrics.reset();
     }
-    
+
     @Test
     public void testTimeout() {
         streamMetadataTasks.setCompletionTimeoutMillis(500L);
@@ -197,7 +198,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         };
         AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
         reset(streamRequestHandler);
-        
+
         doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processTruncateStream(any());
         result = new ResultObserver<>();
         this.controllerService.truncateStream(Controller.StreamCut.newBuilder()
@@ -208,13 +209,13 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
                                                                   .putCut(0, 0).putCut(1, 0).build(), result);
         AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
         reset(streamRequestHandler);
-        
+
         doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processSealStream(any());
         result = new ResultObserver<>();
         this.controllerService.sealStream(ModelHelper.createStreamInfo(SCOPE1, stream), result);
         AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
         reset(streamRequestHandler);
-        
+
         streamStore.setState(SCOPE1, stream, State.SEALED, null, executorService).join();
         doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processDeleteStream(any());
         ResultObserver<Controller.DeleteStreamStatus> result2 = new ResultObserver<>();

@@ -59,7 +59,7 @@ public class InMemoryKVTable extends AbstractKVTableBase {
 
     @Override
     public CompletableFuture<Void> delete() {
-        return null;
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

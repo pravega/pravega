@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import lombok.val;
@@ -46,19 +47,40 @@ public class ByteArrayComparatorTests {
     }
 
     /**
-     * Tests comparing different-length {@link ArrayView} instances
+     * Tests comparing different-length {@link ArrayView} instances.
      */
     @Test
     public void testCompareArrayViewVariableSize() {
-        val c = new ByteArrayComparator();
-        val sortedData = generateSortedVariableData().stream().map(ByteArraySegment::new).collect(Collectors.toList());
-        sortedData.add(0, new ByteArraySegment(new byte[0])); // Empty.
-        test(sortedData, c::compare);
+        testCompareBufferView(a -> a, new ByteArrayComparator()::compare);
+    }
+
+    /**
+     * Tests comparing different-length {@link BufferView} instances.
+     */
+    @Test
+    public void testCompareBufferViewVariableSize() {
+        testCompareBufferView(a -> {
+                    val builder = BufferView.builder();
+                    for (int i = 0; i < a.getLength(); i++) {
+                        builder.add(a.slice(i, 1));
+                    }
+                    return builder.build();
+                },
+                new ByteArrayComparator()::compare);
+    }
+
+    private <T extends BufferView> void testCompareBufferView(Function<ArrayView, T> toBufferView, BiFunction<T, T, Integer> comparator) {
+        val sortedData = generateSortedVariableData().stream()
+                .map(ByteArraySegment::new)
+                .map(toBufferView)
+                .collect(Collectors.toList());
+        sortedData.add(0, toBufferView.apply(new ByteArraySegment(new byte[0]))); // Empty.
+        test(sortedData, comparator);
         for (val s : sortedData) {
-            int compareResult = c.compare(new ByteArraySegment(c.getMinValue()), s);
+            int compareResult = comparator.apply(toBufferView.apply(new ByteArraySegment(ByteArrayComparator.getMinValue())), s);
             if (compareResult == 0) {
                 // Only equal to itself.
-                Assert.assertTrue(s.getLength() == 1 && s.get(0) == ByteArrayComparator.MIN_VALUE);
+                Assert.assertTrue(s.getLength() == 1 && s.getBufferViewReader().readByte() == ByteArrayComparator.MIN_VALUE);
             } else if (compareResult > 0) {
                 // Only empty array is smaller than it.
                 Assert.assertEquals(0, s.getLength());
