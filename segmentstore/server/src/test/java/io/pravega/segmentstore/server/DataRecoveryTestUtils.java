@@ -27,9 +27,11 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -48,14 +50,10 @@ public class DataRecoveryTestUtils {
      * @return A 2D list containing segments by container Ids.
      * @throws IOException in case of exception during the execution.
      */
-    public static List<List<SegmentProperties>> listAllSegments(Storage tier2, int containerCount) throws IOException {
+    public static Map<Integer, List<SegmentProperties>> listAllSegments(Storage tier2, int containerCount) throws IOException {
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
-        List<List<SegmentProperties>> segmentToContainers = new ArrayList<>();
-        for (int containerId = 0; containerId<containerCount; containerId++) {
-            segmentToContainers.add(new ArrayList<>());
-        }
+        Map<Integer, List<SegmentProperties>> segmentToContainers = new HashMap<Integer, List<SegmentProperties>>();
         log.info("Generating container files with the segments they own...");
-
         Iterator<SegmentProperties> it = tier2.listSegments();
         if (it == null) {
             return segmentToContainers;
@@ -63,7 +61,14 @@ public class DataRecoveryTestUtils {
         while(it.hasNext()) {
             SegmentProperties curr = it.next();
             int containerId = segToConMapper.getContainerId(curr.getName());
-            segmentToContainers.get(containerId).add(curr);
+            List<SegmentProperties> segmentsList = segmentToContainers.get(containerId);
+            if (segmentsList == null) {
+                segmentsList = new ArrayList<>();
+                segmentsList.add(curr);
+                segmentToContainers.put(containerId, segmentsList);
+            } else {
+                segmentToContainers.get(containerId).add(curr);
+            }
         }
         return segmentToContainers;
     }

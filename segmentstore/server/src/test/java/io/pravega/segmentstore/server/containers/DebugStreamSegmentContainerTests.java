@@ -61,6 +61,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -205,7 +206,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         int segmentsRecoveredCount = 0;
         // List all segments
-        List<List<SegmentProperties>> segments = DataRecoveryTestUtils.listAllSegments(new AsyncStorageWrapper(s,
+        Map<Integer, List<SegmentProperties>> segments = DataRecoveryTestUtils.listAllSegments(new AsyncStorageWrapper(s,
                 DataRecoveryTestUtils.createExecutorService(10)), containerCount);
         // Check every segments count by container Id
         for (int i=0; i<segments.size(); i++) {

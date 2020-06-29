@@ -442,19 +442,12 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         readAllEvents(stream1, clientFactory, readerGroupManager, readerGroupName1, readerName, ++time);
         log.info("Second Read");
 
-        ContainerTableExtension ext = .getExtension(ContainerTableExtension.class);
-        AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(containerId), null,
-                Duration.ofSeconds(10)).join();
-        Set<TableKey> segmentsInMD = new HashSet<>();
-        it.forEachRemaining(k -> segmentsInMD.addAll(k.getEntries()), executorService).join();
-
-        //sleep(120000); // Sleep for 120 s for tier2 flush
-        waitForSegmentInStorage();
+        sleep(120000); // Sleep for 120 s for tier2 flush
 
         this.controller.close(); // Shuts down controller
         this.controllerWrapper.close();
 
-        //sleep(60000); // Tier2 Flush
+        sleep(60000); // Tier2 Flush
 
         this.server.close();
         serviceBuilder.close(); // Shutdown SS
@@ -478,7 +471,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         deleteSegment("_system/containers/metadata_0", tier2);
         deleteSegment("_system/containers/metadata_0$attributes.index", tier2);
 
-        List<List<SegmentProperties>> segmentsToCreate = DataRecoveryTestUtils.listAllSegments(tier2, containerCount);
+        Map<Integer, List<SegmentProperties>> segmentsToCreate = DataRecoveryTestUtils.listAllSegments(tier2, containerCount);
 
         log.info("Start DebugStreamSegmentContainer");
         DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer)
@@ -504,61 +497,6 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("third Read");
         readAllEvents(stream1, clientFactory, readerGroupManager, readerGroupName1, readerName, ++time);
         log.info("fourth Read");
-    }
-
-    private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, SegmentContainer container,
-                                                             StreamSegmentContainerTests.TestContext context) {
-        ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
-        for (String segmentName : segmentNames) {
-            SegmentProperties sp = container.getStreamSegmentInfo(segmentName, TIMEOUT).join();
-            segmentsCompletion.add(waitForSegmentInStorage(sp, context));
-        }
-
-        return Futures.allOf(segmentsCompletion);
-    }
-
-    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties metadataProps, StreamSegmentContainerTests.TestContext context) {
-        if (metadataProps.getLength() == 0) {
-            // Empty segments may or may not exist in Storage, so don't bother complicating ourselves with this.
-            return CompletableFuture.completedFuture(null);
-        }
-
-        // Check if the Storage Segment is caught up. If sealed, we want to make sure that both the Segment and its
-        // Attribute Segment are sealed (or the latter has been deleted - for transactions). For all other, we want to
-        // ensure that the length and truncation offsets have  caught up.
-        BiFunction<SegmentProperties, SegmentProperties, Boolean> meetsConditions = (segmentProps, attrProps) ->
-                metadataProps.isSealed() == (segmentProps.isSealed() && (attrProps.isSealed() || attrProps.isDeleted()))
-                        && segmentProps.getLength() >= metadataProps.getLength()
-                        && context.storageFactory.truncationOffsets.getOrDefault(metadataProps.getName(), 0L) >= metadataProps.getStartOffset();
-
-        String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataProps.getName());
-        AtomicBoolean canContinue = new AtomicBoolean(true);
-        TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
-        return Futures.loop(
-                canContinue::get,
-                () -> {
-                    val segInfo = getStorageSegmentInfo(metadataProps.getName(), timer, context);
-                    val attrInfo = getStorageSegmentInfo(attributeSegmentName, timer, context);
-                    return CompletableFuture.allOf(segInfo, attrInfo)
-                            .thenCompose(v -> {
-                                if (meetsConditions.apply(segInfo.join(), attrInfo.join())) {
-                                    canContinue.set(false);
-                                    return CompletableFuture.completedFuture(null);
-                                } else if (!timer.hasRemaining()) {
-                                    return Futures.failedFuture(new TimeoutException());
-                                } else {
-                                    return Futures.delayedFuture(Duration.ofMillis(10), executorService());
-                                }
-                            }).thenRun(Runnables.doNothing());
-                },
-                executorService());
-    }
-
-    private CompletableFuture<SegmentProperties> getStorageSegmentInfo(String segmentName, TimeoutTimer timer, StreamSegmentContainerTests.TestContext context) {
-        return Futures.exceptionallyExpecting(
-                context.storage.getStreamSegmentInfo(segmentName, timer.getRemaining()),
-                ex -> ex instanceof StreamSegmentNotExistsException,
-                StreamSegmentInformation.builder().name(segmentName).deleted(true).build());
     }
 
     public static ScheduledExecutorService createExecutorService(int threadPoolSize) {

@@ -403,7 +403,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         deleteSegment("_system/containers/metadata_0", tier2);
         deleteSegment("_system/containers/metadata_0$attributes.index", tier2);
 
-        List<List<SegmentProperties>> segmentsToCreate = DataRecoveryTestUtils.listAllSegments(tier2, containerCount);
+        Map<Integer, List<SegmentProperties>> segmentsToCreate = DataRecoveryTestUtils.listAllSegments(tier2, containerCount);
 
         log.info("Start DebugStreamSegmentContainer");
         DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer) debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);

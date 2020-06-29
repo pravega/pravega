@@ -187,8 +187,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * @throws Exception in case of an exception.
      */
     @Test
-    public void testEndToEndDebugSegmentContainer() throws Exception {
-        endToEndProcessDebugSegmentContainer();
+    public void testDataRecovery() throws Exception {
+        endToEndDebugSegmentContainer();
     }
 
     /**
@@ -196,7 +196,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If an exception occurred.
      */
-    public void endToEndProcessDebugSegmentContainer() throws Exception {
+    public void endToEndDebugSegmentContainer() throws Exception {
         ArrayList<String> segmentNames;
         HashMap<String, ArrayList<String>> transactionsBySegment;
         HashMap<String, Long> lengths = new HashMap<>();
@@ -233,7 +233,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             deleteContainerMetadataSegments(tier2, 2);
             deleteContainerMetadataSegments(tier2, 3);
 
-            List<List<SegmentProperties>> segments = DataRecoveryTestUtils.listAllSegments(tier2, CONTAINER_COUNT);
+            Map<Integer, List<SegmentProperties>> segments = DataRecoveryTestUtils.listAllSegments(tier2, CONTAINER_COUNT);
 
             final ContainerConfig DEFAULT_CONFIG = ContainerConfig
                     .builder()
@@ -281,7 +281,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             SegmentHandle segmentHandle = tier2.openWrite(segmentName).join();
             tier2.delete(segmentHandle, TIMEOUT).join();
         } catch (Throwable e) {
-            log.info("Couldn't delete segment: {}", segmentName);
+            log.info("Error while deleting segment: {}", segmentName);
         }
     }
 

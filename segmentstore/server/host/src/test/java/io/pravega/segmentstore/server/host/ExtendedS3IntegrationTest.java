@@ -74,6 +74,13 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
                         getBookkeeper().getZkClient(), setup.getCoreExecutor()));
     }
 
+    /**
+     * This method intentionally left blank as it's out of concern for ExtendedS3 Storage.
+     * It must be here as it is defined as abstract method in super class.
+     */
+    @Override
+    public void testDataRecovery() {
+    }
 
     /**
      * We are declaring a local factory here because we need a factory that creates adapters that interact
