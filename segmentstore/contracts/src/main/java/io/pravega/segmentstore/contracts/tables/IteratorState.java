@@ -16,6 +16,12 @@ import io.pravega.common.util.ArrayView;
  */
 public interface IteratorState {
 
-    public ArrayView serialize();
+    /**
+     * When paired with a deserialization method in the implementing class, this allows us to encapsulate asynchronous
+     * iteration state in a portable manner.
+     *
+     * @return An {@link ArrayView} based serialization of the IteratorState we are encapsulating.
+     */
+    ArrayView serialize();
 
 }

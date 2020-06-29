@@ -38,7 +38,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
- * Iterates through {@link TableBucket}s in a Segment.
+ * Iterates through a {@link DirectSegmentAccess}, deserializing {@link TableEntry} from a {@link BufferView} in linear fashion.
+ *
  * @param <T> Type of the final, converted result.
  */
 @Slf4j
@@ -51,7 +52,9 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
 
     private final DirectSegmentAccess segment;
+    // The offset to being iteration at.
     private final long startOffset;
+    // Maximum length of the TableSegment we want to read until.
     private final int maxLength;
     private final boolean shouldClear;
     private final Duration fetchTimeout;
@@ -106,7 +109,7 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
         return null;
     }
 
-    private CompletableFuture<Void> fetchNextTableEntriesBatch() {
+    private synchronized CompletableFuture<Void> fetchNextTableEntriesBatch() {
         return toEntries(currentBatchOffset)
                 .thenAccept(entries -> {
                     if (!entries.isEmpty()) {
@@ -148,8 +151,10 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
                         new DeltaIteratorState(currentOffset, reachedEnd, this.shouldClear, entry.getHeader().isDeletion()),
                         TableEntry.versioned(entry.getKey(), value, entry.getVersion())));
             }
-
         } catch (BufferView.Reader.OutOfBoundsException ex) {
+            // Handles the event that our computed maxOffset lies within (but not on the boundary) of a TableEntry, or
+            // reaches the end the TableSegment. Silently handling this exception is sufficient because it acknowledges
+            // that we have processed the maximal set of TableEntries and thus is safe to return.
         }
         this.currentBatchOffset = currentOffset;
 

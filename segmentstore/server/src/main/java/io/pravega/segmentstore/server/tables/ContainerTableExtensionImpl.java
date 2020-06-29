@@ -296,7 +296,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
-        logRequest("entryIterator", segmentName);
+        logRequest("entryDeltaIterator", segmentName);
         return newDeltaIterator(segmentName, fromPosition, fetchTimeout);
     }
 
@@ -344,7 +344,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     long startOffset = Math.max(fromPosition, compactionOffset);
                     // We should clear if the starting position may have been truncated out due to compaction.
                     boolean shouldClear = fromPosition < compactionOffset;
-                    // Max length of the batch size.
+                    // Maximum length of the TableSegment we want to read until.
                     int maxLength = (int) (properties.getLength() - startOffset);
 
                     TableEntryDeltaIterator.ConvertResult<IteratorItem<T>> converter = item -> {

@@ -26,7 +26,7 @@ import lombok.SneakyThrows;
 /**
  * Represents the state of a resumable iterator.
  */
-class IteratorStateImpl implements  IteratorState {
+class IteratorStateImpl implements IteratorState {
     private static final Serializer SERIALIZER = new Serializer();
 
     /**

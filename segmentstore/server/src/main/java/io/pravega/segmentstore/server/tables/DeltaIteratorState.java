@@ -24,7 +24,12 @@ import lombok.ToString;
 import java.io.IOException;
 
 /**
- * Represents the state of a resumable iterator.
+ * Represents the state of a resumable delta iterator.
+ *
+ * The DeltaIteratorState class is used in conjunction with {@link io.pravega.segmentstore.contracts.tables.TableStore#entryDeltaIterator}.
+ * An 'EntryDeltaIterator' iterates over a TableSegment directly via a {@link io.pravega.segmentstore.server.DirectSegmentAccess} view,
+ * instead of indirectly through index structures ({@link TableBucket}), as is the case with {@link io.pravega.segmentstore.contracts.tables.TableStore#entryIterator}.
+ * This 'raw' iteration provides meaning to fields such as {@link DeltaIteratorState#reachedEnd} and {@link DeltaIteratorState#fromPosition}.
  */
 @ToString
 @Builder
@@ -41,7 +46,7 @@ public class DeltaIteratorState implements IteratorState {
     private final boolean deletionRecord;
 
     /**
-     * Creates a new instance of the EntryIteratorState class.
+     * Creates a new instance of the DeltaIteratorState class.
      *
      * @param fromPosition The next position to start iteration from.
      * @param reachedEnd If the Entry is at the end of the segment (more recently appended).

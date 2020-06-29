@@ -1078,8 +1078,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         @Override
         synchronized void add(V item, int sizeBytes) {}
 
-        synchronized void add(K key, V value, int sizeBytes) {
-            this.items.put(key, value);
+        synchronized V add(K key, V value, int sizeBytes) {
             super.sizeBytes += sizeBytes;
         }
 

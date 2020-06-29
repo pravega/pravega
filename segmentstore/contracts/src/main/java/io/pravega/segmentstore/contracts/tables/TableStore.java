@@ -233,7 +233,7 @@ public interface TableStore {
     CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout);
 
     /**
-     * Creates a new {@link AsyncIterator} over all the {@link TableEntry} instances in the given Table Segment starting from a given offset.
+     * Creates a new {@link AsyncIterator} over all the {@link TableEntry} instances in the given Table Segment starting from a given position.
      *
      * Please refer to {@link #keyIterator} for notes about consistency and the ability to resume.
      *
