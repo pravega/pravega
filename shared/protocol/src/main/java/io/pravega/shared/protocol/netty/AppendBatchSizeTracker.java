@@ -11,6 +11,8 @@ package io.pravega.shared.protocol.netty;
 
 public interface AppendBatchSizeTracker {
     
+    public static final int MAX_BATCH_TIME_MILLIS = 20;
+    
     /**
      * Records that an append has been sent.
      * 

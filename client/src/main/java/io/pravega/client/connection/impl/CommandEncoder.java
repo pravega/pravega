@@ -33,8 +33,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
@@ -55,16 +53,21 @@ public class CommandEncoder {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
     private final Function<Long, AppendBatchSizeTracker> appendTracker;
     private final MetricNotifier metricNotifier;
+    @GuardedBy("$lock")
     private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
     private final AtomicLong tokenCounter = new AtomicLong(0);
+    @GuardedBy("$lock")
     private String segmentBeingAppendedTo;
+    @GuardedBy("$lock")
     private UUID writerIdPerformingAppends;
+    @GuardedBy("$lock")
     private int currentBlockSize;
+    @GuardedBy("$lock")
     private int bytesLeftInBlock;
+    @GuardedBy("$lock")
     private final Map<UUID, Session> pendingWrites = new HashMap<>();
 
     private final OutputStream output;
-    private final ScheduledExecutorService executor;
     private final ByteBuf buffer = Unpooled.buffer(1024 * 1024);
 
     @RequiredArgsConstructor
@@ -227,15 +230,6 @@ public class CommandEncoder {
         }
     }
     
-    @Synchronized
-    private void blockTimeout(long token) throws IOException {
-        if (tokenCounter.get() == token) {
-            breakCurrentAppend();
-            flushAllToBuffer();
-        }
-        flushBuffer();
-    }
-    
     @GuardedBy("$lock")
     private void flushBuffer() throws IOException {
         buffer.getBytes(buffer.readerIndex(), output, buffer.readableBytes());
@@ -304,8 +298,7 @@ public class CommandEncoder {
         if (blockSize > msgSize) {
             currentBlockSize = blockSize;
             writeMessage(new AppendBlock(writerIdPerformingAppends), currentBlockSize + TYPE_PLUS_LENGTH_SIZE);
-            executor.schedule(new BlockTimeouter(tokenCounter.incrementAndGet()),
-                    blockSizeSupplier.getBatchTimeout(), TimeUnit.MILLISECONDS);
+            tokenCounter.incrementAndGet();
         } else {
             currentBlockSize = msgSize;
             writeMessage(new AppendBlock(writerIdPerformingAppends), currentBlockSize);
@@ -397,28 +390,30 @@ public class CommandEncoder {
         buffer.setInt(startIdx + TYPE_SIZE, fieldsSize);
         return endIdx - startIdx;
     }
-
-    @RequiredArgsConstructor
-    private final class BlockTimeouter implements Runnable {
-        private final long token;
-
-        /**
-         * Check if the current token is still valid.
-         * If its still valid, then block Timeout message is sent to netty Encoder.
-         */
-        @Override
-        public void run() {
+    
+    
+    /**
+     * This method is called periodically to close any open batches which exceed their timeouts.
+     * @return a token which is used to identify which batch is open.
+     * @param token the token returned by the previous call to this method or -1 if this is the first call to this method.
+     */
+    @Synchronized
+    public long batchTimeout(long token) {
+        long result = tokenCounter.get();
+        try {
+            if (result == token) {
+                breakCurrentAppend();
+                flushAllToBuffer();
+                flushBuffer();
+            }
+        } catch (IOException e) {
+            log.error("Failed to time out block. Closeing connection.", e);
             try {
-                blockTimeout(token);
-            } catch (IOException e) {
-                log.error("Failed to time out block. Closeing connection.", e);
-                try {
-                    output.close();
-                } catch (IOException e1) {
-                    log.error("Closing output failed");
-                }
+                output.close();
+            } catch (IOException e1) {
+                log.error("Closing output failed");
             }
         }
-    }
-    
+        return result;
+    }    
 }

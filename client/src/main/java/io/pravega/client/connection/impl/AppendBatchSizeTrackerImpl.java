@@ -30,7 +30,6 @@ import java.util.function.Supplier;
 public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
 
     private static final int MAX_BATCH_SIZE = 2 * TcpClientConnection.TCP_BUFFER_SIZE - 1024; //This must be less than WireCommands.MAX_WIRECOMMAND_SIZE / 2;
-    private static final int MAX_BATCH_TIME_MILLIS = 20;
     private static final double NANOS_PER_MILLI = 1000000;
     
     private static final int BASE_TIME_NANOS = 500000;
