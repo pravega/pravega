@@ -21,6 +21,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
@@ -177,6 +178,16 @@ public class StreamMetricsTest {
         controllerWrapper.getControllerService().deleteScope(scopeName).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
+
+        // Exercise the metrics for failed stream and scope creation/deletion.
+        StreamMetrics.getInstance().createScopeFailed("failedScope");
+        StreamMetrics.getInstance().createStreamFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().deleteScopeFailed("failedScope");
+        StreamMetrics.getInstance().deleteStreamFailed("failedScope", "failedStream");
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED).count());
     }
 
     @Test(timeout = 30000)
