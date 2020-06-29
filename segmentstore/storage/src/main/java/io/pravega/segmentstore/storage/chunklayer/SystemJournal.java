@@ -100,13 +100,13 @@ public class SystemJournal {
      * String prefix for all system segments.
      */
     @Getter
-    private String systemSegmentsPrefix;
+    private final String systemSegmentsPrefix;
 
     /**
      * System segments to track.
      */
     @Getter
-    private String[] systemSegments;
+    private final String[] systemSegments;
 
     /**
      * Offset at which next log will be written.

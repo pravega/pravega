@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.io.serialization.RevisionDataOutput;
 import lombok.Getter;
 
 /**
@@ -17,15 +18,15 @@ import lombok.Getter;
  */
 public final class SegmentRollingPolicy {
     /**
-     * The max allowed value for 61 bit signed number which is 2,305,843,009,213,693,952.
+     * The max allowed value for segment size.
      */
-    public static final long MAX_62_BIT_SIGNED_NUMBER = 1L << 61;
+    public static final long MAX_SGEMENT_LENGTH = RevisionDataOutput.COMPACT_LONG_MAX;
 
     /**
-     * Max rolling length is max 61 bit signed number (2^61-1) therefore it requires only 62 bits for storage.
+     * Max rolling length is max 62 bit unsigned number (2^62-1) therefore it requires only 62 bits for storage.
      * This allows us to use CompactLong in serialization everywhere. The resulting value is large enough for practical purposes.
      */
-    public static final SegmentRollingPolicy NO_ROLLING = new SegmentRollingPolicy(MAX_62_BIT_SIGNED_NUMBER);
+    public static final SegmentRollingPolicy NO_ROLLING = new SegmentRollingPolicy(MAX_SGEMENT_LENGTH);
 
     /**
      * Maximum length, as allowed by this Rolling Policy.
