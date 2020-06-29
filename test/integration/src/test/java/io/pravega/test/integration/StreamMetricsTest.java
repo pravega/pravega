@@ -184,10 +184,16 @@ public class StreamMetricsTest {
         StreamMetrics.getInstance().createStreamFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().deleteScopeFailed("failedScope");
         StreamMetrics.getInstance().deleteStreamFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().updateStreamFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().truncateStreamFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().sealStreamFailed("failedScope", "failedStream");
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_STREAM_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.TRUNCATE_STREAM_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM_FAILED).count());
     }
 
     @Test(timeout = 30000)
