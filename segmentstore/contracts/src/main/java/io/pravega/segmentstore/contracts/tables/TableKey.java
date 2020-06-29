@@ -10,7 +10,8 @@
 package io.pravega.segmentstore.contracts.tables;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.HashedArray;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -35,7 +36,7 @@ public class TableKey {
     /**
      * The Key.
      */
-    private final BufferView key;
+    private final ArrayView key;
 
     /**
      * The Version of the Key.
@@ -49,7 +50,7 @@ public class TableKey {
      *
      * @return new TableKey instance that is unversioned
      */
-    public static TableKey unversioned(@NonNull BufferView key) {
+    public static TableKey unversioned(@NonNull ArrayView key) {
         return new TableKey(key, NO_VERSION);
     }
 
@@ -61,7 +62,7 @@ public class TableKey {
      * @return new instance of Table Key as long as key does not already exist
      *
      */
-    public static TableKey notExists(@NonNull BufferView key) {
+    public static TableKey notExists(@NonNull ArrayView key) {
         return new TableKey(key, NOT_EXISTS);
     }
 
@@ -73,7 +74,7 @@ public class TableKey {
      *
      * @return new TableKey with specified version
      */
-    public static TableKey versioned(@NonNull BufferView key, long version) {
+    public static TableKey versioned(@NonNull ArrayView key, long version) {
         Preconditions.checkArgument(version >= 0 || version == NOT_EXISTS || version == NO_VERSION, "Version must be a non-negative number.");
         return new TableKey(key, version);
     }
@@ -95,14 +96,15 @@ public class TableKey {
 
     @Override
     public int hashCode() {
-        return this.key.hashCode();
+        return HashedArray.hashCode(this.key);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof TableKey) {
             TableKey other = (TableKey) obj;
-            return this.version == other.version && this.key.equals(other.key);
+            return HashedArray.arrayEquals(this.key, other.key)
+                    && this.version == other.version;
 
         }
 

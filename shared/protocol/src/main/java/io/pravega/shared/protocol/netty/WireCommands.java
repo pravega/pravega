@@ -28,8 +28,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
-import lombok.AccessLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -1633,8 +1633,7 @@ public final class WireCommands {
     }
 
     @Data
-    @EqualsAndHashCode(callSuper = false)
-    public static final class UpdateTableEntries extends ReleasableCommand implements Request, WireCommand {
+    public static final class UpdateTableEntries implements Request, WireCommand {
 
         final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
         final long requestId;
@@ -1658,19 +1657,14 @@ public final class WireCommands {
             out.writeLong(tableSegmentOffset);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
-            TableEntries entries = TableEntries.readFrom(in, in.available());
+            TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
             long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
-            return new UpdateTableEntries(requestId, segment, delegationToken, entries, tableSegmentOffset).requireRelease();
-        }
-
-        @Override
-        void releaseInternal() {
-            this.tableEntries.release();
+            return new UpdateTableEntries(requestId, segment, delegationToken, entries, tableSegmentOffset);
         }
     }
 
@@ -1706,8 +1700,7 @@ public final class WireCommands {
     }
 
     @Data
-    @EqualsAndHashCode(callSuper = false)
-    public static final class RemoveTableKeys extends ReleasableCommand implements Request, WireCommand {
+    public static final class RemoveTableKeys implements Request, WireCommand {
 
         final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
         final long requestId;
@@ -1734,23 +1727,18 @@ public final class WireCommands {
             out.writeLong(tableSegmentOffset);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             int numberOfKeys = in.readInt();
             List<TableKey> keys = new ArrayList<>(numberOfKeys);
             for (int i = 0; i < numberOfKeys; i++) {
-                keys.add(TableKey.readFrom(in, in.available()));
+                keys.add((TableKey) TableKey.readFrom(in, in.available()));
             }
             long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
-            return new RemoveTableKeys(requestId, segment, delegationToken, keys, tableSegmentOffset).requireRelease();
-        }
-
-        @Override
-        void releaseInternal() {
-            this.keys.forEach(TableKey::release);
+            return new RemoveTableKeys(requestId, segment, delegationToken, keys, tableSegmentOffset);
         }
     }
 
@@ -1780,8 +1768,7 @@ public final class WireCommands {
 
 
     @Data
-    @EqualsAndHashCode(callSuper = false)
-    public static final class ReadTable extends ReleasableCommand implements Request, WireCommand {
+    public static final class ReadTable implements Request, WireCommand {
 
         final WireCommandType type = WireCommandType.READ_TABLE;
         final long requestId;
@@ -1806,27 +1793,21 @@ public final class WireCommands {
             }
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             int numberOfKeys = in.readInt();
             List<TableKey> keys = new ArrayList<>(numberOfKeys);
             for (int i = 0; i < numberOfKeys; i++) {
-                keys.add(TableKey.readFrom(in, in.available()));
+                keys.add((TableKey) TableKey.readFrom(in, in.available()));
             }
-            return new ReadTable(requestId, segment, delegationToken, keys).requireRelease();
-        }
-
-        @Override
-        void releaseInternal() {
-            this.keys.forEach(TableKey::release);
+            return new ReadTable(requestId, segment, delegationToken, keys);
         }
     }
 
     @Data
-    @EqualsAndHashCode(callSuper = false)
-    public static final class TableRead extends ReleasableCommand implements Reply, WireCommand {
+    public static final class TableRead implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.TABLE_READ;
         final long requestId;
         final String segment;
@@ -1844,16 +1825,11 @@ public final class WireCommands {
             entries.writeFields(out);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());
-            return new TableRead(requestId, segment, entries).requireRelease();
-        }
-
-        @Override
-        void releaseInternal() {
-            this.entries.release();
+            return new TableRead(requestId, segment, entries);
         }
     }
 
@@ -1903,9 +1879,9 @@ public final class WireCommands {
     }
 
     @Data
-    @EqualsAndHashCode(callSuper = false)
-    public static final class TableKeysRead extends ReleasableCommand implements Reply, WireCommand {
-        public static final int HEADER_BYTES = Long.BYTES;
+    public static final class TableKeysRead implements Reply, WireCommand {
+        public static final Function<Integer, Integer> GET_HEADER_BYTES =
+                keyCount -> Long.BYTES + Integer.BYTES + TableKey.HEADER_BYTES * keyCount + Integer.BYTES;
 
         final WireCommandType type = WireCommandType.TABLE_KEYS_READ;
         final long requestId;
@@ -1930,27 +1906,25 @@ public final class WireCommands {
             continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
-            final int initialAvailable = in.available();
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             int numberOfKeys = in.readInt();
             List<TableKey> keys = new ArrayList<>(numberOfKeys);
+            int keyByteCount = 0;
             for (int i = 0; i < numberOfKeys; i++) {
                 TableKey k = TableKey.readFrom(in, in.available());
                 keys.add(k);
+                keyByteCount += TableKey.HEADER_BYTES + Long.BYTES + k.getData().readableBytes();
             }
-
             int dataLength = in.readInt();
+            if (length < dataLength + Long.BYTES + segment.getBytes(UTF_8).length + Integer.BYTES + keyByteCount) {
+                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + dataLength);
+            }
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
 
-            return new TableKeysRead(requestId, segment, keys, wrappedBuffer(continuationToken)).requireRelease();
-        }
-
-        @Override
-        void releaseInternal() {
-            this.keys.forEach(TableKey::release);
+            return new TableKeysRead(requestId, segment, keys, wrappedBuffer(continuationToken));
         }
     }
 
@@ -2001,9 +1975,9 @@ public final class WireCommands {
     }
 
     @Data
-    @EqualsAndHashCode(callSuper = false)
-    public static final class TableEntriesRead extends ReleasableCommand implements Reply, WireCommand {
-        public static final int HEADER_BYTES = Long.BYTES;
+    public static final class TableEntriesRead implements Reply, WireCommand {
+        public static final Function<Integer, Integer> GET_HEADER_BYTES =
+                entryCount -> Long.BYTES + TableEntries.GET_HEADER_BYTES.apply(entryCount) + Integer.BYTES;
 
         final WireCommandType type = WireCommandType.TABLE_ENTRIES_READ;
         final long requestId;
@@ -2026,26 +2000,27 @@ public final class WireCommands {
             continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
-            final int initialAvailable = in.available();
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());
             int dataLength = in.readInt();
+
+            if (length < dataLength + Long.BYTES + segment.getBytes(UTF_8).length + entries.size() + Integer.BYTES ) {
+                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + dataLength);
+            }
+
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
-            return new TableEntriesRead(requestId, segment, entries, wrappedBuffer(continuationToken)).requireRelease();
-        }
 
-        @Override
-        void releaseInternal() {
-            this.entries.release();
+            return new TableEntriesRead(requestId, segment, entries, wrappedBuffer(continuationToken));
         }
     }
 
     @Data
     public static final class TableEntries {
-        public static final int HEADER_BYTES = Integer.BYTES;
+        static final Function<Integer, Integer> GET_HEADER_BYTES =
+                entryCount -> Integer.BYTES + entryCount * (TableKey.HEADER_BYTES + TableValue.HEADER_BYTES);
 
         final List<Map.Entry<TableKey, TableValue>> entries;
 
@@ -2057,7 +2032,7 @@ public final class WireCommands {
             }
         }
 
-        public static TableEntries readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static TableEntries readFrom(ByteBufInputStream in, int length) throws IOException {
             int numberOfEntries = in.readInt();
             List<Map.Entry<TableKey, TableValue>> entries = new ArrayList<>();
             for (int i = 0; i < numberOfEntries; i++) {
@@ -2068,11 +2043,11 @@ public final class WireCommands {
             return new TableEntries(entries);
         }
 
-        void release() {
-            this.entries.forEach(e -> {
-                e.getKey().release();
-                e.getValue().release();
-            });
+        public int size() {
+            int dataBytes = entries.stream()
+                                   .mapToInt(e -> e.getKey().getData().readableBytes() + Long.BYTES + e.getValue().getData().readableBytes())
+                                   .sum();
+            return GET_HEADER_BYTES.apply(entries.size()) + dataBytes;
         }
     }
 
@@ -2095,7 +2070,7 @@ public final class WireCommands {
             }
         }
 
-        public static TableKey readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static TableKey readFrom(DataInput in, int length) throws IOException {
             int payLoadSize = in.readInt();
             int dataLength = in.readInt();
             if (dataLength == 0) {
@@ -2104,18 +2079,10 @@ public final class WireCommands {
             if (length < payLoadSize) {
                 throw new InvalidMessageException("Was expecting length of at least : " + payLoadSize + " but found: " + length);
             }
-
-            ByteBuf msg = in.readFully(dataLength);
+            byte[] msg = new byte[dataLength];
+            in.readFully(msg);
             long keyVersion = in.readLong();
-            return new TableKey(msg.retain(), keyVersion);
-        }
-
-        public int size() {
-            return HEADER_BYTES + this.data.readableBytes() + Long.BYTES;
-        }
-
-        void release() {
-            this.data.release();
+            return new TableKey(wrappedBuffer(msg), keyVersion);
         }
     }
 
@@ -2134,26 +2101,18 @@ public final class WireCommands {
             }
         }
 
-        public static TableValue readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static TableValue readFrom(DataInput in, int length) throws IOException {
             int payloadSize = in.readInt();
             int valueLength = in.readInt();
             if (valueLength == 0) {
                 return TableValue.EMPTY;
             }
-            if (length < payloadSize) {
+            if ( length < payloadSize) {
                 throw new InvalidMessageException("Was expecting length of at least : " + payloadSize + " but found: " + length);
             }
-
-            ByteBuf msg = in.readFully(valueLength);
-            return new TableValue(msg.retain());
-        }
-
-        public int size() {
-            return HEADER_BYTES + this.data.readableBytes();
-        }
-
-        void release() {
-            this.data.release();
+            byte[] msg = new byte[valueLength];
+            in.readFully(msg);
+            return new TableValue(wrappedBuffer(msg));
         }
     }
 
@@ -2267,8 +2226,7 @@ public final class WireCommands {
     }
 
     @Data
-    @EqualsAndHashCode(callSuper = false)
-    public static final class TableEntriesDeltaRead extends ReleasableCommand implements Reply, WireCommand {
+    public static final class TableEntriesDeltaRead implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.TABLE_ENTRIES_DELTA_READ;
         final long requestId;
         final String segment;
@@ -2293,28 +2251,22 @@ public final class WireCommands {
             out.writeLong(lastVersion);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
-            TableEntries entries = TableEntries.readFrom(in, in.available());
+            TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
             boolean shouldClear = in.readBoolean();
             boolean reachedEnd = in.readBoolean();
             long lastVersion = in.readLong();
 
             return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastVersion);
         }
-
-        @Override
-        void releaseInternal() {
-            this.tableEntries.release();
-        }
     }
 
     /**
      * Base class for any command that may require releasing resources.
      */
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    public static abstract class ReleasableCommand implements WireCommand {
+    static abstract class ReleasableCommand implements WireCommand {
         @Getter
         private boolean released = true;
 

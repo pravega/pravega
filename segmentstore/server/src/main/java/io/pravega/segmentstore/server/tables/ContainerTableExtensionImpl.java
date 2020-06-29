@@ -18,7 +18,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -45,6 +45,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.Getter;
@@ -203,7 +204,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenComposeAsync(segment -> this.keyIndex.update(segment, updateBatch,
-                        () -> commit(entries, this.serializer::serializeUpdate, segment, timer.getRemaining()), timer),
+                        () -> commit(entries, updateBatch.getLength(), this.serializer::serializeUpdate, segment, timer.getRemaining()), timer),
                         this.executor);
     }
 
@@ -219,13 +220,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenComposeAsync(segment -> this.keyIndex.update(segment, removeBatch,
-                        () -> commit(keys, this.serializer::serializeRemoval, segment, timer.getRemaining()), timer),
+                        () -> commit(keys, removeBatch.getLength(), this.serializer::serializeRemoval, segment, timer.getRemaining()), timer),
                         this.executor)
                 .thenRun(Runnables.doNothing());
     }
 
     @Override
-    public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<BufferView> keys, Duration timeout) {
+    public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<ArrayView> keys, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         logRequest("get", segmentName, keys.size());
         if (keys.isEmpty()) {
@@ -257,7 +258,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 // directly from the index if unable to find anything and there is a chance the sought key actually exists.
                 // Encountering a truncated Segment offset indicates that the Segment may have recently been compacted and
                 // we are using a stale cache value.
-                BufferView key = builder.getKeys().get(i);
+                ArrayView key = builder.getKeys().get(i);
                 builder.includeResult(Futures
                         .exceptionallyExpecting(bucketReader.find(key, offset, timer), ex -> ex instanceof StreamSegmentTruncatedException, null)
                         .thenComposeAsync(entry -> {
@@ -281,13 +282,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
         logRequest("keyIterator", segmentName);
         return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::key);
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
         logRequest("entryIterator", segmentName);
         return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::entry);
     }
@@ -319,13 +320,15 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return batch;
     }
 
-    private <T> CompletableFuture<Long> commit(Collection<T> toCommit, Function<Collection<T>, BufferView> serializer,
+    private <T> CompletableFuture<Long> commit(Collection<T> toCommit, int serializationLength, BiConsumer<Collection<T>, byte[]> serializer,
                                                DirectSegmentAccess segment, Duration timeout) {
-        BufferView s = serializer.apply(toCommit);
-        return segment.append(s, null, timeout);
+        assert serializationLength <= MAX_BATCH_SIZE;
+        byte[] s = new byte[serializationLength];
+        serializer.accept(toCommit, s);
+        return segment.append(new ByteArraySegment(s), null, timeout);
     }
 
-    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, BufferView serializedState,
+    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, byte[] serializedState,
                                                                               @NonNull Duration fetchTimeout,
                                                                               @NonNull GetBucketReader<T> createBucketReader) {
         UUID fromHash;
@@ -428,7 +431,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
          * Sought keys.
          */
         @Getter
-        private final List<BufferView> keys;
+        private final List<ArrayView> keys;
         /**
          * Sought keys's hashes, in the same order as the keys.
          */
@@ -440,7 +443,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
          */
         private final List<CompletableFuture<TableEntry>> resultFutures;
 
-        GetResultBuilder(List<BufferView> keys, KeyHasher hasher) {
+        GetResultBuilder(List<ArrayView> keys, KeyHasher hasher) {
             this.keys = keys;
             this.hashes = keys.stream().map(hasher::hash).collect(Collectors.toList());
             this.resultFutures = new ArrayList<>();

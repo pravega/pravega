@@ -1260,7 +1260,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Add a zero-byte append, which ensures the Segments' Read Indices are initialized.
         for (val id : segmentIds) {
-            context.readIndex.append(id, 0, BufferView.empty());
+            context.readIndex.append(id, 0, new ByteArraySegment(new byte[0]));
         }
 
         // Mark 2 segments as inactive, but do not evict them yet. We simulate a concurrent eviction, when the segment is
@@ -1285,11 +1285,11 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Test getOrCreateIndex() via append() (any other operation could be used for this, but this is the simplest to setup).
         AssertExtensions.assertThrows(
                 "Appending to inactive segment succeeded.",
-                () -> context.readIndex.append(inactiveSegmentId2, 0, BufferView.empty()),
+                () -> context.readIndex.append(inactiveSegmentId2, 0, new ByteArraySegment(new byte[0])),
                 ex -> ex instanceof IllegalArgumentException);
 
         // This should re-create the index.
-        context.readIndex.append(reactivatedSegmentId2, 0, BufferView.empty());
+        context.readIndex.append(reactivatedSegmentId2, 0, new ByteArraySegment(new byte[0]));
         Assert.assertNotEquals("Reactivated Segment's ReadIndex was not re-created.",
                 reactivatedSegment2OldIndex, context.readIndex.getIndex(reactivatedSegmentId2));
     }

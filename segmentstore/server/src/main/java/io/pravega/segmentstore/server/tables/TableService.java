@@ -10,8 +10,8 @@
 package io.pravega.segmentstore.server.tables;
 
 import com.google.common.annotations.Beta;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -89,21 +89,21 @@ public class TableService extends SegmentContainerCollection implements TableSto
     }
 
     @Override
-    public CompletableFuture<List<TableEntry>> get(String segmentName, List<BufferView> keys, Duration timeout) {
+    public CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout) {
         return invokeExtension(segmentName,
                 e -> e.get(segmentName, keys, timeout),
                 "get", segmentName, keys.size());
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
         return invokeExtension(segmentName,
                 e -> e.keyIterator(segmentName, serializedState, fetchTimeout),
                 "get", segmentName, serializedState != null, fetchTimeout);
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
         return invokeExtension(segmentName,
                 e -> e.entryIterator(segmentName, serializedState, fetchTimeout),
                 "get", segmentName, serializedState != null, fetchTimeout);

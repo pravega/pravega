@@ -9,21 +9,23 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.collect.Iterators;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.io.SerializationException;
-import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import java.io.ByteArrayInputStream;
+import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -68,7 +70,8 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
                     ? TableKey.NOT_EXISTS
                     : (e.explicitVersion == TableKey.NO_VERSION) ? 1L : e.explicitVersion;
             Assert.assertEquals("Unexpected version.", expectedVersion, result.getVersion());
-            Assert.assertEquals("Unexpected key read back.", new ByteArraySegment(e.key), result.getKey());
+            AssertExtensions.assertArrayEquals("Unexpected key read back.", e.key, 0,
+                    result.getKey().array(), result.getKey().arrayOffset(), e.key.length);
         }
     }
 
@@ -135,7 +138,8 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
             // Check key.
             val resultKey = result.getKey().getKey();
             Assert.assertEquals("Unexpected result key length.", item.key.length, resultKey.getLength());
-            Assert.assertEquals("Unexpected result key.", new ByteArraySegment(item.key), resultKey);
+            AssertExtensions.assertArrayEquals("Unexpected result key.", item.key, 0,
+                    resultKey.array(), resultKey.arrayOffset(), item.key.length);
 
             if (item.isRemoval) {
                 // Verify there is no value and that the key has been properly set.
@@ -151,7 +155,8 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
                 Assert.assertNotNull("Expecting a value for non removal.", result.getValue());
                 val resultValue = result.getValue();
                 Assert.assertEquals("Unexpected value length.", item.value.length, resultValue.getLength());
-                Assert.assertEquals("Unexpected result value", new ByteArraySegment(item.value), resultValue);
+                AssertExtensions.assertArrayEquals("Unexpected result value", item.value, 0,
+                        resultValue.array(), resultValue.arrayOffset(), item.value.length);
             }
 
             keyVersion++;
@@ -211,14 +216,15 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
     @Test
     public void testReadEntryComponents() throws Exception {
         val testItems = generateTestItems();
-        val input = BufferView.wrap(testItems.stream().map(i -> new ByteArraySegment(i.serialization)).collect(Collectors.toList())).getBufferViewReader();
+        val input = new SequenceInputStream(Iterators.asEnumeration(testItems.stream().map(i -> new ByteArrayInputStream(i.serialization)).iterator()));
         long offset = 0;
         for (int i = 0; i < testItems.size(); i++) {
             val expected = testItems.get(i);
             val actual = AsyncTableEntryReader.readEntryComponents(input, offset, SERIALIZER);
 
             // Check Key.
-            Assert.assertEquals("Unexpected key parsed at index " + i, new ByteArraySegment(expected.key), actual.getKey());
+            Assert.assertTrue("Unexpected key parsed at index " + i,
+                    HashedArray.arrayEquals(new ByteArraySegment(expected.key), new ByteArraySegment(actual.getKey())));
 
             Assert.assertEquals("Unexpected Header.isDeletion() at index " + i, expected.isRemoval, actual.getHeader().isDeletion());
             if (expected.isRemoval) {
@@ -227,7 +233,8 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
                         TableKey.NO_VERSION, actual.getHeader().getEntryVersion());
             } else {
                 Assert.assertNotNull("Expecting a value for a non-deletion at index " + i, actual.getValue());
-                Assert.assertEquals("Unexpected value parsed at index " + i, new ByteArraySegment(expected.value), actual.getValue());
+                Assert.assertTrue("Unexpected value parsed at index " + i,
+                        HashedArray.arrayEquals(new ByteArraySegment(expected.value), new ByteArraySegment(actual.getValue())));
                 long expectedVersion = expected.explicitVersion == TableKey.NO_VERSION ? offset : expected.explicitVersion;
                 Assert.assertEquals("Unexpected version at index " + i, expectedVersion, actual.getVersion());
             }
@@ -256,15 +263,17 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
         byte[] serialization;
         if (removal) {
             val keyData = TableKey.unversioned(new ByteArraySegment(key));
-            serialization = SERIALIZER.serializeRemoval(Collections.singletonList(keyData)).getCopy();
+            serialization = new byte[SERIALIZER.getRemovalLength(keyData)];
+            SERIALIZER.serializeRemoval(Collections.singletonList(keyData), serialization);
             return new TestItem(key, value, removal, TableKey.NO_VERSION, serialization);
         } else {
             val entry = TableEntry.versioned(new ByteArraySegment(key), new ByteArraySegment(value), key.length);
+            serialization = new byte[SERIALIZER.getUpdateLength(entry)];
             if (explicitVersion) {
-                serialization = SERIALIZER.serializeUpdateWithExplicitVersion(Collections.singletonList(entry)).getCopy();
+                SERIALIZER.serializeUpdateWithExplicitVersion(Collections.singletonList(entry), serialization);
                 return new TestItem(key, value, removal, entry.getKey().getVersion(), serialization);
             } else {
-                serialization = SERIALIZER.serializeUpdate(Collections.singletonList(entry)).getCopy();
+                SERIALIZER.serializeUpdate(Collections.singletonList(entry), serialization);
                 return new TestItem(key, value, removal, TableKey.NO_VERSION, serialization);
             }
         }

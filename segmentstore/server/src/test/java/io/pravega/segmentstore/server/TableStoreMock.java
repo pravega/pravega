@@ -10,9 +10,10 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
@@ -93,7 +94,7 @@ public class TableStoreMock implements TableStore {
     }
 
     @Override
-    public CompletableFuture<List<TableEntry>> get(String segmentName, List<BufferView> keys, Duration timeout) {
+    public CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return CompletableFuture.supplyAsync(() -> getTableData(segmentName).get(keys), this.executor);
     }
@@ -109,12 +110,12 @@ public class TableStoreMock implements TableStore {
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
         throw new UnsupportedOperationException();
     }
 
@@ -138,7 +139,7 @@ public class TableStoreMock implements TableStore {
     private static class TableData {
         private final AtomicLong nextVersion = new AtomicLong();
         @GuardedBy("this")
-        private final HashMap<BufferView, TableEntry> entries = new HashMap<>();
+        private final HashMap<HashedArray, TableEntry> entries = new HashMap<>();
         private final String segmentName;
 
         synchronized List<Long> put(List<TableEntry> entries) {
@@ -147,7 +148,7 @@ public class TableStoreMock implements TableStore {
                     .stream()
                     .map(e -> {
                         long version = this.nextVersion.incrementAndGet();
-                        val key = new ByteArraySegment(e.getKey().getKey().getCopy());
+                        val key = new HashedArray(e.getKey().getKey().getCopy());
                         this.entries.put(key,
                                 TableEntry.versioned(key, new ByteArraySegment(e.getValue().getCopy()), version));
                         return version;
@@ -157,11 +158,11 @@ public class TableStoreMock implements TableStore {
 
         synchronized void remove(Collection<TableKey> keys) {
             validateKeys(keys, k -> k);
-            keys.forEach(k -> this.entries.remove(k.getKey()));
+            keys.forEach(k -> this.entries.remove(new HashedArray(k.getKey())));
         }
 
-        synchronized List<TableEntry> get(List<BufferView> keys) {
-            return keys.stream().map(this.entries::get).collect(Collectors.toList());
+        synchronized List<TableEntry> get(List<ArrayView> keys) {
+            return keys.stream().map(k -> this.entries.get(new HashedArray(k))).collect(Collectors.toList());
         }
 
         @GuardedBy("this")
@@ -170,7 +171,7 @@ public class TableStoreMock implements TableStore {
                  .map(getKey)
                  .filter(TableKey::hasVersion)
                  .forEach(k -> {
-                     TableEntry e = this.entries.get(k.getKey());
+                     TableEntry e = this.entries.get(new HashedArray(k.getKey()));
                      if (e == null) {
                          if (k.getVersion() != TableKey.NOT_EXISTS) {
                              throw new CompletionException(new KeyNotExistsException(this.segmentName, k.getKey()));

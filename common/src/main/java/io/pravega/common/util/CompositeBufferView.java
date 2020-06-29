@@ -17,19 +17,15 @@ import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 
 /**
  * Provides a unified view of multiple wrapped {@link BufferView} instances.
  */
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-class CompositeBufferView extends AbstractBufferView implements BufferView {
+class CompositeBufferView implements BufferView {
     //region Members
 
     private final List<BufferView> components;
@@ -148,13 +144,6 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
     }
 
     @Override
-    public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT {
-        for (BufferView bv : this.components) {
-            bv.collect(bufferCollector);
-        }
-    }
-
-    @Override
     public void retain() {
         this.components.forEach(BufferView::retain);
     }
@@ -164,15 +153,11 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
         this.components.forEach(BufferView::release);
     }
 
-    List<BufferView> getComponents() {
-        return Collections.unmodifiableList(this.components);
-    }
-
     //endregion
 
     //region Reader
 
-    private static class Reader extends AbstractReader implements BufferView.Reader {
+    private static class Reader implements BufferView.Reader {
         private final Iterator<BufferView.Reader> readers;
         private BufferView.Reader current;
         private int available;
@@ -198,67 +183,6 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
             }
 
             return 0;
-        }
-
-        @Override
-        public byte readByte() {
-            BufferView.Reader current = getCurrent();
-            if (current == null) {
-                throw new OutOfBoundsException();
-            }
-
-            byte result = current.readByte();
-            this.available--;
-            assert this.available >= 0;
-            return result;
-        }
-
-        @Override
-        public int readInt() {
-            BufferView.Reader current = getCurrent();
-            if (current != null && current.available() >= Integer.BYTES) {
-                this.available -= Integer.BYTES;
-                return current.readInt();
-            }
-
-            return super.readInt();
-        }
-
-        @Override
-        public long readLong() {
-            BufferView.Reader current = getCurrent();
-            if (current != null && current.available() >= Long.BYTES) {
-                this.available -= Long.BYTES;
-                return current.readLong();
-            }
-
-            return super.readLong();
-        }
-
-        @Override
-        public BufferView readSlice(final int length) {
-            if (length > available()) {
-                throw new OutOfBoundsException();
-            }
-
-            if (length == 0) {
-                return BufferView.empty();
-            }
-
-            ArrayList<BufferView> components = new ArrayList<>();
-            int remaining = length;
-            while (remaining > 0) {
-                BufferView.Reader current = getCurrent();
-                assert current != null;
-                int currentLength = Math.min(current.available(), remaining);
-                components.add(current.readSlice(currentLength));
-                this.available -= currentLength;
-                remaining -= currentLength;
-            }
-
-            assert !components.isEmpty();
-            assert this.available >= 0;
-            return new CompositeBufferView(components, length);
         }
 
         private BufferView.Reader getCurrent() {

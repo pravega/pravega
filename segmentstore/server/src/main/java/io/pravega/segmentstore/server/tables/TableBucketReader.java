@@ -11,7 +11,8 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -89,14 +90,15 @@ abstract class TableBucketReader<ResultT> {
      * will exclude all {@link ResultT} items that are marked as deleted.
      */
     CompletableFuture<List<ResultT>> findAllExisting(long bucketOffset, TimeoutTimer timer) {
-        val result = new HashMap<BufferView, ResultT>();
+        val result = new HashMap<HashedArray, ResultT>();
 
         // This handler ensures that items are only added once (per key) and only if they are not deleted. Since the items
         // are processed in descending version order, the first time we encounter its key is its latest value.
         BiConsumer<ResultT, Long> handler = (item, offset) -> {
             TableKey key = getKey(item);
-            if (!result.containsKey(key.getKey())) {
-                result.put(key.getKey(), key.getVersion() == TableKey.NOT_EXISTS ? null : item);
+            HashedArray indexedKey = new HashedArray(key.getKey());
+            if (!result.containsKey(indexedKey)) {
+                result.put(indexedKey, key.getVersion() == TableKey.NOT_EXISTS ? null : item);
             }
         };
         return findAll(bucketOffset, handler, timer)
@@ -138,13 +140,13 @@ abstract class TableBucketReader<ResultT> {
     /**
      * Attempts to locate something in a TableBucket that matches a particular key.
      *
-     * @param soughtKey    A {@link BufferView} instance representing the Key we are looking for.
+     * @param soughtKey    An {@link ArrayView} instance representing the Key we are looking for.
      * @param bucketOffset The current segment offset of the Table Bucket we are looking into.
      * @param timer        A {@link TimeoutTimer} for the operation.
      * @return A CompletableFuture that, when completed, will contain the desired result, or null of no such result
      * was found.
      */
-    CompletableFuture<ResultT> find(BufferView soughtKey, long bucketOffset, TimeoutTimer timer) {
+    CompletableFuture<ResultT> find(ArrayView soughtKey, long bucketOffset, TimeoutTimer timer) {
         int maxReadLength = getMaxReadLength();
 
         // Read the Key at the current offset and check it against the sought one.
@@ -196,21 +198,21 @@ abstract class TableBucketReader<ResultT> {
     /**
      * Creates a new instance of the {@link AsyncTableEntryReader} class.
      *
-     * @param soughtKey     A {@link BufferView} instance representing the Key we are looking for.
+     * @param soughtKey     An {@link ArrayView} instance representing the Key we are looking for.
      * @param segmentOffset The offset within the Segment we are reading from.
      * @param timer         A {@link TimeoutTimer} for the operation.
      * @return An {@link AsyncTableEntryReader}.
      */
-    protected abstract AsyncTableEntryReader<ResultT> getReader(BufferView soughtKey, long segmentOffset, TimeoutTimer timer);
+    protected abstract AsyncTableEntryReader<ResultT> getReader(ArrayView soughtKey, long segmentOffset, TimeoutTimer timer);
 
     /**
      * Processes the given result (which was obtained by the {@link AsyncTableEntryReader} provided by {@link #getReader}).
      *
      * @param result    The result to process.
-     * @param soughtKey A {@link BufferView} instance representing the Key we are looking for.
+     * @param soughtKey An {@link ArrayView} instance representing the Key we are looking for.
      * @return A {@link SearchContinuation} that indicates what is to be done next.
      */
-    protected abstract SearchContinuation processResult(ResultT result, BufferView soughtKey);
+    protected abstract SearchContinuation processResult(ResultT result, ArrayView soughtKey);
 
     protected abstract TableKey getKey(ResultT resultT);
 
@@ -232,12 +234,12 @@ abstract class TableBucketReader<ResultT> {
         }
 
         @Override
-        protected AsyncTableEntryReader<TableEntry> getReader(BufferView soughtKey, long segmentOffset, TimeoutTimer timer) {
+        protected AsyncTableEntryReader<TableEntry> getReader(ArrayView soughtKey, long segmentOffset, TimeoutTimer timer) {
             return AsyncTableEntryReader.readEntry(soughtKey, segmentOffset, this.serializer, timer);
         }
 
         @Override
-        protected SearchContinuation processResult(TableEntry entry, BufferView soughtKey) {
+        protected SearchContinuation processResult(TableEntry entry, ArrayView soughtKey) {
             if (entry == null) {
                 // No match: Continue searching if possible.
                 return SearchContinuation.Continue;
@@ -274,13 +276,13 @@ abstract class TableBucketReader<ResultT> {
         }
 
         @Override
-        protected AsyncTableEntryReader<TableKey> getReader(BufferView soughtKey, long segmentOffset, TimeoutTimer timer) {
+        protected AsyncTableEntryReader<TableKey> getReader(ArrayView soughtKey, long segmentOffset, TimeoutTimer timer) {
             return AsyncTableEntryReader.readKey(segmentOffset, this.serializer, timer);
         }
 
         @Override
-        protected SearchContinuation processResult(TableKey result, BufferView soughtKey) {
-            if (soughtKey.equals(result.getKey())) {
+        protected SearchContinuation processResult(TableKey result, ArrayView soughtKey) {
+            if (HashedArray.arrayEquals(soughtKey, result.getKey())) {
                 // Match.
                 return SearchContinuation.ResultFound;
             } else {

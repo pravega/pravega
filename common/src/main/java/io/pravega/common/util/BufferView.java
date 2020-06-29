@@ -64,8 +64,7 @@ public interface BufferView {
 
     /**
      * Equivalent to invoking {@link #slice(int, int)} with offset 0 and getLength(). Depending on the implementation,
-     * this may return this instance or a new instance that is a duplicate of this one but pointing to the same backing buffer.
-     * No data copies are being made as part of invoking this method.
+     * this may return this instance or a new instance that is a copy of this one but pointing to the same backing buffer.
      *
      * @return A {@link BufferView}.
      */
@@ -128,72 +127,27 @@ public interface BufferView {
     }
 
     /**
-     * Gets a list of {@link ByteBuffer} that represent the contents of this {@link BufferView}. These buffer point
-     * directly to the data contained within this buffer (i.e., they are not copies of the data).
+     * Gets a list of {@link ByteBuffer} that represent the contents of this {@link BufferView}.
      *
      * @return A List of {@link ByteBuffer}.
      */
     List<ByteBuffer> getContents();
 
     /**
-     * Iterates through each of the buffers that make up this {@link BufferView}, in order, and invokes the given
-     * {@link Collector} on each.
-     *
-     * @param bufferCollector A {@link Collector} function that will be invoked for each component. Each {@link ByteBuffer}
-     *                        passed as an argument to this function is a direct pointer to the data contained within the
-     *                        {@link BufferView} (i.e., they are not copies of the data).
-     * @param <ExceptionT>    Type of exception that the {@link Collector} function throws, if any.
-     * @throws ExceptionT If the {@link Collector} function throws an exception of this type, the iteration will end
-     *                    and the exception will be bubbled up.
-     */
-    <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT;
-
-    /**
      * Wraps the given {@link BufferView} into a single instance.
      *
-     * @param components The components to wrap. These components will be added by reference, without making any data
-     *                   copies. Any modifications made to these components will be reflected in the returned
-     *                   {@link BufferView} and vice-versa.
+     * @param components The components to wrap.
      * @return An empty {@link BufferView} (if the component list is empty), the first item in the list (if the component
      * list has 1 element) or a {@link CompositeBufferView} wrapping all the given instances otherwise.
      */
     static BufferView wrap(List<BufferView> components) {
         if (components.size() == 0) {
-            return empty();
+            return new ByteArraySegment(new byte[0]);
         } else if (components.size() == 1) {
             return components.get(0).slice();
         } else {
             return new CompositeBufferView(components);
         }
-    }
-
-    /**
-     * Creates a new {@link BufferViewBuilder} that can be used to construct composite {@link BufferView} instances.
-     *
-     * @return A new {@link BufferViewBuilder} with default initial component count.
-     */
-    static BufferViewBuilder builder() {
-        return builder(10);
-    }
-
-    /**
-     * Creates a new {@link BufferViewBuilder} that can be used to construct composite {@link BufferView} instances.
-     *
-     * @param expectedComponentCount The initial component count. Knowing this value beforehand will avoid any list copies
-     *                               that are done as the builder component list grows.
-     * @return A new {@link BufferViewBuilder} with specified initial component count.
-     */
-    static BufferViewBuilder builder(int expectedComponentCount) {
-        return new BufferViewBuilder(expectedComponentCount);
-    }
-
-    /**
-     * Returns the empty {@link BufferView}.
-     *
-     * @return The empty {@link BufferView}.
-     */
-    static BufferView empty() {
-        return AbstractBufferView.EMPTY;
     }
 
     /**
@@ -219,78 +173,23 @@ public interface BufferView {
         int readBytes(ByteArraySegment segment);
 
         /**
-         * Reads one byte and advances the reader position by 1.
-         *
-         * @return The read byte.
-         * @throws OutOfBoundsException If {@link #available()} is 0.
-         */
-        byte readByte();
-
-        /**
-         * Reads 4 bytes (and advances the reader position by 4) and composes a 32-bit Integer (Big-Endian).
-         *
-         * @return The read int.
-         * @throws OutOfBoundsException If {@link #available()} is less than {@link Integer#BYTES}.
-         */
-        int readInt();
-
-        /**
-         * Reads 8 bytes (and advances the reader position by 4) and composes a 64-bit Long (Big-Endian).
-         *
-         * @return The read long.
-         * @throws OutOfBoundsException If {@link #available()} is less than {@link Long#BYTES}.
-         */
-        long readLong();
-
-        /**
-         * Returns a {@link BufferView} that is a representation of the next bytes starting at the given position. The
-         * reader position will be advanced by the requested number of bytes.
-         *
-         * @param length The number of bytes to slice out.
-         * @return A {@link BufferView} that represents the given bytes. This {@link BufferView} represents a view into
-         * the underlying {@link BufferView} and is not a copy of the given range.
-         * @throws OutOfBoundsException If {@link #available()} is less than length.
-         */
-        BufferView readSlice(int length);
-
-        /**
-         * Copies all the remaining bytes from this {@link BufferView.Reader} into a new {@link ArrayView}. The reader
-         * position will be set to the end of the {@link BufferView}.
+         * Reads all the remaining bytes from this {@link BufferView.Reader} into a new {@link ByteArraySegment}.
          *
          * @param bufferSize The maximum number of bytes to copy at each iteration. Set to {@link Integer#MAX_VALUE}
          *                   to attempt to copy the whole buffer at once.
          * @return A new {@link ByteArraySegment} with the remaining contents of {@link BufferView.Reader}.
          */
         @VisibleForTesting
-        ArrayView readFully(int bufferSize);
-
-        /**
-         * Exception that is thrown whenever an attempt is made to read beyond the bounds of a {@link BufferView}.
-         */
-        class OutOfBoundsException extends IndexOutOfBoundsException {
-            public OutOfBoundsException() {
-                super();
+        default ByteArraySegment readFully(int bufferSize) {
+            ByteArraySegment readBuffer = new ByteArraySegment(new byte[available()]);
+            int readOffset = 0;
+            while (readOffset < readBuffer.getLength()) {
+                int readLength = Math.min(available(), readBuffer.getLength() - readOffset);
+                int readBytes = readBytes(readBuffer.slice(readOffset, Math.min(bufferSize, readLength)));
+                readOffset += readBytes;
             }
-
-            public OutOfBoundsException(String message) {
-                super(message);
-            }
+            assert available() == 0;
+            return readBuffer;
         }
-    }
-
-    /**
-     * Defines a collector function that can be applied to a ByteBuffer.
-     *
-     * @param <ExceptionT> Type of exception that this function can throw.
-     */
-    @FunctionalInterface
-    interface Collector<ExceptionT extends Exception> {
-        /**
-         * Processes a ByteBuffer.
-         *
-         * @param buffer The ByteBuffer.
-         * @throws ExceptionT (Optional) Any exception to throw.
-         */
-        void accept(ByteBuffer buffer) throws ExceptionT;
     }
 }

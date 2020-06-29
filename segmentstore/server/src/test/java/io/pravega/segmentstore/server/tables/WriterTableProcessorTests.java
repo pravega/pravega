@@ -12,8 +12,8 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -88,7 +88,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         // Mismatched segment ids.
         AssertExtensions.assertThrows(
                 "add() worked with wrong segment id.",
-                () -> context.processor.add(new StreamSegmentAppendOperation(SEGMENT_ID + 1, BufferView.empty(), null)),
+                () -> context.processor.add(new StreamSegmentAppendOperation(SEGMENT_ID + 1, new ByteArraySegment(new byte[0]), null)),
                 ex -> ex instanceof IllegalArgumentException);
 
         // Pre-last indexed offset.
@@ -234,7 +234,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         val context = new TestContext(hasher);
         context.setMinUtilization(minSegmentUtilization);
         val batches = generateAndPopulateEntries(context);
-        val allKeys = new HashMap<BufferView, UUID>(); // All keys, whether added or removed.
+        val allKeys = new HashMap<HashedArray, UUID>(); // All keys, whether added or removed.
 
         TestBatchData lastBatch = null;
         for (val batch : batches) {
@@ -278,18 +278,9 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             context.processor.add(generateSimulatedAppend(lIdx, (int) (context.metadata.getLength() - lIdx), context));
             context.processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-            final long truncationOffset = context.metadata.getStartOffset();
-            long expectedTruncationOffset = compactionOffset;
-            if (compactionOffset > truncationOffset) {
-                // There is a valid case when the segment's truncation offset (start offset) can be smaller than the
-                // compaction offset. This happens when there is at least one TableEntry that is marked as "removal"
-                // exactly at the end of the compaction buffer. The TableCompactor will exclude that from the copy and
-                // correctly set the Compaction Offset to the first byte after it, however the WriterTableProcessor will
-                // never encounter this since it was never copied (hence it won't truncate the segment).
-                expectedTruncationOffset -= getRemovalLengths(truncationOffset, batches, context);
-            }
+            long truncationOffset = context.metadata.getStartOffset();
             Assert.assertEquals("Expected Segment's Start Offset to be the same as its COMPACTION_OFFSET.",
-                    expectedTruncationOffset, truncationOffset);
+                    compactionOffset, truncationOffset);
             assert lastBatch != null;
             checkRelocatedIndex(lastBatch.expectedEntries, allKeys, context);
         } else {
@@ -301,33 +292,12 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         }
     }
 
-    private long getRemovalLengths(long truncationOffset, List<TestBatchData> batches, TestContext context) throws Exception {
-        val candidates = batches.stream().flatMap(b -> b.operations.stream())
-                .filter(op -> op.getStreamSegmentOffset() >= truncationOffset)
-                .iterator();
-        val expectedEntries = batches.get(batches.size() - 1).expectedEntries;
-        long result = 0;
-        while (candidates.hasNext()) {
-            val op = candidates.next();
-            val opData = new byte[(int) op.getLength()];
-            val bytesRead = context.segmentMock.read(op.getStreamSegmentOffset(), (int) op.getLength(), TIMEOUT).readRemaining(opData, TIMEOUT);
-            assert bytesRead == opData.length;
-            val entryHeader = context.serializer.readHeader(new ByteArraySegment(opData).getBufferViewReader());
-            if (!expectedEntries.containsKey(new ByteArraySegment(opData, entryHeader.getKeyOffset(), entryHeader.getKeyLength()))) {
-                result += op.getLength();
-            } else {
-                break;
-            }
-        }
-        return result;
-    }
-
     /**
      * Same outcome as {@link #checkIndex}, but does the verification by actually reading the Table Entries from the
      * segment. This method is slower than {@link #checkIndex} so it should only be used when needing access to the actual,
      * serialized Table Entry (such as in compaction testing).
      */
-    private void checkRelocatedIndex(HashMap<BufferView, TableEntry> existingEntries, HashMap<BufferView, UUID> allKeys, TestContext context) throws Exception {
+    private void checkRelocatedIndex(HashMap<HashedArray, TableEntry> existingEntries, HashMap<HashedArray, UUID> allKeys, TestContext context) throws Exception {
         // Get all the buckets associated with the given keys.
         val timer = new TimeoutTimer(TIMEOUT);
         val bucketsByHash = context.indexReader.locateBuckets(context.segmentMock, allKeys.values(), timer)
@@ -349,13 +319,16 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
                     val actualEntry = TableBucketReader.entry(context.segmentMock, context.indexReader::getBackpointerOffset, executorService())
                                                        .find(key, bucket.getSegmentOffset(), timer)
                                                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    if (actualEntry != null) {
+                        System.out.println(bucket.getHash());
+                    }
                     Assert.assertNull(actualEntry);
                 }
             }
         }
     }
 
-    private void checkIndex(HashMap<BufferView, TableEntry> existingEntries, HashMap<BufferView, UUID> allKeys, TestContext context) throws Exception {
+    private void checkIndex(HashMap<HashedArray, TableEntry> existingEntries, HashMap<HashedArray, UUID> allKeys, TestContext context) throws Exception {
         // Get all the buckets associated with the given keys.
         val timer = new TimeoutTimer(TIMEOUT);
         val bucketsByHash = context.indexReader.locateBuckets(context.segmentMock, allKeys.values(), timer)
@@ -403,7 +376,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         int count = 0;
         while (count < UPDATE_COUNT) {
             int batchSize = Math.min(UPDATE_BATCH_SIZE, UPDATE_COUNT - count);
-            Map<BufferView, TableEntry> prevState = result.isEmpty()
+            Map<HashedArray, TableEntry> prevState = result.isEmpty()
                     ? Collections.emptyMap()
                     : result.get(result.size() - 1).expectedEntries;
             result.add(generateAndPopulateEntriesBatch(batchSize, prevState, context));
@@ -413,9 +386,9 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         return result;
     }
 
-    private TestBatchData generateAndPopulateEntriesBatch(int batchSize, Map<BufferView, TableEntry> initialState, TestContext context) {
+    private TestBatchData generateAndPopulateEntriesBatch(int batchSize, Map<HashedArray, TableEntry> initialState, TestContext context) {
         val result = new TestBatchData(new HashMap<>(initialState));
-        val allKeys = new ArrayList<>(initialState.keySet()); // Need a list so we can efficiently pick removal candidates.
+        val allKeys = new ArrayList<HashedArray>(initialState.keySet()); // Need a list so we can efficiently pick removal candidates.
         for (int i = 0; i < batchSize; i++) {
             // We only generate a remove if we have something to remove.
             boolean remove = allKeys.size() > 0 && (context.random.nextDouble() < REMOVE_FRACTION);
@@ -431,7 +404,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
                 context.random.nextBytes(keyData);
                 byte[] valueData = new byte[context.random.nextInt(MAX_VALUE_LENGTH)];
                 context.random.nextBytes(valueData);
-                val key = new ByteArraySegment(keyData);
+                val key = new HashedArray(keyData);
                 val offset = context.metadata.getLength();
                 val entry = TableEntry.versioned(key, new ByteArraySegment(valueData), offset);
                 append = generateRawAppend(entry, offset, context);
@@ -459,16 +432,18 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     }
 
     private StreamSegmentAppendOperation generateRawAppend(TableEntry entry, long offset, TestContext context) {
-        val data = context.serializer.serializeUpdate(Collections.singletonList(entry));
-        val append = new StreamSegmentAppendOperation(SEGMENT_ID, data, null);
+        byte[] data = new byte[context.serializer.getUpdateLength(entry)];
+        context.serializer.serializeUpdate(Collections.singletonList(entry), data);
+        val append = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(data), null);
         append.setSequenceNumber(context.nextSequenceNumber());
         append.setStreamSegmentOffset(offset);
         return append;
     }
 
     private StreamSegmentAppendOperation generateRawRemove(TableKey key, long offset, TestContext context) {
-        val data = context.serializer.serializeRemoval(Collections.singletonList(key));
-        val append = new StreamSegmentAppendOperation(SEGMENT_ID, data, null);
+        byte[] data = new byte[context.serializer.getRemovalLength(key)];
+        context.serializer.serializeRemoval(Collections.singletonList(key), data);
+        val append = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(data), null);
         append.setSequenceNumber(context.nextSequenceNumber());
         append.setStreamSegmentOffset(offset);
         return append;
@@ -482,7 +457,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
     @RequiredArgsConstructor
     private class TestBatchData {
-        final HashMap<BufferView, TableEntry> expectedEntries;
+        final HashMap<HashedArray, TableEntry> expectedEntries;
         final List<CachedStreamSegmentAppendOperation> operations = new ArrayList<>();
     }
 

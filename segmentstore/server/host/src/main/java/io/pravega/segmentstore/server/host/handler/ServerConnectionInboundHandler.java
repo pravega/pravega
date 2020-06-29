@@ -20,7 +20,7 @@ import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
-import io.pravega.shared.protocol.netty.WireCommands;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
@@ -53,15 +53,7 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
         if (requestProcessor == null) {
             throw new IllegalStateException("No command processor set for connection");
         }
-        try {
-            cmd.process(requestProcessor);
-        } catch (Throwable ex) {
-            // Release buffers in case of an unhandled exception.
-            if (cmd instanceof WireCommands.ReleasableCommand) {
-                ((WireCommands.ReleasableCommand) cmd).release(); // Idempotent. Invoking multiple times has no side effects.
-            }
-            throw ex;
-        }
+        cmd.process(requestProcessor);
     }
 
     @Override

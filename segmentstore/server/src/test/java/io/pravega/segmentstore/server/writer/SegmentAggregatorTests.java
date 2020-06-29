@@ -158,7 +158,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         TestContext context = new TestContext(DEFAULT_CONFIG);
         AssertExtensions.assertThrows(
                 "add() was allowed before initialization.",
-                () -> context.segmentAggregator.add(new StreamSegmentAppendOperation(0, BufferView.empty(), null)),
+                () -> context.segmentAggregator.add(new StreamSegmentAppendOperation(0, new ByteArraySegment(new byte[0]), null)),
                 ex -> ex instanceof IllegalStateException);
 
         AssertExtensions.assertThrows(
@@ -646,7 +646,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(append1));
 
         // Second append is empty.
-        val emptyAppend = new StreamSegmentAppendOperation(SEGMENT_ID, BufferView.empty(), null);
+        val emptyAppend = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(new byte[0]), null);
         emptyAppend.setStreamSegmentOffset(initialBytes.length);
         emptyAppend.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
         context.dataSource.recordAppend(emptyAppend);

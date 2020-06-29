@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
-import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.TableStoreMock;
 import io.pravega.shared.NameUtils;
@@ -134,7 +134,7 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
             }
 
             @Override
-            public CompletableFuture<List<TableEntry>> get(String segmentName, List<BufferView> keys, Duration timeout) {
+            public CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout) {
                 ErrorInjector.throwSyncExceptionIfNeeded(this.getErrorInjectorSync.get());
                 return ErrorInjector.throwAsyncExceptionIfNeeded(
                         this.getErrorInjectorAsync.get(),

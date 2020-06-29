@@ -10,8 +10,8 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -136,7 +136,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
     public void testEndToEnd() throws Exception {
         val rnd = new Random(0);
         ArrayList<String> segmentNames;
-        HashMap<BufferView, EntryData> keyInfo;
+        HashMap<HashedArray, EntryData> keyInfo;
 
         // Phase 1: Create some segments and update some data (unconditionally).
         log.info("Starting Phase 1");
@@ -235,17 +235,17 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void check(HashMap<BufferView, EntryData> keyInfo, TableStore tableStore) throws Exception {
+    private void check(HashMap<HashedArray, EntryData> keyInfo, TableStore tableStore) throws Exception {
         val bySegment = keyInfo.entrySet().stream()
-                .collect(Collectors.groupingBy(e -> e.getValue().segmentName));
+                               .collect(Collectors.groupingBy(e -> e.getValue().segmentName));
 
         // Check inexistent keys.
         val searchFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
         val iteratorFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
-        val expectedResult = new ArrayList<Map.Entry<BufferView, EntryData>>();
+        val expectedResult = new ArrayList<Map.Entry<HashedArray, EntryData>>();
         for (val e : bySegment.entrySet()) {
             String segmentName = e.getKey();
-            val keys = new ArrayList<BufferView>();
+            val keys = new ArrayList<ArrayView>();
             for (val se : e.getValue()) {
                 keys.add(se.getKey());
                 expectedResult.add(se);
@@ -272,8 +272,8 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                 // Deleted keys will be returned as nulls.
                 Assert.assertNull("Not expecting a value for a deleted Key", actual);
             } else {
-                Assert.assertEquals("Unexpected value for non-deleted Key.", expectedEntry.getValue(), actual.getValue());
-                Assert.assertEquals("Unexpected key for non-deleted Key.", expectedKey, actual.getKey().getKey());
+                Assert.assertTrue("Unexpected value for non-deleted Key.", HashedArray.arrayEquals(expectedEntry.getValue(), actual.getValue()));
+                Assert.assertTrue("Unexpected key for non-deleted Key.", HashedArray.arrayEquals(expectedKey, actual.getKey().getKey()));
                 Assert.assertEquals("Unexpected TableKey.Version for non-deleted Key.", expectedEntry.getVersion(), actual.getKey().getVersion());
             }
         }
@@ -304,7 +304,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         Futures.allOf(updateResult.values()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    private HashMap<String, ArrayList<TableEntry>> generateUpdates(HashMap<BufferView, EntryData> keyInfo, boolean conditional, Random rnd) {
+    private HashMap<String, ArrayList<TableEntry>> generateUpdates(HashMap<HashedArray, EntryData> keyInfo, boolean conditional, Random rnd) {
         val result = new HashMap<String, ArrayList<TableEntry>>();
         for (val e : keyInfo.entrySet()) {
             val ed = e.getValue();
@@ -320,7 +320,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         return result;
     }
 
-    private HashMap<String, ArrayList<TableKey>> generateRemovals(HashMap<BufferView, EntryData> keyInfo, boolean conditional) {
+    private HashMap<String, ArrayList<TableKey>> generateRemovals(HashMap<HashedArray, EntryData> keyInfo, boolean conditional) {
         val result = new HashMap<String, ArrayList<TableKey>>();
         for (val e : keyInfo.entrySet()) {
             val ed = e.getValue();
@@ -336,7 +336,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
     }
 
     private void acceptUpdates(Map<String, ArrayList<TableEntry>> updatesBySegment, Map<String, List<Long>> versionsBySegment,
-                               Map<BufferView, EntryData> keyInfo) {
+                               Map<HashedArray, EntryData> keyInfo) {
         Assert.assertEquals(updatesBySegment.size(), versionsBySegment.size());
         for (val e : updatesBySegment.entrySet()) {
             val updates = e.getValue();
@@ -344,23 +344,23 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             Assert.assertEquals(updates.size(), versions.size());
             for (int i = 0; i < updates.size(); i++) {
                 val u = updates.get(i);
-                val ki = keyInfo.get(u.getKey().getKey());
+                val ki = keyInfo.get(new HashedArray(u.getKey().getKey()));
                 ki.setValue(u.getValue(), versions.get(i));
             }
         }
     }
 
-    private void acceptRemovals(HashMap<String, ArrayList<TableKey>> removals, HashMap<BufferView, EntryData> keyInfo) {
+    private void acceptRemovals(HashMap<String, ArrayList<TableKey>> removals, HashMap<HashedArray, EntryData> keyInfo) {
         for (val removeSet : removals.values()) {
             for (val r : removeSet) {
-                val ki = keyInfo.get(r.getKey());
+                val ki = keyInfo.get(new HashedArray(r.getKey()));
                 ki.deleteValue();
             }
         }
     }
 
-    private HashMap<BufferView, EntryData> mapToSegments(ArrayList<BufferView> keys, ArrayList<String> segments) {
-        val result = new HashMap<BufferView, EntryData>();
+    private HashMap<HashedArray, EntryData> mapToSegments(ArrayList<HashedArray> keys, ArrayList<String> segments) {
+        val result = new HashMap<HashedArray, EntryData>();
         for (int i = 0; i < keys.size(); i++) {
             result.put(keys.get(i), new EntryData(segments.get(i % segments.size())));
         }
@@ -368,12 +368,12 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         return result;
     }
 
-    private BufferView generateValue(Random rnd) {
+    private HashedArray generateValue(Random rnd) {
         return generateData(0, MAX_VALUE_LENGTH, rnd);
     }
 
-    private ArrayList<BufferView> generateKeys(Random rnd) {
-        val result = new ArrayList<BufferView>(KEY_COUNT);
+    private ArrayList<HashedArray> generateKeys(Random rnd) {
+        val result = new ArrayList<HashedArray>(KEY_COUNT);
         for (int i = 0; i < KEY_COUNT; i++) {
             result.add(generateData(1, MAX_KEY_LENGTH, rnd));
         }
@@ -381,10 +381,10 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         return result;
     }
 
-    private BufferView generateData(int minLength, int maxLength, Random rnd) {
+    private HashedArray generateData(int minLength, int maxLength, Random rnd) {
         byte[] keyData = new byte[Math.max(minLength, rnd.nextInt(maxLength))];
         rnd.nextBytes(keyData);
-        return new ByteArraySegment(keyData);
+        return new HashedArray(keyData);
     }
 
     private ArrayList<String> createSegments(TableStore store) throws Exception {
@@ -421,9 +421,9 @@ public class TableServiceTests extends ThreadPooledTestSuite {
     private static class EntryData {
         final String segmentName;
         private final AtomicLong version = new AtomicLong(TableKey.NOT_EXISTS);
-        private final AtomicReference<BufferView> value = new AtomicReference<>(null);
+        private final AtomicReference<ArrayView> value = new AtomicReference<>(null);
 
-        void setValue(BufferView value, long version) {
+        void setValue(ArrayView value, long version) {
             this.value.set(value);
             this.version.set(version);
         }
@@ -436,7 +436,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             return this.version.get() == TableKey.NOT_EXISTS;
         }
 
-        BufferView getValue() {
+        ArrayView getValue() {
             return this.value.get();
         }
 

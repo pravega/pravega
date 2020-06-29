@@ -29,6 +29,7 @@ import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -50,6 +51,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.Cleanup;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -596,9 +598,10 @@ class ContainerKeyIndex implements AutoCloseable {
         val entries = new HashMap<UUID, CacheBucketOffset>();
         long nextOffset = startOffset;
         final long maxOffset = startOffset + maxLength;
-        val inputReader = input.getBufferViewReader();
+        @Cleanup
+        InputStream inputStream = input.getReader();
         while (nextOffset < maxOffset) {
-            val e = AsyncTableEntryReader.readEntryComponents(inputReader, nextOffset, serializer);
+            val e = AsyncTableEntryReader.readEntryComponents(inputStream, nextOffset, serializer);
             val hash = this.keyHasher.hash(e.getKey());
             entries.put(hash, new CacheBucketOffset(nextOffset, e.getHeader().isDeletion()));
             nextOffset += e.getHeader().getTotalLength();
