@@ -15,6 +15,7 @@ import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -127,6 +128,13 @@ public interface KeyValueTable {
      * @return currently active kvtable epoch.
      */
     CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached);
+
+    /**
+     * Fetches all segment ids in the KeyValueTable.
+     *
+     * @return Future which when completed contains a list of all segments in the KeyValueTable.
+     */
+    CompletableFuture<Set<Long>> getAllSegmentIds();
 
     /**
      * Deletes this KeyValueTable.

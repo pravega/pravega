@@ -22,6 +22,7 @@ import io.pravega.controller.store.stream.StoreException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.IntStream;
@@ -154,6 +155,12 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
     @Override
     public CompletableFuture<KeyValueTableConfiguration> getConfiguration() {
         return getConfigurationData(false).thenApply(x -> x.getObject().getKvtConfiguration());
+    }
+
+    @Override
+    public CompletableFuture<Set<Long>> getAllSegmentIds() {
+        return getActiveEpochRecord(true)
+                .thenApply(epochRecord -> epochRecord.getSegmentIds());
     }
 
     // region state

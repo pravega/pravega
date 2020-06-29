@@ -11,10 +11,12 @@ package io.pravega.controller.server.eventProcessor.requesthandlers.kvtable;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTOperationContext;
 import io.pravega.controller.store.kvtable.KeyValueTable;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
@@ -57,7 +59,11 @@ public class DeleteTableTask implements TableTask<DeleteTableEvent> {
                 return CompletableFuture.completedFuture(null);
             } else {
                 final KVTOperationContext context = kvtMetadataStore.createContext(scope, kvt);
-                return this.kvtMetadataStore.deleteKeyValueTable(scope, kvt, context, executor);
+                return Futures.exceptionallyExpecting(kvtMetadataStore.getAllSegmentIds(scope, kvt, context, executor)
+                                .thenComposeAsync(allSegments ->
+                                        kvtMetadataTasks.deleteSegments(scope, kvt, allSegments, kvtMetadataTasks.retrieveDelegationToken(), requestId)),
+                        e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
+                        .thenCompose(v -> this.kvtMetadataStore.deleteKeyValueTable(scope, kvt, context, executor));
              }
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
     }

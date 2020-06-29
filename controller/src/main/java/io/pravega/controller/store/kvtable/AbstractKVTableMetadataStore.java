@@ -27,6 +27,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -183,6 +184,11 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
     public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(String scopeName, String continuationToken,
                                                                     int limit, Executor executor) {
         return getScope(scopeName).listKeyValueTables(limit, continuationToken, executor);
+    }
+
+    @Override
+    public CompletableFuture<Set<Long>> getAllSegmentIds(final String scope, final String name, final KVTOperationContext context, final Executor executor) {
+        return Futures.completeOn(getKVTable(scope, name, context).getAllSegmentIds(), executor);
     }
 
     @Override

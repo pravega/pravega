@@ -16,6 +16,7 @@ import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -188,6 +189,20 @@ public interface KVTableMetadataStore extends AutoCloseable {
      * @return Scope object.
      */
     Scope newScope(final String scopeName);
+
+    /**
+     * Api to get all segments in the stream.
+     *
+     * @param scope    stream scope
+     * @param name     stream name.
+     * @param context  operation context
+     * @param executor callers executor
+     *
+     * @return Future, which when complete will contain a list of all segments in the stream.
+     */
+    CompletableFuture<Set<Long>> getAllSegmentIds(final String scope, final String name,
+                                                  final KVTOperationContext context, final Executor executor);
+
 
     /**
      * Api to Delete the kvtable related metadata.

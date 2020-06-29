@@ -23,10 +23,12 @@ import io.pravega.client.tables.impl.KeyValueTableTestBase;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
 
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.util.Collections;
 import java.time.Duration;
@@ -106,14 +108,15 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     }
 
     /**
-     * Smoke Test. Verify that the KeyValueTable can be created and deleted.
+     * Smoke Test. Verify that the KeyValueTable can be created and listed.
      */
     @Test
-    public void testCreateDeleteListKeyValueTable() {
+    public void testCreateListKeyValueTable() {
         Assert.assertTrue(isScopeCreated);
         val kvt1 = newKeyValueTableName();
         boolean created = this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join();
         Assert.assertTrue(created);
+
         val segments = this.controller.getCurrentSegmentsForKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName()).join();
         Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), segments.getSegments().size());
 
@@ -154,19 +157,39 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         Assert.assertEquals(1, countMap.get(kvt1.getKeyValueTableName()).intValue());
         Assert.assertEquals(1, countMap.get(kvt2.getKeyValueTableName()).intValue());
         Assert.assertEquals(1, countMap.get(kvt3.getKeyValueTableName()).intValue());
+    }
+
+    /**
+     * Smoke Test. Verify that the KeyValueTable can be created and deleted.
+     */
+    @Test
+    public void testCreateDeleteKeyValueTable() {
+        Assert.assertTrue(isScopeCreated);
+        val kvt1 = newKeyValueTableName();
+        boolean created = this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join();
+        Assert.assertTrue(created);
+        val segments = this.controller.getCurrentSegmentsForKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName()).join();
+        Assert.assertEquals(DEFAULT_CONFIG.getPartitionCount(), segments.getSegments().size());
+
+        for (val s : segments.getSegments()) {
+            // We know there's nothing in these segments. But if the segments hadn't been created, then this will throw
+            // an exception.
+            log.info("Segment Number {}", s.getSegmentId());
+            this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT).join();
+        }
 
         // Delete and verify segments have been deleted too.
-        /*
-        val deleted = this.controller.deleteKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName()).join();
+        val deleted = this.controller.deleteKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName()).join();
         Assert.assertTrue(deleted);
-        Assert.assertFalse(this.controller.deleteKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName()).join());
+
+        Assert.assertFalse(this.controller.deleteKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName()).join());
         for (val s : segments.getSegments()) {
             AssertExtensions.assertSuppliedFutureThrows(
                     "Segment " + s + " has not been deleted.",
-                    () -> this.tableStore.get(s.getScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT),
+                    () -> this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
-        */
+
     }
 
     @Override

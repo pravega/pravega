@@ -20,7 +20,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -327,15 +326,6 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 CompletableFuture.completedFuture(list));
         Assert.assertTrue(Futures.await(this.testController.getSegments(new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()),
                 new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()))));
-    }
-
-    @Test
-    public void testKeyValueTables() {
-
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.testController.deleteKeyValueTable("", ""),
-                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test

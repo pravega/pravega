@@ -95,7 +95,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
-
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
@@ -1286,7 +1286,39 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
-        throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTableName");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "deleteKeyValueTable", scope, kvtName, requestId);
+
+        final CompletableFuture<DeleteKVTableStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<DeleteKVTableStatus> callback = new RPCAsyncCallback<>(requestId, "deleteKeyValueTable", scope, kvtName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "deleteKeyValueTable", scope, kvtName)
+                    .deleteKeyValueTable(ModelHelper.createKeyValueTableInfo(scope, kvtName), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to delete KeyValueTable: {}", kvtName);
+                    throw new ControllerFailureException("Failed to delete KeyValueTable: " + kvtName);
+                case TABLE_NOT_FOUND:
+                    log.warn(requestId, "KeyValueTable does not exist: {}", kvtName);
+                    return false;
+                case SUCCESS:
+                    log.info(requestId, "Successfully deleted KeyValueTable: {}", kvtName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status deleting KeyValueTable " + kvtName + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "deleteKeyValueTable {}/{} failed: ", scope, kvtName, e);
+            }
+            LoggerHelpers.traceLeave(log, "deleteKeyValueTable", traceId, scope, kvtName, requestId);
+        });
     }
 
     @Override
@@ -1452,6 +1484,11 @@ public class ControllerImpl implements Controller {
                                        RPCAsyncCallback<KVTablesInScopeResponse> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .listKeyValueTablesInScope(request, callback);
+        }
+        //deleteKeyValueTable
+        void deleteKeyValueTable(io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo kvtInfo, RPCAsyncCallback<DeleteKVTableStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .deleteKeyValueTable(kvtInfo, callback);
         }
     }
 }

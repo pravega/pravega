@@ -483,7 +483,19 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
-        throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
+        return this.controller.deleteKeyValueTable(scope, kvtName).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to delete KeyValueTable: " + kvtName);
+                case TABLE_NOT_FOUND:
+                    return false;
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status deleting KeyValueTable " + kvtName + " "
+                            + x.getStatus());
+            }
+        });
     }
 
     @Override
