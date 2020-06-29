@@ -8,7 +8,7 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.integration.selftest.adapters;
-
+/*
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.util.Config;
@@ -39,10 +39,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.bookkeeper.util.IOUtils;
 
-/**
- * Store adapter wrapping a real Pravega Client targeting a local cluster out-of-process. This class creates a new Pravega
- * Cluster made up of a SegmentStore, Controller, ZooKeeper and BookKeeper, and using local FileSystem as Tier2 Storage.
- */
 class OutOfProcessAdapter extends ExternalAdapter {
     //region Members
 
@@ -59,13 +55,6 @@ class OutOfProcessAdapter extends ExternalAdapter {
 
     //region Constructor
 
-    /**
-     * Creates a new instance of the ClientAdapterBase class.
-     *
-     * @param testConfig    The TestConfig to use.
-     * @param builderConfig SegmentStore Builder Configuration.
-     * @param testExecutor  An ExecutorService used by the Test Application.
-     */
     OutOfProcessAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         super(testConfig, testExecutor);
         Preconditions.checkArgument(testConfig.getBookieCount() > 0, "OutOfProcessAdapter requires at least one Bookie.");
@@ -332,3 +321,4 @@ class OutOfProcessAdapter extends ExternalAdapter {
 
     //endregion
 }
+*/

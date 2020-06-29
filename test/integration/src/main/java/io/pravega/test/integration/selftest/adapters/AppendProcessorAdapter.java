@@ -7,6 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
+/*
 package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -37,10 +38,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.val;
 
-/**
- * {@link StoreAdapter} that connects to an {@link AppendProcessor} that uses the Segment Store via {@link SegmentStoreAdapter}.
- * Useful to test the "server-side" of things without the Client interfering.
- */
 public class AppendProcessorAdapter extends StoreAdapter {
     //region Members
 
@@ -54,13 +51,6 @@ public class AppendProcessorAdapter extends StoreAdapter {
 
     //region Constructor
 
-    /**
-     * Creates a new instance of the AppendProcessorAdapter class.
-     *
-     * @param testConfig    The TestConfig to use.
-     * @param builderConfig The ServiceBuilderConfig to use.
-     * @param testExecutor  An Executor to use for test-related async operations.
-     */
     AppendProcessorAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         this.testConfig = testConfig;
         this.segmentStoreAdapter = new SegmentStoreAdapter(testConfig, builderConfig, testExecutor);
@@ -334,3 +324,4 @@ public class AppendProcessorAdapter extends StoreAdapter {
 
     //endregion
 }
+*/

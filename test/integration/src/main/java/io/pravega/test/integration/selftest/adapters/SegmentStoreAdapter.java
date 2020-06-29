@@ -1,14 +1,5 @@
-/**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- */
 package io.pravega.test.integration.selftest.adapters;
-
+/*
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
@@ -65,10 +56,6 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
-/**
- * Store Adapter wrapping a StreamSegmentStore directly. Every "Stream" is actually a single Segment. Routing keys are
- * ignored.
- */
 class SegmentStoreAdapter extends StoreAdapter {
     //region Members
 
@@ -92,13 +79,6 @@ class SegmentStoreAdapter extends StoreAdapter {
 
     //region Constructor
 
-    /**
-     * Creates a new instance of the SegmentStoreAdapter class.
-     *
-     * @param testConfig    The Test Configuration to use.
-     * @param builderConfig The ServiceBuilderConfig to use.
-     * @param testExecutor  An Executor to use for test-related async operations.
-     */
     SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         this.config = Preconditions.checkNotNull(testConfig, "testConfig");
         this.builderConfig = Preconditions.checkNotNull(builderConfig, "builderConfig");
@@ -409,3 +389,4 @@ class SegmentStoreAdapter extends StoreAdapter {
     //endregion
 
 }
+*/
