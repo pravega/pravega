@@ -196,7 +196,7 @@ public class ReaderGroupNotificationTest {
         assertEquals(2, segmentNotificationPostScale.getNumOfSegments());
     }
 
-    @Test(timeout = 40000)
+    @Test(timeout = 80000)
     public void testTargetRateNotifications() throws Exception {
         final String streamName = "stream1";
         StreamConfiguration config = StreamConfiguration.builder()
@@ -238,14 +238,18 @@ public class ReaderGroupNotificationTest {
 
         long start = System.currentTimeMillis();
         CompletableFuture.runAsync(() -> {
-            while (System.currentTimeMillis() - start < Duration.ofMinutes(3).toMillis()) {
+            while (System.currentTimeMillis() - start < Duration.ofMinutes(1).toMillis()) {
                 try {
                     writer1.writeEvent(routingKeys.get(0), "data1").get();
                 } catch (Throwable e) {
                     log.error("test exception: ", e);
-                    break;
+                    throw new IllegalStateException(e);
                 }
             }
+        }, executor)
+                .exceptionally(e -> {
+                    log.error("Failure: ", e);
+                    throw new IllegalStateException(e);
         });
 
         Retry.withExpBackoff(10, 10, 100, 10000)
@@ -266,15 +270,15 @@ public class ReaderGroupNotificationTest {
                             assertTrue(initialSegmentNotification.getNumOfSegments() == 3);
                             if (streamSegments.getSegments().size() == 3) {
                                 log.info("Success");
+                                return;
                             } else {
                                 throw new IllegalStateException("expected number of segments to be 3");
                             }
                         }), executor)
                 .exceptionally(e -> {
                     log.error("Failure: ", e);
-                    return null;
+                    throw new IllegalStateException(e);
                 }).get();
-    ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test(timeout = 40000)
