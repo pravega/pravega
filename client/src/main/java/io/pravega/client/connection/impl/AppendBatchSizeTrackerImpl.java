@@ -28,13 +28,14 @@ import java.util.function.Supplier;
  * {@link #MAX_BATCH_TIME_MILLIS} or half the server round trip time (whichever is less)
  */
 public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
-
-    private static final int MAX_BATCH_SIZE = 2 * TcpClientConnection.TCP_BUFFER_SIZE - 1024; //This must be less than WireCommands.MAX_WIRECOMMAND_SIZE / 2;
     private static final double NANOS_PER_MILLI = 1000000;
     
-    private static final int BASE_TIME_NANOS = 500000;
-    private static final int BASE_SIZE = 0;
-    private static final double OUTSTANDING_FRACTION = 0.5;
+    // This must be less than WireCommands.MAX_WIRECOMMAND_SIZE / 2;
+    private static final int MAX_BATCH_SIZE = initializeConstant("PRAVEGA_MAX_BATCH_SIZE",
+                                                                 2 * TcpClientConnection.TCP_BUFFER_SIZE - 1024);
+    private static final int BASE_TIME_NANOS = initializeConstant("PRAVEGA_BATCH_BASE_TIME_NANOS", 500000);
+    private static final int BASE_SIZE = initializeConstant("PRAVEGA_BATCH_BASE_SIZE", 0);
+    private static final double OUTSTANDING_FRACTION = 1.0 / initializeConstant("PRAVEGA_BATCH_OUTSTANDING_DENOMINATOR", 2);
     
     private final Supplier<Long> clock;
     private final AtomicLong lastAppendNumber;
@@ -89,5 +90,17 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     @Override
     public int getBatchTimeout() {
         return MAX_BATCH_TIME_MILLIS;
+    }
+    
+    private static int initializeConstant(String name, int defaultValue) {
+        String val = System.getenv(name);
+        if (val != null) {
+            try {
+                return Integer.parseInt(val);
+            } catch (NumberFormatException e) {
+                //Use default
+            }
+        }
+        return defaultValue;
     }
 }
