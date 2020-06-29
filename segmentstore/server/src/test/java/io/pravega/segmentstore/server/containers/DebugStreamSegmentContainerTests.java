@@ -59,7 +59,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -184,9 +183,9 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
 
         int segmentsCountByContainer[] = new int[containerCount];
-        List<List<String>> segmentByContainers = new ArrayList<>();
+        ArrayList<ArrayList<String>> segmentByContainers = new ArrayList<ArrayList<String>>();
         for (int containerId = 0; containerId<containerCount; containerId++) {
-            List<String> segmentList = new ArrayList<>();
+            ArrayList<String> segmentList = new ArrayList<>();
             segmentByContainers.add(segmentList);
         }
 
@@ -209,13 +208,13 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         Map<Integer, List<SegmentProperties>> segments = DataRecoveryTestUtils.listAllSegments(new AsyncStorageWrapper(s,
                 DataRecoveryTestUtils.createExecutorService(10)), containerCount);
         // Check every segments count by container Id
-        for (int i=0; i<segments.size(); i++) {
+        for (int i = 0; i < segments.size(); i++) {
             segmentsRecoveredCount += segments.get(i).size();
             Assert.assertTrue("Number of recovered segments is less than number of created segments with this container",
                     segments.get(i).size() >= segmentsCountByContainer[i]);
         }
         Assert.assertTrue("Number of recovered segments is less than number of created segments",
-                segmentsRecoveredCount>=segmentsToCreateCount);
+                segmentsRecoveredCount >= segmentsToCreateCount);
 
         final ContainerConfig containerConfig = ContainerConfig
                 .builder()

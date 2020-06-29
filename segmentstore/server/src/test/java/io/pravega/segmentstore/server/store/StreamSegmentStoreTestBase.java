@@ -235,10 +235,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
             Map<Integer, List<SegmentProperties>> segments = DataRecoveryTestUtils.listAllSegments(tier2, CONTAINER_COUNT);
 
-            final ContainerConfig DEFAULT_CONFIG = ContainerConfig
-                    .builder()
-                    .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
-                    .build();
             final ContainerConfig containerConfig = ContainerConfig
                     .builder()
                     .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
@@ -1162,8 +1158,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     public class TestContext implements AutoCloseable {
-        final SegmentContainerFactory containerFactory;
-        final SegmentContainer container;
+        private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
+        private final SegmentContainerFactory containerFactory;
+        private final SegmentContainer container;
         private final StorageFactory storageFactory;
         private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
@@ -1173,23 +1170,22 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         private final CacheStorage cacheStorage;
         private final CacheManager cacheManager;
         private final Storage storage;
-        private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
-        private final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = DurableLogConfig
+        private final DurableLogConfig defaultDurableLogConfig = DurableLogConfig
                 .builder()
                 .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
                 .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                 .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
                 .with(DurableLogConfig.START_RETRY_DELAY_MILLIS, 20)
                 .build();
-        private final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
+        private final ReadIndexConfig defaultReadIndexConfig = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
 
-        private final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig
+        private final AttributeIndexConfig defaultAttributeIndexConfig = AttributeIndexConfig
                 .builder()
                 .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, 2 * 1024)
                 .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 1000)
                 .build();
 
-        private final WriterConfig DEFAULT_WRITER_CONFIG = WriterConfig
+        private final WriterConfig defaultWriterConfig = WriterConfig
                 .builder()
                 .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
                 .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, 3)
@@ -1201,12 +1197,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     StorageFactory storageFactory) {
             this.storageFactory = storageFactory;
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
-            this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
+            this.operationLogFactory = new DurableLogFactory(defaultDurableLogConfig, dataLogFactory, executorService());
             this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
-            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, executorService());
-            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, executorService());
-            this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, executorService());
+            this.readIndexFactory = new ContainerReadIndexFactory(defaultReadIndexConfig, this.cacheManager, executorService());
+            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(defaultAttributeIndexConfig, this.cacheManager, executorService());
+            this.writerFactory = new StorageWriterFactory(defaultWriterConfig, executorService());
             this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
                     this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.storageFactory,
                     createExtensions(createAdditionalExtensions), executorService());

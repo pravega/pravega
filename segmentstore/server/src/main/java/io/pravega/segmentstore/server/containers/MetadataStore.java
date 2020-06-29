@@ -716,7 +716,7 @@ public abstract class MetadataStore implements AutoCloseable {
         }
 
         @SneakyThrows(IOException.class)
-        public static SegmentInfo deserialize(ArrayView contents) {
+        static SegmentInfo deserialize(ArrayView contents) {
             try {
                 return SERIALIZER.deserialize(contents);
             } catch (EOFException | SerializationException ex) {

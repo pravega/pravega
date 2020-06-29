@@ -40,8 +40,8 @@ import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 
 @Slf4j
 public class DataRecoveryTestUtils {
-    private static final Duration timeout = Duration.ofSeconds(10);
-    private static final ScheduledExecutorService executorService = createExecutorService(10);
+    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    private static final ScheduledExecutorService EXECUTOR_SERVICE = createExecutorService(10);
 
     /**
      * Lists all segments from a given long term storage.
@@ -58,7 +58,7 @@ public class DataRecoveryTestUtils {
         if (it == null) {
             return segmentToContainers;
         }
-        while(it.hasNext()) {
+        while (it.hasNext()) {
             SegmentProperties curr = it.next();
             int containerId = segToConMapper.getContainerId(curr.getName());
             List<SegmentProperties> segmentsList = segmentToContainers.get(containerId);
@@ -87,6 +87,9 @@ public class DataRecoveryTestUtils {
      * @param segments List of segments to be created.
      */
     public static void createAllSegments(DebugStreamSegmentContainer container, List<SegmentProperties> segments) {
+        if (segments == null) {
+            return;
+        }
         int containerId = container.getId();
         System.out.format("Recovery started for container# %s\n", containerId);
         ContainerTableExtension ext = container.getExtension(ContainerTableExtension.class);
@@ -95,7 +98,7 @@ public class DataRecoveryTestUtils {
 
         // Add all segments present in the container metadata in a set.
         Set<TableKey> segmentsInMD = new HashSet<>();
-        it.forEachRemaining(k -> segmentsInMD.addAll(k.getEntries()), executorService).join();
+        it.forEachRemaining(k -> segmentsInMD.addAll(k.getEntries()), EXECUTOR_SERVICE).join();
 
         for (SegmentProperties segment : segments) {
             long len = segment.getLength();
@@ -108,7 +111,7 @@ public class DataRecoveryTestUtils {
                 3. segment only in storage, re-create it
              */
             segmentsInMD.remove(TableKey.unversioned(getTableKey(segmentName)));
-            container.getStreamSegmentInfo(segment.getName(), timeout)
+            container.getStreamSegmentInfo(segment.getName(), TIMEOUT)
                     .thenAccept(e -> {
                         container.createStreamSegment(segmentName, len, isSealed)
                                 .exceptionally(ex -> {
@@ -128,10 +131,10 @@ public class DataRecoveryTestUtils {
                         return null;
                     }).join();
         }
-        for(TableKey k : segmentsInMD){
+        for (TableKey k : segmentsInMD) {
             String segmentName = new String(k.getKey().array(), Charsets.UTF_8);
             log.info("Deleting segment : {} as it is not in storage", segmentName);
-            container.deleteStreamSegment(segmentName, timeout).join();
+            container.deleteStreamSegment(segmentName, TIMEOUT).join();
         }
         System.out.format("Recovery done for container# %s\n", containerId);
     }
