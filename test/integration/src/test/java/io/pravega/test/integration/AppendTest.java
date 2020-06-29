@@ -381,7 +381,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String streamName = "abc";
         int port = TestUtils.getAvailableListenPort();
-        byte[] testPayload = new byte[10000];
+        byte[] testPayload = new byte[1000];
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
