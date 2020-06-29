@@ -18,6 +18,7 @@ import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -45,6 +46,8 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class SegmentSelector {
 
+    private static final int SEGMENT_SWITCH_TIMEOUT_MS = 50;
+
     private final Stream stream;
     private final Controller controller;
     private final SegmentOutputStreamFactory outputStreamFactory;
@@ -56,6 +59,8 @@ public class SegmentSelector {
     private final Map<Segment, SegmentOutputStream> writers = new HashMap<>();
     private final EventWriterConfig config;
     private final DelegationTokenProvider tokenProvider;
+    private Timer segmentSwitchTimer = new Timer();
+    private double currentRandomKey = 0;
 
     /**
      * Selects which segment an event should be written to.
@@ -78,10 +83,11 @@ public class SegmentSelector {
         if (currentSegments == null) {
             return null;
         }
-        if (routingKey == null) {
-            return currentSegments.getSegmentForKey(random.nextDouble());
+        if (routingKey == null && segmentSwitchTimer.getElapsedMillis() >= SEGMENT_SWITCH_TIMEOUT_MS) {
+            currentRandomKey = random.nextDouble();
+            segmentSwitchTimer = new Timer();
         }
-        return currentSegments.getSegmentForKey(routingKey);
+        return (routingKey != null) ? currentSegments.getSegmentForKey(routingKey) : currentSegments.getSegmentForKey(currentRandomKey);
     }
 
     /**
