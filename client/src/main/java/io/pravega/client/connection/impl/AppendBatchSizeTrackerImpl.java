@@ -28,10 +28,12 @@ import java.util.function.Supplier;
  * {@link #MAX_BATCH_TIME_MILLIS} or half the server round trip time (whichever is less)
  */
 public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
+
+    private static final int MAX_BATCH_SIZE = 2 * TcpClientConnection.TCP_BUFFER_SIZE - 1024; //This must be less than WireCommands.MAX_WIRECOMMAND_SIZE / 2;
     private static final int MAX_BATCH_TIME_MILLIS = 20;
     private static final double NANOS_PER_MILLI = 1000000;
     
-    private static final int BASE_TIME_NANOS = 0;
+    private static final int BASE_TIME_NANOS = 500000;
     private static final int BASE_SIZE = 0;
     private static final double OUTSTANDING_FRACTION = 0.5;
     
@@ -40,7 +42,7 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private final AtomicLong lastAppendTime;
     private final AtomicLong lastAckNumber;
     private final ExponentialMovingAverage eventSize = new ExponentialMovingAverage(1024, 0.01, true);
-    private final ExponentialMovingAverage nanosBetweenAppends = new ExponentialMovingAverage(10 * NANOS_PER_MILLI, 0.001, false);
+    private final ExponentialMovingAverage nanosBetweenAppends = new ExponentialMovingAverage(10 * NANOS_PER_MILLI, 0.001, true);
     private final ExponentialMovingAverage appendsOutstanding = new ExponentialMovingAverage(20, 0.001, false);
 
     public AppendBatchSizeTrackerImpl() {
@@ -80,7 +82,7 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         double nanosPerAppend = nanosBetweenAppends.getCurrentValue();
         double appendsInMaxBatchTime = (MAX_BATCH_TIME_MILLIS * NANOS_PER_MILLI) / nanosPerAppend;
         double appendsInTime = Math.max(1.0, BASE_TIME_NANOS / nanosPerAppend);
-        double appendsInBatch = Math.min(appendsOutstanding.getCurrentValue() * OUTSTANDING_FRACTION + appendsInTime, appendsInMaxBatchTime);
+        double appendsInBatch = MathHelpers.minMax(appendsOutstanding.getCurrentValue() * OUTSTANDING_FRACTION, appendsInTime, appendsInMaxBatchTime);
         int size = (int) (appendsInBatch * eventSize.getCurrentValue()) + BASE_SIZE;
         return MathHelpers.minMax(size, 0, MAX_BATCH_SIZE);
     }

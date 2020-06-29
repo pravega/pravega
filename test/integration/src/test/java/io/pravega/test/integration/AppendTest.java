@@ -77,6 +77,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.val;
@@ -380,7 +381,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String streamName = "abc";
         int port = TestUtils.getAvailableListenPort();
-        String testString = "Hello world\n";
+        byte[] testPayload = new byte[10000];
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
@@ -393,25 +394,32 @@ public class AppendTest extends LeakDetectorTestSuite {
         streamManager.createScope("Scope");
         streamManager.createStream("Scope", streamName, null);
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
-        long blockingTime = timeWrites(testString, 3000, producer, true);
-        long nonBlockingTime = timeWrites(testString, 600000, producer, false);
+        EventStreamWriter<ByteBuffer> producer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(), EventWriterConfig.builder().build());
+        long blockingTime = timeWrites(testPayload, 3000, producer, true);
+        long nonBlockingTime = timeWrites(testPayload, 60000, producer, false);
         System.out.println("Blocking took: " + blockingTime + "ms.");
         System.out.println("Non blocking took: " + nonBlockingTime + "ms.");        
         assertTrue(blockingTime < 10000);
         assertTrue(nonBlockingTime < 10000);
     }
 
-    private long timeWrites(String testString, int number, EventStreamWriter<String> producer, boolean synchronous)
+    private long timeWrites(byte[] testPayload, int number, EventStreamWriter<ByteBuffer> producer, boolean synchronous)
             throws InterruptedException, ExecutionException, TimeoutException {
         Timer timer = new Timer();
+        AtomicLong maxLatency = new AtomicLong(0);
         for (int i = 0; i < number; i++) {
-            Future<Void> ack = producer.writeEvent(testString);
+            Timer latencyTimer = new Timer();
+            CompletableFuture<Void> ack = producer.writeEvent(ByteBuffer.wrap(testPayload));
+            ack.thenRun(() -> {
+                long elapsed = latencyTimer.getElapsedNanos();
+                maxLatency.getAndUpdate(l -> Math.max(elapsed, l));
+            });
             if (synchronous) {
                 ack.get(5, TimeUnit.SECONDS);
             }
         }
         producer.flush();
+        System.out.println("Max latency: " + (maxLatency.get() / 1000000.0));
         return timer.getElapsedMillis();
     }
     
