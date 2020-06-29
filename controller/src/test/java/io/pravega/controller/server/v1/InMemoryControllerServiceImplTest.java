@@ -79,7 +79,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     
     @Override
     public void setup() throws Exception {
-        executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(30, "testpool");
         taskMetadataStore = TaskStoreFactoryForTests.createInMemoryStore(executorService);
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();

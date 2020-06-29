@@ -15,7 +15,6 @@ import io.pravega.common.lang.AtomicInt96;
 import io.pravega.controller.store.InMemoryScope;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.index.InMemoryHostIndex;
-import io.pravega.controller.store.stream.StoreException;
 import lombok.Setter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;

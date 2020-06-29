@@ -300,12 +300,13 @@ public abstract class ControllerServiceImplTest {
                 DeleteKVTableStatus.Status.TABLE_NOT_FOUND, deleteKVTStatus.getStatus());
 
         // Try deleting a non-existent KeyValueTable with non-existent scope.
+
         ResultObserver<DeleteKVTableStatus> result3 = new ResultObserver<>();
         this.controllerService.deleteKeyValueTable(ModelHelper.createKeyValueTableInfo("dummyScope", "dummyKeyValueTable"), result3);
         deleteKVTStatus = result3.get();
         assertEquals("Delete Non-existent KeyValueTable with non-existent Scope",
                 DeleteKVTableStatus.Status.TABLE_NOT_FOUND, deleteKVTStatus.getStatus());
-
+       
         KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).build();
 
         //Create a test KeyValueTable
@@ -325,6 +326,7 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.deleteKeyValueTable(ModelHelper.createKeyValueTableInfo(SCOPE4, KVTABLE1), result7);
         deleteKVTStatus = result7.get();
         assertEquals("Delete KeyValueTable", DeleteKVTableStatus.Status.SUCCESS, deleteKVTStatus.getStatus());
+
     }
 
     @Test

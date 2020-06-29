@@ -1486,7 +1486,7 @@ public class ControllerImpl implements Controller {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .listKeyValueTablesInScope(request, callback);
         }
-        //deleteKeyValueTable
+
         void deleteKeyValueTable(io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo kvtInfo, RPCAsyncCallback<DeleteKVTableStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .deleteKeyValueTable(kvtInfo, callback);

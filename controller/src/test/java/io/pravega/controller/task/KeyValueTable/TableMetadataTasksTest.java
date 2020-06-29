@@ -59,7 +59,7 @@ public abstract class TableMetadataTasksTest {
     protected KVTableMetadataStore kvtStore;
     protected TableMetadataTasks kvtMetadataTasks;
     protected SegmentHelper segmentHelperMock;
-    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(30);
 
     private final String kvtable1 = "kvtable1";
     private boolean isScopeCreated;
