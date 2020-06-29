@@ -217,6 +217,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             ArrayList<String> segmentsAndTransactions = new ArrayList<>(segmentNames);
             transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
             appendData(segmentsAndTransactions, segmentContents, lengths, appendBuffers, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
             log.info("Finished appending data.");
 
             // Wait for flushing the segments to tier2

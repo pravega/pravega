@@ -21,7 +21,6 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
-import org.junit.Test;
 
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.

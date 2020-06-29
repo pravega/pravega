@@ -128,7 +128,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         val s = new RollingStorage(baseStorage, new SegmentRollingPolicy(1));
         Set<String> sealedSegments = new HashSet<>();
         s.initialize(1);
-        int expectedCount = 50;
+        int expectedCount = 1001;
         byte[] data = "data".getBytes();
         for (int i = 0; i < expectedCount; i++) {
             String segmentName = "segment-" + i;
@@ -140,6 +140,15 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
                 sealedSegments.add(segmentName);
             }
         }
+        String segmentName = "/Segment_9#transaction.98449163c0e94263829d5363975e3bb3$attributes.index$offset.0";
+        val wh1 = s.create(segmentName);
+        // Write data.
+        s.write(wh1, 0, new ByteArrayInputStream(data), data.length);
+        if (RANDOM.nextInt(2) == 1) {
+            s.seal(wh1);
+            sealedSegments.add(segmentName);
+        }
+
         Iterator<SegmentProperties> it = s.listSegments();
         int actualCount = 0;
         while (it.hasNext()) {
