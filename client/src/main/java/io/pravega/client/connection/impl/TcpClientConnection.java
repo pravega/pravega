@@ -39,18 +39,22 @@ import java.security.cert.CertificateException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManagerFactory;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+import static io.pravega.shared.protocol.netty.AppendBatchSizeTracker.MAX_BATCH_TIME_MILLIS;
+
 @Slf4j
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class TcpClientConnection implements ClientConnection {
 
     static final int TCP_BUFFER_SIZE = 256 * 1024;
@@ -61,6 +65,20 @@ public class TcpClientConnection implements ClientConnection {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final PravegaNodeUri location;
     private final Runnable onClose;
+    private final ScheduledFuture<?> timeoutFuture;
+   
+    private TcpClientConnection(Socket socket, CommandEncoder encoder, ConnectionReader reader, PravegaNodeUri location,
+                                Runnable onClose, ScheduledExecutorService executor) {
+        this.socket = checkNotNull(socket);
+        this.encoder = checkNotNull(encoder);
+        this.reader = checkNotNull(reader);
+        this.location = checkNotNull(location);
+        this.onClose = onClose;
+        this.timeoutFuture = executor.scheduleWithFixedDelay(new TimeoutBatch(encoder),
+                                                             MAX_BATCH_TIME_MILLIS,
+                                                             MAX_BATCH_TIME_MILLIS,
+                                                             TimeUnit.MILLISECONDS);
+    }
 
     @VisibleForTesting
     static class ConnectionReader {
@@ -140,6 +158,16 @@ public class TcpClientConnection implements ClientConnection {
             callback.connectionDropped();
         }
     }
+    
+    @RequiredArgsConstructor
+    private static final class TimeoutBatch implements Runnable {
+        private final AtomicLong token = new AtomicLong(-1);
+        private final CommandEncoder encoder;
+        @Override
+        public void run() {
+            token.set(encoder.batchTimeout(token.get()));
+        }    
+    }
 
     public static CompletableFuture<TcpClientConnection> connect(PravegaNodeUri location, ClientConfig clientConfig, ReplyProcessor callback,
                                               ScheduledExecutorService executor, Runnable onClose) {
@@ -150,9 +178,8 @@ public class TcpClientConnection implements ClientConnection {
                 AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
                 ConnectionReader reader = new ConnectionReader(location.toString(), inputStream, callback, batchSizeTracker);
                 reader.start();
-                CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, socket.getOutputStream(), 
-                                                            executor);
-                return new TcpClientConnection(socket, encoder, reader, location, onClose);
+                CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, socket.getOutputStream());
+                return new TcpClientConnection(socket, encoder, reader, location, onClose, executor);
             } catch (IOException e) {
                 try {
                     onClose.run();
@@ -245,8 +272,11 @@ public class TcpClientConnection implements ClientConnection {
     public void close() {
         if (closed.compareAndSet(false, true)) {
             reader.stop();
+            timeoutFuture.cancel(false);
             try {
-                onClose.run();
+                if (onClose != null) {
+                    onClose.run();
+                }
                 socket.close();
             } catch (IOException e) {
                 log.warn("Error closing socket", e);

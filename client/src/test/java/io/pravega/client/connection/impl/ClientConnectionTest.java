@@ -60,7 +60,7 @@ public class ClientConnectionTest {
         InlineExecutor executor = new InlineExecutor();
         @Cleanup
         ClientConnection clientConnection = TcpClientConnection
-            .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, () -> { })
+            .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
             .join();
         clientConnection.send(new WireCommands.Hello(0, 1));
         LinkedBlockingQueue<WireCommand> messages = server.getReadCommands();
