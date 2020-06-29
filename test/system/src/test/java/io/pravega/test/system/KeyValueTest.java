@@ -1,38 +1,62 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
+import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
-import io.pravega.client.tables.*;
-import io.pravega.client.admin.KeyValueTableManager;
+import io.pravega.client.tables.Version;
+import io.pravega.client.tables.TableEntry;
+import io.pravega.client.tables.KeyValueTable;
+import io.pravega.client.tables.KeyValueTableClientConfiguration;
+import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.client.tables.impl.*;
+import io.pravega.client.tables.impl.KeyValueTableFactoryImpl;
+import io.pravega.client.admin.KeyValueTableManager;
+import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.KeyValueTableInfo;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.client.*;
-import io.pravega.client.admin.*;
-import java.net.URI;
-import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.*;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import lombok.extern.slf4j.Slf4j;
-import lombok.Cleanup;
-import lombok.val;
-import org.junit.*;
-import org.junit.runner.RunWith;
-import org.junit.runners.MethodSorters;
+import java.net.URI;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.ListIterator;
+import java.util.ArrayList;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
-
-import static org.junit.Assert.*;
+import org.junit.Test;
+import org.junit.FixMethodOrder;
+import org.junit.Assert;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.runner.RunWith;
+import org.junit.runners.MethodSorters;
+import lombok.extern.slf4j.Slf4j;
+import lombok.Cleanup;
+import lombok.val;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
@@ -41,17 +65,17 @@ public class KeyValueTest extends AbstractSystemTest {
     private final static String SCOPE_NAME = "TestScope";
     private final static String SCOPE_NAME1 = "DiffScope";
     private final static String KVT_NAME = "TestKVT";
+    private static final long  MEGABYTE = 1024L * 1024L;
     private static final Serializer<Integer> KEY_SERIALIZER = new IntegerSerializer();
     private static final Serializer<String> VALUE_SERIALIZER = new UTF8StringSerializer();
-    private static final KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(2).build();
-    private static final KeyValueTableInfo KVT = new KeyValueTableInfo(SCOPE_NAME,KVT_NAME);
+    private static final KeyValueTableConfiguration CONFIG = KeyValueTableConfiguration.builder().partitionCount(2).build();
+    private static final KeyValueTableInfo KVT = new KeyValueTableInfo(SCOPE_NAME, KVT_NAME);
     private URI controllerURI = null;
     private Controller controller = null;
     private Integer keyType;
     private String valueType = "";
     private String tetsKeyValue = "";
-    public final String scope="TestScope";
-    private KeyValueTableFactory KeyValueTableFactory;
+    private KeyValueTableFactory keyValueTableFactory;
     private KeyValueTable<Integer, String> keyValueTable;
     private ConnectionFactory connectionFactory;
     private StreamManager streamManager;
@@ -64,10 +88,10 @@ public class KeyValueTest extends AbstractSystemTest {
         final List<String> uris = ctlURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
         controllerURI = URI.create("tcp://" + String.join(",", uris));
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
-        final ScheduledExecutorService controllerExecutor= Executors.newScheduledThreadPool(5);
-        controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),controllerExecutor);
+        final ScheduledExecutorService controllerExecutor = Executors.newScheduledThreadPool(5);
+        controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(), controllerExecutor);
         this.connectionFactory = new ConnectionFactoryImpl(clientConfig);
-        this.KeyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE_NAME,this.controller,this.connectionFactory);
+        this.keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE_NAME, this.controller, this.connectionFactory);
         tetsKeyValue = convertStringToBinary("Hello World");
         while (tetsKeyValue.getBytes().length <= 1040000) {
             tetsKeyValue = tetsKeyValue + convertStringToBinary("Hello World");
@@ -83,13 +107,13 @@ public class KeyValueTest extends AbstractSystemTest {
     public void testA1CreateKeyValueTable() throws Exception {
         log.info("Create Key value Table(KVT)");
         try {
-            log.info("controller URL : "+controllerURI);
+            log.info("controller URL : " + controllerURI);
             streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
             assertTrue("Creating Scope", streamManager.createScope(SCOPE_NAME));
             val kvtManager = KeyValueTableManager.create(controllerURI);
-            boolean createKVT = kvtManager.createKeyValueTable(SCOPE_NAME, KVT_NAME, config);
+            boolean createKVT = kvtManager.createKeyValueTable(SCOPE_NAME, KVT_NAME, CONFIG);
             Assert.assertTrue(createKVT);
-            if (createKVT == true) {
+            if (createKVT) {
                 log.info("Successfully created KVT");
             } else {
                 log.info("Failed to created KVT");
@@ -106,9 +130,9 @@ public class KeyValueTest extends AbstractSystemTest {
         try {
             @Cleanup
             val kvtManager = KeyValueTableManager.create(controllerURI);
-            boolean createKVT = kvtManager.createKeyValueTable(SCOPE_NAME, KVT_NAME, config);
+            boolean createKVT = kvtManager.createKeyValueTable(SCOPE_NAME, KVT_NAME, CONFIG);
             Assert.assertFalse(createKVT);
-            if (createKVT == false) {
+            if (!createKVT) {
                 log.info("KeyValueTable already exists, So can not create same KVT");
             }
         } finally {
@@ -123,9 +147,9 @@ public class KeyValueTest extends AbstractSystemTest {
             streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
             assertTrue("Creating Scope", streamManager.createScope(SCOPE_NAME1));
             val kvtManager = KeyValueTableManager.create(controllerURI);
-            boolean createKVT = kvtManager.createKeyValueTable(SCOPE_NAME1, KVT_NAME, config);
+            boolean createKVT = kvtManager.createKeyValueTable(SCOPE_NAME1, KVT_NAME, CONFIG);
             Assert.assertTrue(createKVT);
-            if (createKVT == true) {
+            if (createKVT) {
                 log.info("Successfully created same KVT in different Scope");
             } else {
                 log.info("Failed to created KVT");
@@ -135,355 +159,239 @@ public class KeyValueTest extends AbstractSystemTest {
         }
     }
 
-    @Test
-    // Test Cases-18 List of KVT test
-    public void testA4ListKeyValueTables() {
-        try {
-            @Cleanup
-            val kvtManager = KeyValueTableManager.create(controllerURI);
-            Iterator name = kvtManager.listKeyValueTables(SCOPE_NAME);
-            Assert.assertTrue(name.hasNext());
-            while (name.hasNext()) {
-                log.info("KVS table name" + name.next());
-            }
-        }catch (AssertionError error){
-            log.info(error.getMessage());
-        }
-    }
-
-    @Test
-    // Test Case-14: Delete KVT test
-    public void testA6DeleteKeyValueTable(){
-        try {
-            log.info("Deleting existing KVT");
-            @Cleanup
-            val kvtManager = KeyValueTableManager.create(controllerURI);
-            boolean deleteKVT = kvtManager.deleteKeyValueTable(SCOPE_NAME, KVT_NAME);
-            Assert.assertTrue(deleteKVT);
-        }catch (AssertionError error){
-            log.info(error.getMessage());
-        }
-    }
+     @Test
     // Test Case-1: Insert KVP
-    @Test
-    public void testA7InsertKeyValuePair(){
+    public void testA4InsertKeyValuePair() {
         try {
             log.info("Insert KVP");
             keyType = 1;
-            valueType="TestValue";
-            this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(),KEY_SERIALIZER, VALUE_SERIALIZER,KeyValueTableClientConfiguration.builder().build());
-            CompletableFuture<Version> insertEntry = this.keyValueTable.put(null,keyType,valueType);
+            valueType = "TestValue";
+            this.keyValueTable = this.keyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+            CompletableFuture<Version> insertEntry = this.keyValueTable.put(null, keyType, valueType);
             Version result = insertEntry.get();
-            log.info("result "+result);
-        }catch (ExecutionException | InterruptedException  error) {
-            log.info(error.getMessage());
-        }
-    }
-    @Test
-    public void testA8InsertKVPConditionallyWithNewKey(){
-        try {
-            log.info("Insert or update KVP");
-            keyType = 2;
-            valueType="TestValue1";
-            this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(),KEY_SERIALIZER, VALUE_SERIALIZER,KeyValueTableClientConfiguration.builder().build());
-            CompletableFuture<Version> insertEntry = this.keyValueTable.putIfAbsent(null,keyType,valueType);
-            Version result = insertEntry.get();
-            log.info("result "+result);
-        }catch (ExecutionException | InterruptedException  error) {
+            log.info("result " + result);
+            TableEntry<Integer, String> getKVP = this.keyValueTable.get(null, keyType).join();
+            assertEquals("Not Equal", keyType, getKVP.getKey().getKey());
+        } catch (ExecutionException | InterruptedException | AssertionError  error) {
             log.info(error.getMessage());
         }
     }
 
     @Test
-    public void testA9InsertKVPConditionallyWithExistingKey(){
+    public void testA5InsertKVPConditionallyWithNewKey() {
         try {
             log.info("Insert or update KVP");
             keyType = 2;
-            valueType="TestValue1";
-            this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(),KEY_SERIALIZER, VALUE_SERIALIZER,KeyValueTableClientConfiguration.builder().build());
-            CompletableFuture<Version> insertEntry = this.keyValueTable.putIfAbsent(null,keyType,valueType);
+            valueType = "TestValue1";
+            this.keyValueTable = this.keyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+            CompletableFuture<Version> insertEntry = this.keyValueTable.putIfAbsent(null, keyType, valueType);
             Version result = insertEntry.get();
-            log.info("result "+result);
-        }catch (ExecutionException | InterruptedException  error) {
+            log.info("result " + result);
+            TableEntry<Integer, String> getKVP = this.keyValueTable.get(null, keyType).join();
+            assertEquals("Not Equal", keyType, getKVP.getKey().getKey());
+        } catch (ExecutionException | InterruptedException | AssertionError error) {
             log.info(error.getMessage());
         }
     }
 
     @Test
-    public void testB1InsertMultipleKeyValuePair(){
+    public void testA6InsertKVPConditionallyWithExistingKey() {
+        try {
+            log.info("Insert or update KVP");
+            keyType = 2;
+            valueType = "TestValue1";
+            this.keyValueTable = this.keyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+            CompletableFuture<Version> insertEntry = this.keyValueTable.putIfAbsent(null, keyType, valueType);
+            Version result = insertEntry.get();
+            log.info("result " + result);
+        } catch (ExecutionException | InterruptedException  error) {
+            log.info(error.getMessage());
+        }
+    }
+
+    @Test
+    public void testA7InsertMultipleKeyValuePair() {
         try {
             log.info("Insert multiple KVP");
-            String kf ="TestKeyFamily";
-            Map<Integer,String> multiKVP = new HashMap<Integer,String>();
-            multiKVP.put(3,"TestValue3"); multiKVP.put(4,"TestValue4"); multiKVP.put(5,"TestValue5");
-            this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(),KEY_SERIALIZER, VALUE_SERIALIZER,KeyValueTableClientConfiguration.builder().build());
-            CompletableFuture<List<Version>> insertKVP = this.keyValueTable.putAll(kf,multiKVP.entrySet());
+            String kf = "TestKeyFamily";
+            Map<Integer, String> multiKVP = new HashMap<Integer, String>();
+            multiKVP.put(3, "TestValue3");
+            multiKVP.put(4, "TestValue4");
+            multiKVP.put(5, "TestValue5");
+            this.keyValueTable = this.keyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+            CompletableFuture<List<Version>> insertKVP = this.keyValueTable.putAll(kf, multiKVP.entrySet());
             List<Version> result = insertKVP.get();
-            log.info("successfully inserted key "+multiKVP.entrySet()+"And output"+result);
-        }catch (ExecutionException | InterruptedException  error) {
-            log.info(error.getMessage());
-        }
-    }
-
-    @Test
-    public void testB2RetrieveKeyValuePairEntry(){
-        try {
-            keyType = 1;
-            log.info("Retrieve Single KVP entry");
-            this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(),KEY_SERIALIZER, VALUE_SERIALIZER,KeyValueTableClientConfiguration.builder().build());
-            CompletableFuture<TableEntry<Integer, String>> getKVT = this.keyValueTable.get(null,keyType);
-            TableEntry<Integer, String> result = getKVT.get();
-            log.info("Successfully retrive single keyvaluepair entry : "+result);
-        }catch (ExecutionException | InterruptedException  error) {
-            log.info(error.getMessage());
-        }
-    }
-
-    @Test
-    // Test case : 24
-    public void testC1CreateKeyEntryGreaterThan8KB() throws Exception {
-        log.info("Create key with length > 8KB");
-        try {
-            Integer keyId = ThreadLocalRandom.current().nextInt();
-            log.info("key value is "+keyId);
-            String value = convertStringToBinary("Hello World");
-            try {
-                this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(),KEY_SERIALIZER, VALUE_SERIALIZER,KeyValueTableClientConfiguration.builder().build());
-                CompletableFuture<Version> insertEntry = this.keyValueTable.put(null,keyId,value);
-            }catch (IllegalArgumentException error){
-                log.info("Error mesage "+error.getMessage());
-                log.info("Error cause message "+error.getCause().getMessage());
-            }
-            CompletableFuture<TableEntry<Integer, String>> kvpEntry = this.keyValueTable.get(null,keyId);
-            log.info("Table entry "+kvpEntry.get().getKey());
-            log.info("key size in Byte :"+ kvpEntry.get().getKey().toString().getBytes().length);
-            assertNotEquals("Not matched",keyId,kvpEntry.get().getKey().getKey());
-            //TableKey().versioned();
-        } catch (AssertionError error) {
+            log.info("successfully inserted key " + multiKVP.entrySet() + "And output" + result);
+            CompletableFuture<List<TableEntry<Integer, String>>> getEntry = this.keyValueTable.getAll(null, multiKVP.keySet());
+            log.info("Total entry size " + multiKVP.size());
+            Assert.assertEquals("Unexpected result size", multiKVP.size(), getEntry.get().size());
+        } catch (ExecutionException | InterruptedException  error) {
             log.info(error.getMessage());
         }
     }
 
     @Test
     // Test case : 25
-    public void testC2KVPTablevalueEntryLT1MB() throws Exception {
+    public void testA8KVPTablevalueEntryLT1MB() throws Exception {
+        this.keyValueTable = this.keyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
         log.info("Create Table entry of size < 1MB");
         try {
             Integer keyId = ThreadLocalRandom.current().nextInt(1000, 99999);
-            log.info("key value is "+keyId);
-            log.info("size of the key "+keyId.toString().getBytes().length);
+            log.info("key value is " + keyId);
+            log.info("size of the key " + keyId.toString().getBytes().length);
             String value = convertStringToBinary("Hello World");
             while (value.getBytes().length <= 1000000) {
-                value = value + convertStringToBinary("Hello World");;
+                value = value + convertStringToBinary("Hello World");
             }
-            log.info("Size of the value string "+ value.getBytes().length);
-            this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(),KEY_SERIALIZER, VALUE_SERIALIZER,KeyValueTableClientConfiguration.builder().build());
-            CompletableFuture<Version> insertEntry = this.keyValueTable.put(null,keyId,value);
-            CompletableFuture<TableEntry<Integer, String>> kvpEntry = this.keyValueTable.get(null,keyId);
-            log.info("KEY value is :"+kvpEntry.get().getKey());
-            log.info("value size in byte :" + kvpEntry.get().getValue().getBytes().length+"Byte");
-            Integer size= kvpEntry.get().getKey().getKey().toString().getBytes().length + kvpEntry.get().getValue().getBytes().length;
-            log.info("Total size update in KVP(will print 0 if less 1 MB) :" + bytesToMB(size.toString().length())+"MB");
-            assertEquals("Verifying same key has inserted in KVP or not",keyId,kvpEntry.get().getKey().getKey());
-        } catch (ExecutionException | AssertionError  error) {
+            log.info("Size of the value string " + value.getBytes().length);
+            CompletableFuture<Version> insertEntry = this.keyValueTable.put(null, keyId, value);
+            log.info("Insert successfully " + insertEntry.get());
+            TableEntry<Integer, String> kvpEntry = this.keyValueTable.get(null, keyId).join();
+            log.info("KEY value is :" + kvpEntry.getKey().getKey());
+            log.info("value size in byte :" + kvpEntry.getValue().getBytes().length + "Byte");
+            Integer size = kvpEntry.getKey().getKey().toString().getBytes().length + kvpEntry.getValue().getBytes().length;
+            log.info("Total size update in KVP(will print 0 if less 1 MB) :" + bytesToMB(size.toString().length()) + "MB");
+            assertEquals("Verifying same key has inserted in KVP or not", keyId, kvpEntry.getKey().getKey());
+        } catch ( AssertionError  error) {
             log.info(error.getMessage());
         }
     }
+
     @Test
-    // Test case =29 // Value Length too long. Must be less than 1040384; given 1048608.
-    public void testC3CreateTableEntryGreaterThan1MB() throws Exception {
+    // Test case = 29 Value Length too long. Must be less than 1040384; given 1048608.
+    public void testA9CreateTableEntryGreaterThan1MB() throws Exception {
         log.info("Create Table entry of size > 1MB");
         try {
             Integer keyId = ThreadLocalRandom.current().nextInt(1000, 99999);
-            log.info("key value is "+keyId);
+            log.info("key value is " + keyId);
             String tetsValue = convertStringToBinary("Hello World");
             while (tetsValue.getBytes().length <= 1048576) {
                 tetsValue = tetsValue + convertStringToBinary("Hello World");
             }
-            log.info("Size of the value string "+ tetsValue.getBytes().length);
+            log.info("Size of the value string " + tetsValue.getBytes().length);
             try {
-                this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
-                log.info("KVT name "+KVT.getKeyValueTableName());
+                this.keyValueTable = this.keyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+                log.info("KVT name " + KVT.getKeyValueTableName());
                 Version insertEntry = this.keyValueTable.put(null, keyId, tetsValue).join();
-            }catch (IllegalArgumentException error){
-                log.info(" Error cause message "+error.getCause());
+            } catch (IllegalArgumentException error) {
+                log.info(" Error cause message " + error.getCause());
             }
-            CompletableFuture<TableEntry<Integer, String>> kvpEntry = this.keyValueTable.get(null,keyId);
+            CompletableFuture<TableEntry<Integer, String>> kvpEntry = this.keyValueTable.get(null, keyId);
             assertNull("Retune value not null ", kvpEntry.get());
             log.info("Successfully executed case");
         } catch (ExecutionException | AssertionError error) {
             error.printStackTrace();
-            log.info("exception messge "+error.getMessage());
+            log.info("exception messge " + error.getMessage());
         }
     }
 
     @Test
     // Test case 30
-    public void testC4MultipleTableEntryGreaterThan32MB() throws Exception {
+    public void testB1MultipleTableEntryGreaterThan32MB() throws Exception {
         log.info("Add multiple KVPs with entries of total size > 32MB");
         try {
             Integer keyId;
-            Integer totalsize=0;
+            Integer totalsize = 0;
             String keyfamily = "TestkeyFamily";
             Map<Integer, String> multiKVP = new HashMap<Integer, String>();
-            for (int loop=0; loop < 33; loop++) {
+            for (int loop = 0; loop < 33; loop++) {
                 keyId = ThreadLocalRandom.current().nextInt(1000, 99999);
                 multiKVP.put(keyId, tetsKeyValue);
                 totalsize = totalsize + keyId.toString().getBytes().length + tetsKeyValue.getBytes().length;
             }
             log.info("Final totalsize is" + totalsize);
             try {
-                this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
-                CompletableFuture<List<Version>> insertEntry = this.keyValueTable.putAll(keyfamily,multiKVP.entrySet());
-                assertNull("Entry not null ",insertEntry.get().get(0));
-            }catch (IllegalArgumentException error){
+                this.keyValueTable = this.keyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+                CompletableFuture<List<Version>> insertEntry = this.keyValueTable.putAll(keyfamily, multiKVP.entrySet());
+                assertNull("Entry not null ", insertEntry.get().get(0));
+            } catch (IllegalArgumentException error) {
                 error.getCause().getMessage();
-                log.info("Error cause message "+error.getCause().getMessage());
+                log.info("Error cause message " + error.getCause().getMessage());
             }
             log.info("failed table entry because of value size > 32MB");
-            CompletableFuture<List<TableEntry<Integer, String>>> kvpEntry = this.keyValueTable.getAll(null,multiKVP.keySet());
+            CompletableFuture<List<TableEntry<Integer, String>>> kvpEntry = this.keyValueTable.getAll(null, multiKVP.keySet());
             assertNull("value not null ", kvpEntry.get().get(1));
             log.info("Successfully execute cases");
-        }catch (ExecutionException error) {
+        } catch (ExecutionException error) {
             log.info(error.getMessage());
         }
     }
 
     @Test
     // Test case 31
-    public void testC5GetKVPEntryGreaterThan32MB() throws Exception {
+    public void testB2GetKVPEntryGreaterThan32MB() throws Exception {
         log.info("Get multiple KVPs with Keys of total size > 32MB");
         try {
             Integer keyId;
-            Integer totalsize=0;
+            Integer totalsize = 0;
             Map<Integer, String> multiKVP = new HashMap<Integer, String>();
-            this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(),KEY_SERIALIZER, VALUE_SERIALIZER,KeyValueTableClientConfiguration.builder().build());
-            for (int loop=0; loop < 35; loop++) {
+            this.keyValueTable = this.keyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+            for (int loop = 0; loop < 35; loop++) {
                 keyId = ThreadLocalRandom.current().nextInt(1000, 99999);
                 multiKVP.put(keyId, tetsKeyValue);
-                CompletableFuture<Version> insertEntry = this.keyValueTable.put(null,keyId,tetsKeyValue);
+                CompletableFuture<Version> insertEntry = this.keyValueTable.put(null, keyId, tetsKeyValue);
                 totalsize = totalsize + keyId.toString().getBytes().length + tetsKeyValue.getBytes().length;
             }
             log.info("Final totalsize is" + totalsize);
             try {
-                CompletableFuture<List<TableEntry<Integer, String>>> getEntry = this.keyValueTable.getAll(null,multiKVP.keySet());
-                log.info("Total entry size "+multiKVP.size());
+                CompletableFuture<List<TableEntry<Integer, String>>> getEntry = this.keyValueTable.getAll(null, multiKVP.keySet());
+                log.info("Total entry size " + multiKVP.size());
                 Assert.assertEquals("Unexpected result size", multiKVP.size(), getEntry.get().size());
-            }catch (IllegalArgumentException error) {
+            } catch (IllegalArgumentException error) {
                 log.info("Error message for getall API" + error.getMessage());
             }
             log.info("successfully get KVP entry more 32 MB");
-        }catch (Exception error) {
+        } catch (Exception error) {
             log.info(error.getMessage());
         }
     }
 
     @Test
     // Test case 32
-    public void testC6INSERTMultTableEntryWithKeyFamilyGreaterThan32MB() throws Exception {
+    public void testB3INSERTMultTableEntryWithKeyFamilyGreaterThan32MB() throws Exception {
         log.info("Insert multiple keyFamily KVPs with entries of total size > 32MB");
         try {
             Integer keyId;
-            Integer totalsize=0;
+            Integer totalsize = 0;
             String keyfamily = "TestkeyFamily";
             Map<Integer, String> multiKVP = new HashMap<Integer, String>();
-            for (int loop=0; loop < 35; loop++) {
+            for (int loop = 0; loop < 35; loop++) {
                 keyId = ThreadLocalRandom.current().nextInt(1000, 99999);
                 multiKVP.put(keyId, tetsKeyValue);
                 totalsize = totalsize + keyId.toString().getBytes().length + tetsKeyValue.getBytes().length;
             }
             log.info("Final totalsize is" + totalsize);
             try {
-                this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
-                CompletableFuture<List<Version>> insertEntry = this.keyValueTable.putAll(keyfamily,multiKVP.entrySet());
-            }catch (IllegalArgumentException error){
-                log.info("TEST15"+error.getCause());
-                log.info("Error message"+error.getCause().getMessage());
+                this.keyValueTable = this.keyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+                CompletableFuture<List<Version>> insertEntry = this.keyValueTable.putAll(keyfamily, multiKVP.entrySet());
+            } catch (IllegalArgumentException error) {
+                log.info("Error cause " + error.getCause());
+                log.info("Error message " + error.getCause().getMessage());
             }
             log.info("Failed to insert as value size > 32MB");
-            CompletableFuture<List<TableEntry<Integer, String>>> kvpEntry = this.keyValueTable.getAll(keyfamily,multiKVP.keySet());
+            CompletableFuture<List<TableEntry<Integer, String>>> kvpEntry = this.keyValueTable.getAll(keyfamily, multiKVP.keySet());
             assertNull("entry not null", kvpEntry.get().get(1));
             log.info("Successfully execute the case");
-        }catch (ExecutionException | InterruptedException  error) {
-            log.info("exception messge "+error.getMessage());
-            log.info ("tostring message " +error.toString());
+        } catch (ExecutionException | InterruptedException  error) {
+            log.info("exception messge " + error.getMessage());
         }
     }
 
     @Test
-    // Test case 35 (fatch and delete > 32 MB)
-    public void testC7MultiGETTableEntrywithKeyFamilyGreaterThan32MB() throws Exception {
-        log.info("Get multiple keyFamily KVP values with Keys of total size > 32MB");
-        try {
-            Integer keyId;
-            Integer totalsize=0;
-            String keyfamily = "TestKF";
-            Map<Integer, String> multiKVP = new HashMap<Integer, String>();
-            this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(),KEY_SERIALIZER, VALUE_SERIALIZER,KeyValueTableClientConfiguration.builder().build());
-            log.debug("Value String"+tetsKeyValue);
-            for (int loop=0; loop < 35; loop++) {
-                log.debug("Loop count :" + loop);
-                keyId = ThreadLocalRandom.current().nextInt(1000, 99999);
-                multiKVP.put(keyId, tetsKeyValue);
-                CompletableFuture<Version> insertEntry = this.keyValueTable.put(keyfamily,keyId,tetsKeyValue);
-                assertNotEquals("Value is null",insertEntry.get());
-                log.info("insert entry {}",insertEntry.get());
-                totalsize = totalsize + keyId.toString().getBytes().length + tetsKeyValue.getBytes().length;
-                log.debug("Total size is" + totalsize);
-            }
-            log.info("Final totalsize is" + totalsize);
-            List<Integer> keyList = new ArrayList<>();
-            log.info("TEST12");
-            for (Integer key:multiKVP.keySet()) {
-                log.info("key value {}", key);
-                keyList.add(key);
-            }
-            log.info("keyList: {}", keyList);
-            try {
-                CompletableFuture<List<TableEntry<Integer, String>>> getEntry = this.keyValueTable.getAll(keyfamily,keyList);
-                Integer size = getEntry.toString().length();
-                log.info("get entry {}", getEntry.get().get(1));
-                //log.info("key entry "+getEntry.get().get(1).getKey().getKey());
-                log.info("Total retrived value size in MB"+bytesToMB(size.toString().length()));
-                log.info(("size of output of getall API "+getEntry.get().size()));
-                Assert.assertEquals("Unexpected result size", multiKVP.size(), getEntry.get().size());
-                log.info("Successfully execute the case");
-                List<TableKey<Integer>> keyEntry1 = new ArrayList<>();
-                for (int i = 0; i < getEntry.get().size(); i++) {
-                    log.info("key value" + getEntry.get().get(i).getKey());
-                    keyEntry1.add(getEntry.get().get(i).getKey());
-                    log.info("key value is " + keyEntry1.get(i));
-                }
-                assertNull("Value is not null ", this.keyValueTable.removeAll(keyfamily, keyEntry1).join());
-                List<TableEntry<Integer, String>> getEntryAfterDelete = this.keyValueTable.getAll(keyfamily, multiKVP.keySet()).join();
-                log.info("size of output of getall API " + getEntryAfterDelete.size());
-                Assert.assertEquals("Unexpected result size", 0, getEntryAfterDelete.size());
-            }catch (IllegalArgumentException error){
-                log.info("Error message "+error.getCause().getMessage());
-            }
-            log.info("Successfully retrive More than 32MB from KVT");
-        }catch (Exception error) {
-            log.info(error.getMessage());
-        }
-    }
-
-    @Test
-    public void testC8UpdateMultikeyvaluewithKeyFamilyGreaterThan32MB() throws Exception {
+    public void testB4UpdateMultikeyvaluewithKeyFamilyGreaterThan32MB() throws Exception {
         log.info("Update multiple keyFamily KVP values with entries of total size > 32MB");
         try {
             Integer keyId;
-            Integer totalsize=0;
+            Integer totalsize = 0;
             String keyfamily = "TestKF";
             Map<Integer, String> multiKVP = new HashMap<Integer, String>();
-            this.keyValueTable = this.KeyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(),KEY_SERIALIZER, VALUE_SERIALIZER,KeyValueTableClientConfiguration.builder().build());
-            log.debug("Value String"+tetsKeyValue);
-            for (int loop=0; loop < 35; loop++) {
-                log.debug("Loop count :" + loop);
+            this.keyValueTable = this.keyValueTableFactory.forKeyValueTable(KVT.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+            log.debug("Value String" + tetsKeyValue);
+            for (int loop = 0; loop < 35; loop++) {
                 keyId = ThreadLocalRandom.current().nextInt(1000, 99999);
                 multiKVP.put(keyId, tetsKeyValue);
-                CompletableFuture<Version> insertEntry = this.keyValueTable.put(keyfamily,keyId,tetsKeyValue);
+                CompletableFuture<Version> insertEntry = this.keyValueTable.put(keyfamily, keyId, tetsKeyValue);
                 totalsize = totalsize + keyId.toString().getBytes().length + tetsKeyValue.getBytes().length;
-                log.debug("Total size is" + totalsize);
             }
             log.info("Final totalsize is" + totalsize);
             String testValue = convertStringToBinary("Hello Pravega");
@@ -496,31 +404,29 @@ public class KeyValueTest extends AbstractSystemTest {
                 keyList.add(key);
             }
             log.info("keyList: {}", keyList);
-            List<TableEntry<Integer, String>> getEntry = this.keyValueTable.getAll(keyfamily,keyList).join();
-            //log.info("get table entry for first entry"+getEntry.get(1));
+            List<TableEntry<Integer, String>> getEntry = this.keyValueTable.getAll(keyfamily, keyList).join();
             Integer oldSize = getEntry.get(0).getValue().getBytes().length;
-
             ListIterator<TableEntry<Integer, String>> iterator = getEntry.listIterator();
             while (iterator.hasNext()) {
-                iterator.next().getValue().replace(tetsKeyValue, testValue);
-                log.info("Entry value is "+ iterator.next().getValue().getBytes().length+" Update value "
-                +testValue.getBytes().length);
+                String value = iterator.next().getValue().replace(tetsKeyValue, testValue);
+                log.info("Entry value is " + value.getBytes().length + " Update value " + testValue.getBytes().length);
             }
             try {
-                CompletableFuture<List<Version>> update = this.keyValueTable.replaceAll(keyfamily,getEntry);
-                log.info("Successfully update KVP "+ update.toString().length());
-            }catch (IllegalArgumentException error){
+                CompletableFuture<List<Version>> update = this.keyValueTable.replaceAll(keyfamily, getEntry);
+                log.info("Successfully update KVP " + update.toString().length());
+            } catch (IllegalArgumentException error) {
                 log.info(error.getMessage());
             }
-            List<TableEntry<Integer, String>> getEntryAfterUpdate = this.keyValueTable.getAll(keyfamily,multiKVP.keySet()).join();
-            Integer newSize = getEntryAfterUpdate.get(0).getValue().getBytes().length;
-            log.info("map size "+multiKVP.size());
-            log.info("size of output of getall API "+getEntryAfterUpdate.size());
-            assertNotEquals("Key value update",oldSize,newSize);
-        }catch (Exception | AssertionError error) {
-            error.getStackTrace();
+            List<TableEntry<Integer, String>> getEntryAfterUpdate = this.keyValueTable.getAll(keyfamily, multiKVP.keySet()).join();
+            List<TableKey<Integer>> keyEntry1 = new ArrayList<>();
+            for (int i = 0; i < getEntryAfterUpdate.size(); i++) {
+                log.info("key value" + getEntryAfterUpdate.get(i).getKey());
+                keyEntry1.add(getEntryAfterUpdate.get(i).getKey());
+                log.info("key value is " + keyEntry1.get(i));
+            }
+            assertNull("Value is not null ", this.keyValueTable.removeAll(keyfamily, keyEntry1).join());
+        } catch (Exception | AssertionError error) {
             log.info(error.getMessage());
-            log.info(error.toString());
         }
     }
 
@@ -535,15 +441,15 @@ public class KeyValueTest extends AbstractSystemTest {
             return serializedValue.getInt();
         }
     }
-    private static final long  MEGABYTE = 1024L * 1024L;
 
     public static long bytesToMB(long bytes) {
-        return bytes / MEGABYTE ;
+        return bytes / MEGABYTE;
     }
-    public static long KBToMB(long KB)
-    {
-        return KB / MEGABYTE;
+
+    public static long KBToMB(long kB) {
+        return kB / MEGABYTE;
     }
+
     public static String convertStringToBinary(String input) {
 
         StringBuilder result = new StringBuilder();
