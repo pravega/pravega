@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import com.google.common.util.concurrent.Runnables;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -29,15 +28,8 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
-import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentInformation;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.tables.IteratorItem;
-import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -64,7 +56,6 @@ import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.segmentstore.server.store.StreamSegmentServiceTests;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
@@ -82,7 +73,6 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
-import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
@@ -102,23 +92,16 @@ import java.io.File;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 
-import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 import static java.lang.Thread.sleep;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -433,13 +416,11 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         writeEvents(stream1, clientFactory); // write 300 events on one segment
         writeEvents(stream2, clientFactory); // write 300 events on other segment
 
-        String readerGroupName1 = readerGroupName + "1";
-
         int time = 0;
         // Read all events for the first time
-        readAllEvents(stream1, clientFactory, readerGroupManager, readerGroupName1, readerName, ++time);
+        readAllEvents(stream1, clientFactory, readerGroupManager, "RG" + new Random().nextInt(Integer.MAX_VALUE), "R" + new Random().nextInt(Integer.MAX_VALUE), ++time);
         log.info("First Read");
-        readAllEvents(stream1, clientFactory, readerGroupManager, readerGroupName1, readerName, ++time);
+        readAllEvents(stream1, clientFactory, readerGroupManager, "RG" + new Random().nextInt(Integer.MAX_VALUE), "R" + new Random().nextInt(Integer.MAX_VALUE), ++time);
         log.info("Second Read");
 
         sleep(120000); // Sleep for 120 s for tier2 flush
@@ -493,9 +474,9 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         createScopeStream(scope, stream1);
         createScopeStream(scope, stream2);
 
-        readAllEvents(stream1, clientFactory, readerGroupManager, readerGroupName1, readerName, ++time);
+        readAllEvents(stream1, clientFactory, readerGroupManager, "RG" + new Random().nextInt(Integer.MAX_VALUE), "R" + new Random().nextInt(Integer.MAX_VALUE), ++time);
         log.info("third Read");
-        readAllEvents(stream1, clientFactory, readerGroupManager, readerGroupName1, readerName, ++time);
+        readAllEvents(stream1, clientFactory, readerGroupManager, "RG" + new Random().nextInt(Integer.MAX_VALUE), "R" + new Random().nextInt(Integer.MAX_VALUE), ++time);
         log.info("fourth Read");
     }
 
@@ -565,7 +546,5 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 log.warn("Test Exception while reading from the stream", e);
             }
         }
-        reader.close();
-        readerGroupManager.deleteReaderGroup(readerGroupName);
     }
 }

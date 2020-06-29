@@ -128,7 +128,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         val s = new RollingStorage(baseStorage, new SegmentRollingPolicy(1));
         Set<String> sealedSegments = new HashSet<>();
         s.initialize(1);
-        int expectedCount = 1001;
+        int expectedCount = 50;
         byte[] data = "data".getBytes();
         for (int i = 0; i < expectedCount; i++) {
             String segmentName = "segment-" + i;
