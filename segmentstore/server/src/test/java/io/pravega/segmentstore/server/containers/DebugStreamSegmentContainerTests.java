@@ -182,7 +182,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         byte[] data = "data".getBytes();
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
 
-        int segmentsCountByContainer[] = new int[containerCount];
+        int[] segmentsCountByContainer = new int[containerCount];
         ArrayList<ArrayList<String>> segmentByContainers = new ArrayList<ArrayList<String>>();
         for (int containerId = 0; containerId < containerCount; containerId++) {
             ArrayList<String> segmentList = new ArrayList<>();

@@ -259,9 +259,9 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                     .ledgersPath("/pravega/bookkeeper/ledgers")
                     .secureBK(isSecure())
                     .secureZK(isSecure())
-                    .tlsTrustStore("/home/manish/DR/pravega/config/bookie.truststore.jks")
-                    .tLSKeyStore("/home/manish/DR/pravega/config/bookie.keystore.jks")
-                    .tLSKeyStorePasswordPath("/home/manish/DR/pravega/config/bookie.keystore.jks.passwd")
+                    .tlsTrustStore("../segmentstore/config/bookie.truststore.jks")
+                    .tLSKeyStore("../segmentstore/config/bookie.keystore.jks")
+                    .tLSKeyStorePasswordPath("../segmentstore/config/bookie.keystore.jks.passwd")
                     .bookiePorts(bookiePorts)
                     .build();
         }
