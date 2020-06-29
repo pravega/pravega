@@ -53,7 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class TcpClientConnection implements ClientConnection {
 
-    private static final int TCP_BUFFER_SIZE = 256 * 1024;
+    static final int TCP_BUFFER_SIZE = 256 * 1024;
     
     private final Socket socket;
     private final CommandEncoder encoder;
