@@ -170,8 +170,8 @@ public class StreamMetricsTest {
         assertEquals(7, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
 
         // Update the Stream.
-        controllerWrapper.getControllerService().updateStream(scopeName, streamName, StreamConfiguration.builder().build()).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_STREAM).count());
+        controllerWrapper.getControllerService().updateStream(scopeName, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build()).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
 
         // Seal the Stream.
         controllerWrapper.getControllerService().sealStream(scopeName, streamName).get();
