@@ -169,6 +169,10 @@ public class StreamMetricsTest {
         assertEquals(2, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
         assertEquals(7, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
 
+        // Update the Stream.
+        controllerWrapper.getControllerService().updateStream(scopeName, streamName, StreamConfiguration.builder().build()).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_STREAM).count());
+
         // Seal the Stream.
         controllerWrapper.getControllerService().sealStream(scopeName, streamName).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
