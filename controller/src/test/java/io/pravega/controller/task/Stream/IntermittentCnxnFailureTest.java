@@ -34,9 +34,17 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.MetricsNames;
+import io.pravega.shared.metrics.MetricRegistryUtils;
+import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.TestingServerStarter;
+
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -57,6 +65,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class IntermittentCnxnFailureTest {
 
@@ -77,16 +86,26 @@ public class IntermittentCnxnFailureTest {
     private SegmentHelper segmentHelperMock;
     private RequestTracker requestTracker = new RequestTracker(true);
     private ConnectionFactory connectionFactory;
+    private StatsProvider statsProvider = null;
     
     @Before
     public void setup() throws Exception {
+        MetricsConfig metricsConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
+                .build();
+        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(60));
+
+        MetricsProvider.initialize(metricsConfig);
+        statsProvider = MetricsProvider.getMetricsProvider();
+        statsProvider.startWithoutExporting();
+
         zkServer = new TestingServerStarter().start();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
-        streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
+        streamStore = spy(StreamStoreFactory.createZKStore(zkClient, executor));
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
@@ -111,6 +130,7 @@ public class IntermittentCnxnFailureTest {
 
     @After
     public void tearDown() throws Exception {
+        statsProvider.close();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         streamStore.close();
@@ -119,6 +139,25 @@ public class IntermittentCnxnFailureTest {
         connectionFactory.close();
         StreamMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
+    }
+
+    @Test
+    public void failedScopeOperationsTest() throws ExecutionException, InterruptedException {
+        final String testScope = "testScope2";
+
+        // Simulate a stream store failure when creating a scope and verify that the failed metrics are updated.
+        final Controller.CreateScopeStatus createScopeStatus = Controller.CreateScopeStatus.newBuilder()
+                .setStatus(Controller.CreateScopeStatus.Status.FAILURE).build();
+        when(streamStore.createScope(anyString())).thenReturn(CompletableFuture.completedFuture(createScopeStatus));
+        assertEquals(createScopeStatus, controllerService.createScope(testScope).get());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
+
+        // Simulate a stream store failure when deleting a scope and verify that the failed metrics are updated.
+        final Controller.DeleteScopeStatus deleteScopeStatus = Controller.DeleteScopeStatus.newBuilder()
+                .setStatus(Controller.DeleteScopeStatus.Status.FAILURE).build();
+        when(streamStore.deleteScope(anyString())).thenReturn(CompletableFuture.completedFuture(deleteScopeStatus));
+        assertEquals(deleteScopeStatus, controllerService.deleteScope(testScope).get());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED).count());
     }
 
     @Test
