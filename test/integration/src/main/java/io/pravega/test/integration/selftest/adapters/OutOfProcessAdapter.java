@@ -8,7 +8,6 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.integration.selftest.adapters;
-/*
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.util.Config;
@@ -321,4 +320,3 @@ class OutOfProcessAdapter extends ExternalAdapter {
 
     //endregion
 }
-*/

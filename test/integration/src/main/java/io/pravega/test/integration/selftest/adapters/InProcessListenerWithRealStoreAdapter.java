@@ -8,7 +8,6 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.integration.selftest.adapters;
-/*
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -54,4 +53,3 @@ class InProcessListenerWithRealStoreAdapter extends InProcessMockClientAdapter {
 
     //endregion
 }
-*/
