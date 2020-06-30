@@ -2300,7 +2300,7 @@ public final class WireCommands {
             boolean reachedEnd = in.readBoolean();
             long lastPosition = in.readLong();
 
-            return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastPosition);
+            return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastPosition).requireRelease();
         }
 
         @Override
