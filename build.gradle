@@ -87,9 +87,6 @@ allprojects {
         jcenter()
         mavenCentral()
         mavenLocal()
-        maven {
-            url "https://oss.jfrog.org/artifactory/oss-snapshot-local"
-        }
     }
 
     gradle.projectsEvaluated {
@@ -333,6 +330,39 @@ project('segmentstore:storage:impl') {
     }
 }
 
+project ('bindings') {
+    dependencies {
+        // For HDFS
+        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+
+        // Adding JAXB API and the reference implementation as dependencies here, since they are not available
+        // in newer Java SE versions (11 and newer).
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
+        compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+        compile group: 'javax.activation', name: 'javax.activation-api', version: activationVersion
+
+        //For Extended S3
+        compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
+        testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.5'
+        testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+        testCompile group: 'org.apache.jclouds.provider', name: 'google-cloud-storage', version: '2.1.1'
+
+        compile project(':common')
+        compile project(':segmentstore:storage')
+        compile project(':shared:metrics')
+        testCompile project(':test:testcommon')
+        testCompile project(path: ':segmentstore:storage', configuration: 'testRuntime')
+    }
+    javadoc {
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
@@ -382,6 +412,7 @@ project('segmentstore:server:host') {
         compile project(':client')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
+        compile project(':bindings')
         compile project(':segmentstore:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
@@ -389,6 +420,7 @@ project('segmentstore:server:host') {
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
+        testCompile project(path:':bindings', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
     }
 
@@ -445,7 +477,6 @@ project('test:integration') {
         compile project(':segmentstore:server:host')
         compile project(':controller')
         compile project(':test:testcommon')
-        compile "io.pravega:pravega-bindings:${pravegaBindingsVersion}"
         compile group: 'junit', name:'junit', version: junitVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -676,7 +707,7 @@ project('standalone') {
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
-        // compile project(':bindings')
+        compile project(':bindings')
 
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
@@ -1034,7 +1065,6 @@ distributions {
                 exclude "logback.xml"
             }
             from (project(":standalone").installDist)
-            from (project(":test:integration").installDist)
             from 'LICENSE'
             from 'NOTICE'
         }
