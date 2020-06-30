@@ -1663,7 +1663,7 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());
-            long tableSegmentOffset = (in.available() >= 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
+            long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
             return new UpdateTableEntries(requestId, segment, delegationToken, entries, tableSegmentOffset).requireRelease();
         }
@@ -1743,7 +1743,7 @@ public final class WireCommands {
             for (int i = 0; i < numberOfKeys; i++) {
                 keys.add(TableKey.readFrom(in, in.available()));
             }
-            long tableSegmentOffset = (in.available() >= 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
+            long tableSegmentOffset = (in.available() > 0 ) ? in.readLong() : NULL_TABLE_SEGMENT_OFFSET;
 
             return new RemoveTableKeys(requestId, segment, delegationToken, keys, tableSegmentOffset).requireRelease();
         }

@@ -23,7 +23,6 @@ import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -54,7 +53,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import static io.pravega.shared.protocol.netty.WireCommands.NULL_TABLE_SEGMENT_OFFSET;
 /**
  * A {@link ContainerTableExtension} that implements Table Segments on top of a {@link SegmentContainer}.
  */
@@ -75,6 +73,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      */
     private static final Map<UUID, Long> DEFAULT_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
             Attributes.ROLLOVER_SIZE, 4L * DEFAULT_MAX_COMPACTION_SIZE);
+    /**
+     * Default value used for when no offset is provided for a remove or put call.
+     */
+    private static final int NO_OFFSET = -1;
+
     private final SegmentContainer segmentContainer;
     private final ScheduledExecutorService executor;
     private final KeyHasher hasher;
@@ -195,7 +198,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     @Override
     public CompletableFuture<List<Long>> put(@NonNull String segmentName, @NonNull List<TableEntry> entries, Duration timeout) {
-        return put(segmentName, entries, NULL_TABLE_SEGMENT_OFFSET, timeout);
+        return put(segmentName, entries, NO_OFFSET, timeout);
     }
 
     @Override
@@ -233,7 +236,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     @Override
     public CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, Duration timeout) {
-        return remove(segmentName, keys, NULL_TABLE_SEGMENT_OFFSET, timeout);
+        return remove(segmentName, keys, NO_OFFSET, timeout);
     }
 
     @Override
@@ -333,14 +336,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     private <T> CompletableFuture<Long> commit(Collection<T> toCommit, Function<Collection<T>, BufferView> serializer,
                                                DirectSegmentAccess segment, long tableSegmentOffset, Duration timeout) {
-        if (tableSegmentOffset == NULL_TABLE_SEGMENT_OFFSET || tableSegmentOffset == segment.getInfo().getLength()) {
             BufferView s = serializer.apply(toCommit);
-            return segment.append(s, null, timeout);
-        } else {
-            CompletableFuture<Long> future = new CompletableFuture<>();
-            future.completeExceptionally(new BadOffsetException(segment.getInfo().getName(), segment.getInfo().getLength(), tableSegmentOffset));
-            return future;
-        }
+            return segment.append(s, null, tableSegmentOffset, timeout);
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, BufferView serializedState,

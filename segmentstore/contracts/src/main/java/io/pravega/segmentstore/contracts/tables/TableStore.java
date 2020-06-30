@@ -146,7 +146,8 @@ public interface TableStore {
     CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, Duration timeout);
 
     /**
-     * Inserts new or updates existing Table Entries into the given Table Segment.
+     * Inserts new or updates existing Table Entries (conditioned on the Segment's length matching an expected value)
+     * into the given Segment.
      *
      * @param segmentName        The name of the Table Segment to insert/update the Table Entries.
      * @param entries            A List of {@link TableEntry} instances to insert or update. If {@link TableEntry#key}
@@ -166,7 +167,7 @@ public interface TableStore {
      * <li>{@link ConditionalTableUpdateException} If {@link TableEntry#key} {@link TableKey#hasVersion() hasVersion() } is true and
      * {@link TableEntry#key} {@link TableKey#version} does not match the Table Entry's Key current Table Version. </li>
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment. </li>
-     * <li>{@link BadOffsetException} If there is a mismatch between the provided {@param tableSegmentOffset} and the actual offset.
+     * <li>{@link BadOffsetException} If there is a mismatch between the provided {@param tableSegmentOffset} and the actual segment length.<\li>
      * </ul>
      */
     CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, long tableSegmentOffset, Duration timeout);
@@ -210,7 +211,7 @@ public interface TableStore {
      * <li>{@link ConditionalTableUpdateException} If {@link TableKey#hasVersion()} is true and {@link TableKey#version}
      * does not match the Table Entry's Key current Table Version.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
-     * <li>{@link BadOffsetException} If there is a mismatch between the provided {@param tableSegmentOffset} and the actual offset.
+     * <li>{@link BadOffsetException} If there is a mismatch between the provided {@param tableSegmentOffset} and the actual segment length.
      * </ul>
      */
     CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, long tableSegmentOffset, Duration timeout);
