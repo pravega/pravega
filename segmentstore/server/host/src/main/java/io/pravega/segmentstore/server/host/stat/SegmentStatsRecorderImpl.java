@@ -33,9 +33,11 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.MetricsNames.SEGMENT_APPEND_SIZE;
 import static io.pravega.shared.MetricsNames.SEGMENT_CREATE_LATENCY;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_LATENCY;
+import static io.pravega.shared.MetricsNames.SEGMENT_READ_SIZE;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_LATENCY;
@@ -64,6 +66,10 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private final OpStatsLogger readStreamSegment = STATS_LOGGER.createStats(SEGMENT_READ_LATENCY);
     @Getter(AccessLevel.PROTECTED)
     private final OpStatsLogger writeStreamSegment = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
+    @Getter(AccessLevel.PROTECTED)
+    private final OpStatsLogger appendSizeDistribution = STATS_LOGGER.createStats(SEGMENT_APPEND_SIZE);
+    @Getter(AccessLevel.PROTECTED)
+    private final OpStatsLogger readSizeDistribution = STATS_LOGGER.createStats(SEGMENT_READ_SIZE);
     @Getter(AccessLevel.PROTECTED)
     private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
 
@@ -103,6 +109,8 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         this.createStreamSegment.close();
         this.readStreamSegment.close();
         this.writeStreamSegment.close();
+        this.appendSizeDistribution.close();
+        this.readSizeDistribution.close();
     }
 
     private SegmentAggregates getSegmentAggregate(String streamSegmentName) {
@@ -200,6 +208,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         DynamicLogger dl = getDynamicLogger();
         dl.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), dataLength);
         dl.incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), numOfEvents);
+        getAppendSizeDistribution().reportSuccessValue(dataLength);
         if (!NameUtils.isTransactionSegment(streamSegmentName)) {
             //Don't report segment specific metrics if segment is a transaction
             //The parent segment metrics will be updated once the transaction is merged
@@ -248,6 +257,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     public void read(String segment, int length) {
         getDynamicLogger().incCounterValue(globalMetricName(SEGMENT_READ_BYTES), length);
         getDynamicLogger().incCounterValue(SEGMENT_READ_BYTES, length, segmentTags(segment));
+        getReadSizeDistribution().reportSuccessValue(length);
     }
 
     private void report(String streamSegmentName, SegmentAggregates aggregates) {
