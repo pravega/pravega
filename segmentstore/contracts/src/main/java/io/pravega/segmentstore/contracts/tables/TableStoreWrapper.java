@@ -9,8 +9,8 @@
  */
 package io.pravega.segmentstore.contracts.tables;
 
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -66,17 +66,17 @@ public class TableStoreWrapper implements TableStore {
     }
 
     @Override
-    public CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout) {
+    public CompletableFuture<List<TableEntry>> get(String segmentName, List<BufferView> keys, Duration timeout) {
         return this.tableStore.get(segmentName, keys, timeout);
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
         return this.tableStore.keyIterator(segmentName, serializedState, fetchTimeout);
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
         return this.tableStore.entryIterator(segmentName, serializedState, fetchTimeout);
     }
 }
