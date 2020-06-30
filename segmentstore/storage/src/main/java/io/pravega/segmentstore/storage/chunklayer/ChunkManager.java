@@ -689,12 +689,12 @@ public class ChunkManager implements Storage {
                 // Finally commit transaction.
                 txn.commit();
 
+                // Update the read index.
+                readIndexCache.remove(sourceSegment);
+
                 Duration elapsed = timer.getElapsed();
                 log.debug("{} concat - target={}, source={}, offset={}, latency={}.", logPrefix, targetHandle.getSegmentName(), sourceSegment, offset, elapsed.toMillis());
                 LoggerHelpers.traceLeave(log, "concat", traceId, targetHandle, offset, sourceSegment);
-
-                // Update the read index.
-                readIndexCache.remove(sourceSegment);
 
             } catch (StorageMetadataWritesFencedOutException ex) {
                 throw new StorageNotPrimaryException(targetSegmentName, ex);
@@ -721,7 +721,7 @@ public class ChunkManager implements Storage {
      * <Ul>
      * <li> In the absence of defragmentation, the number of chunks for individual segments keeps on increasing.
      * When we have too many small chunks (say because many transactions with little data on some segments), the segment
-     * is fragmented - this may impact both the read throughputand the performance of the metadata store.
+     * is fragmented - this may impact both the read throughput and the performance of the metadata store.
      * This problem is further intensified when we have stores that do not support append semantics (e.g., stock S3) and
      * each write becomes a separate chunk.
      * </li>
@@ -732,7 +732,7 @@ public class ChunkManager implements Storage {
      * only metadata operations, reducing the overall cost of the merging them together. HDFS also supports merges,
      * whereas NFS has no concept of merging natively.
      *
-     * As chunks become larger, append writes (read source completely and append-i.e., write- it back at the end of target)
+     * As chunks become larger, append writes (read source completely and append it back at the end of target)
      * become inefficient. Consequently, a native option for merging is desirable. We use such native merge capability
      * when available, and if not available, then we use appends.
      * </li>
