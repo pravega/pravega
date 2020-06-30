@@ -54,7 +54,6 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
-import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.TestUtils;
@@ -142,8 +141,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             this.dataLogFactory.close();
             this.dataLogFactory = null;
         }
-
-
     }
 
     @Override
@@ -343,11 +340,11 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.server.startListening();
     }
 
-    void startController(int bk_port) throws InterruptedException {
+    void startController(int bkPort) throws InterruptedException {
         int controllerPort = TestUtils.getAvailableListenPort();
         String serviceHost = "localhost";
 
-        this.controllerWrapper = new ControllerWrapper("localhost:" + bk_port, false,
+        this.controllerWrapper = new ControllerWrapper("localhost:" + bkPort, false,
                 controllerPort, serviceHost, this.servicePort, containerCount);
         this.controllerWrapper.awaitRunning();
         this.controller = controllerWrapper.getController();
@@ -367,7 +364,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         BKZK bkzk = setUpNewBK();
         startSegmentStore(this.storageFactory, null);
         startController(bkzk.bkPort.get());
-
 
         this.controller.close(); // Shuts down controller
         this.controllerWrapper.close();
@@ -400,7 +396,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         log.info("Start DebugStreamSegmentContainer");
         DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer) debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
-        //DebugSegmentContainer debugSegmentContainer = debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
         debugStreamSegmentContainer.startAsync().awaitRunning();
         DataRecoveryTestUtils.createAllSegments(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID));
         sleep(20000);

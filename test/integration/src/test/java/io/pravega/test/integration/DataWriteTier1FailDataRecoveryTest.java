@@ -72,7 +72,6 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
-import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.TestUtils;
@@ -172,8 +171,6 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             this.dataLogFactory.close();
             this.dataLogFactory = null;
         }
-
-
     }
 
     @Override
@@ -448,7 +445,6 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Start DebugStreamSegmentContainer");
         DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer)
                 debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
-        //DebugSegmentContainer debugSegmentContainer = debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
         debugStreamSegmentContainer.startAsync().awaitRunning();
         DataRecoveryTestUtils.createAllSegments(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID));
         sleep(20000);
