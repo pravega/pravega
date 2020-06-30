@@ -417,7 +417,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer) debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
         debugStreamSegmentContainer.startAsync().awaitRunning();
         DataRecoveryTestUtils.createAllSegments(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID));
-        sleep(20000);
+        sleep(5000);
         debugStreamSegmentContainer.stopAsync().awaitTerminated();
         this.dataLogFactory.close();
         sleep(5000);
