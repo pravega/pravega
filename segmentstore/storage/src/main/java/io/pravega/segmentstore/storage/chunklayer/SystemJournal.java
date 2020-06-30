@@ -114,7 +114,7 @@ public class SystemJournal {
     private long systemJournalOffset;
 
     /**
-     * Configuration {@link ChunkManagerConfig} for the {@link ChunkManager}.
+     * Configuration {@link ChunkManagerConfig} for the {@link ChunkedSegmentStorage}.
      */
     @Getter
     private final ChunkManagerConfig config;
@@ -128,7 +128,7 @@ public class SystemJournal {
      * @param epoch         Epoch of the current container instance.
      * @param chunkStorage  ChunkStorage instance to use for writing all logs.
      * @param metadataStore ChunkMetadataStore for owner container.
-     * @param config        Configuration options for this ChunkManager instance.
+     * @param config        Configuration options for this ChunkedSegmentStorage instance.
      * @throws Exception In case of any errors.
      */
     public SystemJournal(int containerId, long epoch, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, ChunkManagerConfig config) throws Exception {

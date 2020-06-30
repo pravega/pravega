@@ -61,16 +61,16 @@ import java.util.stream.Collectors;
  * Detailed design is documented here https://github.com/pravega/pravega/wiki/PDP-34:-Simplified-Tier-2
  */
 @Slf4j
-public class ChunkManager implements Storage {
+public class ChunkedSegmentStorage implements Storage {
     /**
-     * Configuration options for this ChunkManager instance.
+     * Configuration options for this ChunkedSegmentStorage instance.
      */
     @Getter
     private final ChunkManagerConfig config;
 
     /**
      * Metadata store containing all storage data.
-     * Initialized by segment container via {@link ChunkManager#bootstrap(int, ChunkMetadataStore)}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(int, ChunkMetadataStore)}.
      */
     @Getter
     private ChunkMetadataStore metadataStore;
@@ -93,14 +93,14 @@ public class ChunkManager implements Storage {
 
     /**
      * Current epoch of the {@link Storage} instance.
-     * Initialized by segment container via {@link ChunkManager#initialize(long)}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#initialize(long)}.
      */
     @Getter
     private long epoch;
 
     /**
      * Id of the current Container.
-     * Initialized by segment container via {@link ChunkManager#bootstrap(int, ChunkMetadataStore)}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(int, ChunkMetadataStore)}.
      */
     @Getter
     private int containerId;
@@ -127,13 +127,13 @@ public class ChunkManager implements Storage {
     private String logPrefix;
 
     /**
-     * Creates a new instance of the ChunkManager class.
+     * Creates a new instance of the ChunkedSegmentStorage class.
      *
      * @param chunkStorage ChunkStorage instance.
      * @param executor     An Executor for async operations.
-     * @param config       Configuration options for this ChunkManager instance.
+     * @param config       Configuration options for this ChunkedSegmentStorage instance.
      */
-    public ChunkManager(ChunkStorage chunkStorage, Executor executor, ChunkManagerConfig config) {
+    public ChunkedSegmentStorage(ChunkStorage chunkStorage, Executor executor, ChunkManagerConfig config) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
         this.executor = Preconditions.checkNotNull(executor, "executor");
@@ -144,14 +144,14 @@ public class ChunkManager implements Storage {
     }
 
     /**
-     * Creates a new instance of the ChunkManager class.
+     * Creates a new instance of the ChunkedSegmentStorage class.
      *
      * @param chunkStorage  ChunkStorage instance.
      * @param metadataStore Metadata store.
      * @param executor      An Executor for async operations.
-     * @param config        Configuration options for this ChunkManager instance.
+     * @param config        Configuration options for this ChunkedSegmentStorage instance.
      */
-    public ChunkManager(ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, Executor executor, ChunkManagerConfig config) {
+    public ChunkedSegmentStorage(ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, Executor executor, ChunkManagerConfig config) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
         this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
@@ -163,7 +163,7 @@ public class ChunkManager implements Storage {
     }
 
     /**
-     * Initializes the ChunkManager and bootstrap the metadata about storage metadata segments by reading and processing the journal.
+     * Initializes the ChunkedSegmentStorage and bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
      * @param metadataStore Metadata store.
      * @param containerId   container id.
@@ -171,7 +171,7 @@ public class ChunkManager implements Storage {
      */
     public void bootstrap(int containerId, ChunkMetadataStore metadataStore) throws Exception {
         this.containerId = containerId;
-        this.logPrefix = String.format("ChunkManager[%d]", containerId);
+        this.logPrefix = String.format("ChunkedSegmentStorage[%d]", containerId);
         this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
         this.systemJournal = new SystemJournal(containerId,
                 epoch,
@@ -757,7 +757,7 @@ public class ChunkManager implements Storage {
      * If this is true then concat operation will be invoked otherwise chunks will be appended.</li>
      * <li>There are some obvious constraints - For ChunkStorage support any concat functionality it must support either
      * append or concat.</li>
-     * <li>Also when ChunkStorage supports both concat and append, ChunkManager will invoke appropriate method
+     * <li>Also when ChunkStorage supports both concat and append, ChunkedSegmentStorage will invoke appropriate method
      * depending on size of target and source chunks. (Eg. ECS)</li>
      * </ul>
      * </div>

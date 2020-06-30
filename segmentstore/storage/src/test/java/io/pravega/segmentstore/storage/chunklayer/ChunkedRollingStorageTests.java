@@ -18,10 +18,10 @@ import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 import java.util.concurrent.Executor;
 
 /**
- * Unit tests for  {@link ChunkManager} and {@link ChunkStorage} based implementation that exercise scenarios
+ * Unit tests for  {@link ChunkedSegmentStorage} and {@link ChunkStorage} based implementation that exercise scenarios
  * for {@link io.pravega.segmentstore.storage.rolling.RollingStorage}.
  */
-public abstract class ChunkManagerRollingTests extends RollingStorageTestBase {
+public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase {
     ChunkStorage chunkStorage;
     ChunkMetadataStore chunkMetadataStore;
 
@@ -34,13 +34,13 @@ public abstract class ChunkManagerRollingTests extends RollingStorageTestBase {
         useOldLayout = false;
         Executor executor = executorService();
         // Initialize
-        synchronized (ChunkManagerRollingTests.class) {
+        synchronized (ChunkedRollingStorageTests.class) {
             if (null == chunkStorage) {
                 chunkMetadataStore = getMetadataStore();
                 chunkStorage = getChunkStorage();
             }
         }
-        return new ChunkManager(chunkStorage,
+        return new ChunkedSegmentStorage(chunkStorage,
                 chunkMetadataStore,
                 executor,
                 ChunkManagerConfig.DEFAULT_CONFIG);

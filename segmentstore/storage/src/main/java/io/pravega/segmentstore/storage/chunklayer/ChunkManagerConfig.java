@@ -16,13 +16,13 @@ import lombok.Getter;
 import lombok.NonNull;
 
 /**
- * Configuration for {@link ChunkManager}.
+ * Configuration for {@link ChunkedSegmentStorage}.
  */
 @AllArgsConstructor
 @Builder(toBuilder = true)
 public class ChunkManagerConfig {
     /**
-     * Default configuration for {@link ChunkManager}.
+     * Default configuration for {@link ChunkedSegmentStorage}.
      */
     public static final ChunkManagerConfig DEFAULT_CONFIG = ChunkManagerConfig.builder()
             .minSizeLimitForConcat(0)

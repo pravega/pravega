@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.storage.noop;
 
-import io.pravega.segmentstore.storage.chunklayer.ChunkManagerRollingTests;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedRollingStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
@@ -34,9 +34,9 @@ public class NoOpSimpleStorageTests extends SimpleStorageTests {
     }
 
     /**
-     * Unit tests for {@link NoOpChunkStorage} using {@link ChunkManagerRollingTests}.
+     * Unit tests for {@link NoOpChunkStorage} using {@link ChunkedRollingStorageTests}.
      */
-    public static class NoOpRollingTests extends ChunkManagerRollingTests {
+    public static class NoOpRollingStorageTests extends ChunkedRollingStorageTests {
         protected ChunkStorage getChunkStorage() throws Exception {
             return getChunkStorageProvider();
         }

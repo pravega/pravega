@@ -155,40 +155,40 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Start container with epoch 1
-        ChunkManager chunkManager1 = new ChunkManager(storageProvider, executorService(), config);
+        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(storageProvider, executorService(), config);
 
-        chunkManager1.initialize(epoch);
+        segmentStorage1.initialize(epoch);
 
         // Bootstrap
-        chunkManager1.bootstrap(containerId, metadataStoreBeforeCrash);
-        checkSystemSegmentsLayout(chunkManager1);
+        segmentStorage1.bootstrap(containerId, metadataStoreBeforeCrash);
+        checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
-        var h = chunkManager1.openWrite(systemSegmentName).join();
+        var h = segmentStorage1.openWrite(systemSegmentName).join();
         val b1 = "Hello".getBytes();
-        chunkManager1.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
+        segmentStorage1.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
         offset += b1.length;
         val b2 = " World".getBytes();
-        chunkManager1.write(h, offset, new ByteArrayInputStream(b2), b2.length, null).join();
+        segmentStorage1.write(h, offset, new ByteArrayInputStream(b2), b2.length, null).join();
         offset += b2.length;
 
         // Step 2
         // Start container with epoch 2
         epoch++;
 
-        ChunkManager chunkManager2 = new ChunkManager(storageProvider, executorService(), config);
-        chunkManager2.initialize(epoch);
+        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(storageProvider, executorService(), config);
+        segmentStorage2.initialize(epoch);
 
         // Bootstrap
-        chunkManager2.bootstrap(containerId, metadataStoreAfterCrash);
-        checkSystemSegmentsLayout(chunkManager2);
+        segmentStorage2.bootstrap(containerId, metadataStoreAfterCrash);
+        checkSystemSegmentsLayout(segmentStorage2);
 
         // Validate
-        val info = chunkManager2.getStreamSegmentInfo(systemSegmentName, null).join();
+        val info = segmentStorage2.getStreamSegmentInfo(systemSegmentName, null).join();
         Assert.assertEquals(b1.length + b2.length, info.getLength());
         byte[] out = new byte[b1.length + b2.length];
-        val hr = chunkManager2.openRead(systemSegmentName).join();
-        chunkManager2.read(hr, 0, out, 0, b1.length + b2.length, null).join();
+        val hr = segmentStorage2.openRead(systemSegmentName).join();
+        segmentStorage2.read(hr, 0, out, 0, b1.length + b2.length, null).join();
         Assert.assertEquals("Hello World", new String(out));
     }
 
@@ -214,47 +214,47 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Epoch 1
-        ChunkManager chunkManager1 = new ChunkManager(chunkStorage, executorService(), config);
+        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
 
-        chunkManager1.initialize(epoch);
+        segmentStorage1.initialize(epoch);
 
         // Bootstrap
-        chunkManager1.bootstrap(containerId, metadataStoreBeforeCrash);
-        checkSystemSegmentsLayout(chunkManager1);
+        segmentStorage1.bootstrap(containerId, metadataStoreBeforeCrash);
+        checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
-        var h = chunkManager1.openWrite(systemSegmentName).join();
+        var h = segmentStorage1.openWrite(systemSegmentName).join();
         val b1 = "Hello".getBytes();
-        chunkManager1.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
+        segmentStorage1.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
         offset += b1.length;
 
-        checkSystemSegmentsLayout(chunkManager1);
+        checkSystemSegmentsLayout(segmentStorage1);
 
         // Epoch 2
         epoch++;
 
-        ChunkManager chunkManager2 = new ChunkManager(chunkStorage, executorService(), config);
-        chunkManager2.initialize(epoch);
+        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        segmentStorage2.initialize(epoch);
 
         // Bootstrap
-        chunkManager2.bootstrap(containerId, metadataStoreAfterCrash);
-        checkSystemSegmentsLayout(chunkManager2);
+        segmentStorage2.bootstrap(containerId, metadataStoreAfterCrash);
+        checkSystemSegmentsLayout(segmentStorage2);
 
-        var h2 = chunkManager2.openWrite(systemSegmentName).join();
+        var h2 = segmentStorage2.openWrite(systemSegmentName).join();
 
         // Write Junk Data to from first instance.
-        chunkManager1.write(h, offset, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
+        segmentStorage1.write(h, offset, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
 
         val b2 = " World".getBytes();
-        chunkManager2.write(h2, offset, new ByteArrayInputStream(b2), b2.length, null).join();
+        segmentStorage2.write(h2, offset, new ByteArrayInputStream(b2), b2.length, null).join();
         offset += b2.length;
 
-        checkSystemSegmentsLayout(chunkManager2);
-        val info = chunkManager2.getStreamSegmentInfo(systemSegmentName, null).join();
+        checkSystemSegmentsLayout(segmentStorage2);
+        val info = segmentStorage2.getStreamSegmentInfo(systemSegmentName, null).join();
         Assert.assertEquals(b1.length + b2.length, info.getLength());
         byte[] out = new byte[b1.length + b2.length];
-        val hr = chunkManager2.openRead(systemSegmentName).join();
-        chunkManager2.read(hr, 0, out, 0, b1.length + b2.length, null).join();
+        val hr = segmentStorage2.openRead(systemSegmentName).join();
+        segmentStorage2.read(hr, 0, out, 0, b1.length + b2.length, null).join();
         Assert.assertEquals("Hello World", new String(out));
     }
 
@@ -277,49 +277,49 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         long offset = 0;
-        ChunkManager oldhunkStorageManager = null;
+        ChunkedSegmentStorage oldhunkStorageManager = null;
         SegmentHandle oldHandle = null;
         for (int i = 1; i < 10; i++) {
             // Epoch 2
             epoch++;
             ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
-            ChunkManager chunkManagerInLoop = new ChunkManager(chunkStorage, executorService(), config);
-            chunkManagerInLoop.initialize(epoch);
+            ChunkedSegmentStorage segmentStorageInLoop = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+            segmentStorageInLoop.initialize(epoch);
 
-            chunkManagerInLoop.bootstrap(containerId, metadataStoreAfterCrash);
-            checkSystemSegmentsLayout(chunkManagerInLoop);
+            segmentStorageInLoop.bootstrap(containerId, metadataStoreAfterCrash);
+            checkSystemSegmentsLayout(segmentStorageInLoop);
 
-            var h = chunkManagerInLoop.openWrite(systemSegmentName).join();
+            var h = segmentStorageInLoop.openWrite(systemSegmentName).join();
 
             if (null != oldhunkStorageManager) {
                 oldhunkStorageManager.write(oldHandle, offset, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
             }
 
             val b1 = "Test".getBytes();
-            chunkManagerInLoop.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
+            segmentStorageInLoop.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
             offset += b1.length;
             val b2 = Integer.toString(i).getBytes();
-            chunkManagerInLoop.write(h, offset, new ByteArrayInputStream(b2), b2.length, null).join();
+            segmentStorageInLoop.write(h, offset, new ByteArrayInputStream(b2), b2.length, null).join();
             offset += b2.length;
 
-            oldhunkStorageManager = chunkManagerInLoop;
+            oldhunkStorageManager = segmentStorageInLoop;
             oldHandle = h;
         }
 
         epoch++;
         ChunkMetadataStore metadataStoreFinal = getMetadataStore();
 
-        ChunkManager chunkManagerFinal = new ChunkManager(chunkStorage, executorService(), config);
-        chunkManagerFinal.initialize(epoch);
+        ChunkedSegmentStorage segmentStorageFinal = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        segmentStorageFinal.initialize(epoch);
 
-        chunkManagerFinal.bootstrap(containerId, metadataStoreFinal);
-        checkSystemSegmentsLayout(chunkManagerFinal);
+        segmentStorageFinal.bootstrap(containerId, metadataStoreFinal);
+        checkSystemSegmentsLayout(segmentStorageFinal);
 
-        val info = chunkManagerFinal.getStreamSegmentInfo(systemSegmentName, null).join();
+        val info = segmentStorageFinal.getStreamSegmentInfo(systemSegmentName, null).join();
         Assert.assertEquals(offset, info.getLength());
         byte[] out = new byte[Math.toIntExact(offset)];
-        val hr = chunkManagerFinal.openRead(systemSegmentName).join();
-        chunkManagerFinal.read(hr, 0, out, 0, Math.toIntExact(offset), null).join();
+        val hr = segmentStorageFinal.openRead(systemSegmentName).join();
+        segmentStorageFinal.read(hr, 0, out, 0, Math.toIntExact(offset), null).join();
         var expected = "Test1Test2Test3Test4Test5Test6Test7Test8Test9";
         var actual = new String(out);
         Assert.assertEquals(expected, actual);
@@ -345,7 +345,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         long offset = 0;
         long offsetToTruncateAt = 0;
-        ChunkManager oldhunkStorageManager = null;
+        ChunkedSegmentStorage oldhunkStorageManager = null;
         SegmentHandle oldHandle = null;
         long oldOffset = 0;
 
@@ -354,13 +354,13 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             epoch++;
             ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
 
-            ChunkManager chunkManagerInLoop = new ChunkManager(chunkStorage, executorService(), config);
-            chunkManagerInLoop.initialize(epoch);
+            ChunkedSegmentStorage segmentStorageInLoop = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+            segmentStorageInLoop.initialize(epoch);
 
-            chunkManagerInLoop.bootstrap(containerId, metadataStoreAfterCrash);
-            checkSystemSegmentsLayout(chunkManagerInLoop);
+            segmentStorageInLoop.bootstrap(containerId, metadataStoreAfterCrash);
+            checkSystemSegmentsLayout(segmentStorageInLoop);
 
-            var h = chunkManagerInLoop.openWrite(systemSegmentName).join();
+            var h = segmentStorageInLoop.openWrite(systemSegmentName).join();
 
             if (null != oldhunkStorageManager) {
                 // Add some junk to previous instance after failover
@@ -369,24 +369,24 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 // Only first time.
                 for (int j = 1; j < 10; j++) {
                     val b0 = "JUNK".getBytes();
-                    chunkManagerInLoop.write(h, offset, new ByteArrayInputStream(b0), b0.length, null).join();
+                    segmentStorageInLoop.write(h, offset, new ByteArrayInputStream(b0), b0.length, null).join();
                     offset += b0.length;
                 }
             }
             offsetToTruncateAt += 4;
             val b1 = "Test".getBytes();
-            chunkManagerInLoop.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
+            segmentStorageInLoop.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
             offset += b1.length;
             val b2 = Integer.toString(i).getBytes();
-            chunkManagerInLoop.write(h, offset, new ByteArrayInputStream(b2), b2.length, null).join();
+            segmentStorageInLoop.write(h, offset, new ByteArrayInputStream(b2), b2.length, null).join();
             offset += b2.length;
 
-            chunkManagerInLoop.truncate(h, offsetToTruncateAt, null).join();
+            segmentStorageInLoop.truncate(h, offsetToTruncateAt, null).join();
             TestUtils.checkSegmentBounds(metadataStoreAfterCrash, h.getSegmentName(), offsetToTruncateAt, offset);
 
             val length = Math.toIntExact(offset - offsetToTruncateAt);
             byte[] readBytes = new byte[length];
-            val bytesRead = chunkManagerInLoop.read(h, offsetToTruncateAt, readBytes, 0, length, null).get();
+            val bytesRead = segmentStorageInLoop.read(h, offsetToTruncateAt, readBytes, 0, length, null).get();
             Assert.assertEquals(length, readBytes.length);
 
             String s = new String(readBytes);
@@ -397,7 +397,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             }
 
             // Save these instances so that you can write some junk after bootstrap.
-            oldhunkStorageManager = chunkManagerInLoop;
+            oldhunkStorageManager = segmentStorageInLoop;
             oldHandle = h;
             oldOffset = offset;
         }
@@ -405,18 +405,18 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         epoch++;
         ChunkMetadataStore metadataStoreFinal = getMetadataStore();
 
-        ChunkManager chunkManagerFinal = new ChunkManager(chunkStorage, executorService(), config);
-        chunkManagerFinal.initialize(epoch);
+        ChunkedSegmentStorage segmentStorageFinal = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        segmentStorageFinal.initialize(epoch);
 
-        chunkManagerFinal.bootstrap(containerId, metadataStoreFinal);
-        checkSystemSegmentsLayout(chunkManagerFinal);
+        segmentStorageFinal.bootstrap(containerId, metadataStoreFinal);
+        checkSystemSegmentsLayout(segmentStorageFinal);
 
-        val info = chunkManagerFinal.getStreamSegmentInfo(systemSegmentName, null).join();
+        val info = segmentStorageFinal.getStreamSegmentInfo(systemSegmentName, null).join();
         Assert.assertEquals(offset, info.getLength());
         Assert.assertEquals(offsetToTruncateAt, info.getStartOffset());
         byte[] out = new byte[Math.toIntExact(offset - offsetToTruncateAt)];
-        val hr = chunkManagerFinal.openRead(systemSegmentName).join();
-        chunkManagerFinal.read(hr, offsetToTruncateAt, out, 0, Math.toIntExact(offset - offsetToTruncateAt), null).join();
+        val hr = segmentStorageFinal.openRead(systemSegmentName).join();
+        segmentStorageFinal.read(hr, offsetToTruncateAt, out, 0, Math.toIntExact(offset - offsetToTruncateAt), null).join();
         var expected = "Test1Test2Test3Test4Test5Test6Test7Test8Test9";
         var actual = new String(out);
         Assert.assertEquals(expected, actual);
@@ -490,49 +490,49 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Epoch 1
-        ChunkManager chunkManager1 = new ChunkManager(chunkStorage, executorService(), config);
-        chunkManager1.initialize(epoch);
+        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        segmentStorage1.initialize(epoch);
 
         // Bootstrap
-        chunkManager1.bootstrap(containerId, metadataStoreBeforeCrash);
-        checkSystemSegmentsLayout(chunkManager1);
+        segmentStorage1.bootstrap(containerId, metadataStoreBeforeCrash);
+        checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
-        var h = chunkManager1.openWrite(systemSegmentName).join();
+        var h = segmentStorage1.openWrite(systemSegmentName).join();
         val b1 = validWriteBeforeFailure.getBytes();
         byte[] garbage1 = initialGarbageThatIsTruncated.getBytes();
         int garbage1Length = garbage1.length;
-        chunkManager1.write(h, offset, new ByteArrayInputStream(garbage1), garbage1Length, null).join();
+        segmentStorage1.write(h, offset, new ByteArrayInputStream(garbage1), garbage1Length, null).join();
         offset += garbage1Length;
-        chunkManager1.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
+        segmentStorage1.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
         offset += b1.length;
-        chunkManager1.truncate(h, garbage1Length, null).join();
+        segmentStorage1.truncate(h, garbage1Length, null).join();
 
         // Epoch 2
         epoch++;
 
-        ChunkManager chunkManager2 = new ChunkManager(chunkStorage, executorService(), config);
-        chunkManager2.initialize(epoch);
+        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        segmentStorage2.initialize(epoch);
 
-        chunkManager2.bootstrap(containerId, metadataStoreAfterCrash);
-        checkSystemSegmentsLayout(chunkManager2);
+        segmentStorage2.bootstrap(containerId, metadataStoreAfterCrash);
+        checkSystemSegmentsLayout(segmentStorage2);
 
-        var h2 = chunkManager2.openWrite(systemSegmentName).join();
+        var h2 = segmentStorage2.openWrite(systemSegmentName).join();
 
         // Write Junk Data to both system segment and journal file.
         val innerGarbageBytes = garbageAfterFailure.getBytes();
-        chunkManager1.write(h, offset, new ByteArrayInputStream(innerGarbageBytes), innerGarbageBytes.length, null).join();
+        segmentStorage1.write(h, offset, new ByteArrayInputStream(innerGarbageBytes), innerGarbageBytes.length, null).join();
 
         val b2 = validWriteAfterFailure.getBytes();
-        chunkManager2.write(h2, offset, new ByteArrayInputStream(b2), b2.length, null).join();
+        segmentStorage2.write(h2, offset, new ByteArrayInputStream(b2), b2.length, null).join();
         offset += b2.length;
 
-        val info = chunkManager2.getStreamSegmentInfo(systemSegmentName, null).join();
+        val info = segmentStorage2.getStreamSegmentInfo(systemSegmentName, null).join();
         Assert.assertEquals(b1.length + b2.length + garbage1Length, info.getLength());
         Assert.assertEquals(garbage1Length, info.getStartOffset());
         byte[] out = new byte[b1.length + b2.length];
-        val hr = chunkManager2.openRead(systemSegmentName).join();
-        chunkManager2.read(hr, garbage1Length, out, 0, b1.length + b2.length, null).join();
+        val hr = segmentStorage2.openRead(systemSegmentName).join();
+        segmentStorage2.read(hr, garbage1Length, out, 0, b1.length + b2.length, null).join();
         Assert.assertEquals(validWriteBeforeFailure + validWriteAfterFailure, new String(out));
     }
 
@@ -558,47 +558,47 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Epoch 1
-        ChunkManager chunkManager1 = new ChunkManager(chunkStorage, executorService(), config);
-        chunkManager1.initialize(epoch);
+        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        segmentStorage1.initialize(epoch);
         // Bootstrap
-        chunkManager1.bootstrap(containerId, metadataStoreBeforeCrash);
-        checkSystemSegmentsLayout(chunkManager1);
+        segmentStorage1.bootstrap(containerId, metadataStoreBeforeCrash);
+        checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
-        var h = chunkManager1.openWrite(systemSegmentName).join();
-        chunkManager1.write(h, offset, new ByteArrayInputStream("JUNKJUNKJUNK".getBytes()), 12, null).join();
+        var h = segmentStorage1.openWrite(systemSegmentName).join();
+        segmentStorage1.write(h, offset, new ByteArrayInputStream("JUNKJUNKJUNK".getBytes()), 12, null).join();
         offset += 12;
         val b1 = "Hello".getBytes();
-        chunkManager1.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
+        segmentStorage1.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
         offset += b1.length;
-        chunkManager1.truncate(h, 6, null).join();
+        segmentStorage1.truncate(h, 6, null).join();
 
         // Epoch 2
         epoch++;
 
-        ChunkManager chunkManager2 = new ChunkManager(chunkStorage, executorService(), config);
-        chunkManager2.initialize(epoch);
+        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        segmentStorage2.initialize(epoch);
 
-        chunkManager2.bootstrap(containerId, metadataStoreAfterCrash);
-        checkSystemSegmentsLayout(chunkManager2);
+        segmentStorage2.bootstrap(containerId, metadataStoreAfterCrash);
+        checkSystemSegmentsLayout(segmentStorage2);
 
-        var h2 = chunkManager2.openWrite(systemSegmentName).join();
+        var h2 = segmentStorage2.openWrite(systemSegmentName).join();
 
         // Write Junk data to both system segment and journal file.
-        chunkManager1.write(h, offset, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
+        segmentStorage1.write(h, offset, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
 
         val b2 = " World".getBytes();
-        chunkManager2.write(h2, offset, new ByteArrayInputStream(b2), b2.length, null).join();
+        segmentStorage2.write(h2, offset, new ByteArrayInputStream(b2), b2.length, null).join();
         offset += b2.length;
 
-        chunkManager2.truncate(h, 12, null).join();
+        segmentStorage2.truncate(h, 12, null).join();
 
-        val info = chunkManager2.getStreamSegmentInfo(systemSegmentName, null).join();
+        val info = segmentStorage2.getStreamSegmentInfo(systemSegmentName, null).join();
         Assert.assertEquals(b1.length + b2.length + 12, info.getLength());
         Assert.assertEquals(12, info.getStartOffset());
         byte[] out = new byte[b1.length + b2.length];
-        val hr = chunkManager2.openRead(systemSegmentName).join();
-        chunkManager2.read(hr, 12, out, 0, b1.length + b2.length, null).join();
+        val hr = segmentStorage2.openRead(systemSegmentName).join();
+        segmentStorage2.read(hr, 12, out, 0, b1.length + b2.length, null).join();
         Assert.assertEquals("Hello World", new String(out));
     }
 
@@ -750,9 +750,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     /**
      * Check system segment layout.
      */
-    private void checkSystemSegmentsLayout(ChunkManager chunkManager) throws Exception {
-        for (String systemSegment : chunkManager.getSystemJournal().getSystemSegments()) {
-            TestUtils.checkChunksExistInStorage(chunkManager.getChunkStorage(), chunkManager.getMetadataStore(), systemSegment);
+    private void checkSystemSegmentsLayout(ChunkedSegmentStorage segmentStorage) throws Exception {
+        for (String systemSegment : segmentStorage.getSystemJournal().getSystemSegments()) {
+            TestUtils.checkChunksExistInStorage(segmentStorage.getChunkStorage(), segmentStorage.getMetadataStore(), systemSegment);
         }
     }
 

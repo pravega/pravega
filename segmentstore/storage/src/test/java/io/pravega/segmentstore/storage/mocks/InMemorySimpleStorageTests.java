@@ -10,8 +10,8 @@
 package io.pravega.segmentstore.storage.mocks;
 
 import io.pravega.segmentstore.storage.chunklayer.ChunkManagerConfig;
-import io.pravega.segmentstore.storage.chunklayer.ChunkManagerRollingTests;
-import io.pravega.segmentstore.storage.chunklayer.ChunkManagerTests;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedRollingStorageTests;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
@@ -32,9 +32,9 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
     }
 
     /**
-     * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkManagerRollingTests}.
+     * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkedRollingStorageTests}.
      */
-    public static class InMemorySimpleStorageRollingTests extends ChunkManagerRollingTests {
+    public static class InMemorySimpleStorageRollingStorageTests extends ChunkedRollingStorageTests {
         protected ChunkStorage getChunkStorage() throws Exception {
             return getChunkStorageProvider();
         }
@@ -51,9 +51,9 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
     }
 
     /**
-     * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkManagerTests}.
+     * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkedSegmentStorageTests}.
      */
-    public static class InMemorySimpleStorage extends ChunkManagerTests {
+    public static class InMemorySimpleStorage extends ChunkedSegmentStorageTests {
 
         @Override
         public ChunkStorage createChunkStorageProvider() throws Exception {
@@ -70,7 +70,7 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
             return new InMemorySimpleStorageTestContext(executorService(), config);
         }
 
-        public class InMemorySimpleStorageTestContext extends ChunkManagerTests.TestContext {
+        public class InMemorySimpleStorageTestContext extends ChunkedSegmentStorageTests.TestContext {
             InMemorySimpleStorageTestContext(ExecutorService executorService) throws Exception {
                 super(executorService);
             }

@@ -31,7 +31,7 @@ import java.util.concurrent.Executor;
 import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 
 /**
- * Scenario tests using ChunkManager, ChunkStorage and ChunkMetadataStore together.
+ * Scenario tests using ChunkedSegmentStorage, ChunkStorage and ChunkMetadataStore together.
  *
  * The derived classes are expected to override getChunkStorage to return instance of specific type derived from ChunkStorage.
  * In addition the method populate can be overriden to handle implementation specific logic. (Eg. NoOpChunkStorage)
@@ -56,8 +56,8 @@ public abstract class SimpleStorageTests extends StorageTestBase {
                 chunkStorage = getChunkStorage();
             }
         }
-        ChunkManager chunkManager = new ChunkManager(chunkStorage, chunkMetadataStore, executor, ChunkManagerConfig.DEFAULT_CONFIG);
-        return chunkManager;
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(chunkStorage, chunkMetadataStore, executor, ChunkManagerConfig.DEFAULT_CONFIG);
+        return chunkedSegmentStorage;
     }
 
     abstract protected ChunkStorage getChunkStorage() throws Exception;
@@ -71,13 +71,13 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      * @return New forked storage.
      * @throws Exception Exceptions in case of any errors.
      */
-    protected Storage forkStorage(ChunkManager storage) throws Exception {
+    protected Storage forkStorage(ChunkedSegmentStorage storage) throws Exception {
         Executor executor = executorService();
-        ChunkManager forkedChunkManager = new ChunkManager(storage.getChunkStorage(),
+        ChunkedSegmentStorage forkedChunkedSegmentStorage = new ChunkedSegmentStorage(storage.getChunkStorage(),
                 getCloneMetadataStore(storage.getMetadataStore()),
                 executor,
                 ChunkManagerConfig.DEFAULT_CONFIG);
-        return forkedChunkManager;
+        return forkedChunkedSegmentStorage;
     }
 
     /**
@@ -163,12 +163,12 @@ public abstract class SimpleStorageTests extends StorageTestBase {
             verifyWriteOperationsSucceed(handle1, storage1);
             verifyReadOnlyOperationsSucceed(handle1, storage1);
 
-            try (val storage2 = forkStorage((ChunkManager) storage1)) {
+            try (val storage2 = forkStorage((ChunkedSegmentStorage) storage1)) {
                 storage2.initialize(epoch2);
                 // Open the segment in Storage2 (thus Storage2 owns it for now).
                 SegmentHandle handle2 = storage2.openWrite(segmentName).join();
 
-                ((ChunkManager) storage1).getMetadataStore().markFenced();
+                ((ChunkedSegmentStorage) storage1).getMetadataStore().markFenced();
 
                 // Storage1 should be able to execute only read-only operations.
                 verifyWriteOperationsFail(handle1, storage1);

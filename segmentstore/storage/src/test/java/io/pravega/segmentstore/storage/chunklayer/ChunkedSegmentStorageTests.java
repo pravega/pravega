@@ -43,12 +43,12 @@ import java.util.UUID;
 import java.util.concurrent.Executor;
 
 /**
- * Unit tests for {@link ChunkManager}.
- * The focus is on testing the ChunkManager implementation itself very thoroughly.
+ * Unit tests for {@link ChunkedSegmentStorage}.
+ * The focus is on testing the ChunkedSegmentStorage implementation itself very thoroughly.
  * It uses either {@link NoOpChunkStorage} as {@link ChunkStorage}.
  */
 @Slf4j
-public class ChunkManagerTests extends ThreadPooledTestSuite {
+public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
 
     @Rule
@@ -88,7 +88,7 @@ public class ChunkManagerTests extends ThreadPooledTestSuite {
     @Test
     public void testSupportsTruncate() throws Exception {
         val storageProvider = createChunkStorageProvider();
-        val storageManager = new ChunkManager(storageProvider, executorService(), ChunkManagerConfig.DEFAULT_CONFIG);
+        val storageManager = new ChunkedSegmentStorage(storageProvider, executorService(), ChunkManagerConfig.DEFAULT_CONFIG);
         Assert.assertTrue(storageManager.supportsTruncation());
     }
 
@@ -103,7 +103,7 @@ public class ChunkManagerTests extends ThreadPooledTestSuite {
         val metadataStore = createMetadataStore();
         val policy = SegmentRollingPolicy.NO_ROLLING;
         val config = ChunkManagerConfig.DEFAULT_CONFIG;
-        val storageManager = new ChunkManager(storageProvider, executorService(), config);
+        val storageManager = new ChunkedSegmentStorage(storageProvider, executorService(), config);
         val systemJournal = new SystemJournal(42, 1, storageProvider, metadataStore, config);
 
         testUninitialized(storageManager);
@@ -131,7 +131,7 @@ public class ChunkManagerTests extends ThreadPooledTestSuite {
 
     }
 
-    private void testUninitialized(ChunkManager storageManager) {
+    private void testUninitialized(ChunkedSegmentStorage storageManager) {
         String testSegmentName = "foo";
         AssertExtensions.assertThrows(
                 "getStreamSegmentInfo succeeded on uninitialized instance.",
@@ -1531,7 +1531,7 @@ public class ChunkManagerTests extends ThreadPooledTestSuite {
         protected ChunkMetadataStore metadataStore;
 
         @Getter
-        protected ChunkManager storageManager;
+        protected ChunkedSegmentStorage storageManager;
 
         @Getter
         protected Executor executor;
@@ -1547,7 +1547,7 @@ public class ChunkManagerTests extends ThreadPooledTestSuite {
             this.executor = executor;
             storageProvider = createChunkStorageProvider();
             metadataStore = createMetadataStore();
-            storageManager = new ChunkManager(storageProvider, metadataStore, this.executor, config);
+            storageManager = new ChunkedSegmentStorage(storageProvider, metadataStore, this.executor, config);
             storageManager.initialize(1);
         }
 

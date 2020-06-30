@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.storage.metadata;
 
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.segmentstore.storage.chunklayer.ChunkManager;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.mocks.MockStorageMetadata;
 import lombok.Data;
 
@@ -21,7 +21,7 @@ import java.io.Serializable;
  * All storage related metadata is stored in {@link ChunkMetadataStore} using set of key-value pairs.
  * The String value returned by {@link StorageMetadata#getKey()} is used as key.
  * Notable derived classes are {@link SegmentMetadata} and {@link ChunkMetadata} which form the core of metadata related
- * to {@link ChunkManager} functionality.
+ * to {@link ChunkedSegmentStorage} functionality.
  */
 @Data
 public abstract class StorageMetadata implements Serializable {

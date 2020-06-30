@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * </ul>
  * There are some obvious constraints - If ChunkStorage supports concat but not natively then it must support append .
  *
- * For concats, {@link ChunkStorage} supports both native and append, ChunkManager will invoke appropriate method depending on size of target and source chunks. (Eg. ECS)
+ * For concats, {@link ChunkStorage} supports both native and append, ChunkedSegmentStorage will invoke appropriate method depending on size of target and source chunks. (Eg. ECS)
  * </div>
  *
  * <div>
