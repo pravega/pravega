@@ -62,7 +62,7 @@ public class TableStoreWrapper implements TableStore {
 
     @Override
     public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, Duration timeout) {
-        return this.remove(segmentName, keys, timeout);
+        return this.tableStore.remove(segmentName, keys, timeout);
     }
 
     @Override
@@ -77,6 +77,6 @@ public class TableStoreWrapper implements TableStore {
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
-        return this.entryIterator(segmentName, serializedState, fetchTimeout);
+        return this.tableStore.entryIterator(segmentName, serializedState, fetchTimeout);
     }
 }
