@@ -60,7 +60,8 @@ public interface DirectSegmentAccess {
      * @param data             The data to add.
      * @param attributeUpdates A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                         See Notes about AttributeUpdates in the interface Javadoc.
-     * @param offset           The expected offset that the append will occur at.
+     * @param offset           The expected length of the segment. If the current length of the Segment does not equal this
+     *                         value, the operation will fail with a {@link io.pravega.segmentstore.contracts.BadOffsetException}.
      * @param timeout          Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the offset at which the data were added. If the
      * operation failed, the future will be failed with the causing exception.
