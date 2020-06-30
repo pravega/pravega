@@ -91,7 +91,7 @@ public class DataRecoveryTestUtils {
             return;
         }
         int containerId = container.getId();
-        System.out.format("Recovery started for container# %s\n", containerId);
+        log.info("Recovery started for container = {}", containerId);
         ContainerTableExtension ext = container.getExtension(ContainerTableExtension.class);
         AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(containerId), null,
                 Duration.ofSeconds(10)).join();
@@ -140,7 +140,7 @@ public class DataRecoveryTestUtils {
                 log.error("Error while deleting the segment = {}", segmentName);
             }
         }
-        System.out.format("Recovery done for container# %s\n", containerId);
+        log.info("Recovery done for container = {}", containerId);
     }
 
     private static ArrayView getTableKey(String segmentName) {
