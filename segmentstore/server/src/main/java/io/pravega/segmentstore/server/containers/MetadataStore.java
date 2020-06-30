@@ -21,6 +21,7 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -290,7 +291,7 @@ public abstract class MetadataStore implements AutoCloseable {
      * <li>{@link StreamSegmentNotExistsException} If the Segment already exists.
      * </ul>
      */
-    protected abstract CompletableFuture<ArrayView> getSegmentInfoInternal(String segmentName, Duration timeout);
+    protected abstract CompletableFuture<BufferView> getSegmentInfoInternal(String segmentName, Duration timeout);
 
     /**
      * Updates information about a Segment.
@@ -716,7 +717,7 @@ public abstract class MetadataStore implements AutoCloseable {
         }
 
         @SneakyThrows(IOException.class)
-        static SegmentInfo deserialize(ArrayView contents) {
+        static SegmentInfo deserialize(BufferView contents) {
             try {
                 return SERIALIZER.deserialize(contents);
             } catch (EOFException | SerializationException ex) {
