@@ -10,9 +10,14 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.contracts.StreamSegmentStoreWrapper;
+import io.pravega.segmentstore.contracts.tables.TableStoreWrapper;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.DataRecoveryTestUtils;
@@ -54,6 +59,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import io.pravega.shared.NameUtils;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.TestUtils;
@@ -71,11 +77,16 @@ import java.io.File;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -108,6 +119,8 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private int servicePort;
     private FileSystemStorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
+    private StreamSegmentStoreWrapper streamSegmentStoreWrapper;
+    private TableStoreWrapper tableStoreWrapper;
 
     @After
     public void tearDown() throws Exception {
@@ -330,12 +343,12 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         }
 
         this.serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService(); // Creating SS
-        this.monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+        this.streamSegmentStoreWrapper = new StreamSegmentStoreWrapper(serviceBuilder.createStreamSegmentService());
+        this.monitor = new AutoScaleMonitor(this.streamSegmentStoreWrapper, AutoScalerConfig.builder().build());
+        this.tableStoreWrapper = new TableStoreWrapper(serviceBuilder.createTableStoreService());
 
-        this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
-                this.monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
+        this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, streamSegmentStoreWrapper,
+                this.tableStoreWrapper, this.monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
                 null, null, true, this.serviceBuilder.getLowPriorityExecutor());
         this.server.startListening();
     }
@@ -368,7 +381,15 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.controller.close(); // Shuts down controller
         this.controllerWrapper.close();
 
-        sleep(60000); // Tier2 Flush
+        HashSet<String> allSegments = new HashSet<>(this.streamSegmentStoreWrapper.getSegments());
+        allSegments.addAll(this.tableStoreWrapper.getSegments());
+        log.info("No. of segments = {}", allSegments.size());
+
+        Storage tier2 = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
+                new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), DataRecoveryTestUtils.createExecutorService(1));
+
+        waitForSegmentsInStorage(allSegments, this.streamSegmentStoreWrapper, tier2)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         this.server.close();
         serviceBuilder.close(); // Shutdown SS
@@ -386,8 +407,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         DebugTool debugTool = createDebugTool(this.dataLogFactory, this.storageFactory);
 
         log.info("List segments");
-        Storage tier2 = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
-                new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), DataRecoveryTestUtils.createExecutorService(1));
 
         deleteSegment("_system/containers/metadata_0", tier2);
         deleteSegment("_system/containers/metadata_0$attributes.index", tier2);
@@ -417,5 +436,63 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private void deleteSegment(String segmentName, Storage tier2) {
         SegmentHandle segmentHandle = tier2.openWrite(segmentName).join();
         tier2.delete(segmentHandle, TIMEOUT).join();
+    }
+
+    private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, StreamSegmentStore baseStore,
+                                                             Storage tier2) {
+        ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
+        for (String segmentName : segmentNames) {
+            log.info("Segment Name = {}", segmentName);
+            SegmentProperties sp = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            log.info("Segment properties = {}", sp);
+            segmentsCompletion.add(waitForSegmentInStorage(sp, tier2));
+        }
+
+        return Futures.allOf(segmentsCompletion);
+    }
+
+    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage tier2) {
+        if (sp.getLength() == 0) {
+            // Empty segments may or may not exist in Storage, so don't bother complicating ourselves with this.
+            return CompletableFuture.completedFuture(null);
+        }
+
+        // We want to make sure that both the main segment and its attribute segment have been sync-ed to Storage. In case
+        // of the attribute segment, the only thing we can easily do is verify that it has been sealed when the main segment
+        // it is associated with has also been sealed.
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(sp.getName());
+        TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
+        AtomicBoolean tryAgain = new AtomicBoolean(true);
+        return Futures.loop(
+                tryAgain::get,
+                () -> {
+                    val segInfo = getStorageSegmentInfo(sp.getName(), timer, tier2);
+                    val attrInfo = getStorageSegmentInfo(attributeSegmentName, timer, tier2);
+                    return CompletableFuture.allOf(segInfo, attrInfo)
+                            .thenCompose(v -> {
+                                SegmentProperties storageProps = segInfo.join();
+                                SegmentProperties attrProps = attrInfo.join();
+                                if (sp.isSealed()) {
+                                    tryAgain.set(!storageProps.isSealed() || !(attrProps.isSealed() || attrProps.isDeleted()));
+                                } else {
+                                    tryAgain.set(sp.getLength() != storageProps.getLength());
+                                }
+
+                                if (tryAgain.get() && !timer.hasRemaining()) {
+                                    return Futures.<Void>failedFuture(new TimeoutException(
+                                            String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
+                                } else {
+                                    return Futures.delayedFuture(Duration.ofMillis(100), executorService());
+                                }
+                            });
+                },
+                executorService());
+    }
+
+    private CompletableFuture<SegmentProperties> getStorageSegmentInfo(String segmentName, TimeoutTimer timer, Storage tier2) {
+        return Futures
+                .exceptionallyExpecting(tier2.getStreamSegmentInfo(segmentName, timer.getRemaining()),
+                        ex -> ex instanceof StreamSegmentNotExistsException,
+                        StreamSegmentInformation.builder().name(segmentName).deleted(true).build());
     }
 }
