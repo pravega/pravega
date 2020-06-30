@@ -220,24 +220,12 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
                 ex -> ex instanceof TableSegmentNotEmptyException);
 
-        AssertExtensions.assertSuppliedFutureThrows(
-                "Called a put operation using an invalid offset.",
-                () -> context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.versioned(key1, value, v1.get(0))), 0L, TIMEOUT),
-                ex -> ex instanceof BadOffsetException
-        );
-
         val v2 = context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.notExists(key2, value)), TIMEOUT).join();
         // Remove k1.
         context.ext.remove(SEGMENT_NAME, Collections.singletonList(TableKey.versioned(key1, v1.get(0))), TIMEOUT).join();
-        // Make sure its been removed.
+        //// Make sure its been removed.
         val entries = context.ext.get(SEGMENT_NAME, Collections.singletonList(key1), TIMEOUT).join();
         Assert.assertTrue(entries.size() == 1);
-        // Remove k2 using invalid offset.
-        AssertExtensions.assertSuppliedFutureThrows(
-                "Called a put operation using an invalid offset.",
-                () -> context.ext.remove(SEGMENT_NAME, Collections.singletonList(TableKey.versioned(key2, v2.get(0))), 0L, TIMEOUT),
-                ex -> ex instanceof BadOffsetException
-        );
     }
 
     /**
