@@ -87,6 +87,9 @@ allprojects {
         jcenter()
         mavenCentral()
         mavenLocal()
+        maven {
+            url "https://oss.jfrog.org/artifactory/oss-snapshot-local"
+        }
     }
 
     gradle.projectsEvaluated {
@@ -330,7 +333,7 @@ project('segmentstore:storage:impl') {
     }
 }
 
-project ('bindings') {
+project ('adapter') {
     dependencies {
         // For HDFS
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
@@ -412,7 +415,8 @@ project('segmentstore:server:host') {
         compile project(':client')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
-        compile project(':bindings')
+        compile project(':adapter')
+        // compile "io.pravega:pravega-bindings:${pravegaBindingsVersion}"
         compile project(':segmentstore:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
@@ -420,7 +424,8 @@ project('segmentstore:server:host') {
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
-        testCompile project(path:':bindings', configuration:'testRuntime')
+        testCompile project(path:':adapter', configuration:'testRuntime')
+        // testCompile "io.pravega:pravega-bindings:${pravegaBindingsVersion}"
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
     }
 
@@ -707,7 +712,8 @@ project('standalone') {
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
-        compile project(':bindings')
+        compile project(':adapter')
+        // compile "io.pravega:pravega-bindings:${pravegaBindingsVersion}"
 
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
@@ -1064,6 +1070,11 @@ distributions {
             from (project(":segmentstore:server:host").installDist) {
                 exclude "logback.xml"
             }
+            // placeholder for jars from another repository, do not remove
+            // from (project(":segmentstore:server:host").installDist) {
+            //     include "**/*adapter*.jar"
+            //     include "**/*bindings*.jar"
+            // }
             from (project(":standalone").installDist)
             from 'LICENSE'
             from 'NOTICE'
