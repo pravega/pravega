@@ -191,9 +191,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<Void> createKVTableMetadata() {
-        return getId().thenCompose(id -> CompletableFuture.allOf(storeHelper.createTable(getMetadataTableName(id)))
-                .thenAccept(v -> log.debug("kvtable {}/{} metadata table {} created", getScopeName(),
-                                                                getName(), getMetadataTableName(id))));
+        return getId().thenCompose(id -> storeHelper.createTable(getMetadataTableName(id)));
     }
 
     @Override

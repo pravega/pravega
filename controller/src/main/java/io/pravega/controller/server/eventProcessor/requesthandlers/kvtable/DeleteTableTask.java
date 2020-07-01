@@ -26,7 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Request handler for performing scale operations received from requeststream.
+ * Request handler for executing a delete operation for a KeyValueTable.
  */
 @Slf4j
 public class DeleteTableTask implements TableTask<DeleteTableEvent> {
@@ -56,11 +56,12 @@ public class DeleteTableTask implements TableTask<DeleteTableEvent> {
         return RetryHelper.withRetriesAsync(() -> getKeyValueTable(scope, kvt)
                 .thenCompose(table -> table.getId()).thenCompose(id -> {
             if (!id.equals(kvTableId)) {
+                log.debug("Skipped processing delete event for KeyValueTable {}/{} with Is:{} as UUIDs did not match.", scope, kvt, id);
                 return CompletableFuture.completedFuture(null);
             } else {
                 final KVTOperationContext context = kvtMetadataStore.createContext(scope, kvt);
                 return Futures.exceptionallyExpecting(kvtMetadataStore.getAllSegmentIds(scope, kvt, context, executor)
-                                .thenComposeAsync(allSegments ->
+                                .thenCompose(allSegments ->
                                         kvtMetadataTasks.deleteSegments(scope, kvt, allSegments, kvtMetadataTasks.retrieveDelegationToken(), requestId)),
                         e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
                         .thenCompose(v -> this.kvtMetadataStore.deleteKeyValueTable(scope, kvt, context, executor));
