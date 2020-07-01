@@ -74,6 +74,8 @@ public final class MetricsNames {
     public static final String SEGMENT_DELETE_LATENCY = PREFIX + "segmentstore.segment.delete_latency_ms";              // Histogram
     public static final String SEGMENT_READ_LATENCY = PREFIX + "segmentstore.segment.read_latency_ms";                  // Histogram
     public static final String SEGMENT_WRITE_LATENCY = PREFIX + "segmentstore.segment.write_latency_ms";                // Histogram
+    public static final String SEGMENT_APPEND_SIZE = PREFIX + "segmentstore.segment.append_size";                       // Histogram
+    public static final String SEGMENT_READ_SIZE = PREFIX + "segmentstore.segment.read_size";                           // Histogram
     public static final String SEGMENT_READ_BYTES = PREFIX + "segmentstore.segment.read_bytes";                         // Counter and Per-segment Counter
     public static final String SEGMENT_WRITE_BYTES = PREFIX + "segmentstore.segment.write_bytes";                       // Counter and Per-segment Counter
     public static final String SEGMENT_WRITE_EVENTS = PREFIX + "segmentstore.segment.write_events";                     // Counter and Per-segment Counter
