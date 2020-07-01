@@ -38,6 +38,9 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 
+/**
+ * Utility methods for data recovery tests.
+ */
 @Slf4j
 public class DataRecoveryTestUtils {
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
@@ -47,7 +50,7 @@ public class DataRecoveryTestUtils {
      * Lists all segments from a given long term storage.
      * @param tier2 Long term storage.
      * @param containerCount Total number of segment containers.
-     * @return A 2D list containing segments by container Ids.
+     * @return A map of lists containing segments by container Ids.
      * @throws IOException in case of exception during the execution.
      */
     public static Map<Integer, List<SegmentProperties>> listAllSegments(Storage tier2, int containerCount) throws IOException {
@@ -58,6 +61,7 @@ public class DataRecoveryTestUtils {
         if (it == null) {
             return segmentToContainers;
         }
+        // Iterate through all segments. Put each one of them in its respective list.
         while (it.hasNext()) {
             SegmentProperties curr = it.next();
             int containerId = segToConMapper.getContainerId(curr.getName());
@@ -106,7 +110,7 @@ public class DataRecoveryTestUtils {
             String segmentName = segment.getName();
 
             /*
-                1. segment exists in both metadata and storage, update SegmentMetadata
+                1. segment exists in both metadata and storage, re-create it
                 2. segment only in metadata, delete
                 3. segment only in storage, re-create it
              */

@@ -93,61 +93,31 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.Thread.sleep;
 
+/**
+ * Integration test to verify data recovery.
+ * Recovery scenario: No data written to Pravega, and segments created by the controller are let to be flushed to the long term storage.
+ */
 @Slf4j
 public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofMillis(60000 * 1000);
 
+    private static final int CONTAINER_COUNT = 1;
     private static final int CONTAINER_ID = 0;
-    private static final int WRITE_COUNT = 500;
-    private static final int MAX_WRITE_ATTEMPTS = 3;
-    private static final int MAX_LEDGER_SIZE = 200 * Math.max(10, WRITE_COUNT / 20);
 
     private static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final long DEFAULT_ROLLING_SIZE = (int) (APPEND_FORMAT.length() * 1.5);
-    private final int containerCount = 1;
-
-    private ServiceBuilder serviceBuilder = null;
-    private PravegaConnectionListener server = null;
-    private ControllerWrapper controllerWrapper = null;
-    private Controller controller = null;
-    private AutoScaleMonitor monitor = null;
 
     private ScheduledExecutorService executorService = createExecutorService(100);
     private InMemoryDurableDataLogFactory durableDataLogFactory;
     private File baseDir;
-    private Storage storage = null;
-    private int servicePort;
     private FileSystemStorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
-    private StreamSegmentStoreWrapper streamSegmentStoreWrapper;
-    private TableStoreWrapper tableStoreWrapper;
 
     @After
     public void tearDown() throws Exception {
-
-        if (this.controllerWrapper != null) {
-            this.controllerWrapper.close();
-            this.controllerWrapper = null;
-        }
-
-        if (this.server != null) {
-            this.server.close();
-            this.server = null;
-        }
-
-        if (this.serviceBuilder != null) {
-            this.serviceBuilder.close();
-            this.serviceBuilder = null;
-        }
-
         if (this.durableDataLogFactory != null) {
             this.durableDataLogFactory.close();
             this.durableDataLogFactory = null;
-        }
-
-        if (this.storage != null) {
-            this.storage.close();
-            this.storage = null;
         }
 
         if (this.dataLogFactory != null) {
@@ -161,13 +131,14 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         return 100;
     }
 
-
-
     BKZK setUpNewBK() throws Exception {
         return new BKZK();
     }
 
     private class BKZK implements AutoCloseable {
+        private final int writeCount = 500;
+        private final int maxWriteAttempts = 3;
+        private final int maxLedgerSize = 200 * Math.max(10, writeCount / 20);
         private final AtomicBoolean secureBk = new AtomicBoolean();
         private final int bookieCount = 1;
         private AtomicReference<BookKeeperConfig> bkConfig = new AtomicReference<>();
@@ -212,8 +183,8 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             this.bkConfig.set(BookKeeperConfig
                     .builder()
                     .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + bkPort.get())
-                    .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, MAX_WRITE_ATTEMPTS)
-                    .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, MAX_LEDGER_SIZE)
+                    .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, maxWriteAttempts)
+                    .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, maxLedgerSize)
                     .with(BookKeeperConfig.ZK_METADATA_PATH, namespace)
                     .with(BookKeeperConfig.BK_LEDGER_PATH, "/pravega/bookkeeper/ledgers")
                     .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bookieCount)
@@ -262,6 +233,9 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         return new DebugTool(dataLogFactory, storageFactory);
     }
 
+    /**
+     * Sets up the environment for creating a DebugSegmentContainer.
+     */
     private class DebugTool implements AutoCloseable {
         private CacheStorage cacheStorage;
         private OperationLogFactory operationLogFactory;
@@ -272,7 +246,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         private StreamSegmentContainerFactory containerFactory;
         private BookKeeperLogFactory dataLogFactory;
         private StorageFactory storageFactory;
-        private Storage storage = null;
 
         private DurableLogConfig durableLogConfig = DurableLogConfig
                 .builder()
@@ -326,44 +299,88 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         }
     }
 
-    void startSegmentStore(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory) throws DurableDataLogException {
-        this.servicePort = TestUtils.getAvailableListenPort();
+    SegmentStoreStarter startSegmentStore(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory) throws DurableDataLogException {
+        return new SegmentStoreStarter(storageFactory, dataLogFactory);
+    }
 
-        if (storageFactory != null) {
-            if (dataLogFactory != null) {
-                this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig())
-                        .withStorageFactory(setup -> storageFactory)
-                        .withDataLogFactory(setup -> dataLogFactory);
+    /**
+     * Creates a segment store server.
+     */
+    private class SegmentStoreStarter implements AutoCloseable {
+        private int servicePort = TestUtils.getAvailableListenPort();
+        private ServiceBuilder serviceBuilder = null;
+        private StreamSegmentStoreWrapper streamSegmentStoreWrapper = null;
+        private AutoScaleMonitor monitor = null;
+        private TableStoreWrapper tableStoreWrapper = null;
+        private PravegaConnectionListener server = null;
+
+        SegmentStoreStarter(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory) throws DurableDataLogException {
+            if (storageFactory != null) {
+                if (dataLogFactory != null) {
+                    this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig())
+                            .withStorageFactory(setup -> storageFactory)
+                            .withDataLogFactory(setup -> dataLogFactory);
+                } else {
+                    this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig())
+                            .withStorageFactory(setup -> storageFactory);
+                }
             } else {
-                this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig())
-                        .withStorageFactory(setup -> storageFactory);
+                this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             }
-        } else {
-            this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+            this.serviceBuilder.initialize();
+            this.streamSegmentStoreWrapper = new StreamSegmentStoreWrapper(serviceBuilder.createStreamSegmentService());
+            this.monitor = new AutoScaleMonitor(streamSegmentStoreWrapper, AutoScalerConfig.builder().build());
+            this.tableStoreWrapper = new TableStoreWrapper(serviceBuilder.createTableStoreService());
+            this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, streamSegmentStoreWrapper,
+                    tableStoreWrapper, monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
+                    null, null, true, serviceBuilder.getLowPriorityExecutor());
+            this.server.startListening();
         }
 
-        this.serviceBuilder.initialize();
-        this.streamSegmentStoreWrapper = new StreamSegmentStoreWrapper(serviceBuilder.createStreamSegmentService());
-        this.monitor = new AutoScaleMonitor(this.streamSegmentStoreWrapper, AutoScalerConfig.builder().build());
-        this.tableStoreWrapper = new TableStoreWrapper(serviceBuilder.createTableStoreService());
+        @Override
+        public void close() {
+            if (this.server != null) {
+                this.server.close();
+                this.server = null;
+            }
 
-        this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, streamSegmentStoreWrapper,
-                this.tableStoreWrapper, this.monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
-                null, null, true, this.serviceBuilder.getLowPriorityExecutor());
-        this.server.startListening();
+            if (this.serviceBuilder != null) {
+                this.serviceBuilder.close();
+                this.serviceBuilder = null;
+            }
+        }
     }
 
-    void startController(int bkPort) throws InterruptedException {
-        int controllerPort = TestUtils.getAvailableListenPort();
-        String serviceHost = "localhost";
-
-        this.controllerWrapper = new ControllerWrapper("localhost:" + bkPort, false,
-                controllerPort, serviceHost, this.servicePort, containerCount);
-        this.controllerWrapper.awaitRunning();
-        this.controller = controllerWrapper.getController();
+    ControllerStarter startController(int bkPort, int servicePort) throws InterruptedException {
+        return new ControllerStarter(bkPort, servicePort);
     }
 
-    @Test(timeout = 1200000000)
+    /**
+     * Creates a controller instance and runs it.
+     */
+    private class ControllerStarter implements AutoCloseable {
+        private int controllerPort = TestUtils.getAvailableListenPort();
+        private String serviceHost = "localhost";
+        private ControllerWrapper controllerWrapper = null;
+        private Controller controller = null;
+
+        ControllerStarter(int bkPort, int servicePort) throws InterruptedException {
+            this.controllerWrapper = new ControllerWrapper("localhost:" + bkPort, false,
+                    controllerPort, serviceHost, servicePort, CONTAINER_COUNT);
+            this.controllerWrapper.awaitRunning();
+            this.controller = controllerWrapper.getController();
+        }
+
+        @Override
+        public void close() throws Exception {
+            if (this.controllerWrapper != null) {
+                this.controllerWrapper.close();
+                this.controllerWrapper = null;
+            }
+        }
+    }
+
+    @Test(timeout = 120000)
     public void testTier1Fail() throws Exception {
         // Creating tier 2 only once here.
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
@@ -372,58 +389,64 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .build();
         this.storageFactory = new FileSystemStorageFactory(fsConfig, executorService);
-        this.storage = this.storageFactory.createStorageAdapter();
 
+        // Start a new BK & ZK, segment store and controller
         BKZK bkzk = setUpNewBK();
-        startSegmentStore(this.storageFactory, null);
-        startController(bkzk.bkPort.get());
+        SegmentStoreStarter segmentStore = startSegmentStore(this.storageFactory, null);
+        ControllerStarter controllerStarter = startController(bkzk.bkPort.get(), segmentStore.servicePort);
 
-        this.controller.close(); // Shuts down controller
-        this.controllerWrapper.close();
+        controllerStarter.controller.close(); // Shut down the controller
+        controllerStarter.controllerWrapper.close();
 
-        HashSet<String> allSegments = new HashSet<>(this.streamSegmentStoreWrapper.getSegments());
-        allSegments.addAll(this.tableStoreWrapper.getSegments());
+        // Get names of all the segments created.
+        HashSet<String> allSegments = new HashSet<>(segmentStore.streamSegmentStoreWrapper.getSegments());
+        allSegments.addAll(segmentStore.tableStoreWrapper.getSegments());
         log.info("No. of segments = {}", allSegments.size());
 
         Storage tier2 = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), DataRecoveryTestUtils.createExecutorService(1));
 
-        waitForSegmentsInStorage(allSegments, this.streamSegmentStoreWrapper, tier2)
+        // wait for all segments to be flushed to the long term storage.
+        waitForSegmentsInStorage(allSegments, segmentStore.streamSegmentStoreWrapper, tier2)
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        sleep(5000);
+        sleep(2500); // Sleep to make sure all segments got flushed properly
 
-        this.server.close();
-        serviceBuilder.close(); // Shutdown SS
+        segmentStore.serviceBuilder.close(); // Shutdown SS
+        segmentStore.server.close();
         log.info("SS Shutdown");
-        bkzk.bookKeeperServiceRunner.close(); // Shuts down BK & ZK
+
+        bkzk.bookKeeperServiceRunner.close(); // Shut down BK & ZK
         bkzk.bkService.getAndSet(null).close();
         log.info("BK & ZK shutdown");
 
+        // start a new BookKeeper and ZooKeeper.
         bkzk = setUpNewBK();
-        log.info("BK & ZK started again");
-
         this.dataLogFactory = new BookKeeperLogFactory(bkzk.bkConfig.get(), bkzk.zkClient.get(), executorService);
         this.dataLogFactory.initialize();
 
+        // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
+        deleteSegment("_system/containers/metadata_" + CONTAINER_ID, tier2);
+        deleteSegment("_system/containers/metadata_" + CONTAINER_ID + "$attributes.index", tier2);
+
+        // List all segments from the long term storage
+        Map<Integer, List<SegmentProperties>> segmentsToCreate = DataRecoveryTestUtils.listAllSegments(tier2, CONTAINER_COUNT);
+
+        // Start debug segment container using dataLogFactory from new BK instance and old long term storageFactory.
         DebugTool debugTool = createDebugTool(this.dataLogFactory, this.storageFactory);
-
-        log.info("List segments");
-
-        deleteSegment("_system/containers/metadata_0", tier2);
-        deleteSegment("_system/containers/metadata_0$attributes.index", tier2);
-
-        Map<Integer, List<SegmentProperties>> segmentsToCreate = DataRecoveryTestUtils.listAllSegments(tier2, containerCount);
-
-        log.info("Start DebugStreamSegmentContainer");
-        DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer) debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
+        DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer)
+                debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
         debugStreamSegmentContainer.startAsync().awaitRunning();
+        log.info("Started DebugStreamSegmentContainer");
+
+        // Re-create all segments which were listed.
         DataRecoveryTestUtils.createAllSegments(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID));
-        sleep(5000);
+        sleep(2500);
         debugStreamSegmentContainer.stopAsync().awaitTerminated();
         this.dataLogFactory.close();
-        sleep(1000);
-        startSegmentStore(this.storageFactory, this.dataLogFactory);
-        startController(bkzk.bkPort.get());
+
+        // Start a new segment store and controller
+        segmentStore = startSegmentStore(this.storageFactory, this.dataLogFactory);
+        startController(bkzk.bkPort.get(), segmentStore.servicePort);
     }
 
     public static ScheduledExecutorService createExecutorService(int threadPoolSize) {

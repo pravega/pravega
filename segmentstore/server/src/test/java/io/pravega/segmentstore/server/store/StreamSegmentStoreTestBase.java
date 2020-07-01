@@ -37,7 +37,6 @@ import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
@@ -45,7 +44,6 @@ import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainerTests;
-import io.pravega.segmentstore.server.containers.StreamSegmentContainerFactory;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
@@ -182,6 +180,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     /**
      * Tests an end-to-end scenario for the DebugSegmentContainer. SegmentStore creates some segments and then only 
      * persisted storage is used to re-create all segments.
+     * @throws Exception If an exception occurred.
      */
     @Test
     public void testDataRecovery() throws Exception {
@@ -250,13 +249,20 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     DataRecoveryTestUtils.createExecutorService(10));
 
             for (int containerId = 0; containerId < containerCount; containerId++) {
+                // start DebugSegmentContainer with given container Id.
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, containerConfig, localDurableLogFactory,
                         context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, getReadOnlyStorageFactory(),
                         context.getDefaultExtensions(), DataRecoveryTestUtils.createExecutorService(10));
                 localContainer.startAsync().awaitRunning();
+                // Create all segments under the given container Id .
                 DataRecoveryTestUtils.createAllSegments(localContainer, segments.get(containerId));
 
+                // Verify if the segment details match.
+                for (SegmentProperties segmentProperties : segments.get(containerId)) {
+                    SegmentProperties props = localContainer.getStreamSegmentInfo(segmentProperties.getName(), TIMEOUT).join();
+                    Assert.assertEquals("Segment length mismatch ", segmentProperties.getLength(), props.getLength());
+                }
                 localContainer.stopAsync().awaitTerminated();
             }
         }
@@ -1170,29 +1176,18 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     public TestContext createContext(StorageFactory storageFactory) {
-        return new TestContext(DEFAULT_CONFIG, null, storageFactory);
+        return new TestContext(storageFactory);
     }
 
     public class TestContext implements AutoCloseable {
         private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
-        private final SegmentContainerFactory containerFactory;
-        private final SegmentContainer container;
         private final StorageFactory storageFactory;
         private final DurableDataLogFactory dataLogFactory;
-        private final OperationLogFactory operationLogFactory;
         private final ReadIndexFactory readIndexFactory;
         private final AttributeIndexFactory attributeIndexFactory;
         private final WriterFactory writerFactory;
         private final CacheStorage cacheStorage;
         private final CacheManager cacheManager;
-        private final Storage storage;
-        private final DurableLogConfig defaultDurableLogConfig = DurableLogConfig
-                .builder()
-                .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
-                .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
-                .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
-                .with(DurableLogConfig.START_RETRY_DELAY_MILLIS, 20)
-                .build();
         private final ReadIndexConfig defaultReadIndexConfig = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
 
         private final AttributeIndexConfig defaultAttributeIndexConfig = AttributeIndexConfig
@@ -1209,21 +1204,14 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                 .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
                 .build();
-        TestContext(ContainerConfig config, SegmentContainerFactory.CreateExtensions createAdditionalExtensions,
-                    StorageFactory storageFactory) {
+        TestContext(StorageFactory storageFactory) {
             this.storageFactory = storageFactory;
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
-            this.operationLogFactory = new DurableLogFactory(defaultDurableLogConfig, dataLogFactory, executorService());
             this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
             this.readIndexFactory = new ContainerReadIndexFactory(defaultReadIndexConfig, this.cacheManager, executorService());
             this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(defaultAttributeIndexConfig, this.cacheManager, executorService());
             this.writerFactory = new StorageWriterFactory(defaultWriterConfig, executorService());
-            this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
-                    this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.storageFactory,
-                    createExtensions(createAdditionalExtensions), executorService());
-            this.container = this.containerFactory.createDebugStreamSegmentContainer(0);
-            this.storage = this.storageFactory.createStorageAdapter();
         }
 
         SegmentContainerFactory.CreateExtensions getDefaultExtensions() {
@@ -1234,23 +1222,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             return new ContainerTableExtensionImpl(c, this.cacheManager, e);
         }
 
-        private SegmentContainerFactory.CreateExtensions createExtensions(SegmentContainerFactory.CreateExtensions additional) {
-            return (c, e) -> {
-                val extensions = new HashMap<Class<? extends SegmentContainerExtension>, SegmentContainerExtension>();
-                extensions.putAll(getDefaultExtensions().apply(c, e));
-                if (additional != null) {
-                    extensions.putAll(additional.apply(c, e));
-                }
-
-                return extensions;
-            };
-        }
-
         @Override
         public void close() {
-            this.container.close();
             this.dataLogFactory.close();
-            this.storage.close();
             this.cacheManager.close();
             this.cacheStorage.close();
         }
