@@ -18,6 +18,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * A wrapper class to TableStore to track the segments being created or deleted.
+ */
 public class TableStoreWrapper implements TableStore {
     private final TableStore tableStore;
     private HashSet<String> segments;
@@ -33,13 +36,13 @@ public class TableStoreWrapper implements TableStore {
 
     @Override
     public CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
-        this.segments.add(segmentName);
+        this.segments.add(segmentName); // Add the segmentName to the set
         return this.tableStore.createSegment(segmentName, timeout);
     }
 
     @Override
     public CompletableFuture<Void> deleteSegment(String segmentName, boolean mustBeEmpty, Duration timeout) {
-        if (this.segments.contains(segmentName)) {
+        if (this.segments.contains(segmentName)) { // Remove the segmentName from the set
             this.segments.remove(segmentName);
         }
         return this.tableStore.deleteSegment(segmentName, mustBeEmpty, timeout);

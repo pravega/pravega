@@ -17,6 +17,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * A wrapper class to StreamSegmentStore to track the segments being created or deleted.
+ */
 public class StreamSegmentStoreWrapper implements StreamSegmentStore {
 
     private final StreamSegmentStore streamSegmentStore;
@@ -37,7 +40,8 @@ public class StreamSegmentStoreWrapper implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates,
+                                          Duration timeout) {
         return this.streamSegmentStore.append(streamSegmentName, offset, data, attributeUpdates, timeout);
     }
 
@@ -63,7 +67,7 @@ public class StreamSegmentStoreWrapper implements StreamSegmentStore {
 
     @Override
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
-        segments.add(streamSegmentName);
+        segments.add(streamSegmentName); // Add the segmentName to the set
         return this.streamSegmentStore.createStreamSegment(streamSegmentName, attributes, timeout);
     }
 
@@ -79,7 +83,7 @@ public class StreamSegmentStoreWrapper implements StreamSegmentStore {
 
     @Override
     public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
-        if (segments.contains(streamSegmentName)) {
+        if (segments.contains(streamSegmentName)) { // Remove the segmentName from the set
             segments.remove(streamSegmentName);
         }
         return this.streamSegmentStore.deleteStreamSegment(streamSegmentName, timeout);

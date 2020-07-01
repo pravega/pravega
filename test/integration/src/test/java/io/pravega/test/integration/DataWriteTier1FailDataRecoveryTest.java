@@ -435,6 +435,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         waitForSegmentsInStorage(allSegments, this.streamSegmentStoreWrapper, tier2)
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        sleep(5000);
 
         this.server.close();
         serviceBuilder.close(); // Shutdown SS
@@ -466,7 +467,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         sleep(5000);
         debugStreamSegmentContainer.stopAsync().awaitTerminated();
         this.dataLogFactory.close();
-        sleep(5000);
+        sleep(1000);
         startSegmentStore(this.storageFactory, this.dataLogFactory);
         startController(bkzk.bkPort.get());
 

@@ -704,6 +704,7 @@ public abstract class MetadataStore implements AutoCloseable {
                     .build();
         }
 
+        // createSegment in Metadata uses this method to get SegmentInfo
         static SegmentInfo recoveredSegment(SegmentProperties segmentProperties) {
             return builder()
                     .segmentId(ContainerMetadata.NO_STREAM_SEGMENT_ID)
