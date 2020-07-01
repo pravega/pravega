@@ -337,7 +337,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     private <T> CompletableFuture<Long> commit(Collection<T> toCommit, Function<Collection<T>, BufferView> serializer,
                                                DirectSegmentAccess segment, long tableSegmentOffset, Duration timeout) {
             BufferView s = serializer.apply(toCommit);
-            return segment.append(s, null, tableSegmentOffset, timeout);
+            if (tableSegmentOffset == NO_OFFSET) {
+                return segment.append(s, null, timeout);
+            } else {
+                return segment.append(s, null, tableSegmentOffset, timeout);
+            }
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, BufferView serializedState,
