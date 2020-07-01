@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import com.google.common.annotations.Beta;
+
 import java.io.InputStream;
 
 /**
@@ -44,6 +46,7 @@ import java.io.InputStream;
  * </div>
  * It is recommended that the implementations should extend {@link BaseChunkStorage}.
  */
+@Beta
 public interface ChunkStorage extends AutoCloseable {
     /**
      * Gets a value indicating whether this Storage implementation supports {@link ChunkStorage#truncate(ChunkHandle, long)} operation on underlying storage object.

@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
@@ -61,6 +62,7 @@ import java.util.stream.Collectors;
  * Detailed design is documented here https://github.com/pravega/pravega/wiki/PDP-34:-Simplified-Tier-2
  */
 @Slf4j
+@Beta
 public class ChunkedSegmentStorage implements Storage {
     /**
      * Configuration options for this ChunkedSegmentStorage instance.

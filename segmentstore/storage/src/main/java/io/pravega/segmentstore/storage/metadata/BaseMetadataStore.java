@@ -10,6 +10,7 @@
 
 package io.pravega.segmentstore.storage.metadata;
 
+import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -96,6 +97,7 @@ import java.util.stream.Collectors;
  * </ul>
  */
 @Slf4j
+@Beta
 abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Maximum number of metadata entries to keep in recent transaction buffer.

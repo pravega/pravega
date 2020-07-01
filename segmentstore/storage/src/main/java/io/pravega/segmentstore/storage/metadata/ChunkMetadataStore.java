@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.storage.metadata;
 
+import com.google.common.annotations.Beta;
+
 /**
  * Storage Metadata store.
  * All storage related metadata is stored using set of key-value pairs.
@@ -73,6 +75,7 @@ package io.pravega.segmentstore.storage.metadata;
  * skip validation step that reads any recently evicted changes from underlying storage.</li>
  * </ul>
  */
+@Beta
 public interface ChunkMetadataStore extends AutoCloseable {
     /**
      * Begins a new transaction.

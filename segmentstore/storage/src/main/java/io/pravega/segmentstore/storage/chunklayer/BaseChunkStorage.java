@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
@@ -58,6 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * </div>
  */
 @Slf4j
+@Beta
 public abstract class BaseChunkStorage implements ChunkStorage {
 
     private final AtomicBoolean closed;
