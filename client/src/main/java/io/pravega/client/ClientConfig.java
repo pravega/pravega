@@ -15,7 +15,6 @@ import io.pravega.client.stream.impl.Credentials;
 import io.pravega.shared.metrics.MetricListener;
 import java.io.Serializable;
 import java.net.URI;
-import java.time.Duration;
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
@@ -110,12 +109,13 @@ public class ClientConfig implements Serializable {
     private final MetricListener metricListener;
 
     /**
-     * An optional property representing the timeout for the request to server.
+     * An optional property representing whether the current run is for testing purpose. By default this property is
+     * not enabled.
      *
-     * The default request timeout is 30s. Notice that we want this request timeout to be long enough(e.g., 3600s)
-     * in testing in order to not mask any bugs.
+     * If this property is set, the request timeout to segmentstore is set to a very large value(3600s) in order to not
+     * mask any bugs. By default the request timeout in real application is set to 30s.
      */
-    private final Duration serverRequestTimeout;
+    private final boolean enableTesting;
 
     /**
      * Returns whether TLS is enabled for client-to-server (Controller and Segment Store) communications.
@@ -173,7 +173,7 @@ public class ClientConfig implements Serializable {
 
         private boolean deriveTlsEnabledFromControllerURI = true;
 
-        private Duration serverRequestTimeout = Duration.ofSeconds(30);
+        private boolean enableTesting = false;
 
         /**
          * Note: by making this method private, we intend to hide the corresponding property
@@ -199,6 +199,11 @@ public class ClientConfig implements Serializable {
             return this;
         }
 
+        public ClientConfigBuilder enableTesting(boolean value) {
+            this.enableTesting = value;
+            return this;
+        }
+
         public ClientConfig build() {
             if (controllerURI == null) {
                 controllerURI = URI.create("tcp://localhost:9090");
@@ -208,7 +213,7 @@ public class ClientConfig implements Serializable {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
             }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
-                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore, metricListener, serverRequestTimeout);
+                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore, metricListener, enableTesting);
         }
 
         /**

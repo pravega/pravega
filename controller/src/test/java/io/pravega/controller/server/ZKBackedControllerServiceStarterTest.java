@@ -47,7 +47,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -113,7 +112,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         private ReplyProcessor rp;
         private ClientConnection connection;
         private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(2);
-        private ClientConfig clientConfig = ClientConfig.builder().serverRequestTimeout(Duration.ofSeconds(3600)).build();
+        private ClientConfig clientConfig = ClientConfig.builder().enableTesting(true).build();
 
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {

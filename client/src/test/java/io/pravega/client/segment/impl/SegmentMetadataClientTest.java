@@ -29,7 +29,6 @@ import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -303,7 +302,7 @@ public class SegmentMetadataClientTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
-        ClientConfig config = ClientConfig.builder().serverRequestTimeout(Duration.ofSeconds(3600)).build();
+        ClientConfig config = ClientConfig.builder().enableTesting(true).build();
         @Cleanup
         ConnectionFactory cf = Mockito.mock(ConnectionFactory.class);
         Mockito.when(cf.getInternalExecutor()).thenReturn(executor);

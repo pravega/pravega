@@ -39,7 +39,6 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 
-import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
@@ -793,7 +792,7 @@ public class SegmentHelperTest {
         private ReplyProcessor rp;
         private ClientConnection connection;
         private ScheduledExecutorService executor;
-        private ClientConfig clientConfig = ClientConfig.builder().serverRequestTimeout(Duration.ofSeconds(3600)).build();
+        private ClientConfig clientConfig = ClientConfig.builder().enableTesting(true).build();
 
         public MockConnectionFactory() {
             this.executor = new InlineExecutor();
