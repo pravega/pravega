@@ -66,7 +66,7 @@ public class ChunkedSegmentStorage implements Storage {
      * Configuration options for this ChunkedSegmentStorage instance.
      */
     @Getter
-    private final ChunkManagerConfig config;
+    private final ChunkedSegmentStorageConfig config;
 
     /**
      * Metadata store containing all storage data.
@@ -133,7 +133,7 @@ public class ChunkedSegmentStorage implements Storage {
      * @param executor     An Executor for async operations.
      * @param config       Configuration options for this ChunkedSegmentStorage instance.
      */
-    public ChunkedSegmentStorage(ChunkStorage chunkStorage, Executor executor, ChunkManagerConfig config) {
+    public ChunkedSegmentStorage(ChunkStorage chunkStorage, Executor executor, ChunkedSegmentStorageConfig config) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
         this.executor = Preconditions.checkNotNull(executor, "executor");
@@ -151,7 +151,7 @@ public class ChunkedSegmentStorage implements Storage {
      * @param executor      An Executor for async operations.
      * @param config        Configuration options for this ChunkedSegmentStorage instance.
      */
-    public ChunkedSegmentStorage(ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, Executor executor, ChunkManagerConfig config) {
+    public ChunkedSegmentStorage(ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, Executor executor, ChunkedSegmentStorageConfig config) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
         this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");

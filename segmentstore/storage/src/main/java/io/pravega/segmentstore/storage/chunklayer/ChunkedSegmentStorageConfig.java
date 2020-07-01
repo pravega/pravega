@@ -20,11 +20,11 @@ import lombok.NonNull;
  */
 @AllArgsConstructor
 @Builder(toBuilder = true)
-public class ChunkManagerConfig {
+public class ChunkedSegmentStorageConfig {
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
      */
-    public static final ChunkManagerConfig DEFAULT_CONFIG = ChunkManagerConfig.builder()
+    public static final ChunkedSegmentStorageConfig DEFAULT_CONFIG = ChunkedSegmentStorageConfig.builder()
             .minSizeLimitForConcat(0)
             .maxSizeLimitForConcat(Long.MAX_VALUE)
             .defaultRollingPolicy(SegmentRollingPolicy.NO_ROLLING)

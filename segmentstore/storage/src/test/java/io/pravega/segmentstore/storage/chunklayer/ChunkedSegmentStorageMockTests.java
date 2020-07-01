@@ -62,7 +62,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         String testSegmentName = "test";
         String concatSegmentName = "concat";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         BaseMetadataStore spyMetadataStore = spy(InMemoryMetadataStore.class);
         BaseChunkStorage spyChunkStorageProvider = spy(NoOpChunkStorage.class);
@@ -177,7 +177,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         String testSegmentName = "test";
         String concatSegmentName = "concat";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         BaseMetadataStore spyMetadataStore = spy(InMemoryMetadataStore.class);
         ChunkStorage spyChunkStorage = spy(NoOpChunkStorage.class);
@@ -262,7 +262,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
     public void testIOExceptionDuringWrite() throws Exception {
         String testSegmentName = "test";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         BaseMetadataStore spyMetadataStore = spy(InMemoryMetadataStore.class);
         BaseChunkStorage spyChunkStorageProvider = spy(NoOpChunkStorage.class);
@@ -294,7 +294,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
     public void testFileNotFoundExceptionDuringGarbageCollection() throws Exception {
         String testSegmentName = "test";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         BaseMetadataStore spyMetadataStore = spy(InMemoryMetadataStore.class);
         BaseChunkStorage spyChunkStorageProvider = spy(NoOpChunkStorage.class);
@@ -320,7 +320,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
     public void testExceptionDuringGarbageCollection() throws Exception {
         String testSegmentName = "test";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         BaseMetadataStore spyMetadataStore = spy(InMemoryMetadataStore.class);
         BaseChunkStorage spyChunkStorageProvider = spy(NoOpChunkStorage.class);

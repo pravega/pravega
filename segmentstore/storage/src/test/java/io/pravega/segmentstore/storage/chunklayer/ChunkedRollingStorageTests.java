@@ -43,7 +43,7 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
         return new ChunkedSegmentStorage(chunkStorage,
                 chunkMetadataStore,
                 executor,
-                ChunkManagerConfig.DEFAULT_CONFIG);
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
     }
 
     /**

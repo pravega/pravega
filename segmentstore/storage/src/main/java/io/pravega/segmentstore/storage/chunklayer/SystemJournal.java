@@ -114,10 +114,10 @@ public class SystemJournal {
     private long systemJournalOffset;
 
     /**
-     * Configuration {@link ChunkManagerConfig} for the {@link ChunkedSegmentStorage}.
+     * Configuration {@link ChunkedSegmentStorageConfig} for the {@link ChunkedSegmentStorage}.
      */
     @Getter
-    private final ChunkManagerConfig config;
+    private final ChunkedSegmentStorageConfig config;
 
     private final AtomicBoolean reentryGuard = new AtomicBoolean();
 
@@ -131,7 +131,7 @@ public class SystemJournal {
      * @param config        Configuration options for this ChunkedSegmentStorage instance.
      * @throws Exception In case of any errors.
      */
-    public SystemJournal(int containerId, long epoch, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, ChunkManagerConfig config) throws Exception {
+    public SystemJournal(int containerId, long epoch, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, ChunkedSegmentStorageConfig config) throws Exception {
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
         this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
         this.config = Preconditions.checkNotNull(config, "config");

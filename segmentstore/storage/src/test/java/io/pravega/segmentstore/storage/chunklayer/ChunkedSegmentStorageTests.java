@@ -76,7 +76,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         return new TestContext(executorService());
     }
 
-    public TestContext getTestContext(ChunkManagerConfig config) throws Exception {
+    public TestContext getTestContext(ChunkedSegmentStorageConfig config) throws Exception {
         return new TestContext(executorService(), config);
     }
 
@@ -88,7 +88,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testSupportsTruncate() throws Exception {
         val storageProvider = createChunkStorageProvider();
-        val storageManager = new ChunkedSegmentStorage(storageProvider, executorService(), ChunkManagerConfig.DEFAULT_CONFIG);
+        val storageManager = new ChunkedSegmentStorage(storageProvider, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         Assert.assertTrue(storageManager.supportsTruncation());
     }
 
@@ -102,7 +102,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         val storageProvider = createChunkStorageProvider();
         val metadataStore = createMetadataStore();
         val policy = SegmentRollingPolicy.NO_ROLLING;
-        val config = ChunkManagerConfig.DEFAULT_CONFIG;
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
         val storageManager = new ChunkedSegmentStorage(storageProvider, executorService(), config);
         val systemJournal = new SystemJournal(42, 1, storageProvider, metadataStore, config);
 
@@ -1204,7 +1204,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testBaseConcatWithDefragWithMinMaxLimits() throws Exception {
         // Set limits.
-        ChunkManagerConfig config = ChunkManagerConfig.DEFAULT_CONFIG.toBuilder()
+        ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxSizeLimitForConcat(12)
                 .minSizeLimitForConcat(2)
                 .build();
@@ -1537,10 +1537,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         protected Executor executor;
 
         public TestContext(Executor executor) throws Exception {
-            this(executor, ChunkManagerConfig.DEFAULT_CONFIG);
+            this(executor, ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         }
 
-        public TestContext(Executor executor, ChunkManagerConfig config) throws Exception {
+        public TestContext(Executor executor, ChunkedSegmentStorageConfig config) throws Exception {
             this.executor = Preconditions.checkNotNull(executor);
             storageProvider = createChunkStorageProvider();
             metadataStore = createMetadataStore();

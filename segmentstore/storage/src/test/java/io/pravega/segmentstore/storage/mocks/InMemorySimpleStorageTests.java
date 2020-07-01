@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
-import io.pravega.segmentstore.storage.chunklayer.ChunkManagerConfig;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedRollingStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
@@ -66,7 +66,7 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
         }
 
         @Override
-        public TestContext getTestContext(ChunkManagerConfig config) throws Exception {
+        public TestContext getTestContext(ChunkedSegmentStorageConfig config) throws Exception {
             return new InMemorySimpleStorageTestContext(executorService(), config);
         }
 
@@ -75,7 +75,7 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
                 super(executorService);
             }
 
-            InMemorySimpleStorageTestContext(ExecutorService executorService, ChunkManagerConfig config) throws Exception {
+            InMemorySimpleStorageTestContext(ExecutorService executorService, ChunkedSegmentStorageConfig config) throws Exception {
                 super(executorService, config);
             }
 

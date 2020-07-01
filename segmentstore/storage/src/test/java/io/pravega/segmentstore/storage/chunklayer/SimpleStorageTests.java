@@ -56,7 +56,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
                 chunkStorage = getChunkStorage();
             }
         }
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(chunkStorage, chunkMetadataStore, executor, ChunkManagerConfig.DEFAULT_CONFIG);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(chunkStorage, chunkMetadataStore, executor, ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         return chunkedSegmentStorage;
     }
 
@@ -76,7 +76,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
         ChunkedSegmentStorage forkedChunkedSegmentStorage = new ChunkedSegmentStorage(storage.getChunkStorage(),
                 getCloneMetadataStore(storage.getMetadataStore()),
                 executor,
-                ChunkManagerConfig.DEFAULT_CONFIG);
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         return forkedChunkedSegmentStorage;
     }
 
