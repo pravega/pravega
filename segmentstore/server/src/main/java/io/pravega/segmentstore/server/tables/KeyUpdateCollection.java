@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import io.pravega.common.util.HashedArray;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.util.Collection;
 import java.util.Collections;
@@ -25,7 +25,7 @@ import lombok.val;
  */
 @ThreadSafe
 class KeyUpdateCollection {
-    private final Map<HashedArray, BucketUpdate.KeyUpdate> updates = Collections.synchronizedMap(new HashMap<>());
+    private final Map<BufferView, BucketUpdate.KeyUpdate> updates = Collections.synchronizedMap(new HashMap<>());
     private final AtomicInteger totalUpdateCount = new AtomicInteger(0);
     private final AtomicLong lastIndexedOffset = new AtomicLong(-1L);
     private final AtomicLong highestCopiedOffset = new AtomicLong(TableKey.NO_VERSION);

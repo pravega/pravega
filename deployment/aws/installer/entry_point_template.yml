@@ -30,8 +30,8 @@
   environment:
     JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     JAVA_OPTS: |
-      -Dcontroller.service.port=9090
-      -Dcontroller.service.restPort=10080
+      -Dcontroller.service.rpc.listener.port=9090
+      -Dcontroller.service.rest.listener.port=10080
       -Dcontroller.zk.url=ZKNODE:2181
       -Dconfig.controller.metricenableCSVReporter=false
       -Xmx512m
