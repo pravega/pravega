@@ -1067,41 +1067,39 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
     }
 
-    private static class DeltaIteratorResult<K, V, S> extends IteratorResult<V> {
+    private static class DeltaIteratorResult<K, V, S> {
         @Getter
         @Setter
         @GuardedBy("this")
         private S state;
         @GuardedBy("this")
         private final Map<K, V> items = new HashMap<>();
+        @Getter
+        @GuardedBy("this")
+        private int sizeBytes;
 
         DeltaIteratorResult(int initialSizeBytes) {
-            super(initialSizeBytes);
+            this.sizeBytes = initialSizeBytes;
         }
-
-        @Override
-        synchronized void add(V item, int sizeBytes) {}
 
         synchronized void add(K key, V value, int sizeBytes) {
             this.items.put(key, value);
-            super.sizeBytes += sizeBytes;
+            this.sizeBytes += sizeBytes;
         }
 
         synchronized void remove(K item, int sizeBytes) {
             this.items.remove(item);
-            super.sizeBytes -= sizeBytes;
+            this.sizeBytes -= sizeBytes;
         }
 
         synchronized V getItem(K key) {
             return this.items.get(key);
         }
 
-        @Override
         synchronized List<V> getItems() {
             return new ArrayList<>(this.items.values());
         }
 
-        @Override
         synchronized int getItemCount() {
             return this.items.size();
         }
