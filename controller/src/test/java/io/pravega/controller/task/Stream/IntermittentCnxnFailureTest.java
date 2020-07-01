@@ -26,7 +26,6 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
-import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -34,7 +33,6 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
@@ -58,7 +56,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mock;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -89,12 +86,8 @@ public class IntermittentCnxnFailureTest {
     private SegmentHelper segmentHelperMock;
     private RequestTracker requestTracker = new RequestTracker(true);
     private ConnectionFactory connectionFactory;
-    @Mock
-    private KVTableMetadataStore kvtStore;
-    @Mock
-    private TableMetadataTasks kvtMetadataTasks;
     private StatsProvider statsProvider = null;
-
+    
     @Before
     public void setup() throws Exception {
         MetricsConfig metricsConfig = MetricsConfig.builder()
@@ -118,7 +111,7 @@ public class IntermittentCnxnFailureTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
-        segmentHelperMock = spy(new SegmentHelper(connectionFactory, hostStore, executor));
+        segmentHelperMock = spy(new SegmentHelper(connectionFactory, hostStore));
 
         doReturn(Controller.NodeUri.newBuilder().setEndpoint("localhost").setPort(Config.SERVICE_PORT).build()).when(segmentHelperMock).getSegmentUri(
                 anyString(), anyString(), anyInt());
@@ -129,7 +122,7 @@ public class IntermittentCnxnFailureTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, segmentHelperMock, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
 
-        controllerService = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
+        controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
         StreamMetrics.initialize();
         controllerService.createScope(SCOPE).get();

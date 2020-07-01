@@ -74,8 +74,6 @@ public final class MetricsNames {
     public static final String SEGMENT_DELETE_LATENCY = PREFIX + "segmentstore.segment.delete_latency_ms";              // Histogram
     public static final String SEGMENT_READ_LATENCY = PREFIX + "segmentstore.segment.read_latency_ms";                  // Histogram
     public static final String SEGMENT_WRITE_LATENCY = PREFIX + "segmentstore.segment.write_latency_ms";                // Histogram
-    public static final String SEGMENT_APPEND_SIZE = PREFIX + "segmentstore.segment.append_size";                       // Histogram
-    public static final String SEGMENT_READ_SIZE = PREFIX + "segmentstore.segment.read_size";                           // Histogram
     public static final String SEGMENT_READ_BYTES = PREFIX + "segmentstore.segment.read_bytes";                         // Counter and Per-segment Counter
     public static final String SEGMENT_WRITE_BYTES = PREFIX + "segmentstore.segment.write_bytes";                       // Counter and Per-segment Counter
     public static final String SEGMENT_WRITE_EVENTS = PREFIX + "segmentstore.segment.write_events";                     // Counter and Per-segment Counter
@@ -174,18 +172,6 @@ public final class MetricsNames {
     public static final String THREAD_POOL_ACTIVE_THREADS = PREFIX + "segmentstore.thread_pool.active_threads";  // Histogram
 
     // Metrics in Controller
-    // KeyValueTable create request counts
-    public static final String CREATE_KVTABLE = PREFIX + "controller.kvtable.created";
-    // KeyValueTable segment counts
-    public static final String KVTABLE_SEGMENTS_COUNT = PREFIX + "controller.kvtable.segments.count";
-    // KeyValueTable Create Latency
-    public static final String CREATE_KVTABLE_LATENCY = PREFIX + "controller.kvtable.created_latency_ms";
-    // KeyValueTable Create Failure
-    public static final String CREATE_KVTABLE_FAILED = PREFIX + "controller.kvtable.create_failed";
-    public static final String DELETE_KVTABLE = PREFIX + "controller.kvtable.deleted";                         // Counter
-    public static final String DELETE_KVTABLE_LATENCY = PREFIX + "controller.kvtable.deleted_latency_ms";      // Histogram
-    public static final String DELETE_KVTABLE_FAILED = PREFIX + "controller.kvtable.delete_failed";
-
     // Scope request counts
     public static final String CREATE_SCOPE = PREFIX + "controller.scope.created";                           // Counter
     public static final String CREATE_SCOPE_LATENCY = PREFIX + "controller.scope.created_latency_ms";        // Histogram
