@@ -219,7 +219,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
                 ex -> ex instanceof TableSegmentNotEmptyException);
 
-        val v2 = context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.notExists(key2, value)), TIMEOUT).join();
+        val length = context.segment().getInfo().getLength();
+        // The SegmentMock used does not process appends via the OperationProcessor so conditional appends are not processed accurately.
+        // Instead just make sure that this 'conditional' append still appends.
+        val v2 = context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.notExists(key2, value)), length, TIMEOUT).join();
+        AssertExtensions.assertGreaterThan("Invalid entry ordering.", v1.get(0), v2.get(0));
         // Remove k1.
         context.ext.remove(SEGMENT_NAME, Collections.singletonList(TableKey.versioned(key1, v1.get(0))), TIMEOUT).join();
         //// Make sure its been removed.
