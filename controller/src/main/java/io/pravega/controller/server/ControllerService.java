@@ -488,6 +488,7 @@ public class ControllerService {
      */
     public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Timer timer = new Timer();
         try {
             NameUtils.validateScopeName(scope);
         } catch (IllegalArgumentException | NullPointerException e) {
@@ -495,7 +496,7 @@ public class ControllerService {
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
                     CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
         }
-        return streamStore.createScope(scope);
+        return streamStore.createScope(scope).thenApply(r -> reportCreateScopeMetrics(scope, r, timer.getElapsed()));
     }
 
     /**
@@ -506,7 +507,8 @@ public class ControllerService {
      */
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
-        return streamStore.deleteScope(scope);
+        Timer timer = new Timer();
+        return streamStore.deleteScope(scope).thenApply(r -> reportDeleteScopeMetrics(scope, r, timer.getElapsed()));
     }
 
     /**
@@ -580,6 +582,15 @@ public class ControllerService {
         }
     }
 
+    private CreateScopeStatus reportCreateScopeMetrics(String scope, CreateScopeStatus status, Duration latency) {
+        if (status.getStatus().equals(CreateScopeStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().createScope(latency);
+        } else if (status.getStatus().equals(CreateScopeStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().createScopeFailed(scope);
+        }
+        return status;
+    }
+
     private void reportUpdateStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().updateStream(scope, streamName, latency);
@@ -610,6 +621,15 @@ public class ControllerService {
         } else if (status.equals(DeleteStreamStatus.Status.FAILURE)) {
             StreamMetrics.getInstance().deleteStreamFailed(scope, streamName);
         }
+    }
+
+    private DeleteScopeStatus reportDeleteScopeMetrics(String scope, DeleteScopeStatus status, Duration latency) {
+        if (status.getStatus().equals(DeleteScopeStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().deleteScope(latency);
+        } else if (status.getStatus().equals(DeleteScopeStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().deleteScopeFailed(scope);
+        }
+        return status;
     }
 
     public CompletableFuture<Controller.TimestampResponse> noteTimestampFromWriter(String scope, String stream, String writerId, long timestamp, Map<Long, Long> streamCut) {
