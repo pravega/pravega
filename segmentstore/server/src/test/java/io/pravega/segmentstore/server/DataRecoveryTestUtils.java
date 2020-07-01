@@ -85,18 +85,19 @@ public class DataRecoveryTestUtils {
         return es;
     }
 
-    /**
+     /**
      * Creates all segments given in the list with the given DebugStreamSegmentContainer.
      */
      public static class Worker implements Runnable {
         private final int containerId;
         private final DebugStreamSegmentContainer container;
         private final List<SegmentProperties> segments;
-        public Worker(DebugStreamSegmentContainer container, List<SegmentProperties> segments){
+        public Worker(DebugStreamSegmentContainer container, List<SegmentProperties> segments) {
             this.container = container;
             this.containerId = container.getId();
             this.segments = segments;
         }
+
         @Override
         public void run() {
             if (segments == null) {
@@ -116,11 +117,11 @@ public class DataRecoveryTestUtils {
                 boolean isSealed = segment.isSealed();
                 String segmentName = segment.getName();
 
-            /*
-                1. segment exists in both metadata and storage, re-create it
-                2. segment only in metadata, delete
-                3. segment only in storage, re-create it
-             */
+                /*
+                    1. segment exists in both metadata and storage, re-create it
+                    2. segment only in metadata, delete
+                    3. segment only in storage, re-create it
+                 */
                 segmentsInMD.remove(TableKey.unversioned(getTableKey(segmentName)));
                 container.getStreamSegmentInfo(segment.getName(), TIMEOUT)
                         .thenAccept(e -> {
