@@ -68,7 +68,7 @@ public interface Scope {
     void refresh();
 
     /**
-     * A paginated api on the scope to get requested number of kvtables from under the scope
+     * A paginated api on the scope to get requested number of KeyValueTables from under the scope
      * starting from the continuation token.
      *
      * @param limit maximum number of kvtables to return

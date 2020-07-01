@@ -1781,14 +1781,6 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testKeyValueTables() {
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.controllerClient.deleteKeyValueTable("", ""),
-                ex -> ex instanceof UnsupportedOperationException);
-    }
-
-    @Test
     public void testCreateKeyValueTable() throws Exception {
         CompletableFuture<Boolean> createKVTableStatus;
         createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable1",

@@ -306,7 +306,7 @@ public abstract class ControllerServiceImplTest {
         deleteKVTStatus = result3.get();
         assertEquals("Delete Non-existent KeyValueTable with non-existent Scope",
                 DeleteKVTableStatus.Status.TABLE_NOT_FOUND, deleteKVTStatus.getStatus());
-       
+
         KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).build();
 
         //Create a test KeyValueTable
