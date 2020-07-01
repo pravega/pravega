@@ -407,4 +407,32 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         KeyValueTableInfo info = this.testController.listKeyValueTables("scope").getNext().get();
         Assert.assertEquals("kvtable1", info.getKeyValueTableName());
     }
+
+    @Test
+    public void testDeleteKeyValueTable() throws ExecutionException, InterruptedException {
+        when(this.mockControllerService.deleteKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
+                        .setStatus(Controller.DeleteKVTableStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.deleteKeyValueTable("scope", "kvtable1").join());
+
+        when(this.mockControllerService.deleteKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
+                        .setStatus(Controller.DeleteKVTableStatus.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.deleteKeyValueTable("scope", "kvtable2").join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.deleteKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
+                        .setStatus(Controller.DeleteKVTableStatus.Status.TABLE_NOT_FOUND).build()));
+        Assert.assertFalse(this.testController.deleteKeyValueTable("scope", "kvtable3").join());
+
+        when(this.mockControllerService.deleteKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.deleteKeyValueTable("scope", "kvtable4").join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
 }

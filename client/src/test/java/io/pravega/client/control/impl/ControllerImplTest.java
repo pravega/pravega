@@ -75,6 +75,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -998,6 +999,29 @@ public class ControllerImplTest {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
             }
+
+            @Override
+            public void deleteKeyValueTable(KeyValueTableInfo request,
+                                     StreamObserver<DeleteKVTableStatus> responseObserver) {
+                if (request.getKvtName().equals("kvtable1")) {
+                    responseObserver.onNext(DeleteKVTableStatus.newBuilder()
+                            .setStatus(DeleteKVTableStatus.Status.SUCCESS)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getKvtName().equals("kvtable2")) {
+                    responseObserver.onNext(DeleteKVTableStatus.newBuilder()
+                            .setStatus(DeleteKVTableStatus.Status.FAILURE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getKvtName().equals("kvtable3")) {
+                    responseObserver.onNext(DeleteKVTableStatus.newBuilder()
+                            .setStatus(DeleteKVTableStatus.Status.TABLE_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
         };
 
         serverPort = TestUtils.getAvailableListenPort();
@@ -1839,5 +1863,19 @@ public class ControllerImplTest {
                 controllerClient.listKeyValueTables(FAILING).getNext(),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
     }
+
+    @Test
+    public void testDeleteKeyValueTable() {
+        CompletableFuture<Boolean> deleteKVTableStatus = controllerClient.deleteKeyValueTable("scope1", "kvtable1");
+        assertTrue(deleteKVTableStatus.join());
+
+        deleteKVTableStatus = controllerClient.deleteKeyValueTable("scope1", "kvtable2");
+        AssertExtensions.assertFutureThrows("Should throw Exception",
+                deleteKVTableStatus, throwable -> true);
+
+        deleteKVTableStatus = controllerClient.deleteKeyValueTable("scope1", "kvtable3");
+        assertFalse(deleteKVTableStatus.join());
+    }
+
 
 }
