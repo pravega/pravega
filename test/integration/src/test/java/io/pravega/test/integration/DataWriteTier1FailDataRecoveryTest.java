@@ -496,7 +496,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
         debugStreamSegmentContainer.startAsync().awaitRunning();
         log.info("Started DebugStreamSegmentContainer");
-        sleep(2500);
+        sleep(5000);
 
         // Re-create all segments which were listed.
         DataRecoveryTestUtils.createAllSegments(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID));
