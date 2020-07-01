@@ -61,7 +61,6 @@ import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -74,6 +73,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -280,7 +280,7 @@ public class ReaderGroupNotificationTest {
         try {
             Thread.sleep(2000);
             scale(controller, SCOPE, streamName, 1, 1, threadPoolExecutor);
-            Thread.sleep(20000);
+            Thread.sleep(2000);
         } catch (InterruptedException e) {
             log.error("Interrupted: ", e);
         }
@@ -319,9 +319,10 @@ public class ReaderGroupNotificationTest {
                             }
                         }), threadPoolExecutor)
                 .whenComplete((r, ex) -> {
-                    if (ex instanceof IllegalStateException) {
-                        log.error("Failure: ", ex);
-                    }
+                        if (ex != null) {
+                            log.error("Failure: ", ex);
+                            Assert.fail(String.format("Unexpected error occurred running this test. %s", ex));
+                        }
                 }).get();
     }
 
