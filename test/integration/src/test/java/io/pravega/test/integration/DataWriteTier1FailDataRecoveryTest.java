@@ -500,7 +500,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Re-create all segments which were listed.
         DataRecoveryTestUtils.createAllSegments(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID));
-        sleep(5000); // Sleep to make sure all segments got created properly.
+        sleep(10000); // Sleep to make sure all segments got created properly.
         debugStreamSegmentContainer.stopAsync().awaitTerminated();
         this.dataLogFactory.close();
 
