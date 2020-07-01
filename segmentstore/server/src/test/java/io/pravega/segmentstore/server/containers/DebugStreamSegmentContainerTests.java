@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.server.CacheManager;
@@ -68,6 +69,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 /**
  * Tests for DebugStreamSegmentContainer class.
@@ -116,6 +118,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
             .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 200 + EXPECTED_PINNED_SEGMENT_COUNT)
             .build();
+    private ScheduledExecutorService executorService = createExecutorService(100);
 
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
@@ -250,8 +253,9 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             MetadataCleanupContainer localContainer = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
                     context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
                     context.getDefaultExtensions(), DataRecoveryTestUtils.createExecutorService(10));
-            localContainer.startAsync().awaitRunning();
-            DataRecoveryTestUtils.createAllSegments(localContainer, segments.get(containerId));
+
+            Services.startAsync(localContainer, executorService)
+                    .thenRun(new DataRecoveryTestUtils.Worker(localContainer, segments.get(containerId))).join();
 
             for (String segmentName : segmentByContainers.get(containerId)) {
                 SegmentProperties props = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).join();
@@ -260,8 +264,16 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                     Assert.assertTrue("Segment should have been sealed", props.isSealed());
                 }
             }
-            localContainer.stopAsync().awaitTerminated();
+            Services.stopAsync(localContainer, executorService).join();
         }
+    }
+
+    public static ScheduledExecutorService createExecutorService(int threadPoolSize) {
+        ScheduledThreadPoolExecutor es = new ScheduledThreadPoolExecutor(threadPoolSize);
+        es.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+        es.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        es.setRemoveOnCancelPolicy(true);
+        return es;
     }
 
     public static class MetadataCleanupContainer extends DebugStreamSegmentContainer {

@@ -87,64 +87,72 @@ public class DataRecoveryTestUtils {
 
     /**
      * Creates all segments given in the list with the given DebugStreamSegmentContainer.
-     * @param container The DebugStreamSegmentContainer instance which will used to create segments.
-     * @param segments List of segments to be created.
      */
-    public static void createAllSegments(DebugStreamSegmentContainer container, List<SegmentProperties> segments) {
-        if (segments == null) {
-            return;
+     public static class Worker implements Runnable {
+        private final int containerId;
+        private final DebugStreamSegmentContainer container;
+        private final List<SegmentProperties> segments;
+        public Worker(DebugStreamSegmentContainer container, List<SegmentProperties> segments){
+            this.container = container;
+            this.containerId = container.getId();
+            this.segments = segments;
         }
-        int containerId = container.getId();
-        log.info("Recovery started for container = {}", containerId);
-        ContainerTableExtension ext = container.getExtension(ContainerTableExtension.class);
-        AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(containerId), null,
-                Duration.ofSeconds(10)).join();
+        @Override
+        public void run() {
+            if (segments == null) {
+                return;
+            }
+            log.info("Recovery started for container = {}", containerId);
+            ContainerTableExtension ext = container.getExtension(ContainerTableExtension.class);
+            AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(containerId), null,
+                    Duration.ofSeconds(10)).join();
 
-        // Add all segments present in the container metadata in a set.
-        Set<TableKey> segmentsInMD = new HashSet<>();
-        it.forEachRemaining(k -> segmentsInMD.addAll(k.getEntries()), EXECUTOR_SERVICE).join();
+            // Add all segments present in the container metadata in a set.
+            Set<TableKey> segmentsInMD = new HashSet<>();
+            it.forEachRemaining(k -> segmentsInMD.addAll(k.getEntries()), EXECUTOR_SERVICE).join();
 
-        for (SegmentProperties segment : segments) {
-            long len = segment.getLength();
-            boolean isSealed = segment.isSealed();
-            String segmentName = segment.getName();
+            for (SegmentProperties segment : segments) {
+                long len = segment.getLength();
+                boolean isSealed = segment.isSealed();
+                String segmentName = segment.getName();
 
             /*
                 1. segment exists in both metadata and storage, re-create it
                 2. segment only in metadata, delete
                 3. segment only in storage, re-create it
              */
-            segmentsInMD.remove(TableKey.unversioned(getTableKey(segmentName)));
-            container.getStreamSegmentInfo(segment.getName(), TIMEOUT)
-                    .thenAccept(e -> {
-                        container.createStreamSegment(segmentName, len, isSealed)
-                                .exceptionally(ex -> {
-                                    log.error("Exception occurred while creating segment", ex);
-                                    return null;
-                                }).join();
-                    })
-                    .exceptionally(e -> {
-                        log.error("Got an exception on getStreamSegmentInfo", e);
-                        if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
+                segmentsInMD.remove(TableKey.unversioned(getTableKey(segmentName)));
+                container.getStreamSegmentInfo(segment.getName(), TIMEOUT)
+                        .thenAccept(e -> {
                             container.createStreamSegment(segmentName, len, isSealed)
                                     .exceptionally(ex -> {
                                         log.error("Exception occurred while creating segment", ex);
                                         return null;
                                     }).join();
-                        }
-                        return null;
-                    }).join();
-        }
-        for (TableKey k : segmentsInMD) {
-            String segmentName = k.getKey().toString();
-            log.info("Deleting segment : {} as it is not in storage", segmentName);
-            try {
-                container.deleteStreamSegment(segmentName, TIMEOUT).join();
-            } catch (Throwable e) {
-                log.error("Error while deleting the segment = {}", segmentName);
+                        })
+                        .exceptionally(e -> {
+                            log.error("Got an exception on getStreamSegmentInfo", e);
+                            if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
+                                container.createStreamSegment(segmentName, len, isSealed)
+                                        .exceptionally(ex -> {
+                                            log.error("Exception occurred while creating segment", ex);
+                                            return null;
+                                        }).join();
+                            }
+                            return null;
+                        }).join();
             }
+            for (TableKey k : segmentsInMD) {
+                String segmentName = k.getKey().toString();
+                log.info("Deleting segment : {} as it is not in storage", segmentName);
+                try {
+                    container.deleteStreamSegment(segmentName, TIMEOUT).join();
+                } catch (Throwable e) {
+                    log.error("Error while deleting the segment = {}", segmentName);
+                }
+            }
+            log.info("Recovery done for container = {}", containerId);
         }
-        log.info("Recovery done for container = {}", containerId);
     }
 
     private static ArrayView getTableKey(String segmentName) {

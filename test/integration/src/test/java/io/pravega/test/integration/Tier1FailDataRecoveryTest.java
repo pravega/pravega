@@ -12,6 +12,7 @@ package io.pravega.test.integration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -435,14 +436,11 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         DebugTool debugTool = createDebugTool(this.dataLogFactory, this.storageFactory);
         DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer)
                 debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
-        debugStreamSegmentContainer.startAsync().awaitRunning();
-        log.info("Started DebugStreamSegmentContainer");
-        sleep(2500);
 
         // Re-create all segments which were listed.
-        DataRecoveryTestUtils.createAllSegments(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID));
-        sleep(2500);
-        debugStreamSegmentContainer.stopAsync().awaitTerminated();
+        Services.startAsync(debugStreamSegmentContainer, executorService)
+                .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID)))
+                .whenComplete((v, ex) -> Services.stopAsync(debugStreamSegmentContainer, executorService)).join();
         this.dataLogFactory.close();
 
         // Start a new segment store and controller

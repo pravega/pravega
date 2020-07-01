@@ -16,6 +16,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -79,6 +80,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -121,6 +123,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
             .build();
     private StorageFactory readOnlyStorageFactory = null;
+    private ScheduledExecutorService executorService = createExecutorService(100);
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
@@ -254,18 +257,27 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, containerConfig, localDurableLogFactory,
                         context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, getReadOnlyStorageFactory(),
                         context.getDefaultExtensions(), DataRecoveryTestUtils.createExecutorService(10));
-                localContainer.startAsync().awaitRunning();
+
                 // Create all segments under the given container Id .
-                DataRecoveryTestUtils.createAllSegments(localContainer, segments.get(containerId));
+                Services.startAsync(localContainer, executorService)
+                        .thenRun(new DataRecoveryTestUtils.Worker(localContainer, segments.get(containerId))).join();
 
                 // Verify if the segment details match.
                 for (SegmentProperties segmentProperties : segments.get(containerId)) {
                     SegmentProperties props = localContainer.getStreamSegmentInfo(segmentProperties.getName(), TIMEOUT).join();
                     Assert.assertEquals("Segment length mismatch ", segmentProperties.getLength(), props.getLength());
                 }
-                localContainer.stopAsync().awaitTerminated();
+                Services.stopAsync(localContainer, executorService).join();
             }
         }
+    }
+
+    public static ScheduledExecutorService createExecutorService(int threadPoolSize) {
+        ScheduledThreadPoolExecutor es = new ScheduledThreadPoolExecutor(threadPoolSize);
+        es.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+        es.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        es.setRemoveOnCancelPolicy(true);
+        return es;
     }
 
     /**
