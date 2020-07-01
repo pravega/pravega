@@ -21,6 +21,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
@@ -148,6 +149,55 @@ public class StreamMetricsTest {
             this.zkTestServer = null;
         }
         ExecutorServiceHelpers.shutdown(executor);
+    }
+
+    @Test(timeout = 30000)
+    public void testStreamsAndScopesBasicMetricsTests() throws Exception {
+        String scopeName = "scopeBasic";
+        String streamName = "streamBasic";
+
+        // Here, the system scope and streams are already created.
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
+        assertEquals(6, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
+
+        controllerWrapper.getControllerService().createScope(scopeName).get();
+        if (!controller.createStream(scopeName, streamName, config).get()) {
+            log.error("Stream {} for basic testing already existed, exiting", scopeName + "/" + scopeName);
+            return;
+        }
+        // Check that the new scope and stream are accounted in metrics.
+        assertEquals(2, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
+        assertEquals(7, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
+
+        // Update the Stream.
+        controllerWrapper.getControllerService().updateStream(scopeName, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build()).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
+
+        // Seal the Stream.
+        controllerWrapper.getControllerService().sealStream(scopeName, streamName).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
+
+        // Delete the Stream and Scope and check for the respective metrics.
+        controllerWrapper.getControllerService().deleteStream(scopeName, streamName).get();
+        controllerWrapper.getControllerService().deleteScope(scopeName).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
+
+        // Exercise the metrics for failed stream and scope creation/deletion.
+        StreamMetrics.getInstance().createScopeFailed("failedScope");
+        StreamMetrics.getInstance().createStreamFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().deleteScopeFailed("failedScope");
+        StreamMetrics.getInstance().deleteStreamFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().updateStreamFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().truncateStreamFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().sealStreamFailed("failedScope", "failedStream");
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_STREAM_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.TRUNCATE_STREAM_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM_FAILED).count());
     }
 
     @Test(timeout = 30000)
