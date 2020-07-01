@@ -174,6 +174,14 @@ public final class MetricsNames {
     public static final String THREAD_POOL_ACTIVE_THREADS = PREFIX + "segmentstore.thread_pool.active_threads";  // Histogram
 
     // Metrics in Controller
+    // Scope request counts
+    public static final String CREATE_SCOPE = PREFIX + "controller.scope.created";                           // Counter
+    public static final String CREATE_SCOPE_LATENCY = PREFIX + "controller.scope.created_latency_ms";        // Histogram
+    public static final String CREATE_SCOPE_FAILED = PREFIX + "controller.scope.create_failed";              // Counter and Per-scope Counter
+    public static final String DELETE_SCOPE = PREFIX + "controller.scope.deleted";                           // Counter
+    public static final String DELETE_SCOPE_LATENCY = PREFIX + "controller.scope.deleted_latency_ms";        // Histogram
+    public static final String DELETE_SCOPE_FAILED = PREFIX + "controller.scope.delete_failed";              // Counter and Per-scope Counter
+
     // Stream request counts
     public static final String CREATE_STREAM = PREFIX + "controller.stream.created";                         // Counter
     public static final String CREATE_STREAM_LATENCY = PREFIX + "controller.stream.created_latency_ms";      // Histogram
