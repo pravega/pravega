@@ -158,7 +158,7 @@ public class StreamMetricsTest {
 
         // Here, the system scope and streams are already created.
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
-        assertEquals(8, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
+        assertEquals(6, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
 
         controllerWrapper.getControllerService().createScope(scopeName).get();
         if (!controller.createStream(scopeName, streamName, config).get()) {
@@ -167,7 +167,7 @@ public class StreamMetricsTest {
         }
         // Check that the new scope and stream are accounted in metrics.
         assertEquals(2, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
-        assertEquals(9, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
+        assertEquals(7, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
 
         // Update the Stream.
         controllerWrapper.getControllerService().updateStream(scopeName, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build()).get();
