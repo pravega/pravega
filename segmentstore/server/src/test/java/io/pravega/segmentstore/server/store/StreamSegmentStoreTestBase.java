@@ -115,7 +115,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
     private static final int MAX_INSTANCE_COUNT = 4;
-    private static final int CONTAINER_COUNT = 4;
     private static final List<UUID> ATTRIBUTES = Streams.concat(Stream.of(Attributes.EVENT_COUNT), IntStream.range(0, 10).mapToObj(i -> UUID.randomUUID())).collect(Collectors.toList());
     private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
@@ -123,14 +122,13 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
             .build();
-    private StorageFactory storageFactory = null;
     private StorageFactory readOnlyStorageFactory = null;
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
             .include(ServiceConfig
                     .builder()
-                    .with(ServiceConfig.CONTAINER_COUNT, CONTAINER_COUNT)
+                    .with(ServiceConfig.CONTAINER_COUNT, 4)
                     .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE)
                     .with(ServiceConfig.STORAGE_THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE_STORAGE)
                     .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 64 * 1024 * 1024L)
@@ -182,9 +180,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests an end-to-end scenario for the DebugSegmentContainer. SegmentStore creates some segments and then the
-     * persisted storage is only used to re-create all segments.
-     * @throws Exception in case of an exception.
+     * Tests an end-to-end scenario for the DebugSegmentContainer. SegmentStore creates some segments and then only 
+     * persisted storage is used to re-create all segments.
      */
     @Test
     public void testDataRecovery() throws Exception {
@@ -193,10 +190,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     /**
      * End to end test to verify DebugSegmentContainer process.
-     *
      * @throws Exception If an exception occurred.
      */
     public void endToEndDebugSegmentContainer() throws Exception {
+        int containerCount = 4;
         ArrayList<String> segmentNames;
         HashMap<String, ArrayList<String>> transactionsBySegment;
         HashMap<String, Long> lengths = new HashMap<>();
@@ -204,12 +201,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
         try (val builder = createBuilder(0);
-             val readOnlyBuilder = createReadOnlyBuilder(0)) {
+             val readOnlyBuilder = createReadOnlyBuilder()) {
             val segmentStore = builder.createStreamSegmentService();
             val readOnlySegmentStore = readOnlyBuilder.createStreamSegmentService();
+
             segmentNames = createSegments(segmentStore);
             log.info("Created Segments: {}.", String.join(", ", segmentNames));
-
             transactionsBySegment = createTransactions(segmentNames, segmentStore);
             log.info("Created Transactions: {}.", transactionsBySegment.values().stream().flatMap(Collection::stream).collect(Collectors.joining(", ")));
 
@@ -217,30 +214,29 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             ArrayList<String> segmentsAndTransactions = new ArrayList<>(segmentNames);
             transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
             appendData(segmentsAndTransactions, segmentContents, lengths, appendBuffers, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
             log.info("Finished appending data.");
 
             // Wait for flushing the segments to tier2
-            waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore) //
-                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             log.info("Finished waiting for segments in Storage.");
 
+            // Get the persistent storage from readOnlySegmentStore.
             Storage tier2 = getReadOnlyStorageFactory().createStorageAdapter();
 
-            // Delete container metadata segments.
-            deleteContainerMetadataSegments(tier2, 0);
-            deleteContainerMetadataSegments(tier2, 1);
-            deleteContainerMetadataSegments(tier2, 2);
-            deleteContainerMetadataSegments(tier2, 3);
+            // Delete container metadata segment and attribute index segment for each container Id from the persistent storage.
+            for (int containerId = 0; containerId < containerCount; containerId++) {
+                deleteContainerMetadataSegments(tier2, containerId);
+            }
 
-            Map<Integer, List<SegmentProperties>> segments = DataRecoveryTestUtils.listAllSegments(tier2, CONTAINER_COUNT);
+            // List all segments from the long term storage.
+            Map<Integer, List<SegmentProperties>> segments = DataRecoveryTestUtils.listAllSegments(tier2, containerCount);
 
+            // Configurations for DebugSegmentContainer
             final ContainerConfig containerConfig = ContainerConfig
                     .builder()
                     .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
-                    .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, SEGMENT_COUNT + 4)
+                    .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
                     .build();
-
             final DurableLogConfig durableLogConfig = DurableLogConfig
                     .builder()
                     .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
@@ -248,14 +244,15 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
                     .build();
 
-            TestContext context = createContext(getStorageFactory());
+            // Create the environment for DebugSegmentContainer using the given storageFactory.
+            TestContext context = createContext(getReadOnlyStorageFactory());
             OperationLogFactory localDurableLogFactory = new DurableLogFactory(durableLogConfig, context.dataLogFactory,
                     DataRecoveryTestUtils.createExecutorService(10));
 
-            for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
+            for (int containerId = 0; containerId < containerCount; containerId++) {
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, containerConfig, localDurableLogFactory,
-                        context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, getStorageFactory(),
+                        context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, getReadOnlyStorageFactory(),
                         context.getDefaultExtensions(), DataRecoveryTestUtils.createExecutorService(10));
                 localContainer.startAsync().awaitRunning();
                 DataRecoveryTestUtils.createAllSegments(localContainer, segments.get(containerId));
@@ -265,13 +262,21 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         }
     }
 
+    /**
+     * Deletes container-metadata segment and attribute index segment for the given container Id.
+     * @param tier2 Long term storage to delete the segments from.
+     * @param containerId Id of the container for which the segments has to be deleted.
+     */
     private void deleteContainerMetadataSegments(Storage tier2, int containerId) {
-        String segmentName = "_system/containers/metadata_" + containerId;
-        deleteSegment(tier2, segmentName);
-        segmentName = "_system/containers/metadata_" + containerId + "$attributes.index";
-        deleteSegment(tier2, segmentName);
+        deleteSegment(tier2, "_system/containers/metadata_" + containerId);
+        deleteSegment(tier2, "_system/containers/metadata_" + containerId + "$attributes.index");
     }
 
+    /**
+     * Deletes the segment with given segment name from the given long term storage.
+     * @param tier2 Long term storage to delete the segment from.
+     * @param segmentName Name of the segment to be deleted.
+     */
     private void deleteSegment(Storage tier2, String segmentName) {
         try {
             SegmentHandle segmentHandle = tier2.openWrite(segmentName).join();
@@ -502,10 +507,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private StorageFactory getStorageFactory() {
-        return this.storageFactory;
-    }
-
     private StorageFactory getReadOnlyStorageFactory() {
         return this.readOnlyStorageFactory;
     }
@@ -514,7 +515,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         val builder = createBuilder(this.configBuilder, instanceId);
         try {
             builder.initialize();
-            this.storageFactory = builder.getStorageFactory();
         } catch (Throwable ex) {
             builder.close();
             throw ex;
@@ -543,6 +543,22 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                                                                       .with(ServiceConfig.READONLY_SEGMENT_STORE, true));
 
         val builder = createBuilder(configBuilder, instanceId);
+        builder.initialize();
+        return builder;
+    }
+
+    private ServiceBuilder createReadOnlyBuilder() throws Exception {
+        // Copy base config properties to a new object.
+        val props = new Properties();
+        this.configBuilder.build().forEach(props::put);
+
+        // Create a new config (so we don't alter the base one) and set the ReadOnlySegmentStore to true).
+        val configBuilder = ServiceBuilderConfig.builder()
+                .include(props)
+                .include(ServiceConfig.builder()
+                        .with(ServiceConfig.READONLY_SEGMENT_STORE, true));
+
+        val builder = createBuilder(configBuilder, 0);
         builder.initialize();
         this.readOnlyStorageFactory = builder.getStorageFactory();
         return builder;
