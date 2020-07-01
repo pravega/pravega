@@ -14,9 +14,15 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.pravega.shared.MetricsNames.CREATE_SCOPE;
+import static io.pravega.shared.MetricsNames.CREATE_SCOPE_FAILED;
+import static io.pravega.shared.MetricsNames.CREATE_SCOPE_LATENCY;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM_FAILED;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.DELETE_SCOPE;
+import static io.pravega.shared.MetricsNames.DELETE_SCOPE_FAILED;
+import static io.pravega.shared.MetricsNames.DELETE_SCOPE_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM_FAILED;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
@@ -50,12 +56,17 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger updateStreamLatency;
     private final OpStatsLogger truncateStreamLatency;
 
+    private final OpStatsLogger createScopeLatency;
+    private final OpStatsLogger deleteScopeLatency;
+
     private StreamMetrics() {
         createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
         deleteStreamLatency = STATS_LOGGER.createStats(DELETE_STREAM_LATENCY);
         sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
         updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
         truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
+        createScopeLatency = STATS_LOGGER.createStats(CREATE_SCOPE_LATENCY);
+        deleteScopeLatency = STATS_LOGGER.createStats(DELETE_SCOPE_LATENCY);
     }
 
     /**
@@ -94,6 +105,16 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
+     * This method increments the global counter of Scope creations and reports the latency of the operation.
+     *
+     * @param latency           Latency of the createStream operation.
+     */
+    public void createScope(Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(CREATE_SCOPE, 1);
+        createScopeLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
      * This method increments the global counter of failed Stream creations in the system as well as the failed creation
      * attempts for this specific Stream.
      *
@@ -103,6 +124,17 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     public void createStreamFailed(String scope, String streamName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_STREAM_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(CREATE_STREAM_FAILED, 1, streamTags(scope, streamName));
+    }
+
+    /**
+     * This method increments the global counter of failed Scope creations in the system as well as the failed creation
+     * attempts for this specific Scope.
+     *
+     * @param scope         Scope.
+     */
+    public void createScopeFailed(String scope) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_SCOPE_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(CREATE_SCOPE_FAILED, 1, streamTags(scope, ""));
     }
 
     /**
@@ -119,6 +151,16 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
+     * This method increments the global counter of Scope deletions and reports the latency of the operation.
+     *
+     * @param latency       Latency of the deleteStream operation.
+     */
+    public void deleteScope(Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(DELETE_SCOPE, 1);
+        deleteScopeLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
      * This method increments the counter of failed Stream deletions in the system as well as the failed deletion
      * attempts for this specific Stream.
      *
@@ -128,6 +170,17 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     public void deleteStreamFailed(String scope, String streamName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_STREAM_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(DELETE_STREAM_FAILED, 1, streamTags(scope, streamName));
+    }
+
+    /**
+     * This method increments the counter of failed Stream deletions in the system as well as the failed deletion
+     * attempts for this specific Stream.
+     *
+     * @param scope         Scope.
+     */
+    public void deleteScopeFailed(String scope) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_SCOPE_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(DELETE_SCOPE_FAILED, 1, streamTags(scope, ""));
     }
 
     /**
@@ -255,6 +308,8 @@ public final class StreamMetrics extends AbstractControllerMetrics {
             INSTANCE.get().sealStreamLatency.close();
             INSTANCE.get().updateStreamLatency.close();
             INSTANCE.get().truncateStreamLatency.close();
+            INSTANCE.get().createScopeLatency.close();
+            INSTANCE.get().deleteScopeLatency.close();
             INSTANCE.set(null);
         }
     }
