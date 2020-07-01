@@ -87,7 +87,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
-        segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, helperMock);

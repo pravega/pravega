@@ -23,6 +23,7 @@ import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -61,10 +62,18 @@ public class DeleteTableTask implements TableTask<DeleteTableEvent> {
             } else {
                 final KVTOperationContext context = kvtMetadataStore.createContext(scope, kvt);
                 return Futures.exceptionallyExpecting(kvtMetadataStore.getAllSegmentIds(scope, kvt, context, executor)
-                                .thenCompose(allSegments ->
-                                        kvtMetadataTasks.deleteSegments(scope, kvt, allSegments, kvtMetadataTasks.retrieveDelegationToken(), requestId)),
+                        .thenComposeAsync(allSegments ->
+                                        kvtMetadataTasks.deleteSegments(scope, kvt, allSegments, kvtMetadataTasks.retrieveDelegationToken(), requestId), executor),
                         e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                        .thenCompose(v -> this.kvtMetadataStore.deleteKeyValueTable(scope, kvt, context, executor));
+                        .thenCompose(v -> this.kvtMetadataStore.deleteKeyValueTable(scope, kvt, context, executor))
+                        .handle((result, ex) -> {
+                            if (ex != null) {
+                                log.info("Delete segemnt failed with exception {}", ex);
+                                throw new CompletionException(ex);
+                            } else {
+                                return result;
+                            }
+                        });
              }
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
     }

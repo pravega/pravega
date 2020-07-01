@@ -88,6 +88,9 @@ public class SegmentHelperMock {
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTableSegment(
                 anyString(), anyString(), anyLong(), anyBoolean());
+
+        doReturn(CompletableFuture.completedFuture(null)).when(helper).deleteTableSegment(
+                anyString(), anyBoolean(), anyString(), anyLong());
         return helper;
     }
 

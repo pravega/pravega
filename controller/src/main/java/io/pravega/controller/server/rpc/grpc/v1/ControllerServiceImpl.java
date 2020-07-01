@@ -122,7 +122,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 scope, kvt);
         log.info(requestTag.getRequestId(), "createKeyValueTable called for KVTable {}/{}.", scope, kvt);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                AuthResourceRepresentation.ofStreamsInScope(scope), AuthHandler.Permissions.READ_UPDATE),
+                AuthResourceRepresentation.ofKeyValueTableInScope(scope, kvt), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.createKeyValueTable(scope, kvt,
                         ModelHelper.encode(request),
                         System.currentTimeMillis()),
@@ -203,7 +203,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 AuthResourceRepresentation.ofKeyValueTableInScope(request.getScope(), request.getKvtName()),
                 AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.deleteKeyValueTable(request.getScope(), request.getKvtName()), responseObserver, requestTag);
+                delegationToken -> controllerService.deleteKeyValueTable(request.getScope(), request.getKvtName()),
+                                                        responseObserver, requestTag);
     }
 
     @Override

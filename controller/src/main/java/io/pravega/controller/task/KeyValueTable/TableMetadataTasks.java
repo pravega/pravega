@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -181,17 +182,17 @@ public class TableMetadataTasks implements AutoCloseable {
                             return eventHelper.addIndexAndSubmitTask(deleteEvent,
                                     () -> kvtMetadataStore.setState(scope, kvtName, KVTableState.DELETING, context, executor))
                                     .thenCompose(x -> eventHelper.checkDone(() -> isDeleted(scope, kvtName, context)))
-                                    .thenApply(y -> DeleteKVTableStatus.Status.SUCCESS);
+                                    .thenApply(y -> DeleteKVTableStatus.Status.SUCCESS)
+                                    .handle((result, ex) -> {
+                                        if (ex != null) {
+                                            log.warn(requestId, "Delete KeyValueTable failed due to ", ex);
+                                            return DeleteKVTableStatus.Status.FAILURE;
+                                        } else {
+                                            return DeleteKVTableStatus.Status.SUCCESS;
+                                        }
+                                    });
                         });
-            }), e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor)
-        .handle((result, ex) -> {
-                    if (ex != null) {
-                        log.warn(requestId, "Delete KeyValueTable failed due to ", ex);
-                        return DeleteKVTableStatus.Status.FAILURE;
-                    } else {
-                        return result;
-                    }
-        });
+            }), e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
     }
 
     public CompletableFuture<Void> deleteSegments(String scope, String kvt, Set<Long> segmentsToDelete,
@@ -201,7 +202,15 @@ public class TableMetadataTasks implements AutoCloseable {
                 .stream()
                 .parallel()
                 .map(segment -> deleteSegment(scope, kvt, segment, delegationToken, requestId))
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()))
+                .handle((result, ex) -> {
+                    if (ex != null) {
+                        log.info("Delete segemnt failed with exception {}", ex);
+                        throw new CompletionException(ex);
+                    } else {
+                        return result;
+                    }
+                });
     }
 
     public CompletableFuture<Void> deleteSegment(String scope, String kvt, long segmentId, String delegationToken,
@@ -213,7 +222,7 @@ public class TableMetadataTasks implements AutoCloseable {
     }
 
     private CompletableFuture<Boolean> isDeleted(String scope, String kvtName, KVTOperationContext context) {
-        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, context, executor),
+        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                 .thenCompose(state -> {
                     if (state.equals(KVTableState.UNKNOWN)) {

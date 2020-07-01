@@ -74,6 +74,11 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     }
 
     @Override
+    public Scope newScope(String scopeName) {
+        return getScope(scopeName);
+    }
+
+    @Override
     public CompletableFuture<Void> deleteFromScope(final String scope,
                                                    final String name,
                                                    final KVTOperationContext context,
@@ -104,7 +109,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
 
     @Override
     @Synchronized
-    public Scope newScope(final String scopeName) {
+    public Scope getScope(final String scopeName) {
         if (scopes.containsKey(scopeName)) {
             return scopes.get(scopeName);
         } else {
