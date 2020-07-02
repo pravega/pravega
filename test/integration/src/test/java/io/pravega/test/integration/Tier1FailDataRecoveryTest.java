@@ -125,6 +125,10 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             this.dataLogFactory.close();
             this.dataLogFactory = null;
         }
+
+        if (this.baseDir != null) {
+            this.baseDir.deleteOnExit();
+        }
     }
 
     @Override
@@ -307,7 +311,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     /**
      * Creates a segment store server.
      */
-    private class SegmentStoreStarter implements AutoCloseable {
+    private class SegmentStoreStarter {
         private int servicePort = TestUtils.getAvailableListenPort();
         private ServiceBuilder serviceBuilder = null;
         private StreamSegmentStoreWrapper streamSegmentStoreWrapper = null;
@@ -338,7 +342,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             this.server.startListening();
         }
 
-        @Override
         public void close() {
             if (this.server != null) {
                 this.server.close();
@@ -359,7 +362,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     /**
      * Creates a controller instance and runs it.
      */
-    private class ControllerStarter implements AutoCloseable {
+    private class ControllerStarter {
         private int controllerPort = TestUtils.getAvailableListenPort();
         private String serviceHost = "localhost";
         private ControllerWrapper controllerWrapper = null;
@@ -372,7 +375,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             this.controller = controllerWrapper.getController();
         }
 
-        @Override
         public void close() throws Exception {
             if (this.controllerWrapper != null) {
                 this.controllerWrapper.close();
@@ -381,7 +383,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         }
     }
 
-    @Test(timeout = 200000)
+    @Test(timeout = 400000)
     public void testTier1Fail() throws Exception {
         // Creating tier 2 only once here.
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
@@ -396,8 +398,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         SegmentStoreStarter segmentStore = startSegmentStore(this.storageFactory, null);
         ControllerStarter controllerStarter = startController(bkzk.bkPort.get(), segmentStore.servicePort);
 
-        controllerStarter.controller.close(); // Shut down the controller
-        controllerStarter.controllerWrapper.close();
+        controllerStarter.close(); // Shut down the controller
 
         // Get names of all the segments created.
         HashSet<String> allSegments = new HashSet<>(segmentStore.streamSegmentStoreWrapper.getSegments());
@@ -412,8 +413,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sleep(2500); // Sleep to make sure all segments got flushed properly
 
-        segmentStore.serviceBuilder.close(); // Shutdown SS
-        segmentStore.server.close();
+        segmentStore.close(); // Shutdown SS
         log.info("SS Shutdown");
 
         bkzk.bookKeeperServiceRunner.close(); // Shut down BK & ZK
@@ -439,8 +439,9 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Re-create all segments which were listed.
         Services.startAsync(debugStreamSegmentContainer, executorService)
-                .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID)))
-                .whenComplete((v, ex) -> Services.stopAsync(debugStreamSegmentContainer, executorService)).join();
+                .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID))).join();
+        sleep(2500);
+        Services.stopAsync(debugStreamSegmentContainer, executorService).join();
         this.dataLogFactory.close();
 
         // Start a new segment store and controller
