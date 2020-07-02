@@ -652,25 +652,32 @@ public class SegmentHelper implements AutoCloseable {
 
     private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long requestId, T request) {
         CompletableFuture<Reply> future = Futures.futureWithTimeout(timeout.get(), executorService);
-
-        Futures.completeAfter(() -> connection.sendRequest(requestId, request)
-                  .exceptionally(e -> {
-                      Throwable unwrap = Exceptions.unwrap(e);
-                      if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
-                          log.warn(requestId, "Connection dropped");
-                          throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
-                      } else if (unwrap instanceof AuthenticationException) {
-                          log.warn(requestId, "Authentication Exception");
-                          throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
-                      } else {
-                          log.error(requestId, "Request failed", e);
-                          throw new CompletionException(e);
-                      }
-                  }), future);
+        AtomicReference<CompletableFuture<Reply>> f = new AtomicReference<>();
+        Futures.completeAfter(() -> {
+            f.set(connection.sendRequest(requestId, request)
+                                                   .exceptionally(e -> {
+                                                       Throwable unwrap = Exceptions.unwrap(e);
+                                                       if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
+                                                           log.warn(requestId, "Connection dropped");
+                                                           throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+                                                       } else if (unwrap instanceof AuthenticationException) {
+                                                           log.warn(requestId, "Authentication Exception");
+                                                           throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+                                                       } else {
+                                                           log.error(requestId, "Request failed", e);
+                                                           throw new CompletionException(e);
+                                                       }
+                                                   }));
+            return f.get();
+        }, future);
 
         return future
                 .exceptionally(e -> {
                     if (Exceptions.unwrap(e) instanceof TimeoutException) {
+                        CompletableFuture<Reply> toCancel = f.get();
+                        if (toCancel != null) {
+                            toCancel.cancel(true);
+                        }
                         log.warn(requestId, "Request timedout");
                         throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
                     } else {
