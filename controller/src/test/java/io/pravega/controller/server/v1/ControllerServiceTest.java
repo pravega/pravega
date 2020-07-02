@@ -108,7 +108,7 @@ public class ControllerServiceTest {
                 segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
 
         consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                new SegmentHelper(connectionFactory, hostStore), executor, null);
+                new SegmentHelper(connectionFactory, hostStore, executor), executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);

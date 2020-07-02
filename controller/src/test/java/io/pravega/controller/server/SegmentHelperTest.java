@@ -37,6 +37,8 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
+
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
@@ -44,12 +46,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.val;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 
@@ -70,11 +75,21 @@ public class SegmentHelperTest {
     private final byte[] value = "v".getBytes();
     private final ByteBuf token1 = wrappedBuffer(new byte[]{0x01});
     private final ByteBuf token2 = wrappedBuffer(new byte[]{0x02});
-
+    private ScheduledExecutorService executorService;
+    @Before
+    public void setUp() {
+        executorService = Executors.newScheduledThreadPool(2);
+    }
+    
+    @After
+    public void tearDown() {
+        executorService.shutdownNow();    
+    }
+    
     @Test
     public void getSegmentUri() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
 
         helper.getSegmentUri("", "", 0);
     }
@@ -82,7 +97,7 @@ public class SegmentHelperTest {
     @Test
     public void createSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         CompletableFuture<Void> retVal = helper.createSegment("", "",
                 0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -122,7 +137,7 @@ public class SegmentHelperTest {
     @Test
     public void truncateSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         CompletableFuture<Void> retVal = helper.truncateSegment("", "", 0L, 0L,
                 "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -156,7 +171,7 @@ public class SegmentHelperTest {
     @Test
     public void deleteSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         CompletableFuture<Void> retVal = helper.deleteSegment("", "", 0L, "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
@@ -185,7 +200,7 @@ public class SegmentHelperTest {
     @Test
     public void sealSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         CompletableFuture<Void> retVal = helper.sealSegment("", "", 0L,
                 "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -218,7 +233,7 @@ public class SegmentHelperTest {
     @Test
     public void createTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         UUID txId = new UUID(0, 0L);
         CompletableFuture<Void> retVal = helper.createTransaction("", "", 0L, txId,
                 "");
@@ -251,7 +266,7 @@ public class SegmentHelperTest {
     @Test
     public void commitTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         CompletableFuture<Controller.TxnStatus> retVal = helper.commitTransaction("", "", 0L, 0L, new UUID(0, 0L),
                 "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -282,7 +297,7 @@ public class SegmentHelperTest {
     @Test
     public void abortTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         CompletableFuture<Controller.TxnStatus> retVal = helper.abortTransaction("", "", 0L, new UUID(0, 0L),
                 "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -313,7 +328,7 @@ public class SegmentHelperTest {
     @Test
     public void updatePolicy() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         CompletableFuture<Void> retVal = helper.updatePolicy("", "", ScalingPolicy.fixed(1), 0L,
                 "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -340,7 +355,7 @@ public class SegmentHelperTest {
     @Test
     public void getSegmentInfo() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         CompletableFuture<WireCommands.StreamSegmentInfo> retVal = helper.getSegmentInfo("", "", 0L,
                 "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -367,7 +382,7 @@ public class SegmentHelperTest {
     @Test
     public void testCreateTableSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         long requestId = Long.MIN_VALUE;
 
         // On receiving SegmentAlreadyExists true should be returned.
@@ -396,7 +411,7 @@ public class SegmentHelperTest {
     @Test
     public void testDeleteTableSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         long requestId = System.nanoTime();
 
         // On receiving NoSuchSegment true should be returned.
@@ -432,7 +447,7 @@ public class SegmentHelperTest {
     @Test
     public void testUpdateTableEntries() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         List<TableEntry<byte[], byte[]>> entries = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>("k".getBytes(), KeyVersion.NOT_EXISTS), "v".getBytes()),
                                                                  new TableEntryImpl<>(new TableKeyImpl<>("k1".getBytes(), null), "v".getBytes()),
                                                                  new TableEntryImpl<>(new TableKeyImpl<>("k2".getBytes(), new KeyVersionImpl(10L)),
@@ -478,7 +493,7 @@ public class SegmentHelperTest {
     @Test
     public void testRemoveTableKeys() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         List<TableKey<byte[]>> keys = Arrays.asList(new TableKeyImpl<>("k".getBytes(), KeyVersion.NOT_EXISTS),
                                                     new TableKeyImpl<>("k1".getBytes(), KeyVersion.NOT_EXISTS));
 
@@ -518,7 +533,7 @@ public class SegmentHelperTest {
     @Test
     public void testReadTable() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         List<TableKey<byte[]>> keysToBeRead = Arrays.asList(new TableKeyImpl<>(key0, KeyVersion.NO_VERSION),
                                                     new TableKeyImpl<>(key1, KeyVersion.NO_VERSION));
 
@@ -552,7 +567,7 @@ public class SegmentHelperTest {
     @Test
     public void testReadTableKeys() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
 
         final List<TableKey<byte[]>> keys1 = Arrays.asList(new TableKeyImpl<>(key0, new KeyVersionImpl(2L)),
                                                            new TableKeyImpl<>(key1, new KeyVersionImpl(10L)));
@@ -609,7 +624,7 @@ public class SegmentHelperTest {
     @Test
     public void testReadTableEntries() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
         List<TableEntry<byte[], byte[]>> entries1 = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>(key0,
                                                                                                           new KeyVersionImpl(10L)), value),
                                                                   new TableEntryImpl<>(new TableKeyImpl<>(key1, new KeyVersionImpl(10L)),
@@ -661,6 +676,22 @@ public class SegmentHelperTest {
         validateNoSuchSegment(factory, futureSupplier);
 
         testConnectionFailure(factory, futureSupplier);
+    }
+
+    @Test(timeout = 10000)
+    public void testTimeout() {
+        MockConnectionFactory factory = new MockConnectionFactory();
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService);
+        helper.setTimeout(Duration.ofMillis(100));
+        List<TableKey<byte[]>> keysToBeRead = Arrays.asList(new TableKeyImpl<>(key0, KeyVersion.NO_VERSION),
+                new TableKeyImpl<>(key1, KeyVersion.NO_VERSION));
+
+        CompletableFuture<List<TableEntry<byte[], byte[]>>> result = helper.readTable("", keysToBeRead,
+                "", System.nanoTime());
+        
+        AssertExtensions.assertFutureThrows("result should timeout", result, 
+                e -> Exceptions.unwrap(e) instanceof WireCommandFailedException && 
+                        ((WireCommandFailedException) Exceptions.unwrap(e)).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed));
     }
 
     private WireCommands.TableEntries getTableEntries(List<TableEntry<byte[], byte[]>> entries) {

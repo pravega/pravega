@@ -111,7 +111,7 @@ public class IntermittentCnxnFailureTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
-        segmentHelperMock = spy(new SegmentHelper(connectionFactory, hostStore));
+        segmentHelperMock = spy(new SegmentHelper(connectionFactory, hostStore, executor));
 
         doReturn(Controller.NodeUri.newBuilder().setEndpoint("localhost").setPort(Config.SERVICE_PORT).build()).when(segmentHelperMock).getSegmentUri(
                 anyString(), anyString(), anyInt());
