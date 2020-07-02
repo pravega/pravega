@@ -35,7 +35,7 @@ public class InMemoryKVTMetadataStoreTest extends KVTableMetadataStoreTest {
     }
 
     @Override
-    Controller.CreateScopeStatus createScope() throws Exception {
-        return streamStore.createScope(scope).get();
+    Controller.CreateScopeStatus createScope(String scopeName) throws Exception {
+        return streamStore.createScope(scopeName).get();
     }
 }

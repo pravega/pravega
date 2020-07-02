@@ -466,15 +466,36 @@ public class LocalController implements Controller {
             }
         });
     }
-
+    
     @Override
     public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
-        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
+                controller.listKeyValueTables(scopeName, token, LIST_STREAM_IN_SCOPE_LIMIT)
+                        .thenApply(result -> {
+                            List<KeyValueTableInfo> kvTablesList = result.getLeft().stream().map(kvt -> new KeyValueTableInfo(scopeName, kvt))
+                                    .collect(Collectors.toList());
+
+                            return new AbstractMap.SimpleEntry<>(result.getValue(), kvTablesList);
+                        });
+
+        return new ContinuationTokenAsyncIterator<>(function, "");
     }
 
     @Override
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
-        throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
+        return this.controller.deleteKeyValueTable(scope, kvtName).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to delete KeyValueTable: " + kvtName);
+                case TABLE_NOT_FOUND:
+                    return false;
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status deleting KeyValueTable " + kvtName + " "
+                            + x.getStatus());
+            }
+        });
     }
 
     @Override

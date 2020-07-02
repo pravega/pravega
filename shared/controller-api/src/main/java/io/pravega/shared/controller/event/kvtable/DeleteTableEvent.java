@@ -26,33 +26,31 @@ import java.util.concurrent.CompletableFuture;
 @Builder
 @Data
 @AllArgsConstructor
-public class CreateTableEvent implements ControllerEvent {
+public class DeleteTableEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
-    private final String scopeName;
+    private final String scope;
     private final String kvtName;
-    private final int partitionCount;
-    private final long timestamp;
     private final long requestId;
     private final UUID tableId;
 
     @Override
     public String getKey() {
-        return String.format("%s/%s", scopeName, kvtName);
+        return String.format("%s/%s", scope, kvtName);
     }
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return ((TableRequestProcessor) processor).processCreateKVTable(this);
+        return ((TableRequestProcessor) processor).processDeleteKVTable(this);
     }
 
     //region Serialization
-    private static class CreateTableEventBuilder implements ObjectBuilder<CreateTableEvent> {
+    private static class DeleteTableEventBuilder implements ObjectBuilder<DeleteTableEvent> {
     }
 
-    public static class Serializer extends VersionedSerializer.WithBuilder<CreateTableEvent, CreateTableEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<DeleteTableEvent, DeleteTableEventBuilder> {
         @Override
-        protected CreateTableEventBuilder newBuilder() {
-            return CreateTableEvent.builder();
+        protected DeleteTableEventBuilder newBuilder() {
+            return DeleteTableEvent.builder();
         }
 
         @Override
@@ -65,23 +63,20 @@ public class CreateTableEvent implements ControllerEvent {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void write00(CreateTableEvent e, RevisionDataOutput target) throws IOException {
-            target.writeUTF(e.scopeName);
+        private void write00(DeleteTableEvent e, RevisionDataOutput target) throws IOException {
+            target.writeUTF(e.scope);
             target.writeUTF(e.kvtName);
-            target.writeInt(e.partitionCount);
-            target.writeLong(e.timestamp);
             target.writeLong(e.requestId);
             target.writeUUID(e.tableId);
         }
 
-        private void read00(RevisionDataInput source, CreateTableEventBuilder eb) throws IOException {
-            eb.scopeName(source.readUTF());
-            eb.kvtName(source.readUTF());
-            eb.partitionCount(source.readInt());
-            eb.timestamp(source.readLong());
-            eb.requestId(source.readLong());
-            eb.tableId(source.readUUID());
+        private void read00(RevisionDataInput source, DeleteTableEventBuilder b) throws IOException {
+            b.scope(source.readUTF());
+            b.kvtName(source.readUTF());
+            b.requestId(source.readLong());
+            b.tableId(source.readUUID());
         }
     }
+
     //endregion
 }

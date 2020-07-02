@@ -67,6 +67,18 @@ public interface Scope {
      */
     void refresh();
 
+    /**
+     * A paginated api on the scope to get requested number of KeyValueTables from under the scope
+     * starting from the continuation token.
+     *
+     * @param limit maximum number of kvtables to return
+     * @param continuationToken continuation token from where to start.
+     * @param executor executor
+     * @return A future, which upon completion, will hold a pair of list of kvtable names and a new continuation token.
+     */
+    CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final int limit, final String continuationToken,
+                                                              final Executor executor);
+
     default byte[] newId() {
         byte[] b = new byte[2 * Long.BYTES];
         BitConverter.writeUUID(b, 0, UUID.randomUUID());

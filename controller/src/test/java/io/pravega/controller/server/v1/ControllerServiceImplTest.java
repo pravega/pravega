@@ -38,6 +38,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -213,6 +214,118 @@ public abstract class ControllerServiceImplTest {
 
         this.controllerService.listStreamsInScope(nonExistentScopeRequest, nonExistentScopeResponse);
         assertEquals(nonExistentScopeResponse.get().getStatus(), Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND);
+    }
+
+    @Test
+    public void kvtablesInScopeTest() {
+        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).build();
+
+        // Test Create KeyValueTable
+        ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
+        ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(SCOPE4).build();
+        this.controllerService.createScope(scopeInfo, result);
+        CreateScopeStatus createScopeStatus = result.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        ResultObserver<CreateKeyValueTableStatus> result1 = new ResultObserver<>();
+        this.controllerService.createKeyValueTable(ModelHelper.decode(SCOPE4, KVTABLE1, config1), result1);
+        CreateKeyValueTableStatus createStatus = result1.get();
+        assertEquals("Create KeyValueTable", CreateKeyValueTableStatus.Status.SUCCESS, createStatus.getStatus());
+
+        ResultObserver<CreateKeyValueTableStatus> result2 = new ResultObserver<>();
+        this.controllerService.createKeyValueTable(ModelHelper.decode(SCOPE4, KVTABLE2, config1), result2);
+        createStatus = result2.get();
+        assertEquals("Create KeyValueTable", CreateKeyValueTableStatus.Status.SUCCESS, createStatus.getStatus());
+
+        ResultObserver<CreateKeyValueTableStatus> result3 = new ResultObserver<>();
+        this.controllerService.createKeyValueTable(ModelHelper.decode(SCOPE4, KVTABLE3, config1), result3);
+        createStatus = result3.get();
+        assertEquals("Create KeyValueTable", CreateKeyValueTableStatus.Status.SUCCESS, createStatus.getStatus());
+
+        ResultObserver<Controller.KVTablesInScopeResponse> kvtablesInScopeResponse1 = new ResultObserver<>();
+        Controller.KVTablesInScopeRequest kvTablesInScopeRequest1 = Controller.KVTablesInScopeRequest
+                .newBuilder().setScope(scopeInfo).setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+        this.controllerService.listKeyValueTablesInScope(kvTablesInScopeRequest1, kvtablesInScopeResponse1);
+        List<Controller.KeyValueTableInfo> list = kvtablesInScopeResponse1.get().getKvtablesList();
+        // check continuation token
+        assertEquals(kvtablesInScopeResponse1.get().getStatus(), Controller.KVTablesInScopeResponse.Status.SUCCESS);
+        assertFalse(Strings.isNullOrEmpty(kvtablesInScopeResponse1.get().getContinuationToken().getToken()));
+        assertEquals(2, list.size());
+
+        ResultObserver<Controller.KVTablesInScopeResponse> kvtablesInScopeResponse2 = new ResultObserver<>();
+        Controller.KVTablesInScopeRequest kvTablesInScopeRequest2  = Controller.KVTablesInScopeRequest
+                .newBuilder().setScope(scopeInfo).setContinuationToken(kvtablesInScopeResponse1.get().getContinuationToken()).build();
+        this.controllerService.listKeyValueTablesInScope(kvTablesInScopeRequest2, kvtablesInScopeResponse2);
+        list = kvtablesInScopeResponse2.get().getKvtablesList();
+        // check continuation token
+        assertEquals(kvtablesInScopeResponse2.get().getStatus(), Controller.KVTablesInScopeResponse.Status.SUCCESS);
+        assertFalse(Strings.isNullOrEmpty(kvtablesInScopeResponse2.get().getContinuationToken().getToken()));
+        assertEquals(1, list.size());
+
+        ResultObserver<Controller.KVTablesInScopeResponse> kvtablesInScopeResponse3 = new ResultObserver<>();
+        Controller.KVTablesInScopeRequest kvTablesInScopeRequest3 = Controller.KVTablesInScopeRequest
+                .newBuilder().setScope(scopeInfo).setContinuationToken(kvtablesInScopeResponse2.get().getContinuationToken()).build();
+        this.controllerService.listKeyValueTablesInScope(kvTablesInScopeRequest3, kvtablesInScopeResponse3);
+        list = kvtablesInScopeResponse3.get().getKvtablesList();
+        // check continuation token
+        assertEquals(kvtablesInScopeResponse3.get().getStatus(), Controller.KVTablesInScopeResponse.Status.SUCCESS);
+        assertFalse(Strings.isNullOrEmpty(kvtablesInScopeResponse3.get().getContinuationToken().getToken()));
+        assertEquals(0, list.size());
+
+        List<Controller.KeyValueTableInfo> m = new LinkedList<>();
+        m.addAll(kvtablesInScopeResponse1.get().getKvtablesList());
+        m.addAll(kvtablesInScopeResponse2.get().getKvtablesList());
+        m.addAll(kvtablesInScopeResponse3.get().getKvtablesList());
+
+        // verify that all three streams have been found
+        assertTrue(m.stream().anyMatch(x -> x.getKvtName().equals(KVTABLE1)));
+        assertTrue(m.stream().anyMatch(x -> x.getKvtName().equals(KVTABLE2)));
+        assertTrue(m.stream().anyMatch(x -> x.getKvtName().equals(KVTABLE3)));
+
+        Controller.KVTablesInScopeRequest nonExistentScopeRequest = Controller.KVTablesInScopeRequest
+                .newBuilder().setScope(ScopeInfo.newBuilder().setScope("NonExistent").build()).setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+        ResultObserver<Controller.KVTablesInScopeResponse> nonExistentScopeResponse = new ResultObserver<>();
+
+        this.controllerService.listKeyValueTablesInScope(nonExistentScopeRequest, nonExistentScopeResponse);
+        assertEquals(nonExistentScopeResponse.get().getStatus(), Controller.KVTablesInScopeResponse.Status.SCOPE_NOT_FOUND);
+    }
+
+    @Test
+    public void deleteKeyValueTableTests() {
+
+        // Try deleting a non-existent KeyValueTable.
+        ResultObserver<DeleteKVTableStatus> result2 = new ResultObserver<>();
+        this.controllerService.deleteKeyValueTable(ModelHelper.createKeyValueTableInfo(SCOPE4, "dummyKvt"), result2);
+        DeleteKVTableStatus deleteKVTStatus = result2.get();
+        assertEquals("Delete Non-existent KeyValueTable",
+                DeleteKVTableStatus.Status.TABLE_NOT_FOUND, deleteKVTStatus.getStatus());
+
+        // Try deleting a non-existent KeyValueTable with non-existent scope.
+        ResultObserver<DeleteKVTableStatus> result3 = new ResultObserver<>();
+        this.controllerService.deleteKeyValueTable(ModelHelper.createKeyValueTableInfo("dummyScope", "dummyKeyValueTable"), result3);
+        deleteKVTStatus = result3.get();
+        assertEquals("Delete Non-existent KeyValueTable with non-existent Scope",
+                DeleteKVTableStatus.Status.TABLE_NOT_FOUND, deleteKVTStatus.getStatus());
+
+        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).build();
+
+        //Create a test KeyValueTable
+        ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
+        ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(SCOPE4).build();
+        this.controllerService.createScope(scopeInfo, result);
+        CreateScopeStatus createScopeStatus = result.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        ResultObserver<CreateKeyValueTableStatus> result1 = new ResultObserver<>();
+        this.controllerService.createKeyValueTable(ModelHelper.decode(SCOPE4, KVTABLE1, config1), result1);
+        CreateKeyValueTableStatus createStatus = result1.get();
+        assertEquals("Create KeyValueTable", CreateKeyValueTableStatus.Status.SUCCESS, createStatus.getStatus());
+
+        // Delete the KeyValueTable.
+        ResultObserver<DeleteKVTableStatus> result7 = new ResultObserver<>();
+        this.controllerService.deleteKeyValueTable(ModelHelper.createKeyValueTableInfo(SCOPE4, KVTABLE1), result7);
+        deleteKVTStatus = result7.get();
+        assertEquals("Delete KeyValueTable", DeleteKVTableStatus.Status.SUCCESS, deleteKVTStatus.getStatus());
     }
 
     @Test

@@ -47,6 +47,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
@@ -129,6 +130,31 @@ public class ControllerService {
         // Fetch active segments from segment store.
         return kvtMetadataStore.getActiveSegments(scope, kvtName, null, executor)
                 .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, kvtName), executor);
+    }
+
+    /**
+     * List existing KeyValueTables in specified scope.
+     *
+     * @param scope Name of the scope.
+     * @param token continuation token
+     * @param limit limit for number of KeyValueTables to return.
+     * @return List of KeyValueTables in scope.
+     */
+    public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final String scope, final String token, final int limit) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        return kvtMetadataStore.listKeyValueTables(scope, token, limit, executor);
+    }
+
+
+    public CompletableFuture<DeleteKVTableStatus> deleteKeyValueTable(final String scope, final String kvtName) {
+        Exceptions.checkNotNullOrEmpty(scope, "Scope Name");
+        Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTable Name");
+        Timer timer = new Timer();
+        return kvtMetadataTasks.deleteKeyValueTable(scope, kvtName, null)
+                .thenApplyAsync(status -> {
+                    reportDeleteKVTableMetrics(scope, kvtName, status, timer.getElapsed());
+                    return DeleteKVTableStatus.newBuilder().setStatus(status).build();
+                }, executor);
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
@@ -534,6 +560,14 @@ public class ControllerService {
             StreamMetrics.getInstance().createKeyValueTable(scope, kvtName, initialSegments, latency);
         } else if (status.equals(CreateKeyValueTableStatus.Status.FAILURE)) {
             StreamMetrics.getInstance().createKeyValueTableFailed(scope, kvtName);
+        }
+    }
+
+    private void reportDeleteKVTableMetrics(String scope, String kvtName, DeleteKVTableStatus.Status status, Duration latency) {
+        if (status.equals(DeleteKVTableStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().deleteKeyValueTable(scope, kvtName, latency);
+        } else if (status.equals(DeleteKVTableStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().deleteKeyValueTableFailed(scope, kvtName);
         }
     }
 
