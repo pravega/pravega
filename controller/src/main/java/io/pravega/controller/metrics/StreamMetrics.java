@@ -91,11 +91,16 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
         truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
 <<<<<<< HEAD
+<<<<<<< HEAD
         createScopeLatency = STATS_LOGGER.createStats(CREATE_SCOPE_LATENCY);
         deleteScopeLatency = STATS_LOGGER.createStats(DELETE_SCOPE_LATENCY);
         createKeyValueTableLatency = STATS_LOGGER.createStats(CREATE_KVTABLE_LATENCY);
         deleteKeyValueTableLatency = STATS_LOGGER.createStats(DELETE_KVTABLE_LATENCY);
 =======
+=======
+        createScopeLatency = STATS_LOGGER.createStats(CREATE_SCOPE_LATENCY);
+        deleteScopeLatency = STATS_LOGGER.createStats(DELETE_SCOPE_LATENCY);
+>>>>>>> Merge conflict fixes.
         createKeyValueTableLatency = STATS_LOGGER.createStats(CREATE_KVTABLE_LATENCY);
 <<<<<<< HEAD
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
