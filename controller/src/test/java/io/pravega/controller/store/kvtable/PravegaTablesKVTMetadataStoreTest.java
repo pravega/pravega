@@ -67,7 +67,7 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
         // Test operation when stream is not in active state
         streamStore.createScope(scope).get();
         byte[] newUUID = store.newScope(scope).newId();
-        store.createEntryForKVTable(scope, kvtable1, newUUID, executor);
+        store.createEntryForKVTable(scope, kvtable1, newUUID, executor).get();
         store.createKeyValueTable(scope, kvtable1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, kvtable1, KVTableState.CREATING, null, executor).get();
 
