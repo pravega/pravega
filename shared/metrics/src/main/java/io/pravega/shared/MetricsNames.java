@@ -74,6 +74,8 @@ public final class MetricsNames {
     public static final String SEGMENT_DELETE_LATENCY = PREFIX + "segmentstore.segment.delete_latency_ms";              // Histogram
     public static final String SEGMENT_READ_LATENCY = PREFIX + "segmentstore.segment.read_latency_ms";                  // Histogram
     public static final String SEGMENT_WRITE_LATENCY = PREFIX + "segmentstore.segment.write_latency_ms";                // Histogram
+    public static final String SEGMENT_APPEND_SIZE = PREFIX + "segmentstore.segment.append_size";                       // Histogram
+    public static final String SEGMENT_READ_SIZE = PREFIX + "segmentstore.segment.read_size";                           // Histogram
     public static final String SEGMENT_READ_BYTES = PREFIX + "segmentstore.segment.read_bytes";                         // Counter and Per-segment Counter
     public static final String SEGMENT_WRITE_BYTES = PREFIX + "segmentstore.segment.write_bytes";                       // Counter and Per-segment Counter
     public static final String SEGMENT_WRITE_EVENTS = PREFIX + "segmentstore.segment.write_events";                     // Counter and Per-segment Counter
@@ -180,6 +182,17 @@ public final class MetricsNames {
     public static final String CREATE_KVTABLE_LATENCY = PREFIX + "controller.kvtable.created_latency_ms";
     // KeyValueTable Create Failure
     public static final String CREATE_KVTABLE_FAILED = PREFIX + "controller.kvtable.create_failed";
+    public static final String DELETE_KVTABLE = PREFIX + "controller.kvtable.deleted";                         // Counter
+    public static final String DELETE_KVTABLE_LATENCY = PREFIX + "controller.kvtable.deleted_latency_ms";      // Histogram
+    public static final String DELETE_KVTABLE_FAILED = PREFIX + "controller.kvtable.delete_failed";
+
+    // Scope request counts
+    public static final String CREATE_SCOPE = PREFIX + "controller.scope.created";                           // Counter
+    public static final String CREATE_SCOPE_LATENCY = PREFIX + "controller.scope.created_latency_ms";        // Histogram
+    public static final String CREATE_SCOPE_FAILED = PREFIX + "controller.scope.create_failed";              // Counter and Per-scope Counter
+    public static final String DELETE_SCOPE = PREFIX + "controller.scope.deleted";                           // Counter
+    public static final String DELETE_SCOPE_LATENCY = PREFIX + "controller.scope.deleted_latency_ms";        // Histogram
+    public static final String DELETE_SCOPE_FAILED = PREFIX + "controller.scope.delete_failed";              // Counter and Per-scope Counter
 
     // Stream request counts
     public static final String CREATE_STREAM = PREFIX + "controller.stream.created";                         // Counter

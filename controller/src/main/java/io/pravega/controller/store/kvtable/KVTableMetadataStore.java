@@ -13,8 +13,10 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -36,6 +38,8 @@ public interface KVTableMetadataStore extends AutoCloseable {
     KVTOperationContext createContext(final String scope, final String name);
 
     CompletableFuture<Boolean> checkScopeExists(String scope);
+
+    CompletableFuture<Boolean> checkTableExists(String scope, String kvt);
 
     /**
      * Creates a new stream with the given name and configuration.
@@ -167,10 +171,52 @@ public interface KVTableMetadataStore extends AutoCloseable {
                                                             final Executor executor);
 
     /**
+     * List existing KeyValueTables in scopes with pagination.
+     * This api continues listing KeyValueTables from the supplied continuation token
+     * and returns a count of limited list of KeyValueTables and a new continuation token.
+     *
+     * @param scopeName Name of the scope
+     * @param continuationToken continuation token
+     * @param limit limit on number of streams to return.
+     * @param executor executor
+     * @return A pair of list of KeyValueTables in scope with the continuation token.
+     */
+    CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final String scopeName, final String continuationToken,
+                                                             final int limit, final Executor executor);
+
+    /**
      * Returns a Scope object from scope identifier.
      *
      * @param scopeName scope identifier is scopeName.
      * @return Scope object.
      */
     Scope newScope(final String scopeName);
+
+    /**
+     * Api to get all segments in the stream.
+     *
+     * @param scope    stream scope
+     * @param name     stream name.
+     * @param context  operation context
+     * @param executor callers executor
+     *
+     * @return Future, which when complete will contain a list of all segments in the stream.
+     */
+    CompletableFuture<Set<Long>> getAllSegmentIds(final String scope, final String name,
+                                                  final KVTOperationContext context, final Executor executor);
+
+
+    /**
+     * Api to Delete the kvtable related metadata.
+     *
+     * @param scopeName       scope name
+     * @param kvtName         KeyValueTable name
+     * @param context         operation context
+     * @param executor        callers executor
+     * @return future
+     */
+    CompletableFuture<Void> deleteKeyValueTable(final String scopeName,
+                                         final String kvtName,
+                                         final KVTOperationContext context,
+                                         final Executor executor);
 }

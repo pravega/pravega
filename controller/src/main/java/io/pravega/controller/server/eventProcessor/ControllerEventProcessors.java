@@ -40,6 +40,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
@@ -147,7 +148,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 executor);
         this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, executor);
-        this.kvtRequestHandler = new TableRequestHandler(new CreateTableTask(kvtMetadataStore, kvtMetadataTasks, executor), kvtMetadataStore, executor);
+        this.kvtRequestHandler = new TableRequestHandler(new CreateTableTask(kvtMetadataStore, kvtMetadataTasks, executor),
+                                                            new DeleteTableTask(kvtMetadataStore, kvtMetadataTasks, executor),
+                                                            kvtMetadataStore, executor);
         this.executor = executor;
         this.rebalanceIntervalMillis = config.getRebalanceIntervalMillis();
     }

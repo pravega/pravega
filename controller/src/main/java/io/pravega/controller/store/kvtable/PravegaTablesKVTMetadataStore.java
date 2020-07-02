@@ -10,6 +10,7 @@
 package io.pravega.controller.store.kvtable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.PravegaTablesScope;
@@ -59,6 +60,42 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     }
 
     @Override
+    public CompletableFuture<Void> deleteFromScope(final String scope,
+                                                       final String name,
+                                                       final KVTOperationContext context,
+                                                       final Executor executor) {
+        return Futures.completeOn(((PravegaTablesScope) getScope(scope)).removeKVTableFromScope(name),
+                executor);
+    }
+
+    CompletableFuture<Void> recordLastKVTableSegment(final String scope, final String kvtable, int lastActiveSegment,
+                                                     KVTOperationContext context, final Executor executor) {
+        final String key = getScopedKVTName(scope, kvtable);
+        byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
+        BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
+        return Futures.completeOn(storeHelper.createTable(DELETED_KVTABLES_TABLE)
+                .thenCompose(created -> {
+                    return storeHelper.expectingDataNotFound(storeHelper.getEntry(
+                            DELETED_KVTABLES_TABLE, key, x -> BitConverter.readInt(x, 0)),
+                            null)
+                            .thenCompose(existing -> {
+                                log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, kvtable);
+                                if (existing != null) {
+                                    final int oldLastActiveSegment = existing.getObject();
+                                    Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
+                                            "Old last active segment ({}) for {}/{} is higher than current one {}.",
+                                            oldLastActiveSegment, scope, kvtable, lastActiveSegment);
+                                    return Futures.toVoid(storeHelper.updateEntry(DELETED_KVTABLES_TABLE,
+                                            key, maxSegmentNumberBytes, existing.getVersion()));
+                                } else {
+                                    return Futures.toVoid(storeHelper.addNewEntryIfAbsent(DELETED_KVTABLES_TABLE,
+                                            key, maxSegmentNumberBytes));
+                                }
+                            });
+                }), executor);
+    }
+
+    @Override
     public PravegaTablesScope newScope(final String scopeName) {
         return new PravegaTablesScope(scopeName, storeHelper);
     }
@@ -68,6 +105,11 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
         return Futures.completeOn(storeHelper.expectingDataNotFound(
                 storeHelper.getEntry(SCOPES_TABLE, scope, x -> x).thenApply(v -> true),
                 false), executor);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt) {
+        return Futures.completeOn(((PravegaTablesScope) getScope(scopeName)).checkKeyValueTableExistsInScope(kvt), executor);
     }
 
     public CompletableFuture<Void> createEntryForKVTable(final String scopeName,

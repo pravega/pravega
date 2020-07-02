@@ -93,6 +93,10 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
@@ -1245,12 +1249,77 @@ public class ControllerImpl implements Controller {
 
     @Override
     public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
-        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
+        Exceptions.checkNotClosed(closed.get(), this);
+        long traceId = LoggerHelpers.traceEnter(log, "listKeyValueTables", scopeName);
+        long requestId = requestIdGenerator.get();
+        try {
+            final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<KeyValueTableInfo>>>> function =
+                    token -> this.retryConfig.runAsync(() -> {
+                        RPCAsyncCallback<KVTablesInScopeResponse> callback = new RPCAsyncCallback<>(requestId, "listKeyValueTables", scopeName);
+                        ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
+                        new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "listKeyValueTables", scopeName)
+                                .listKeyValueTables(KVTablesInScopeRequest.newBuilder().setScope(scopeInfo)
+                                                        .setContinuationToken(token).build(), callback);
+                        return callback.getFuture()
+                                .thenApply(x -> {
+                                    switch (x.getStatus()) {
+                                        case SCOPE_NOT_FOUND:
+                                            log.warn(requestId, "Scope not found: {}", scopeName);
+                                            throw new NoSuchScopeException();
+                                        case FAILURE:
+                                            log.warn(requestId, "Internal Server Error while trying to list streams in scope: {}", scopeName);
+                                            throw new RuntimeException("Failure while trying to list streams");
+                                        case SUCCESS:
+                                            // we will treat all other case as success for backward
+                                            // compatibility reasons
+                                        default:
+                                            List<KeyValueTableInfo> kvtList = x.getKvtablesList().stream()
+                                                    .map(y -> new KeyValueTableInfo(y.getScope(), y.getKvtName())).collect(Collectors.toList());
+                                            return new AbstractMap.SimpleEntry<>(x.getContinuationToken(), kvtList);
+                                    }
+                                });
+                    }, this.executor);
+            return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
+        } finally {
+            LoggerHelpers.traceLeave(log, "listKeyValueTables", traceId);
+        }
     }
 
     @Override
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
-        throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTableName");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "deleteKeyValueTable", scope, kvtName, requestId);
+
+        final CompletableFuture<DeleteKVTableStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<DeleteKVTableStatus> callback = new RPCAsyncCallback<>(requestId, "deleteKeyValueTable", scope, kvtName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "deleteKeyValueTable", scope, kvtName)
+                    .deleteKeyValueTable(ModelHelper.createKeyValueTableInfo(scope, kvtName), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to delete KeyValueTable: {}", kvtName);
+                    throw new ControllerFailureException("Failed to delete KeyValueTable: " + kvtName);
+                case TABLE_NOT_FOUND:
+                    log.warn(requestId, "KeyValueTable does not exist: {}", kvtName);
+                    return false;
+                case SUCCESS:
+                    log.info(requestId, "Successfully deleted KeyValueTable: {}", kvtName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status deleting KeyValueTable " + kvtName + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "deleteKeyValueTable {}/{} failed: ", scope, kvtName, e);
+            }
+            LoggerHelpers.traceLeave(log, "deleteKeyValueTable", traceId, scope, kvtName, requestId);
+        });
     }
 
     @Override
@@ -1410,6 +1479,17 @@ public class ControllerImpl implements Controller {
         public void createKeyValueTable(KeyValueTableConfig kvtConfig, RPCAsyncCallback<CreateKeyValueTableStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .createKeyValueTable(kvtConfig, callback);
+        }
+
+        void listKeyValueTables(KVTablesInScopeRequest request,
+                                       RPCAsyncCallback<KVTablesInScopeResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .listKeyValueTablesInScope(request, callback);
+        }
+
+        void deleteKeyValueTable(io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo kvtInfo, RPCAsyncCallback<DeleteKVTableStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .deleteKeyValueTable(kvtInfo, callback);
         }
     }
 }

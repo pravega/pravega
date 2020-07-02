@@ -16,6 +16,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
+import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -74,6 +75,11 @@ public class ControllerEventSerializerTests {
     public void testCreateTableEvent() {
         testClass(() -> new CreateTableEvent(SCOPE, KVTABLE, 3, System.currentTimeMillis(),
                                             123L, UUID.randomUUID()));
+    }
+
+    @Test
+    public void testDeleteTableEvent() {
+        testClass(() -> new DeleteTableEvent(SCOPE, KVTABLE, 3, UUID.randomUUID()));
     }
 
     private <T extends ControllerEvent> void testClass(Supplier<T> generateInstance) {
