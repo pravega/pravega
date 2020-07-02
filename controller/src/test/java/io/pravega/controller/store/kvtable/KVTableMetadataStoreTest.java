@@ -69,13 +69,13 @@ public abstract class KVTableMetadataStoreTest {
                 || scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS));
 
         byte[] newUUID1 = store.newScope(scope).newId();
-        store.createEntryForKVTable(scope, kvtable1, newUUID1, executor);
+        store.createEntryForKVTable(scope, kvtable1, newUUID1, executor).get();
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scope, kvtable1, configuration1, start, null, executor).get();
         store.setState(scope, kvtable1, KVTableState.ACTIVE, null, executor).get();
 
         byte[] newUUID2 = store.newScope(scope).newId();
-        store.createEntryForKVTable(scope, kvtable2, newUUID2, executor);
+        store.createEntryForKVTable(scope, kvtable2, newUUID2, executor).get();
         store.createKeyValueTable(scope, kvtable2, configuration2, start, null, executor).get();
         store.setState(scope, kvtable2, KVTableState.ACTIVE, null, executor).get();
 
@@ -99,13 +99,13 @@ public abstract class KVTableMetadataStoreTest {
                 || scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS));
 
         byte[] newUUID1 = store.newScope(scope).newId();
-        store.createEntryForKVTable(scope, kvtable1, newUUID1, executor);
+        store.createEntryForKVTable(scope, kvtable1, newUUID1, executor).get();
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scope, kvtable1, configuration1, start, null, executor).get();
         store.setState(scope, kvtable1, KVTableState.ACTIVE, null, executor).get();
 
         byte[] newUUID2 = store.newScope(scope).newId();
-        store.createEntryForKVTable(scope, kvtable2, newUUID2, executor);
+        store.createEntryForKVTable(scope, kvtable2, newUUID2, executor).get();
         store.createKeyValueTable(scope, kvtable2, configuration2, start, null, executor).get();
         store.setState(scope, kvtable2, KVTableState.ACTIVE, null, executor).get();
 
@@ -141,7 +141,7 @@ public abstract class KVTableMetadataStoreTest {
         assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS));
 
         byte[] newUUID1 = store.newScope(scopeName).newId();
-        store.createEntryForKVTable(scopeName, kvtName, newUUID1, executor);
+        store.createEntryForKVTable(scopeName, kvtName, newUUID1, executor).get();
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scopeName, kvtName, config, start, null, executor).get();
         store.setState(scopeName, kvtName, KVTableState.ACTIVE, null, executor).get();
