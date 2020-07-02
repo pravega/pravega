@@ -129,7 +129,7 @@ public class ChunkedSegmentStorage implements Storage {
     private String logPrefix;
 
     /**
-     * Creates a new instance of the ChunkedSegmentStorage class.
+     * Creates a new instance of the {@link ChunkedSegmentStorage} class.
      *
      * @param chunkStorage ChunkStorage instance.
      * @param executor     An Executor for async operations.
@@ -749,7 +749,6 @@ public class ChunkedSegmentStorage implements Storage {
      * </li>
      * </ul>
      *
-     * <div>
      * What controls whether we invoke concat or simulate through appends?
      * There are a few different capabilities that ChunkStorage needs to provide.
      * <ul>
@@ -762,7 +761,7 @@ public class ChunkedSegmentStorage implements Storage {
      * <li>Also when ChunkStorage supports both concat and append, ChunkedSegmentStorage will invoke appropriate method
      * depending on size of target and source chunks. (Eg. ECS)</li>
      * </ul>
-     * </div>
+     *
      * <li>
      * What controls defrag?
      * There are two additional parameters that control when concat

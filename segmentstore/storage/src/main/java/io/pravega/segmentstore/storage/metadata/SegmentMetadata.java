@@ -18,6 +18,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
 
 import static com.google.common.base.Strings.emptyToNull;
@@ -43,6 +44,7 @@ import static com.google.common.base.Strings.nullToEmpty;
 @Data
 @Builder(toBuilder = true)
 @EqualsAndHashCode(callSuper = true)
+@ThreadSafe
 public class SegmentMetadata extends StorageMetadata {
     /**
      * Flag to indicate whether the segment is active or not.

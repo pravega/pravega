@@ -230,7 +230,7 @@ public class SystemJournal {
                 systemJournalOffset = 0;
             }
         }
-        log.debug("SystemJournal[{}] Logging system log records - file={}, batch ={}.", containerId, h.getChunkName(), batch);
+        log.debug("SystemJournal[{}] Logging system log records - file={}, batch={}.", containerId, h.getChunkName(), batch);
     }
 
     /**

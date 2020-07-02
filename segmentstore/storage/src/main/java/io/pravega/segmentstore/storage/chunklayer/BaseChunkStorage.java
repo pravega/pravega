@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Base implementation of {@link ChunkStorage}.
  * It implements common functionality that can be used by derived classes.
  * Delegates to specific implementations by calling various abstract methods which must be overridden in derived classes.
- * <div>
+ *
  * Below are minimum requirements that any implementation must provide.
  * Note that it is the responsibility of storage provider specific implementation to make sure following guarantees are provided even
  * though underlying storage may not provide all primitives or guarantees.
@@ -33,8 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <li>{@link ChunkStorage#create(String)}  and {@link ChunkStorage#delete(ChunkHandle)} are not idempotent.</li>
  * <li>{@link ChunkStorage#exists(String)} and {@link ChunkStorage#getInfo(String)} must reflect effects of most recent operation performed.</li>
  * </ul>
- * </div>
- * <div>
+ *
  * There are a few different capabilities that ChunkStorage may provide.
  * <ul>
  * <li> Does {@link ChunkStorage} support appending to existing chunks?
@@ -46,9 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * There are some obvious constraints - If ChunkStorage supports concat but not natively then it must support append .
  *
  * For concats, {@link ChunkStorage} supports both native and append, ChunkedSegmentStorage will invoke appropriate method depending on size of target and source chunks. (Eg. ECS)
- * </div>
  *
- * <div>
  * The implementations in this repository are tested using following test suites.
  * <ul>
  * <li>SimpleStorageTests</li>
@@ -56,7 +53,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <li>ChunkStorageProviderTests</li>
  * <li>SystemJournalTests</li>
  * </ul>
- * </div>
  */
 @Slf4j
 @Beta

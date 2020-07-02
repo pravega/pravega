@@ -38,7 +38,6 @@ import com.google.common.annotations.Beta;
  * <li>{@link MetadataTransaction#update(StorageMetadata)} Updates the transaction local copy of the record.
  * For each record modified inside the transaction update must be called to mark the record as dirty.</li>
  * </ul>
- * <div>
  * <pre>
  *  // Start a transaction.
  * try (MetadataTransaction txn = metadataStore.beginTransaction()) {
@@ -58,7 +57,6 @@ import com.google.common.annotations.Beta;
  *      // Handle Exceptions
  *  }
  *  </pre>
- * </div>
  *
  * Underlying implementation might buffer frequently or recently updated metadata keys to optimize read/write performance.
  * To further optimize it may provide "lazy committing" of changes where there is application specific way to recover

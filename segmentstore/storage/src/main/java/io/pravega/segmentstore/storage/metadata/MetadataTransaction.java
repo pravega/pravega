@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Default implementation of the storage metadata transaction.
  * All access to and modifications to the metadata the {@link ChunkMetadataStore} must be done through a transaction.
  * This implementation delegates all calls to underlying {@link ChunkMetadataStore}.
- * <div>
+ *
  * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction()}
  * <ul>
  * <li>Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload
@@ -33,8 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <li>In addition, Transactions provide snaphot isolation which means that transaction fails if any of the metadata
  * records read during the transactions are changed outside the transaction after they were read.</li>
  * </ul>
- * </div>
- * <div>
+ *
  * Within a transaction you can perform following actions on a per record basis.
  * <ul>
  * <li>{@link MetadataTransaction#get(String)} Retrieves metadata using for given key.</li>
@@ -43,9 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <li>{@link MetadataTransaction#update(StorageMetadata)} Updates the transaction local copy of the record.
  * For each record modified inside the transaction update must be called to mark the record as dirty.</li>
  * </ul>
- * </div>
  *
- * <div>
  * Underlying implementation might buffer frequently or recently updated metadata keys to optimize read/write performance.
  * To further optimize it may provide "lazy committing" of changes where there is application specific way to recover
  * from failures.(Eg. when only length of chunk is changed.)
@@ -60,7 +57,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * <li>In addition transaction can be committed using {@link MetadataTransaction#commit(boolean, boolean)} to skip
  * validation step that reads any recently evicted changes from underlying storage.</li>
  * </ul>
- * </div>
  */
 @NotThreadSafe
 public class MetadataTransaction implements AutoCloseable {

@@ -17,6 +17,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
 
 import static com.google.common.base.Strings.emptyToNull;
@@ -34,6 +35,7 @@ import static com.google.common.base.Strings.nullToEmpty;
 @Builder(toBuilder = true)
 @Data
 @EqualsAndHashCode(callSuper = true)
+@ThreadSafe
 public class ChunkMetadata extends StorageMetadata {
     /**
      * Name of this chunk.

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.util.CollectionHelpers;
 import io.pravega.segmentstore.storage.chunklayer.ChunkAlreadyExistsException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
 import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
@@ -103,13 +104,11 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
         // This is implemented this way to simulate possibility of partial read.
         InMemoryChunkData matchingData = null;
 
-        // TODO : This is OK for now. This is just test code, but need binary search here.
-        for (InMemoryChunkData data : chunk.inMemoryChunkDataList) {
-            if (data.start <= fromOffset && data.start + data.length > fromOffset) {
-                matchingData = data;
-                break;
-
-            }
+        // Find chunk that contains data.
+        int floorIndex = CollectionHelpers.findGreatestLowerBound(chunk.inMemoryChunkDataList,
+                chunkData -> Long.compare(fromOffset, chunkData.start));
+        if (floorIndex != -1) {
+            matchingData = chunk.inMemoryChunkDataList.get(floorIndex);
         }
 
         if (null != matchingData) {

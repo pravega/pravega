@@ -16,7 +16,6 @@ import java.io.InputStream;
 /**
  * Defines an abstraction for Permanent Storage.
  * Note: not all operations defined here are needed.
- * <div>
  * Below are minimum requirements that any implementation must provide.
  * Note that it is the responsibility of storage provider specific implementation to make sure following guarantees are
  * provided even though underlying storage may not provide all primitives or guarantees.
@@ -28,8 +27,7 @@ import java.io.InputStream;
  * operation performed.</li>
  * </ul>
  * There is no need to implement any special logic to handle concurrent access to the underlying objects/files.
- * </div>
- * <div>
+ *
  * There are a few different capabilities that ChunkStorage may provide.
  * <ul>
  * <li> Does {@link ChunkStorage} support appending to existing chunks?
@@ -43,7 +41,7 @@ import java.io.InputStream;
  *
  * For concats, {@link ChunkStorage} supports both native and append, ChunkedSegmentStorage will invoke appropriate method depending
  * on size of target and source chunks. (Eg. ECS)
- * </div>
+ *
  * It is recommended that the implementations should extend {@link BaseChunkStorage}.
  */
 @Beta
