@@ -500,11 +500,11 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         Services.startAsync(debugStreamSegmentContainer, executorService)
                 .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID)))
                 .whenComplete((v, ex) -> Services.stopAsync(debugStreamSegmentContainer, executorService)).join();
-        sleep(20000);
-        this.dataLogFactory.close();
+        //sleep(20000);
+        //this.dataLogFactory.close();
 
         // Start a new segment store and controller
-        segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory);
+        segmentStoreStarter = startSegmentStore(this.storageFactory, null);
         controllerStarter = startController(bkzk.bkPort.get(), segmentStoreStarter.servicePort);
 
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
@@ -521,6 +521,10 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
         log.info("Second read on stream 2");
+        controllerStarter.close();
+        segmentStoreStarter.close();
+        bkzk.bookKeeperServiceRunner.close(); // Shut down BK & ZK
+        bkzk.bkService.getAndSet(null).close();
     }
 
     public static ScheduledExecutorService createExecutorService(int threadPoolSize) {

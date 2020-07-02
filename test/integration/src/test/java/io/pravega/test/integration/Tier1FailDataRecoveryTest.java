@@ -441,11 +441,15 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         Services.startAsync(debugStreamSegmentContainer, executorService)
                 .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID)))
                 .whenComplete((v, ex) -> Services.stopAsync(debugStreamSegmentContainer, executorService)).join();
-        this.dataLogFactory.close();
+        //this.dataLogFactory.close();
 
         // Start a new segment store and controller
-        segmentStore = startSegmentStore(this.storageFactory, this.dataLogFactory);
-        startController(bkzk.bkPort.get(), segmentStore.servicePort);
+        segmentStore = startSegmentStore(this.storageFactory, null);
+        controllerStarter = startController(bkzk.bkPort.get(), segmentStore.servicePort);
+        controllerStarter.close();
+        segmentStore.close();
+        bkzk.bookKeeperServiceRunner.close(); // Shut down BK & ZK
+        bkzk.bkService.getAndSet(null).close();
     }
 
     public static ScheduledExecutorService createExecutorService(int threadPoolSize) {
