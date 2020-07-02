@@ -498,13 +498,14 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Re-create all segments which were listed.
         Services.startAsync(debugStreamSegmentContainer, executorService)
-                .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID)))
-                .whenComplete((v, ex) -> Services.stopAsync(debugStreamSegmentContainer, executorService)).join();
+                .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID))).join();
+        sleep(5000);
+        Services.stopAsync(debugStreamSegmentContainer, executorService).join();
         //sleep(20000);
-        //this.dataLogFactory.close();
+        this.dataLogFactory.close();
 
         // Start a new segment store and controller
-        segmentStoreStarter = startSegmentStore(this.storageFactory, null);
+        segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory);
         controllerStarter = startController(bkzk.bkPort.get(), segmentStoreStarter.servicePort);
 
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());

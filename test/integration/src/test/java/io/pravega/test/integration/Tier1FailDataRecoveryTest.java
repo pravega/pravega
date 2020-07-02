@@ -298,7 +298,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         @Override
         public void close() {
-            this.dataLogFactory.close();
             this.cacheManager.close();
             this.cacheStorage.close();
         }
@@ -439,12 +438,13 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Re-create all segments which were listed.
         Services.startAsync(debugStreamSegmentContainer, executorService)
-                .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID)))
-                .whenComplete((v, ex) -> Services.stopAsync(debugStreamSegmentContainer, executorService)).join();
-        //this.dataLogFactory.close();
+                .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID))).join();
+        sleep(5000);
+        Services.stopAsync(debugStreamSegmentContainer, executorService).join();
+        this.dataLogFactory.close();
 
         // Start a new segment store and controller
-        segmentStore = startSegmentStore(this.storageFactory, null);
+        segmentStore = startSegmentStore(this.storageFactory, this.dataLogFactory);
         controllerStarter = startController(bkzk.bkPort.get(), segmentStore.servicePort);
         controllerStarter.close();
         segmentStore.close();
