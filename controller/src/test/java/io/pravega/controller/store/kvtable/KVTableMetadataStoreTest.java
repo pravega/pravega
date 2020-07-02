@@ -117,20 +117,28 @@ public abstract class KVTableMetadataStoreTest {
 
         byte[] newUUID1 = store.newScope(scope).newId();
 <<<<<<< HEAD
+<<<<<<< HEAD
         store.createEntryForKVTable(scope, kvtable1, newUUID1, executor).get();
 =======
         store.createEntryForKVTable(scope, kvtable1, newUUID1, executor);
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+        store.createEntryForKVTable(scope, kvtable1, newUUID1, executor).get();
+>>>>>>> Fixed flaky unit test
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scope, kvtable1, configuration1, start, null, executor).get();
         store.setState(scope, kvtable1, KVTableState.ACTIVE, null, executor).get();
 
         byte[] newUUID2 = store.newScope(scope).newId();
 <<<<<<< HEAD
+<<<<<<< HEAD
         store.createEntryForKVTable(scope, kvtable2, newUUID2, executor).get();
 =======
         store.createEntryForKVTable(scope, kvtable2, newUUID2, executor);
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+        store.createEntryForKVTable(scope, kvtable2, newUUID2, executor).get();
+>>>>>>> Fixed flaky unit test
         store.createKeyValueTable(scope, kvtable2, configuration2, start, null, executor).get();
         store.setState(scope, kvtable2, KVTableState.ACTIVE, null, executor).get();
 
@@ -159,20 +167,28 @@ public abstract class KVTableMetadataStoreTest {
 
         byte[] newUUID1 = store.newScope(scope).newId();
 <<<<<<< HEAD
+<<<<<<< HEAD
         store.createEntryForKVTable(scope, kvtable1, newUUID1, executor).get();
 =======
         store.createEntryForKVTable(scope, kvtable1, newUUID1, executor);
 >>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
+=======
+        store.createEntryForKVTable(scope, kvtable1, newUUID1, executor).get();
+>>>>>>> Fixed flaky unit test
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scope, kvtable1, configuration1, start, null, executor).get();
         store.setState(scope, kvtable1, KVTableState.ACTIVE, null, executor).get();
 
         byte[] newUUID2 = store.newScope(scope).newId();
 <<<<<<< HEAD
+<<<<<<< HEAD
         store.createEntryForKVTable(scope, kvtable2, newUUID2, executor).get();
 =======
         store.createEntryForKVTable(scope, kvtable2, newUUID2, executor);
 >>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
+=======
+        store.createEntryForKVTable(scope, kvtable2, newUUID2, executor).get();
+>>>>>>> Fixed flaky unit test
         store.createKeyValueTable(scope, kvtable2, configuration2, start, null, executor).get();
         store.setState(scope, kvtable2, KVTableState.ACTIVE, null, executor).get();
 
@@ -209,10 +225,14 @@ public abstract class KVTableMetadataStoreTest {
 
         byte[] newUUID1 = store.newScope(scopeName).newId();
 <<<<<<< HEAD
+<<<<<<< HEAD
         store.createEntryForKVTable(scopeName, kvtName, newUUID1, executor).get();
 =======
         store.createEntryForKVTable(scopeName, kvtName, newUUID1, executor);
 >>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
+=======
+        store.createEntryForKVTable(scopeName, kvtName, newUUID1, executor).get();
+>>>>>>> Fixed flaky unit test
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scopeName, kvtName, config, start, null, executor).get();
         store.setState(scopeName, kvtName, KVTableState.ACTIVE, null, executor).get();
