@@ -153,12 +153,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 "listKeyValueTables", scopeName);
         log.info(requestTag.getRequestId(), "listKeyValueTables called for scope {}.", scopeName);
 
-        final AuthContext ctx;
-        if (this.grpcAuthHelper.isAuthEnabled()) {
-            ctx = AuthContext.current();
-        } else {
-            ctx = null;
-        }
+        final AuthContext ctx = this.grpcAuthHelper.isAuthEnabled() ? AuthContext.current() : null;
 
         authenticateExecuteAndProcessResults(
                 () -> {

@@ -966,9 +966,6 @@ public class ControllerImplTest {
                             .newBuilder().setStatus(Controller.KVTablesInScopeResponse.Status.SCOPE_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
-                } else if (request.getScope().getScope().equals("deadline")) {
-                    // dont send any response
-                    System.err.println("i am here");
                 } else if (request.getScope().getScope().equals(FAILING)) {
                     responseObserver.onNext(Controller.KVTablesInScopeResponse
                             .newBuilder().setStatus(Controller.KVTablesInScopeResponse.Status.FAILURE)

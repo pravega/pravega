@@ -158,16 +158,12 @@ public class InMemoryScope implements Scope {
             return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, this.scopeName));
         }
         List<String> sortedKVTablesList = kvTablesMap.keySet().stream().collect(Collectors.toList());
-        int start = 0, end = 0;
+        int start = 0;
         if (!continuationToken.isEmpty()) {
             start = Integer.parseInt(continuationToken);
         }
 
-        if ((start + limit) >= sortedKVTablesList.size()) {
-            end = sortedKVTablesList.size();
-        } else {
-            end = start + limit;
-        }
+        int end = ((start + limit) >= sortedKVTablesList.size()) ? sortedKVTablesList.size() : start + limit;
         List<String> nextBatchOfTables = sortedKVTablesList.subList(start, end);
 
         return CompletableFuture.completedFuture(new ImmutablePair<>(nextBatchOfTables, String.valueOf(end)));

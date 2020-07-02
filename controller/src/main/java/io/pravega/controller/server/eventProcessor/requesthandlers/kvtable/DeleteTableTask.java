@@ -56,7 +56,7 @@ public class DeleteTableTask implements TableTask<DeleteTableEvent> {
         return RetryHelper.withRetriesAsync(() -> getKeyValueTable(scope, kvt)
                 .thenCompose(table -> table.getId()).thenCompose(id -> {
             if (!id.equals(kvTableId)) {
-                log.debug("Skipped processing delete event for KeyValueTable {}/{} with Is:{} as UUIDs did not match.", scope, kvt, id);
+                log.debug("Skipped processing delete event for KeyValueTable {}/{} with Id:{} as UUIDs did not match.", scope, kvt, id);
                 return CompletableFuture.completedFuture(null);
             } else {
                 final KVTOperationContext context = kvtMetadataStore.createContext(scope, kvt);
