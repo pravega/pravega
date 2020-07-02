@@ -56,9 +56,12 @@ public class CreateTableEvent implements ControllerEvent {
 
     //region Serialization
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     private static class CreateTableEventBuilder implements ObjectBuilder<CreateTableEvent> {
     }
 

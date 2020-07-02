@@ -48,12 +48,17 @@ public class ZKScope implements Scope {
     private static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
     private static final String KVTABLES_IN_SCOPE = "_kvtablesinscope";
     private static final String KVTABLES_IN_SCOPE_ROOT_PATH = "/store/" + KVTABLES_IN_SCOPE + "/%s";
+<<<<<<< HEAD
 <<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/ZKScope.java
     // This is a path like: /store/_kvtablesinscope/scope1/kvtable1
     private static final String KVTABLES_IN_SCOPE_ROOT_PATH_FORMAT = KVTABLES_IN_SCOPE_ROOT_PATH + "/%s";
 =======
     private static final String KVTABLES_IN_SCOPE_ROOT_PATH_FORMAT = KVTABLES_IN_SCOPE_ROOT_PATH + "/kvtables/%s";
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/ZKScope.java
+=======
+    // This is a path like: /store/_kvtablesinscope/scope1/kvtable1
+    private static final String KVTABLES_IN_SCOPE_ROOT_PATH_FORMAT = KVTABLES_IN_SCOPE_ROOT_PATH + "/%s";
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 
     private final String scopePath;
     private final String counterPath;
@@ -330,7 +335,10 @@ public class ZKScope implements Scope {
                 .thenCompose(x -> store.setData(path, id, new Version.IntVersion(0)))));
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/ZKScope.java
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     public CompletableFuture<Void> removeKVTableFromScope(String name) {
         return Futures.toVoid(getKVTableInScopeZNodePath(this.scopeName, name)
                 .thenApply(path -> store.deletePath(path, true)));
@@ -347,8 +355,11 @@ public class ZKScope implements Scope {
         return getKVTableInScopeZNodePath(this.scopeName, kvt).thenCompose(path -> store.checkExists(path));
     }
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/ZKScope.java
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     public static CompletableFuture<String> getKVTableInScopeZNodePath(String scopeName, String kvtName) {
         return CompletableFuture.completedFuture(String.format(KVTABLES_IN_SCOPE_ROOT_PATH_FORMAT, scopeName, kvtName));
     }

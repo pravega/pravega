@@ -21,22 +21,32 @@ public enum KVTableState {
     UNKNOWN,
     CREATING,
 <<<<<<< HEAD
+<<<<<<< HEAD
     DELETING,
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    DELETING,
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     ACTIVE;
 
     private enum StateTransitions {
         UNKNOWN(KVTableState.UNKNOWN, KVTableState.CREATING),
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         CREATING(KVTableState.CREATING, KVTableState.ACTIVE, KVTableState.DELETING),
         ACTIVE(KVTableState.ACTIVE, KVTableState.DELETING),
         DELETING(KVTableState.DELETING);
 
+<<<<<<< HEAD
 =======
         CREATING(KVTableState.CREATING, KVTableState.ACTIVE),
         ACTIVE(KVTableState.ACTIVE);
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 
         private final Set<KVTableState> transitions;
 

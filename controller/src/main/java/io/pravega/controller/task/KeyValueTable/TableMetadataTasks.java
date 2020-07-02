@@ -24,17 +24,25 @@ import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.controller.store.kvtable.KVTOperationContext;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import io.pravega.controller.store.kvtable.KVTOperationContext;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import io.pravega.controller.store.kvtable.KVTableState;
 import io.pravega.controller.store.stream.StoreException;
 
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.util.RetryHelper;
@@ -42,19 +50,28 @@ import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 
 import java.util.List;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import java.util.Set;
 import java.util.UUID;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import java.util.Set;
+import java.util.UUID;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import lombok.Synchronized;
 import org.slf4j.LoggerFactory;
 
@@ -71,10 +88,14 @@ import static io.pravega.shared.NameUtils.getQualifiedTableSegmentName;
 public class TableMetadataTasks implements AutoCloseable {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TableMetadataTasks.class));
 <<<<<<< HEAD
+<<<<<<< HEAD
     private static final int NUM_RETRIES = 10;
 =======
     private static final int CREATE_NUM_RETRIES = 10;
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    private static final int NUM_RETRIES = 10;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     private final KVTableMetadataStore kvtMetadataStore;
     private final SegmentHelper segmentHelper;
     private final ScheduledExecutorService executor;
@@ -160,6 +181,7 @@ public class TableMetadataTasks implements AutoCloseable {
                                  });
                             });
 <<<<<<< HEAD
+<<<<<<< HEAD
                }, e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
     }
 
@@ -222,6 +244,9 @@ public class TableMetadataTasks implements AutoCloseable {
                         return CompletableFuture.completedFuture(Boolean.FALSE);
 =======
                }, e -> Exceptions.unwrap(e) instanceof RetryableException, CREATE_NUM_RETRIES, executor)
+=======
+               }, e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor)
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
                 .handle((result, ex) -> {
                     if (ex != null) {
                         log.warn(requestId, "Create kvtable failed due to ", ex);
@@ -229,6 +254,68 @@ public class TableMetadataTasks implements AutoCloseable {
                     } else {
                         return result;
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+                    }
+                });
+    }
+
+
+    /**
+     * Delete a KeyValueTable.
+     *
+     * @param scope      scope.
+     * @param kvtName    KeyValueTable name.
+     * @param contextOpt optional context
+     * @return delete status.
+     */
+    public CompletableFuture<DeleteKVTableStatus.Status> deleteKeyValueTable(final String scope, final String kvtName,
+                                                                     final KVTOperationContext contextOpt) {
+        final KVTOperationContext context = contextOpt == null ? kvtMetadataStore.createContext(scope, kvtName) : contextOpt;
+        final long requestId = requestTracker.getRequestIdFor("deleteKeyValueTable", scope, kvtName);
+
+        return RetryHelper.withRetriesAsync(() -> Futures.exceptionallyExpecting(
+            kvtMetadataStore.getState(scope, kvtName, false, context, executor),
+            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
+            .thenCompose(state -> {
+                if (KVTableState.UNKNOWN.equals(state)) {
+                    return CompletableFuture.completedFuture(DeleteKVTableStatus.Status.TABLE_NOT_FOUND);
+                }
+                return kvtMetadataStore.getKVTable(scope, kvtName, context).getId()
+                        .thenCompose(id -> {
+                            DeleteTableEvent deleteEvent = new DeleteTableEvent(scope, kvtName, requestId, UUID.fromString(id));
+                            return eventHelper.addIndexAndSubmitTask(deleteEvent,
+                                    () -> kvtMetadataStore.setState(scope, kvtName, KVTableState.DELETING, context, executor))
+                                    .thenCompose(x -> eventHelper.checkDone(() -> isDeleted(scope, kvtName, context)))
+                                    .thenApply(y -> DeleteKVTableStatus.Status.SUCCESS);
+                        });
+            }), e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
+    }
+
+    public CompletableFuture<Void> deleteSegments(String scope, String kvt, Set<Long> segmentsToDelete,
+                                                        String delegationToken, long requestId) {
+        log.debug("{}/{} deleting {} segments", scope, kvt, segmentsToDelete.size());
+        return Futures.allOf(segmentsToDelete
+                .stream()
+                .parallel()
+                .map(segment -> deleteSegment(scope, kvt, segment, delegationToken, requestId))
+                .collect(Collectors.toList()));
+    }
+
+    public CompletableFuture<Void> deleteSegment(String scope, String kvt, long segmentId, String delegationToken,
+                                                       long requestId) {
+        final String qualifiedTableSegmentName = getQualifiedTableSegmentName(scope, kvt, segmentId);
+        log.debug("Deleting segment {} with Id {}", qualifiedTableSegmentName, segmentId);
+        return Futures.toVoid(withRetries(() -> segmentHelper.deleteTableSegment(qualifiedTableSegmentName,
+                                                false, delegationToken, requestId), executor));
+    }
+
+    private CompletableFuture<Boolean> isDeleted(String scope, String kvtName, KVTOperationContext context) {
+        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
+                .thenCompose(state -> {
+                    if (state.equals(KVTableState.UNKNOWN)) {
+                        return CompletableFuture.completedFuture(Boolean.TRUE);
+                    } else {
+                        return CompletableFuture.completedFuture(Boolean.FALSE);
                     }
                 });
     }
@@ -286,10 +373,14 @@ public class TableMetadataTasks implements AutoCloseable {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     public String retrieveDelegationToken() {
 =======
     private String retrieveDelegationToken() {
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    public String retrieveDelegationToken() {
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         return authHelper.retrieveMasterToken();
     }
 

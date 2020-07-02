@@ -489,10 +489,19 @@ public class LocalController implements Controller {
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     }
-
+    
     @Override
     public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
-        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
+                controller.listKeyValueTables(scopeName, token, LIST_STREAM_IN_SCOPE_LIMIT)
+                        .thenApply(result -> {
+                            List<KeyValueTableInfo> kvTablesList = result.getLeft().stream().map(kvt -> new KeyValueTableInfo(scopeName, kvt))
+                                    .collect(Collectors.toList());
+
+                            return new AbstractMap.SimpleEntry<>(result.getValue(), kvTablesList);
+                        });
+
+        return new ContinuationTokenAsyncIterator<>(function, "");
     }
 
     @Override
@@ -507,6 +516,9 @@ public class LocalController implements Controller {
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         return this.controller.deleteKeyValueTable(scope, kvtName).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
@@ -520,9 +532,12 @@ public class LocalController implements Controller {
                             + x.getStatus());
             }
         });
+<<<<<<< HEAD
 =======
         throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     }
 
     @Override

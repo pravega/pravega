@@ -41,11 +41,15 @@ public class InMemoryScope implements Scope {
     private HashMap<String, Integer> streamsPositionMap;
 
     @GuardedBy("$lock")
+<<<<<<< HEAD
 <<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/InMemoryScope.java
     private TreeMap<String, InMemoryKVTable> kvTablesMap;
 =======
     private HashMap<String, InMemoryKVTable> kvTablesMap;
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/InMemoryScope.java
+=======
+    private TreeMap<String, InMemoryKVTable> kvTablesMap;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 
     public InMemoryScope(String scopeName) {
         this.scopeName = scopeName;
@@ -61,11 +65,15 @@ public class InMemoryScope implements Scope {
     public CompletableFuture<Void> createScope() {
         this.sortedStreamsInScope = new TreeMap<>(Integer::compare);
         this.streamsPositionMap = new HashMap<>();
+<<<<<<< HEAD
 <<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/InMemoryScope.java
         this.kvTablesMap =  new TreeMap<String, InMemoryKVTable>();
 =======
         this.kvTablesMap =  new HashMap<String, InMemoryKVTable>();
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/InMemoryScope.java
+=======
+        this.kvTablesMap =  new TreeMap<String, InMemoryKVTable>();
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         return CompletableFuture.completedFuture(null);
     }
 
@@ -145,13 +153,19 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(null);
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/InMemoryScope.java
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     public Boolean checkTableExists(String kvt) {
         return kvTablesMap.containsKey(kvt);
     }
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/InMemoryScope.java
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     public Optional<InMemoryKVTable> getKVTableFromScope(String kvt) throws StoreException {
         if (kvTablesMap.containsKey(kvt)) {
             return Optional.of(kvTablesMap.get(kvt));
@@ -181,12 +195,35 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(new ImmutablePair<>(nextBatchOfTables, String.valueOf(end)));
     }
 
+<<<<<<< HEAD
+=======
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(int limit, String continuationToken, Executor executor) {
+        if (kvTablesMap == null) {
+            return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, this.scopeName));
+        }
+        List<String> sortedKVTablesList = kvTablesMap.keySet().stream().collect(Collectors.toList());
+        int start = 0;
+        if (!continuationToken.isEmpty()) {
+            start = Integer.parseInt(continuationToken);
+        }
+
+        int end = ((start + limit) >= sortedKVTablesList.size()) ? sortedKVTablesList.size() : start + limit;
+        List<String> nextBatchOfTables = sortedKVTablesList.subList(start, end);
+
+        return CompletableFuture.completedFuture(new ImmutablePair<>(nextBatchOfTables, String.valueOf(end)));
+    }
+
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     @Synchronized
     public CompletableFuture<Void> removeKVTableFromScope(String kvtName) {
         kvTablesMap.remove(kvtName);
         return CompletableFuture.completedFuture(null);
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/InMemoryScope.java
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     }
 
 }

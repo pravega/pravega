@@ -16,9 +16,13 @@ import java.nio.ByteBuffer;
 
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import lombok.SneakyThrows;
 
 /**
@@ -38,11 +42,16 @@ public class ControllerEventSerializer extends VersionedSerializer.MultiType<Con
                .serializer(TruncateStreamEvent.class, 7, new TruncateStreamEvent.Serializer())
                .serializer(UpdateStreamEvent.class, 8, new UpdateStreamEvent.Serializer())
 <<<<<<< HEAD
+<<<<<<< HEAD
                .serializer(CreateTableEvent.class, 9, new CreateTableEvent.Serializer())
                .serializer(DeleteTableEvent.class, 10, new DeleteTableEvent.Serializer());
 =======
                .serializer(CreateTableEvent.class, 9, new CreateTableEvent.Serializer());
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+               .serializer(CreateTableEvent.class, 9, new CreateTableEvent.Serializer())
+               .serializer(DeleteTableEvent.class, 10, new DeleteTableEvent.Serializer());
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     }
 
     /**

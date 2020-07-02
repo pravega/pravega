@@ -83,10 +83,15 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -969,6 +974,9 @@ public class ControllerImplTest {
                 }
             }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 
             @Override
             public void listKeyValueTablesInScope(Controller.KVTablesInScopeRequest request,
@@ -1031,8 +1039,11 @@ public class ControllerImplTest {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
             }
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         };
 
         serverPort = TestUtils.getAvailableListenPort();
@@ -1816,6 +1827,7 @@ public class ControllerImplTest {
     }
 
     @Test
+<<<<<<< HEAD
 <<<<<<< HEAD:client/src/test/java/io/pravega/client/control/impl/ControllerImplTest.java
     public void testCreateKeyValueTable() throws Exception {
         CompletableFuture<Boolean> createKVTableStatus;
@@ -1903,6 +1915,8 @@ public class ControllerImplTest {
     }
 
     @Test
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     public void testCreateKeyValueTable() throws Exception {
         CompletableFuture<Boolean> createKVTableStatus;
         createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable1",
@@ -1940,5 +1954,44 @@ public class ControllerImplTest {
         kvtSegments = controllerClient.getCurrentSegmentsForKeyValueTable("scope1", "kvtable2");
         AssertExtensions.assertFutureThrows("Should throw Exception", kvtSegments, throwable -> true);
     }
+<<<<<<< HEAD
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/test/java/io/pravega/client/stream/impl/ControllerImplTest.java
+=======
+
+    @Test
+    public void testKVTablesInScope() {
+        String scope = "scopeList";
+        AsyncIterator<io.pravega.client.admin.KeyValueTableInfo> iterator = controllerClient.listKeyValueTables(scope);
+
+        io.pravega.client.admin.KeyValueTableInfo m = iterator.getNext().join();
+        assertEquals("kvtable1", m.getKeyValueTableName());
+        m = iterator.getNext().join();
+        assertEquals("kvtable2", m.getKeyValueTableName());
+        m = iterator.getNext().join();
+        assertEquals("kvtable3", m.getKeyValueTableName());
+
+        AssertExtensions.assertFutureThrows("Non existent scope",
+                controllerClient.listKeyValueTables(NON_EXISTENT).getNext(),
+                e -> Exceptions.unwrap(e) instanceof NoSuchScopeException);
+
+        AssertExtensions.assertFutureThrows("failing request",
+                controllerClient.listKeyValueTables(FAILING).getNext(),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+    }
+
+    @Test
+    public void testDeleteKeyValueTable() {
+        CompletableFuture<Boolean> deleteKVTableStatus = controllerClient.deleteKeyValueTable("scope1", "kvtable1");
+        assertTrue(deleteKVTableStatus.join());
+
+        deleteKVTableStatus = controllerClient.deleteKeyValueTable("scope1", "kvtable2");
+        AssertExtensions.assertFutureThrows("Should throw Exception",
+                deleteKVTableStatus, throwable -> true);
+
+        deleteKVTableStatus = controllerClient.deleteKeyValueTable("scope1", "kvtable3");
+        assertFalse(deleteKVTableStatus.join());
+    }
+
+
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 }

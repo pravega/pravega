@@ -183,6 +183,7 @@ public final class MetricsNames {
     // KeyValueTable Create Failure
     public static final String CREATE_KVTABLE_FAILED = PREFIX + "controller.kvtable.create_failed";
 <<<<<<< HEAD
+<<<<<<< HEAD
     public static final String DELETE_KVTABLE = PREFIX + "controller.kvtable.deleted";                         // Counter
     public static final String DELETE_KVTABLE_LATENCY = PREFIX + "controller.kvtable.deleted_latency_ms";      // Histogram
     public static final String DELETE_KVTABLE_FAILED = PREFIX + "controller.kvtable.delete_failed";
@@ -196,6 +197,11 @@ public final class MetricsNames {
     public static final String DELETE_SCOPE_FAILED = PREFIX + "controller.scope.delete_failed";              // Counter and Per-scope Counter
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    public static final String DELETE_KVTABLE = PREFIX + "controller.kvtable.deleted";                         // Counter
+    public static final String DELETE_KVTABLE_LATENCY = PREFIX + "controller.kvtable.deleted_latency_ms";      // Histogram
+    public static final String DELETE_KVTABLE_FAILED = PREFIX + "controller.kvtable.delete_failed";
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 
     // Stream request counts
     public static final String CREATE_STREAM = PREFIX + "controller.stream.created";                         // Counter

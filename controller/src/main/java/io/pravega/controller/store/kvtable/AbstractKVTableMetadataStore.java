@@ -14,9 +14,13 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.common.Exceptions;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import io.pravega.common.Exceptions;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.VersionedMetadata;
@@ -31,6 +35,9 @@ import org.apache.commons.lang3.tuple.Pair;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.List;
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -41,6 +48,7 @@ import java.util.function.Predicate;
 public abstract class AbstractKVTableMetadataStore implements KVTableMetadataStore {
     public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
 
+<<<<<<< HEAD
 =======
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -49,6 +57,8 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public abstract class AbstractKVTableMetadataStore implements KVTableMetadataStore {
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, KeyValueTable> cache;
     @Getter
@@ -193,6 +203,9 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     @Override
     public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(String scopeName, String continuationToken,
                                                                     int limit, Executor executor) {
@@ -234,8 +247,11 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
     abstract CompletableFuture<Void> recordLastKVTableSegment(final String scope, final String kvtable, int lastActiveSegment,
                                                              KVTOperationContext context, final Executor executor);
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     /**
      * This method retrieves a safe base segment number from which a stream's segment ids may start. In the case of a
      * new stream, this method will return 0 as a starting segment number (default). In the case that a stream with the
@@ -256,11 +272,17 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                                                   final byte[] id,
                                                                   final Executor executor);
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 
     public abstract CompletableFuture<Void> deleteFromScope(final String scope,
                                                                    final String name,
                                                                    final KVTOperationContext context,
                                                                    final Executor executor);
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 }

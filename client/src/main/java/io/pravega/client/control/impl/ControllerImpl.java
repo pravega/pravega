@@ -96,10 +96,14 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.Controller
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 
+<<<<<<< HEAD
 =======
 =======
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
@@ -109,6 +113,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsReque
 >>>>>>> Issue 4569: (Key-Value Tables) Merge with latest master. (#4857)
 =======
 >>>>>>> Issue 4569: (Key-Value Tables) Merge latest master with feature-key-value-tables (#4892)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
@@ -1308,7 +1314,40 @@ public class ControllerImpl implements Controller {
 
     @Override
     public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
-        throw new UnsupportedOperationException("listKeyValueTables not implemented.");
+        Exceptions.checkNotClosed(closed.get(), this);
+        long traceId = LoggerHelpers.traceEnter(log, "listKeyValueTables", scopeName);
+        long requestId = requestIdGenerator.get();
+        try {
+            final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<KeyValueTableInfo>>>> function =
+                    token -> this.retryConfig.runAsync(() -> {
+                        RPCAsyncCallback<KVTablesInScopeResponse> callback = new RPCAsyncCallback<>(requestId, "listKeyValueTables", scopeName);
+                        ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
+                        new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "listKeyValueTables", scopeName)
+                                .listKeyValueTables(KVTablesInScopeRequest.newBuilder().setScope(scopeInfo)
+                                                        .setContinuationToken(token).build(), callback);
+                        return callback.getFuture()
+                                .thenApply(x -> {
+                                    switch (x.getStatus()) {
+                                        case SCOPE_NOT_FOUND:
+                                            log.warn(requestId, "Scope not found: {}", scopeName);
+                                            throw new NoSuchScopeException();
+                                        case FAILURE:
+                                            log.warn(requestId, "Internal Server Error while trying to list streams in scope: {}", scopeName);
+                                            throw new RuntimeException("Failure while trying to list streams");
+                                        case SUCCESS:
+                                            // we will treat all other case as success for backward
+                                            // compatibility reasons
+                                        default:
+                                            List<KeyValueTableInfo> kvtList = x.getKvtablesList().stream()
+                                                    .map(y -> new KeyValueTableInfo(y.getScope(), y.getKvtName())).collect(Collectors.toList());
+                                            return new AbstractMap.SimpleEntry<>(x.getContinuationToken(), kvtList);
+                                    }
+                                });
+                    }, this.executor);
+            return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
+        } finally {
+            LoggerHelpers.traceLeave(log, "listKeyValueTables", traceId);
+        }
     }
 
     @Override
@@ -1322,7 +1361,10 @@ public class ControllerImpl implements Controller {
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
+<<<<<<< HEAD
 <<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/ControllerImpl.java
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTableName");
@@ -1356,9 +1398,12 @@ public class ControllerImpl implements Controller {
             }
             LoggerHelpers.traceLeave(log, "deleteKeyValueTable", traceId, scope, kvtName, requestId);
         });
+<<<<<<< HEAD
 =======
         throw new UnsupportedOperationException("deleteKeyValueTable not implemented.");
 >>>>>>> Issue 4603: (KeyValueTables) Client Controller API (#4612):client/src/main/java/io/pravega/client/stream/impl/ControllerImpl.java
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     }
 
     @Override
@@ -1531,6 +1576,9 @@ public class ControllerImpl implements Controller {
                     .createKeyValueTable(kvtConfig, callback);
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 
         void listKeyValueTables(KVTablesInScopeRequest request,
                                        RPCAsyncCallback<KVTablesInScopeResponse> callback) {
@@ -1542,7 +1590,10 @@ public class ControllerImpl implements Controller {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .deleteKeyValueTable(kvtInfo, callback);
         }
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     }
 }

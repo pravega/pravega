@@ -11,9 +11,13 @@ package io.pravega.controller.store.kvtable;
 
 import com.google.common.annotations.VisibleForTesting;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import com.google.common.base.Preconditions;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import com.google.common.base.Preconditions;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.PravegaTablesScope;
@@ -64,6 +68,9 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
 
     @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     public CompletableFuture<Void> deleteFromScope(final String scope,
                                                        final String name,
                                                        final KVTOperationContext context,
@@ -100,8 +107,11 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     }
 
     @Override
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     public PravegaTablesScope newScope(final String scopeName) {
         return new PravegaTablesScope(scopeName, storeHelper);
     }
@@ -114,13 +124,19 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     @Override
     public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt) {
         return Futures.completeOn(((PravegaTablesScope) getScope(scopeName)).checkKeyValueTableExistsInScope(kvt), executor);
     }
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     public CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                          final String kvtName,
                                                          final byte[] id,

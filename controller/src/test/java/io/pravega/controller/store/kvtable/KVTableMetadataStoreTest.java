@@ -11,6 +11,9 @@ package io.pravega.controller.store.kvtable;
 
 import io.pravega.client.tables.KeyValueTableConfiguration;
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
@@ -18,18 +21,22 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import org.apache.commons.lang3.tuple.Pair;
+<<<<<<< HEAD
 =======
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import org.junit.Rule;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.After;
 import org.junit.rules.Timeout;
 import java.util.List;
+<<<<<<< HEAD
 <<<<<<< HEAD
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -40,13 +47,21 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 =======
+=======
+import java.util.concurrent.CompletionException;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+<<<<<<< HEAD
 
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import static org.junit.Assert.assertFalse;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 
 /**
  * Stream metadata test.
@@ -77,6 +92,7 @@ public abstract class KVTableMetadataStoreTest {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     abstract Controller.CreateScopeStatus createScope(String scopeName) throws Exception;
 
     @Test
@@ -89,6 +105,13 @@ public abstract class KVTableMetadataStoreTest {
     public void testKVTableMetadataStore() throws Exception {
         Controller.CreateScopeStatus scopeCreateStatus = createScope();
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    abstract Controller.CreateScopeStatus createScope(String scopeName) throws Exception;
+
+    @Test
+    public void testKVTableMetadataStore() throws Exception {
+        Controller.CreateScopeStatus scopeCreateStatus = createScope(scope);
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS)
                 || scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS));
 
@@ -123,6 +146,9 @@ public abstract class KVTableMetadataStoreTest {
         // endregion
     }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 
     @Test
     public void listTablesInScope() throws Exception {
@@ -132,13 +158,21 @@ public abstract class KVTableMetadataStoreTest {
                 || scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS));
 
         byte[] newUUID1 = store.newScope(scope).newId();
+<<<<<<< HEAD
         store.createEntryForKVTable(scope, kvtable1, newUUID1, executor).get();
+=======
+        store.createEntryForKVTable(scope, kvtable1, newUUID1, executor);
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scope, kvtable1, configuration1, start, null, executor).get();
         store.setState(scope, kvtable1, KVTableState.ACTIVE, null, executor).get();
 
         byte[] newUUID2 = store.newScope(scope).newId();
+<<<<<<< HEAD
         store.createEntryForKVTable(scope, kvtable2, newUUID2, executor).get();
+=======
+        store.createEntryForKVTable(scope, kvtable2, newUUID2, executor);
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         store.createKeyValueTable(scope, kvtable2, configuration2, start, null, executor).get();
         store.setState(scope, kvtable2, KVTableState.ACTIVE, null, executor).get();
 
@@ -174,7 +208,11 @@ public abstract class KVTableMetadataStoreTest {
         assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS));
 
         byte[] newUUID1 = store.newScope(scopeName).newId();
+<<<<<<< HEAD
         store.createEntryForKVTable(scopeName, kvtName, newUUID1, executor).get();
+=======
+        store.createEntryForKVTable(scopeName, kvtName, newUUID1, executor);
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scopeName, kvtName, config, start, null, executor).get();
         store.setState(scopeName, kvtName, KVTableState.ACTIVE, null, executor).get();
@@ -183,6 +221,9 @@ public abstract class KVTableMetadataStoreTest {
         store.deleteKeyValueTable(scopeName, kvtName, null, executor).get();
         assertFalse(store.checkTableExists(scopeName, kvtName).join());
     }
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 }

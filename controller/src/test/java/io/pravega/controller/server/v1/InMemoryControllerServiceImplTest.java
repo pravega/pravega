@@ -31,9 +31,13 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStrea
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
@@ -91,10 +95,14 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         TransactionMetrics.initialize();
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
 =======
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+        segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, helperMock);
@@ -118,9 +126,13 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
                 "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, tableEventHelper);
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
 <<<<<<< HEAD
+<<<<<<< HEAD
                 executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+                executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
                 executorService), this.kvtStore, executorService);
         tableEventHelper.setRequestEventWriter(new ControllerEventTableWriterMock(tableRequestHandler, executorService));
 

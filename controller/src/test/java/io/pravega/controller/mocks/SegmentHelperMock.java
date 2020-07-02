@@ -89,11 +89,17 @@ public class SegmentHelperMock {
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTableSegment(
                 anyString(), anyString(), anyLong(), anyBoolean());
 <<<<<<< HEAD
+<<<<<<< HEAD
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).deleteTableSegment(
                 anyString(), anyBoolean(), anyString(), anyLong());
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+
+        doReturn(CompletableFuture.completedFuture(null)).when(helper).deleteTableSegment(
+                anyString(), anyBoolean(), anyString(), anyLong());
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         return helper;
     }
 

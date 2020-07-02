@@ -23,9 +23,13 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import java.util.Set;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import java.util.Set;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.IntStream;
@@ -130,11 +134,16 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     @Override
     public CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached) {
 =======
     private CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached) {
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    @Override
+    public CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached) {
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         return getCurrentEpochRecordData(ignoreCached).thenApply(VersionedMetadata::getObject);
     }
 
@@ -165,14 +174,20 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     @Override
     public CompletableFuture<Set<Long>> getAllSegmentIds() {
         return getActiveEpochRecord(true)
                 .thenApply(epochRecord -> epochRecord.getSegmentIds());
     }
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     // region state
     abstract public CompletableFuture<String> getId();
 

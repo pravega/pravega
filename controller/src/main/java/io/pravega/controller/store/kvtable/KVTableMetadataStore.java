@@ -14,14 +14,20 @@ import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
 import java.util.Set;
+<<<<<<< HEAD
 =======
 
 import java.util.List;
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -45,10 +51,15 @@ public interface KVTableMetadataStore extends AutoCloseable {
     CompletableFuture<Boolean> checkScopeExists(String scope);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     CompletableFuture<Boolean> checkTableExists(String scope, String kvt);
 
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    CompletableFuture<Boolean> checkTableExists(String scope, String kvt);
+
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     /**
      * Creates a new stream with the given name and configuration.
      *
@@ -180,6 +191,9 @@ public interface KVTableMetadataStore extends AutoCloseable {
 
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
      * List existing KeyValueTables in scopes with pagination.
      * This api continues listing KeyValueTables from the supplied continuation token
      * and returns a count of limited list of KeyValueTables and a new continuation token.
@@ -194,8 +208,11 @@ public interface KVTableMetadataStore extends AutoCloseable {
                                                              final int limit, final Executor executor);
 
     /**
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
      * Returns a Scope object from scope identifier.
      *
      * @param scopeName scope identifier is scopeName.
@@ -203,6 +220,9 @@ public interface KVTableMetadataStore extends AutoCloseable {
      */
     Scope newScope(final String scopeName);
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 
     /**
      * Api to get all segments in the stream.
@@ -231,6 +251,9 @@ public interface KVTableMetadataStore extends AutoCloseable {
                                          final String kvtName,
                                          final KVTOperationContext context,
                                          final Executor executor);
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 }

@@ -36,11 +36,16 @@ public class InMemoryKVTMetadataStoreTest extends KVTableMetadataStoreTest {
 
     @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
     Controller.CreateScopeStatus createScope(String scopeName) throws Exception {
         return streamStore.createScope(scopeName).get();
 =======
     Controller.CreateScopeStatus createScope() throws Exception {
         return streamStore.createScope(scope).get();
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    Controller.CreateScopeStatus createScope(String scopeName) throws Exception {
+        return streamStore.createScope(scopeName).get();
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     }
 }

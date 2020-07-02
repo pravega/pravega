@@ -121,9 +121,13 @@ public final class AuthResourceRepresentation {
     public static String ofKeyValueTableInScope(String scopeName, String kvtName) {
         Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTableName");
 <<<<<<< HEAD
+<<<<<<< HEAD
         return String.format("%s/_kvtable/%s", ofStreamsInScope(scopeName), kvtName);
 =======
         return String.format("%s/%s", ofStreamsInScope(scopeName), kvtName);
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+        return String.format("%s/_kvtable/%s", ofStreamsInScope(scopeName), kvtName);
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     }
 }

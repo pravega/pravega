@@ -97,10 +97,14 @@ public final class NameUtils {
      * This is used in composing segment name for a table segment used for a KeyValueTable
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     private static final String KVTABLE_SUFFIX = "_kvtable";
 =======
     private static final String KVTABLE_SUFFIX = "_kvt";
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    private static final String KVTABLE_SUFFIX = "_kvtable";
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 
     /**
      * Prefix for identifying system created mark segments for storing watermarks. 

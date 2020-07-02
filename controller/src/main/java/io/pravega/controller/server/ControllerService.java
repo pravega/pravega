@@ -140,6 +140,9 @@ public class ControllerService {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     /**
      * List existing KeyValueTables in specified scope.
      *
@@ -165,8 +168,11 @@ public class ControllerService {
                 }, executor);
     }
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
             final long createTimestamp) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
@@ -585,6 +591,14 @@ public class ControllerService {
     }
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+
+    private void reportDeleteKVTableMetrics(String scope, String kvtName, DeleteKVTableStatus.Status status, Duration latency) {
+        if (status.equals(DeleteKVTableStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().deleteKeyValueTable(scope, kvtName, latency);
+        } else if (status.equals(DeleteKVTableStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().deleteKeyValueTableFailed(scope, kvtName);
+        }
+    }
 
     private void reportCreateStreamMetrics(String scope, String streamName, int initialSegments, CreateStreamStatus.Status status,
                                            Duration latency) {

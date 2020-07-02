@@ -41,10 +41,14 @@ import java.util.stream.IntStream;
 
 /**
 <<<<<<< HEAD
+<<<<<<< HEAD
  * Request handler for executing a create operation for a KeyValueTable.
 =======
  * Request handler for performing scale operations received from requeststream.
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+ * Request handler for executing a create operation for a KeyValueTable.
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
  */
 @Slf4j
 public class CreateTableTask implements TableTask<CreateTableEvent> {
@@ -79,9 +83,13 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                 .thenCompose(table -> table.getId()).thenCompose(id -> {
             if (!id.equals(kvTableId)) {
 <<<<<<< HEAD
+<<<<<<< HEAD
                 log.debug("Skipped processing create event for KeyValueTable {}/{} with Id:{} as UUIDs did not match.", scope, kvt, id);
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+                log.debug("Skipped processing create event for KeyValueTable {}/{} with Id:{} as UUIDs did not match.", scope, kvt, id);
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
                 return CompletableFuture.completedFuture(null);
             } else {
                 return this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, null, executor)
@@ -100,9 +108,12 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                                         .thenCompose(y -> {
                                             final KVTOperationContext context = kvtMetadataStore.createContext(scope, kvt);
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
                                             log.info("Context Created");
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
                                             kvtMetadataStore.getVersionedState(scope, kvt, context, executor)
                                                     .thenCompose(state -> {
                                                         if (state.getObject().equals(KVTableState.CREATING)) {

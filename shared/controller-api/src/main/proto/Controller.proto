@@ -48,10 +48,15 @@ service ControllerService {
     rpc createKeyValueTable(KeyValueTableConfig) returns (CreateKeyValueTableStatus);
     rpc getCurrentSegmentsKeyValueTable(KeyValueTableInfo) returns (SegmentRanges);
 <<<<<<< HEAD
+<<<<<<< HEAD
     rpc listKeyValueTablesInScope(KVTablesInScopeRequest) returns (KVTablesInScopeResponse);
     rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    rpc listKeyValueTablesInScope(KVTablesInScopeRequest) returns (KVTablesInScopeResponse);
+    rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 }
 
 message ServerRequest {
@@ -84,6 +89,9 @@ message KeyValueTableInfo {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 message KVTablesInScopeRequest {
     ScopeInfo scope = 1;
     ContinuationToken continuationToken = 2;
@@ -109,8 +117,11 @@ message DeleteKVTableStatus {
     Status status = 1;
 }
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 message CreateStreamStatus {
     enum Status {
         SUCCESS = 0;

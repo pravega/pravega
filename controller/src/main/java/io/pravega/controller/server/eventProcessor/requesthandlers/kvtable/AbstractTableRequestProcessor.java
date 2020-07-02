@@ -18,9 +18,13 @@ import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import io.pravega.shared.controller.event.kvtable.TableRequestProcessor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +59,7 @@ public abstract class AbstractTableRequestProcessor<T extends ControllerEvent> e
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     @Override
     public CompletableFuture<Void> processCreateKVTable(CreateTableEvent createTableEvent) {
         return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
@@ -69,4 +74,15 @@ public abstract class AbstractTableRequestProcessor<T extends ControllerEvent> e
         return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    @Override
+    public CompletableFuture<Void> processCreateKVTable(CreateTableEvent createTableEvent) {
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
+    }
+
+    @Override
+    public CompletableFuture<Void> processDeleteKVTable(DeleteTableEvent deleteTableEvent) {
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
+    }
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 }

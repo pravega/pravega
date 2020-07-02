@@ -22,9 +22,13 @@ import io.pravega.controller.mocks.EventHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
@@ -37,6 +41,9 @@ import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -68,9 +75,13 @@ import java.util.concurrent.TimeoutException;
 import static org.junit.Assert.*;
 =======
 
+<<<<<<< HEAD
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import static org.junit.Assert.*;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import static org.mockito.Mockito.spy;
 
 public abstract class TableMetadataTasksTest {
@@ -105,12 +116,18 @@ public abstract class TableMetadataTasksTest {
                  "host", GrpcAuthHelper.getDisabledAuthHelper(),
                 requestTracker, helper));
 <<<<<<< HEAD
+<<<<<<< HEAD
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
                                                             new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
                                                             this.kvtStore, executor);
 =======
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks, executor), this.kvtStore, executor);
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+        this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
+                                                            new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
+                                                            this.kvtStore, executor);
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     }
 
     public abstract void setupStores() throws Exception;
@@ -179,6 +196,26 @@ public abstract class TableMetadataTasksTest {
         CreateKeyValueTableStatus.Status status = kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime).get();
         assertEquals(CreateKeyValueTableStatus.Status.FAILURE, status);
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+    }
+
+    @Test(timeout = 30000)
+    public void testDeleteKeyValueTable() throws ExecutionException, InterruptedException {
+        Assert.assertTrue(isScopeCreated);
+        long creationTime = System.currentTimeMillis();
+        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).build();
+        CompletableFuture<Controller.CreateKeyValueTableStatus.Status> createOperationFuture
+                = kvtMetadataTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime);
+
+        assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
+        assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
+
+        // delete KVTable
+        CompletableFuture<DeleteKVTableStatus.Status> future = kvtMetadataTasks.deleteKeyValueTable(SCOPE, kvtable1, null);
+        assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
+
+        assertEquals(Controller.DeleteKVTableStatus.Status.SUCCESS, future.get());
+
+        assertFalse(kvtStore.checkTableExists(SCOPE, kvtable1).join());
     }
 
     private CompletableFuture<Void> processEvent(TableMetadataTasksTest.WriterMock requestEventWriter) throws InterruptedException {

@@ -179,21 +179,30 @@ public class PravegaTablesScope implements Scope {
                         storeHelper.getEntry(tableName, stream, x -> x).thenApply(v -> true), false));
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/PravegaTablesScope.java
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     public CompletableFuture<Boolean> checkKeyValueTableExistsInScope(String kvt) {
         return getKVTablesInScopeTableName()
                 .thenCompose(tableName -> storeHelper.expectingDataNotFound(
                         storeHelper.getEntry(tableName, kvt, x -> x).thenApply(v -> true), false));
     }
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/PravegaTablesScope.java
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
         return getKVTablesInScopeTableName()
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, kvt, id)));
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/PravegaTablesScope.java
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     public CompletableFuture<Void> removeKVTableFromScope(String kvt) {
         return getKVTablesInScopeTableName()
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, kvt)));
@@ -219,6 +228,9 @@ public class PravegaTablesScope implements Scope {
                         }));
     }
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797):controller/src/main/java/io/pravega/controller/store/stream/PravegaTablesScope.java
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 }

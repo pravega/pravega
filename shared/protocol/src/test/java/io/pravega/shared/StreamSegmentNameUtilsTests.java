@@ -107,12 +107,17 @@ public class StreamSegmentNameUtilsTests {
     public void testQualifiedTableSegmentName() {
         long segmentId = NameUtils.computeSegmentId(10, 100);
 <<<<<<< HEAD
+<<<<<<< HEAD
         String qualifiedName = NameUtils.getQualifiedTableSegmentName("scope1", "keyvaluetable1", segmentId);
         String expectedName = "scope1/keyvaluetable1_kvtable/10.#epoch.100";
 =======
         String qualifiedName = NameUtils.getQualifiedTableSegmentName("scope", "kvtable", segmentId);
         String expectedName = "scope/kvtable_kvt/10.#epoch.100";
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+        String qualifiedName = NameUtils.getQualifiedTableSegmentName("scope1", "keyvaluetable1", segmentId);
+        String expectedName = "scope1/keyvaluetable1_kvtable/10.#epoch.100";
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
         assertEquals(expectedName, qualifiedName);
     }
 

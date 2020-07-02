@@ -17,10 +17,14 @@ public interface TableRequestProcessor extends RequestProcessor {
 
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
      * Method to create a KeyValueTable.
 =======
      * Method to create a KeyValueTable event.
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+     * Method to create a KeyValueTable.
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
      *
      * @param createKVTEvent create event
      * @return CompletableFuture that caller can use to synchronize.
@@ -28,6 +32,9 @@ public interface TableRequestProcessor extends RequestProcessor {
     CompletableFuture<Void> processCreateKVTable(CreateTableEvent createKVTEvent);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     /**
      * Method to delete a KeyValueTable.
      *
@@ -36,6 +43,9 @@ public interface TableRequestProcessor extends RequestProcessor {
      */
     CompletableFuture<Void> processDeleteKVTable(DeleteTableEvent deleteEvent);
 
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 }

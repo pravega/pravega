@@ -45,11 +45,17 @@ import static io.pravega.shared.MetricsNames.CREATE_KVTABLE;
 import static io.pravega.shared.MetricsNames.KVTABLE_SEGMENTS_COUNT;
 import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_FAILED;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_KVTABLE;
 import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_FAILED;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_LATENCY;
+import static io.pravega.shared.MetricsNames.DELETE_KVTABLE;
+import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_FAILED;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
 
@@ -67,12 +73,16 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger truncateStreamLatency;
     private final OpStatsLogger createKeyValueTableLatency;
 <<<<<<< HEAD
+<<<<<<< HEAD
     private final OpStatsLogger deleteKeyValueTableLatency;
 
     private final OpStatsLogger createScopeLatency;
     private final OpStatsLogger deleteScopeLatency;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    private final OpStatsLogger deleteKeyValueTableLatency;
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
 
     private StreamMetrics() {
         createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
@@ -87,7 +97,11 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         deleteKeyValueTableLatency = STATS_LOGGER.createStats(DELETE_KVTABLE_LATENCY);
 =======
         createKeyValueTableLatency = STATS_LOGGER.createStats(CREATE_KVTABLE_LATENCY);
+<<<<<<< HEAD
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+        deleteKeyValueTableLatency = STATS_LOGGER.createStats(DELETE_KVTABLE_LATENCY);
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
     }
 
     /**
@@ -138,6 +152,9 @@ public final class StreamMetrics extends AbstractControllerMetrics {
 
     /**
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
      * This method increments the global and Stream-specific counters of Stream deletions and reports the latency of
      * the operation.
      *
@@ -164,8 +181,11 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
      * This method increments the global and Stream-specific counters of Stream creations, initializes other
      * stream-specific metrics and reports the latency of the operation.
      *
