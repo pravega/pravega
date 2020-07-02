@@ -565,9 +565,9 @@ public class ControllerService {
 
     private void reportDeleteKVTableMetrics(String scope, String kvtName, DeleteKVTableStatus.Status status, Duration latency) {
         if (status.equals(DeleteKVTableStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().deleteStream(scope, kvtName, latency);
+            StreamMetrics.getInstance().deleteKeyValueTable(scope, kvtName, latency);
         } else if (status.equals(DeleteKVTableStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().deleteStreamFailed(scope, kvtName);
+            StreamMetrics.getInstance().deleteKeyValueTableFailed(scope, kvtName);
         }
     }
 

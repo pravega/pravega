@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -182,15 +181,7 @@ public class TableMetadataTasks implements AutoCloseable {
                             return eventHelper.addIndexAndSubmitTask(deleteEvent,
                                     () -> kvtMetadataStore.setState(scope, kvtName, KVTableState.DELETING, context, executor))
                                     .thenCompose(x -> eventHelper.checkDone(() -> isDeleted(scope, kvtName, context)))
-                                    .thenApply(y -> DeleteKVTableStatus.Status.SUCCESS)
-                                    .handle((result, ex) -> {
-                                        if (ex != null) {
-                                            log.warn(requestId, "Delete KeyValueTable failed due to ", ex);
-                                            return DeleteKVTableStatus.Status.FAILURE;
-                                        } else {
-                                            return DeleteKVTableStatus.Status.SUCCESS;
-                                        }
-                                    });
+                                    .thenApply(y -> DeleteKVTableStatus.Status.SUCCESS);
                         });
             }), e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
     }
@@ -202,15 +193,7 @@ public class TableMetadataTasks implements AutoCloseable {
                 .stream()
                 .parallel()
                 .map(segment -> deleteSegment(scope, kvt, segment, delegationToken, requestId))
-                .collect(Collectors.toList()))
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        log.info("Delete segemnt failed with exception {}", ex);
-                        throw new CompletionException(ex);
-                    } else {
-                        return result;
-                    }
-                });
+                .collect(Collectors.toList()));
     }
 
     public CompletableFuture<Void> deleteSegment(String scope, String kvt, long segmentId, String delegationToken,
