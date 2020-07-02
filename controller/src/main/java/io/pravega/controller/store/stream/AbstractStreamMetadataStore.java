@@ -261,8 +261,22 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             HashMap<String, CompletableFuture<Optional<StreamConfiguration>>> result = new HashMap<>();
             for (String s : streams) {
                 Stream stream = getStream(scopeName, s, null);
+                CompletableFuture<StreamConfiguration> configurationFuture = stream.getConfiguration();
+                CompletableFuture<State> stateFuture = stream.getState(true);
+                // We are filtering out all streams for the configuration didn't exist. 
+                // However if the stream is partially created (state < ACTIVE) we will throw data not found exception 
+                // as well so that it is filtered out from the response.  
+                CompletableFuture<StreamConfiguration> future = CompletableFuture
+                        .allOf(configurationFuture, stateFuture)
+                        .thenApply(v -> {
+                            State state = stateFuture.join();
+                            if (state.equals(State.CREATING) || state.equals(State.UNKNOWN)) {
+                                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Partially created stream");
+                            }
+                            return configurationFuture.join();
+                        });
                 result.put(stream.getName(), 
-                        Futures.exceptionallyExpecting(stream.getConfiguration(), 
+                        Futures.exceptionallyExpecting(future, 
                                 e -> e instanceof StoreException.DataNotFoundException, 
                                 null)
                         .thenApply(Optional::ofNullable));

@@ -228,6 +228,13 @@ public abstract class StreamMetadataStoreTest {
         assertTrue("List streams in scope", streamInScope.containsKey(stream1));
         assertTrue("List streams in scope", streamInScope.containsKey(stream2));
 
+        // create another stream which should be left in the creating state
+        store.createStream("Scope", "stream3", configuration2, System.currentTimeMillis(), null, executor).get();
+        streamInScope = store.listStreamsInScope("Scope").get();
+        assertEquals("List streams in scope", 2, streamInScope.size());
+        assertTrue("List streams in scope", streamInScope.containsKey(stream1));
+        assertTrue("List streams in scope", streamInScope.containsKey(stream2));
+
         // List streams in non-existent scope 'Scope1'
         try {
             store.listStreamsInScope("Scope1").join();
