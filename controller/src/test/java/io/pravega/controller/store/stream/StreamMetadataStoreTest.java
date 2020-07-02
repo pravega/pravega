@@ -228,13 +228,6 @@ public abstract class StreamMetadataStoreTest {
         assertTrue("List streams in scope", streamInScope.containsKey(stream1));
         assertTrue("List streams in scope", streamInScope.containsKey(stream2));
 
-        // create another stream which should be left in the creating state
-        store.createStream("Scope", "stream3", configuration2, System.currentTimeMillis(), null, executor).get();
-        streamInScope = store.listStreamsInScope("Scope").get();
-        assertEquals("List streams in scope", 2, streamInScope.size());
-        assertTrue("List streams in scope", streamInScope.containsKey(stream1));
-        assertTrue("List streams in scope", streamInScope.containsKey(stream2));
-
         // List streams in non-existent scope 'Scope1'
         try {
             store.listStreamsInScope("Scope1").join();
@@ -295,9 +288,9 @@ public abstract class StreamMetadataStoreTest {
         String partial = "partial";
         store.createStream("Scope", partial, configuration1, System.currentTimeMillis(), null, executor).get();
 
-        // verify that when we do list stream in scope we get partial. 
+        // verify that when we do list stream in scope we filter out partially created streams. 
         Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
-        assertEquals("List streams in scope", 2, streamInScope.size());
+        assertEquals("List streams in scope", 1, streamInScope.size());
         assertTrue("List streams in scope", streamInScope.containsKey(partial));
 
         // now deliberately throw data not found exception for getConfiguration on partial. 
