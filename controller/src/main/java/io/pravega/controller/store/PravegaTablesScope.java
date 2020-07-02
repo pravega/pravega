@@ -179,9 +179,40 @@ public class PravegaTablesScope implements Scope {
                         storeHelper.getEntry(tableName, stream, x -> x).thenApply(v -> true), false));
     }
 
+    public CompletableFuture<Boolean> checkKeyValueTableExistsInScope(String kvt) {
+        return getKVTablesInScopeTableName()
+                .thenCompose(tableName -> storeHelper.expectingDataNotFound(
+                        storeHelper.getEntry(tableName, kvt, x -> x).thenApply(v -> true), false));
+    }
+
     public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
         return getKVTablesInScopeTableName()
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, kvt, id)));
+    }
+
+    public CompletableFuture<Void> removeKVTableFromScope(String kvt) {
+        return getKVTablesInScopeTableName()
+                .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, kvt)));
+    }
+
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(int limit, String continuationToken,
+                                                                            Executor executor) {
+        List<String> taken = new ArrayList<>();
+        AtomicReference<String> token = new AtomicReference<>(continuationToken);
+        AtomicBoolean canContinue = new AtomicBoolean(true);
+        return getKVTablesInScopeTableName()
+                .thenCompose(kvtablesInScopeTable -> storeHelper.getKeysPaginated(kvtablesInScopeTable,
+                        Unpooled.wrappedBuffer(Base64.getDecoder().decode(token.get())), limit)
+                        .thenApply(result -> {
+                            if (result.getValue().isEmpty()) {
+                                canContinue.set(false);
+                            } else {
+                                taken.addAll(result.getValue());
+                            }
+                            token.set(Base64.getEncoder().encodeToString(result.getKey().array()));
+                            return new ImmutablePair<>(taken, token.get());
+                        }));
     }
 
 }

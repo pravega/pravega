@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.StreamCutImpl;
@@ -19,7 +20,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,6 +29,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -327,21 +329,6 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testKeyValueTables() {
-
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.testController.deleteKeyValueTable("", ""),
-                ex -> ex instanceof UnsupportedOperationException);
-
-        AssertExtensions.assertThrows(
-                "",
-                () -> this.testController.listKeyValueTables(""),
-                ex -> ex instanceof UnsupportedOperationException);
-
-    }
-
-    @Test
     public void testCreateKeyValueTable() {
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
@@ -409,4 +396,43 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         KeyValueTableSegments segments = this.testController.getCurrentSegmentsForKeyValueTable("scope", "kvtable").get();
         Assert.assertEquals(3, segments.getSegments().size());
     }
+
+    @Test
+    public void testListKeyValueTable() throws Exception {
+        List<String> tablelist = new ArrayList<String>();
+        tablelist.add("kvtable1");
+        Pair<List<String>, String> listOfKVTables = new ImmutablePair<>(tablelist, "");
+        when(this.mockControllerService.listKeyValueTables(anyString(), anyString(), anyInt())).thenReturn(
+                CompletableFuture.completedFuture(listOfKVTables));
+        KeyValueTableInfo info = this.testController.listKeyValueTables("scope").getNext().get();
+        Assert.assertEquals("kvtable1", info.getKeyValueTableName());
+    }
+
+    @Test
+    public void testDeleteKeyValueTable() throws ExecutionException, InterruptedException {
+        when(this.mockControllerService.deleteKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
+                        .setStatus(Controller.DeleteKVTableStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.deleteKeyValueTable("scope", "kvtable1").join());
+
+        when(this.mockControllerService.deleteKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
+                        .setStatus(Controller.DeleteKVTableStatus.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.deleteKeyValueTable("scope", "kvtable2").join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.deleteKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
+                        .setStatus(Controller.DeleteKVTableStatus.Status.TABLE_NOT_FOUND).build()));
+        Assert.assertFalse(this.testController.deleteKeyValueTable("scope", "kvtable3").join());
+
+        when(this.mockControllerService.deleteKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.deleteKeyValueTable("scope", "kvtable4").join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
 }

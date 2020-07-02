@@ -20,12 +20,15 @@ import java.util.Set;
 public enum KVTableState {
     UNKNOWN,
     CREATING,
+    DELETING,
     ACTIVE;
 
     private enum StateTransitions {
         UNKNOWN(KVTableState.UNKNOWN, KVTableState.CREATING),
-        CREATING(KVTableState.CREATING, KVTableState.ACTIVE),
-        ACTIVE(KVTableState.ACTIVE);
+        CREATING(KVTableState.CREATING, KVTableState.ACTIVE, KVTableState.DELETING),
+        ACTIVE(KVTableState.ACTIVE, KVTableState.DELETING),
+        DELETING(KVTableState.DELETING);
+
 
         private final Set<KVTableState> transitions;
 

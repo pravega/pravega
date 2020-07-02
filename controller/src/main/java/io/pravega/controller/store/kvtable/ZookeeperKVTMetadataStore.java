@@ -10,6 +10,7 @@
 package io.pravega.controller.store.kvtable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
@@ -59,6 +60,11 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
     }
 
     @Override
+    public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt) {
+        return Futures.completeOn(((ZKScope) getScope(scopeName)).checkKeyValueTableExistsInScope(kvt), executor);
+    }
+
+    @Override
     public CompletableFuture<Void> createEntryForKVTable(String scopeName, String kvtName, byte[] id,  Executor executor) {
         return Futures.completeOn(
                 CompletableFuture.completedFuture((ZKScope) getScope(scopeName))
@@ -77,6 +83,43 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
     public CompletableFuture<CreateKVTableResponse> createKeyValueTable(String scope, String name, KeyValueTableConfiguration configuration,
                                                                 long createTimestamp, KVTOperationContext context, Executor executor) {
         return super.createKeyValueTable(scope, name, configuration, createTimestamp, context, executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteFromScope(final String scope,
+                                                   final String name,
+                                                   final KVTOperationContext context,
+                                                   final Executor executor) {
+        return Futures.completeOn(((ZKScope) getScope(scope)).removeKVTableFromScope(name),
+                executor);
+    }
+
+
+    @Override
+    CompletableFuture<Void> recordLastKVTableSegment(String scope, String kvtable, int lastActiveSegment, KVTOperationContext context, Executor executor) {
+        final String deletePath = String.format(DELETED_KVTABLES_PATH, getScopedKVTName(scope, kvtable));
+        byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
+        BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
+        return storeHelper.getData(deletePath, x -> BitConverter.readInt(x, 0))
+                .exceptionally(e -> {
+                    if (e instanceof StoreException.DataNotFoundException) {
+                        return null;
+                    } else {
+                        throw new CompletionException(e);
+                    }
+                })
+                .thenCompose(data -> {
+                    log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, kvtable);
+                    if (data == null) {
+                        return Futures.toVoid(storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes));
+                    } else {
+                        final int oldLastActiveSegment = data.getObject();
+                        Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
+                                "Old last active segment ({}) for {}/{} is higher than current one {}.",
+                                oldLastActiveSegment, scope, kvtable, lastActiveSegment);
+                        return Futures.toVoid(storeHelper.setData(deletePath, maxSegmentNumberBytes, data.getVersion()));
+                    }
+                });
     }
 
     @Override

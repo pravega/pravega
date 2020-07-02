@@ -41,7 +41,7 @@ public class InMemoryScope implements Scope {
     private HashMap<String, Integer> streamsPositionMap;
 
     @GuardedBy("$lock")
-    private HashMap<String, InMemoryKVTable> kvTablesMap;
+    private TreeMap<String, InMemoryKVTable> kvTablesMap;
 
     public InMemoryScope(String scopeName) {
         this.scopeName = scopeName;
@@ -57,7 +57,7 @@ public class InMemoryScope implements Scope {
     public CompletableFuture<Void> createScope() {
         this.sortedStreamsInScope = new TreeMap<>(Integer::compare);
         this.streamsPositionMap = new HashMap<>();
-        this.kvTablesMap =  new HashMap<String, InMemoryKVTable>();
+        this.kvTablesMap =  new TreeMap<String, InMemoryKVTable>();
         return CompletableFuture.completedFuture(null);
     }
 
@@ -137,6 +137,10 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(null);
     }
 
+    public Boolean checkTableExists(String kvt) {
+        return kvTablesMap.containsKey(kvt);
+    }
+
     public Optional<InMemoryKVTable> getKVTableFromScope(String kvt) throws StoreException {
         if (kvTablesMap.containsKey(kvt)) {
             return Optional.of(kvTablesMap.get(kvt));
@@ -147,4 +151,28 @@ public class InMemoryScope implements Scope {
     @Override
     public void refresh() {
     }
+
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(int limit, String continuationToken, Executor executor) {
+        if (kvTablesMap == null) {
+            return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, this.scopeName));
+        }
+        List<String> sortedKVTablesList = kvTablesMap.keySet().stream().collect(Collectors.toList());
+        int start = 0;
+        if (!continuationToken.isEmpty()) {
+            start = Integer.parseInt(continuationToken);
+        }
+
+        int end = ((start + limit) >= sortedKVTablesList.size()) ? sortedKVTablesList.size() : start + limit;
+        List<String> nextBatchOfTables = sortedKVTablesList.subList(start, end);
+
+        return CompletableFuture.completedFuture(new ImmutablePair<>(nextBatchOfTables, String.valueOf(end)));
+    }
+
+    @Synchronized
+    public CompletableFuture<Void> removeKVTableFromScope(String kvtName) {
+        kvTablesMap.remove(kvtName);
+        return CompletableFuture.completedFuture(null);
+    }
+
 }

@@ -30,6 +30,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequest
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
@@ -78,7 +79,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     
     @Override
     public void setup() throws Exception {
-        executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(30, "testpool");
         taskMetadataStore = TaskStoreFactoryForTests.createInMemoryStore(executorService);
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
@@ -86,7 +87,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
-        segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, helperMock);
@@ -109,6 +110,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
                 "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, tableEventHelper);
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
+                executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), this.kvtStore, executorService);
         tableEventHelper.setRequestEventWriter(new ControllerEventTableWriterMock(tableRequestHandler, executorService));
 

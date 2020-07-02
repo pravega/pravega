@@ -17,6 +17,7 @@ import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
+import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 import io.pravega.shared.controller.event.kvtable.TableRequestProcessor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +51,13 @@ public abstract class AbstractTableRequestProcessor<T extends ControllerEvent> e
         return controllerEvent.process(this);
     }
 
+    @Override
     public CompletableFuture<Void> processCreateKVTable(CreateTableEvent createTableEvent) {
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
+    }
+
+    @Override
+    public CompletableFuture<Void> processDeleteKVTable(DeleteTableEvent deleteTableEvent) {
         return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 }

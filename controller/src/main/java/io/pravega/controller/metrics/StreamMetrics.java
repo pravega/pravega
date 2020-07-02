@@ -38,6 +38,9 @@ import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_LATENCY;
 import static io.pravega.shared.MetricsNames.CREATE_KVTABLE;
 import static io.pravega.shared.MetricsNames.KVTABLE_SEGMENTS_COUNT;
 import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_FAILED;
+import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_LATENCY;
+import static io.pravega.shared.MetricsNames.DELETE_KVTABLE;
+import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_FAILED;
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
 
@@ -54,6 +57,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger updateStreamLatency;
     private final OpStatsLogger truncateStreamLatency;
     private final OpStatsLogger createKeyValueTableLatency;
+    private final OpStatsLogger deleteKeyValueTableLatency;
 
     private StreamMetrics() {
         createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
@@ -62,6 +66,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
         truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
         createKeyValueTableLatency = STATS_LOGGER.createStats(CREATE_KVTABLE_LATENCY);
+        deleteKeyValueTableLatency = STATS_LOGGER.createStats(DELETE_KVTABLE_LATENCY);
     }
 
     /**
@@ -108,6 +113,32 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     public void createKeyValueTableFailed(String scope, String kvtName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_KVTABLE_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(CREATE_KVTABLE_FAILED, 1, streamTags(scope, kvtName));
+    }
+
+    /**
+     * This method increments the global and Stream-specific counters of Stream deletions and reports the latency of
+     * the operation.
+     *
+     * @param scope         Scope.
+     * @param kvtName       Name of the KeyValueTable.
+     * @param latency       Latency of the deleteKeyValueTable
+     *                      operation.
+     */
+    public void deleteKeyValueTable(String scope, String kvtName, Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(DELETE_KVTABLE, 1);
+        deleteKeyValueTableLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method increments the counter of failed Stream deletions in the system as well as the failed deletion
+     * attempts for this specific Stream.
+     *
+     * @param scope         Scope.
+     * @param kvtName       Name of the KeyValueTable.
+     */
+    public void deleteKeyValueTableFailed(String scope, String kvtName) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_KVTABLE_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(DELETE_KVTABLE_FAILED, 1, streamTags(scope, kvtName));
     }
 
     /**
