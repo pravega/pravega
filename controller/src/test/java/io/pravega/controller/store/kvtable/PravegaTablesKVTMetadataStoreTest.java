@@ -78,10 +78,14 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
         streamStore.createScope(scope).get();
         byte[] newUUID = store.newScope(scope).newId();
 <<<<<<< HEAD
+<<<<<<< HEAD
         store.createEntryForKVTable(scope, kvtable1, newUUID, executor).get();
 =======
         store.createEntryForKVTable(scope, kvtable1, newUUID, executor);
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+        store.createEntryForKVTable(scope, kvtable1, newUUID, executor).get();
+>>>>>>> Fixed flaky unit test.
         store.createKeyValueTable(scope, kvtable1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, kvtable1, KVTableState.CREATING, null, executor).get();
 
