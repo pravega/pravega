@@ -381,7 +381,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test(timeout = 200000)
     public void testTier1Fail() throws Exception {
         // Creating tier 2 only once here.
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
