@@ -18,6 +18,7 @@ import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import java.util.UUID;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -92,7 +93,8 @@ public class ClientConnectionTest {
                 .join();
             clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));
             clientConnection.send(new Append("segment", new UUID(1, 2), 1, new Event(Unpooled.EMPTY_BUFFER), 2));
-            assertTrue(processor.falure.get());
+            server.sendReply(new WireCommands.AuthTokenCheckFailed(1, "Injected error"));
+            AssertExtensions.assertEventuallyEquals(true, () -> processor.falure.get(), 5000);
         }
     //
     //    
