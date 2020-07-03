@@ -28,6 +28,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class ClientConnectionTest {
 
@@ -77,25 +78,22 @@ public class ClientConnectionTest {
         assertFalse(processor.falure.get());
     }
 
-    //    @Test
-    //    public void testAppendThrows() throws Exception {
-    //        ReplyProcessor processor = new ReplyProcessor(); 
-    //        Flow flow = new Flow(10, 0);
-    //        FlowHandler flowHandler = new FlowHandler("testConnection");
-    //        @Cleanup
-    //        ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
-    //        EmbeddedChannel embeddedChannel = createChannelWithContext(flowHandler);
-    //        embeddedChannel.runScheduledPendingTasks();
-    //        embeddedChannel.runPendingTasks();
-    //        Queue<Object> messages = embeddedChannel.outboundMessages();
-    //        assertEquals(1, messages.size());
-    //        clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));
-    //        embeddedChannel.runPendingTasks();
-    //        clientConnection.send(new Append("segment", new UUID(1, 2), 1, new Event(Unpooled.EMPTY_BUFFER), 2));
-    //        embeddedChannel.disconnect();
-    //        embeddedChannel.runPendingTasks();
-    //        assertTrue(processor.falure.get());
-    //    }
+        @Test
+        public void testAppendThrows() throws Exception {
+            ReplyProcessor processor = new ReplyProcessor(); 
+            @Cleanup
+            MockServer server = new MockServer();
+            server.start();
+            @Cleanup
+            InlineExecutor executor = new InlineExecutor();
+            @Cleanup
+            ClientConnection clientConnection = TcpClientConnection
+                .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
+                .join();
+            clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));
+            clientConnection.send(new Append("segment", new UUID(1, 2), 1, new Event(Unpooled.EMPTY_BUFFER), 2));
+            assertTrue(processor.falure.get());
+        }
     //
     //    
     //    static EmbeddedChannel createChannelWithContext(ChannelInboundHandlerAdapter handler) {
