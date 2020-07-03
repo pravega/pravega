@@ -291,7 +291,7 @@ public abstract class StreamMetadataStoreTest {
         // verify that when we do list stream in scope we filter out partially created streams. 
         Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
         assertEquals("List streams in scope", 1, streamInScope.size());
-        assertTrue("List streams in scope", streamInScope.containsKey(partial));
+        assertFalse("Does not contain partial", streamInScope.containsKey(partial));
 
         // now deliberately throw data not found exception for getConfiguration on partial. 
         PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream("Scope", partial, null);
