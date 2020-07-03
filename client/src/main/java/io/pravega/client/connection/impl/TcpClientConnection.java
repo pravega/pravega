@@ -229,14 +229,20 @@ public class TcpClientConnection implements ClientConnection {
                     trustMgrFactory != null ? trustMgrFactory.getTrustManagers() : null,
                     null);
 
-            SSLSocket s = (SSLSocket) tlsContext.getSocketFactory().createSocket();
+            SSLSocket tlsClientSocket = (SSLSocket) tlsContext.getSocketFactory().createSocket();
+
             // SSLSocket does not perform hostname verification by default. So, we must explicitly enable it.
             if (clientConfig.isValidateHostName()) {
                 SSLParameters tlsParams = new SSLParameters();
+
+                // While the connection is to a TCP service and not an HTTP server, we use `HTTPS` as the endpoint
+                // identification algorithm, which in turn ensures that the SSLSocket will verify the server's host
+                // name during TLS handshake. This is a commonly used way of enabling hostname verification
+                // regardless of whether the service itself is HTTP (no in this case).
                 tlsParams.setEndpointIdentificationAlgorithm("HTTPS");
-                s.setSSLParameters(tlsParams);
+                tlsClientSocket.setSSLParameters(tlsParams);
             }
-            result = s;
+            result = tlsClientSocket;
 
         } else {
             result = new Socket();
