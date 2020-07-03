@@ -150,7 +150,7 @@ public class CommandEncoder {
          * @param data              Remaining data
          */
         private void flushToBuffer(int sizeOfWholeEvents, ByteBuf data) {
-            writeMessage(new AppendBlockEnd(id, sizeOfWholeEvents, data, eventCount, lastEventNumber, requestId));
+            writeMessage(new AppendBlockEnd(id, sizeOfWholeEvents, data, eventCount, lastEventNumber, requestId), buffer);
             eventCount = 0;
         }
     }
@@ -170,7 +170,7 @@ public class CommandEncoder {
         if (msg instanceof SetupAppend) {
             breakCurrentAppend();
             flushAllToBuffer();
-            writeMessage((SetupAppend) msg);
+            writeMessage((SetupAppend) msg, buffer);
             SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(new SimpleImmutableEntry<>(setup.getSegment(), setup.getWriterId()),
                               new Session(setup.getWriterId(), setup.getRequestId()));
@@ -178,12 +178,12 @@ public class CommandEncoder {
         } else if (msg instanceof Hello) {
             Preconditions.checkState(isChannelFree());
             Preconditions.checkState(pendingWrites.isEmpty());
-            writeMessage((WireCommand) msg);
+            writeMessage((WireCommand) msg, buffer);
             flushBuffer();
         } else {
             breakCurrentAppend();
             flushAllToBuffer();
-            writeMessage((WireCommand) msg);
+            writeMessage((WireCommand) msg, buffer);
             flushBuffer();
         }
     }
@@ -340,7 +340,7 @@ public class CommandEncoder {
      * @param pendingData   data to write.
      */
     private void completeAppend(ByteBuf data, ByteBuf pendingData) {
-        writeMessage(new PartialEvent(data));
+        writeMessage(new PartialEvent(data), buffer);
         completeAppend(pendingData);
     }
 
@@ -377,17 +377,17 @@ public class CommandEncoder {
 
     @SneakyThrows(IOException.class)
     @VisibleForTesting
-    int writeMessage(WireCommand msg) {
-        int startIdx = buffer.writerIndex();
-        ByteBufOutputStream bout = new ByteBufOutputStream(buffer);
+    static int writeMessage(WireCommand msg, ByteBuf destination) {
+        int startIdx = destination.writerIndex();
+        ByteBufOutputStream bout = new ByteBufOutputStream(destination);
         bout.writeInt(msg.getType().getCode());
         bout.write(LENGTH_PLACEHOLDER);
         msg.writeFields(bout);
         bout.flush();
         bout.close();
-        int endIdx = buffer.writerIndex();
+        int endIdx = destination.writerIndex();
         int fieldsSize = endIdx - startIdx - TYPE_PLUS_LENGTH_SIZE;
-        buffer.setInt(startIdx + TYPE_SIZE, fieldsSize);
+        destination.setInt(startIdx + TYPE_SIZE, fieldsSize);
         return endIdx - startIdx;
     }
     
