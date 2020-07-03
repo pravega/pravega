@@ -9,16 +9,20 @@
  */
 package io.pravega.client.connection.impl;
  
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.test.common.TestUtils;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +36,7 @@ class MockServer implements AutoCloseable {
     @Getter
     private final LinkedBlockingQueue<WireCommand> readCommands = new LinkedBlockingQueue<>();
     private final ReusableLatch started = new ReusableLatch(false);
+    private final AtomicReference<OutputStream> outputStream = new AtomicReference<OutputStream>();
     
     MockServer() {
         this.port = TestUtils.getAvailableListenPort();
@@ -51,6 +56,7 @@ class MockServer implements AutoCloseable {
             started.release();
             @Cleanup
             Socket s = ss.accept();
+            outputStream.set(s.getOutputStream());
             @Cleanup
             InputStream stream = s.getInputStream();
             IoBuffer buffer = new IoBuffer();
@@ -61,6 +67,14 @@ class MockServer implements AutoCloseable {
         } catch (IOException e) {
             stop.set(true);
         }
+    }
+    
+    public void sendReply(WireCommand cmd) throws IOException {
+        ByteBuf buffer = Unpooled.buffer(8);
+        CommandEncoder.writeMessage(cmd, buffer);
+        OutputStream os = outputStream.get();
+        buffer.readBytes(os, buffer.readableBytes());
+        os.flush();
     }
 
     public PravegaNodeUri getUri() {
