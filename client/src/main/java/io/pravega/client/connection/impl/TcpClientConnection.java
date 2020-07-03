@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -81,12 +82,13 @@ public class TcpClientConnection implements ClientConnection {
     }
 
     @VisibleForTesting
-    static class ConnectionReader {
+    static class ConnectionReader implements Runnable {
+        static final ThreadFactory THREAD_FACTORY = ExecutorServiceHelpers.getThreadFactory("ClientSocketReaders", (Thread.NORM_PRIORITY + Thread.MAX_PRIORITY) /2);
         
         private final String name;
         private final InputStream in;
         private final ReplyProcessor callback;
-        private final ScheduledExecutorService thread;
+        private final Thread thread;
         private final AppendBatchSizeTracker batchSizeTracker;
         private final AtomicBoolean stop = new AtomicBoolean(false);
 
@@ -95,41 +97,43 @@ public class TcpClientConnection implements ClientConnection {
             this.name = name;
             this.in = in;
             this.callback = callback;
-            this.thread = ExecutorServiceHelpers.newScheduledThreadPool(1, "Reading from " + name);
+            this.thread = THREAD_FACTORY.newThread(this);
             this.batchSizeTracker = batchSizeTracker;
         }
         
         public void start() {
-            thread.submit(() -> {
-                IoBuffer buffer = new IoBuffer();
-                while (!stop.get()) {
-                    try {
-                        WireCommand command = readCommand(in, buffer);
-                        if (command instanceof WireCommands.DataAppended) {
-                            WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
-                            batchSizeTracker.recordAck(dataAppended.getEventNumber());
-                        }
-                        try {
-                            callback.process((Reply) command);
-                        } catch (Exception e) {
-                            callback.processingFailure(e);
-                        }
-                    } catch (SocketException e) {
-                        if (e.getMessage().equals("Socket closed")) {
-                            log.info("Closing TcpConnection.Reader because socket is closed.");
-                        } else {
-                            log.warn("Error in reading from socket.", e);
-                        }
-                        stop();
-                    } catch (EOFException e) {
-                        log.info("Closing TcpConnection.Reader because end of input readched.");
-                        stop();
-                    } catch (Exception e) {
-                        log.warn("Error processing data from from server " + name, e);
-                        stop();
+            thread.start();
+        }
+        
+        public void run() {
+            IoBuffer buffer = new IoBuffer();
+            while (!stop.get()) {
+                try {
+                    WireCommand command = readCommand(in, buffer);
+                    if (command instanceof WireCommands.DataAppended) {
+                        WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
+                        batchSizeTracker.recordAck(dataAppended.getEventNumber());
                     }
+                    try {
+                        callback.process((Reply) command);
+                    } catch (Exception e) {
+                        callback.processingFailure(e);
+                    }
+                } catch (SocketException e) {
+                    if (e.getMessage().equals("Socket closed")) {
+                        log.info("Closing TcpConnection.Reader because socket is closed.");
+                    } else {
+                        log.warn("Error in reading from socket.", e);
+                    }
+                    stop();
+                } catch (EOFException e) {
+                    log.info("Closing TcpConnection.Reader because end of input readched.");
+                    stop();
+                } catch (Exception e) {
+                    log.warn("Error processing data from from server " + name, e);
+                    stop();
                 }
-            });
+            }
         }
 
         @VisibleForTesting
@@ -154,7 +158,11 @@ public class TcpClientConnection implements ClientConnection {
         
         public void stop() {
             stop.set(true);
-            thread.shutdown();
+            try {
+                in.close();
+            } catch (Exception e) {
+                log.warn("Got error while shutting down reader {}. ", name, e);
+            }
             callback.connectionDropped();
         }
     }
