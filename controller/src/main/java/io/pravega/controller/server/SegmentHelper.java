@@ -660,9 +660,6 @@ public class SegmentHelper implements AutoCloseable {
                                                        if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
                                                            log.warn(requestId, "Connection dropped");
                                                            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
-                                                       } else if (unwrap instanceof AuthenticationException) {
-                                                           log.warn(requestId, "Authentication Exception");
-                                                           throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
                                                        } else {
                                                            log.error(requestId, "Request failed", e);
                                                            throw new CompletionException(e);
