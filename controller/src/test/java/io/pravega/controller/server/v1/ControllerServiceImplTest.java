@@ -18,7 +18,9 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -41,6 +43,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -67,6 +70,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 /**
  * Controller Service Implementation tests.
@@ -88,18 +92,18 @@ public abstract class ControllerServiceImplTest {
     public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
     ControllerServiceImpl controllerService;
-    ControllerService controllerSpied;
+    RequestTracker requestTracker = new RequestTracker(true);
+    private ControllerService controllerSpied;
+    
+    abstract ControllerService getControllerService() throws Exception;
 
-    /**
-     * Implementation should setup controllerService and controllerSpied which should be spied using 
-     * {@link org.mockito.Mockito#spy(Object)}. 
-     */
     @Before
-    public abstract void setup() throws Exception;
-
-    @After
-    public abstract void tearDown() throws Exception;
-
+    public void setUp() throws Exception {
+        controllerSpied = spy(getControllerService());
+        this.controllerService = new ControllerServiceImpl(controllerSpied, 
+                GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+    }
+    
     @Test
     public void getControllerServersTest() {
         ResultObserver<ServerResponse> result = new ResultObserver<>();

@@ -559,20 +559,20 @@ public class ControllerService {
                           .thenCompose(v -> streamStore.noteWriterMark(scope, stream, writerId, timestamp, streamCut, null, executor))
                 .thenApply(r -> {
                     Controller.TimestampResponse.Builder response = Controller.TimestampResponse.newBuilder();
-                    switch (r) {
-                        case SUCCESS:
-                            response.setResult(Controller.TimestampResponse.Status.SUCCESS);
-                            break;
-                        case INVALID_TIME:
-                            response.setResult(Controller.TimestampResponse.Status.INVALID_TIME);
-                            break;
-                        case INVALID_POSITION:
-                            response.setResult(Controller.TimestampResponse.Status.INVALID_POSITION);
-                            break;
-                        default:
-                            response.setResult(Controller.TimestampResponse.Status.INTERNAL_ERROR);
-                            break;
-                    }
+                        switch (r) {
+                            case SUCCESS:
+                                response.setResult(Controller.TimestampResponse.Status.SUCCESS);
+                                break;
+                            case INVALID_TIME:
+                                response.setResult(Controller.TimestampResponse.Status.INVALID_TIME);
+                                break;
+                            case INVALID_POSITION:
+                                response.setResult(Controller.TimestampResponse.Status.INVALID_POSITION);
+                                break;
+                            default:
+                                response.setResult(Controller.TimestampResponse.Status.INTERNAL_ERROR);
+                                break;
+                        }
                     return response.build();
                 });
     }

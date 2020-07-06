@@ -36,11 +36,12 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactoryForTests;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import org.junit.After;
+
 import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -56,15 +57,13 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
-    private RequestTracker requestTracker;
     
     @Override
-    public void setup() throws Exception {
+    public ControllerService getControllerService() {
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
         taskMetadataStore = TaskStoreFactoryForTests.createInMemoryStore(executorService);
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
-        requestTracker = new RequestTracker(true);
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
@@ -86,13 +85,11 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
 
         Cluster mockCluster = mock(Cluster.class);
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
-        this.controllerSpied = spy(new ControllerService(streamStore, StreamStoreFactory.createInMemoryBucketStore(), streamMetadataTasks, streamTransactionMetadataTasks,
-                SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster));
-        this.controllerService = new ControllerServiceImpl(
-                controllerSpied, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+        return new ControllerService(streamStore, StreamStoreFactory.createInMemoryBucketStore(), streamMetadataTasks, streamTransactionMetadataTasks,
+                SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster);
     }
 
-    @Override
+    @After
     public void tearDown() throws Exception {
         ExecutorServiceHelpers.shutdown(executorService);
         if (streamMetadataTasks != null) {

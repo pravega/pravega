@@ -16,7 +16,6 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
@@ -54,11 +53,11 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.spy;
 
 /**
  * Zookeeper stream store configuration.
@@ -78,10 +77,9 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private StreamMetadataStore streamStore;
 
     @Override
-    public void setup() throws Exception {
+    public ControllerService getControllerService() throws Exception {
         final HostControllerStore hostStore;
         final SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
-        final RequestTracker requestTracker = new RequestTracker(true);
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
@@ -121,12 +119,11 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         cluster.registerHost(new Host("localhost", 9090, null));
         latch.await();
 
-        this.controllerSpied = spy(new ControllerService(streamStore, bucketStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelper, executorService, cluster));
-        controllerService = new ControllerServiceImpl(controllerSpied, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+        return new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
     }
 
-    @Override
+    @After
     public void tearDown() throws Exception {
         if (executorService != null) {
             ExecutorServiceHelpers.shutdown(executorService);

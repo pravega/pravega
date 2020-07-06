@@ -20,7 +20,6 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
@@ -61,6 +60,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
+import org.junit.After;
 import org.junit.Test;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -85,8 +85,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
     private SegmentHelper segmentHelper;
 
     @Override
-    public void setup() throws Exception {
-        final RequestTracker requestTracker = new RequestTracker(true);
+    public ControllerService getControllerService() throws Exception {
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
@@ -127,12 +126,11 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         cluster.registerHost(new Host("localhost", 9090, null));
         latch.await();
 
-        controllerSpied = spy(new ControllerService(streamStore, bucketStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelper, executorService, cluster));
-        controllerService = new ControllerServiceImpl(controllerSpied, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+        return new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
     }
 
-    @Override
+    @After
     public void tearDown() throws Exception {
         if (executorService != null) {
             ExecutorServiceHelpers.shutdown(executorService);
