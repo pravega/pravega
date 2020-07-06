@@ -113,6 +113,9 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private File baseDir;
     private FileSystemStorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
+    private SegmentStoreStarter segmentStoreStarter = null;
+    private ControllerStarter controllerStarter = null;
+    private BKZK bkzk;
 
     @After
     public void tearDown() throws Exception {
@@ -124,6 +127,21 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         if (this.dataLogFactory != null) {
             this.dataLogFactory.close();
             this.dataLogFactory = null;
+        }
+
+        if(this.bkzk != null) {
+            this.bkzk.close();
+            this.bkzk = null;
+        }
+
+        if(this.controllerStarter != null) {
+            this.controllerStarter.close();
+            this.controllerStarter = null;
+        }
+
+        if(this.segmentStoreStarter != null) {
+            this.segmentStoreStarter.close();
+            this.segmentStoreStarter = null;
         }
 
         if (this.baseDir != null) {
@@ -140,6 +158,9 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         return new BKZK();
     }
 
+    /**
+     * Sets up a new BookKeeper & ZooKeeper.
+     */
     private class BKZK implements AutoCloseable {
         private final int writeCount = 500;
         private final int maxWriteAttempts = 3;
@@ -162,11 +183,9 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             }
 
             this.bookKeeperServiceRunner = getBookKeeperServiceRunner(bookiePorts);
-
             this.bookKeeperServiceRunner.startAll();
             bkService.set(this.bookKeeperServiceRunner);
             setZkClient();
-
             this.zkClient.get().start();
 
             setBkConfig();
@@ -218,7 +237,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             return secureBk.get();
         }
 
-        @Override
         public void close() throws Exception {
             val process = bkService.getAndSet(null);
             if (process != null) {
@@ -247,12 +265,12 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         private WriterFactory writerFactory;
         private CacheManager cacheManager;
         private StreamSegmentContainerFactory containerFactory;
-        private BookKeeperLogFactory dataLogFactory;
+        private BookKeeperLogFactory dataLogFactory = null;
         private StorageFactory storageFactory;
 
         private DurableLogConfig durableLogConfig = DurableLogConfig
                 .builder()
-                .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
+                .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
                 .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                 .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
                 .with(DurableLogConfig.START_RETRY_DELAY_MILLIS, 20)
@@ -296,6 +314,10 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         @Override
         public void close() {
+            if (this.dataLogFactory != null) {
+                this.dataLogFactory.close();
+                this.dataLogFactory = null;
+            }
             this.cacheManager.close();
             this.cacheStorage.close();
         }
@@ -391,34 +413,34 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.storageFactory = new FileSystemStorageFactory(fsConfig, executorService);
 
         // Start a new BK & ZK, segment store and controller
-        BKZK bkzk = setUpNewBK();
-        SegmentStoreStarter segmentStore = startSegmentStore(this.storageFactory, null);
-        ControllerStarter controllerStarter = startController(bkzk.bkPort.get(), segmentStore.servicePort);
+        this.bkzk = setUpNewBK();
+        this.segmentStoreStarter = startSegmentStore(this.storageFactory, null);
+        this.controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
 
-        controllerStarter.close(); // Shut down the controller
+        this.controllerStarter.close(); // Shut down the controller
 
         // Get names of all the segments created.
-        HashSet<String> allSegments = new HashSet<>(segmentStore.streamSegmentStoreWrapper.getSegments());
-        allSegments.addAll(segmentStore.tableStoreWrapper.getSegments());
+        HashSet<String> allSegments = new HashSet<>(this.segmentStoreStarter.streamSegmentStoreWrapper.getSegments());
+        allSegments.addAll(this.segmentStoreStarter.tableStoreWrapper.getSegments());
         log.info("No. of segments = {}", allSegments.size());
 
         Storage tier2 = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), DataRecoveryTestUtils.createExecutorService(1));
 
         // wait for all segments to be flushed to the long term storage.
-        waitForSegmentsInStorage(allSegments, segmentStore.streamSegmentStoreWrapper, tier2)
+        waitForSegmentsInStorage(allSegments, this.segmentStoreStarter.streamSegmentStoreWrapper, tier2)
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sleep(2500); // Sleep to make sure all segments got flushed properly
 
-        segmentStore.close(); // Shutdown SS
+        this.segmentStoreStarter.close(); // Shutdown SS
         log.info("SS Shutdown");
 
-        bkzk.close();
+        this.bkzk.close();
         log.info("BK & ZK shutdown");
 
         // start a new BookKeeper and ZooKeeper.
-        bkzk = setUpNewBK();
-        this.dataLogFactory = new BookKeeperLogFactory(bkzk.bkConfig.get(), bkzk.zkClient.get(), executorService);
+        this.bkzk = setUpNewBK();
+        this.dataLogFactory = new BookKeeperLogFactory(this.bkzk.bkConfig.get(), this.bkzk.zkClient.get(), executorService);
         this.dataLogFactory.initialize();
 
         // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
@@ -441,10 +463,10 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.dataLogFactory.close();
 
         // Start a new segment store and controller
-        segmentStore = startSegmentStore(this.storageFactory, this.dataLogFactory);
-        controllerStarter = startController(bkzk.bkPort.get(), segmentStore.servicePort);
-        controllerStarter.close();
-        segmentStore.close();
+        this.segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory);
+        this.controllerStarter = startController(bkzk.bkPort.get(), segmentStoreStarter.servicePort);
+        this.controllerStarter.close();
+        this.segmentStoreStarter.close();
         bkzk.close();
     }
 
