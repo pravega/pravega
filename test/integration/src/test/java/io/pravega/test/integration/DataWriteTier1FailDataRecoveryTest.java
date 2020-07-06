@@ -259,7 +259,6 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             return secureBk.get();
         }
 
-        @Override
         public void close() throws Exception {
             val process = bkService.getAndSet(null);
             if (process != null) {
@@ -270,8 +269,6 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             if (zkClient != null) {
                 zkClient.close();
             }
-            bookKeeperServiceRunner.close();
-            bkService.getAndSet(null).close();
         }
     }
 
@@ -437,6 +434,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         // Start a new BK & ZK, segment store and controller
         BKZK bkzk = setUpNewBK();
         SegmentStoreStarter segmentStoreStarter = startSegmentStore(this.storageFactory, null);
+        log.info("First bk Port = {}", bkzk.bkPort.get());
         ControllerStarter controllerStarter = startController(bkzk.bkPort.get(), segmentStoreStarter.servicePort);
 
         createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
@@ -457,6 +455,9 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
         log.info("First read on stream 2");
 
+        readerGroupManager.close();
+        clientFactory.close();
+
         controllerStarter.close(); // Shut down the controller
 
         // Get names of all the segments created.
@@ -475,8 +476,9 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         segmentStoreStarter.close(); // Shutdown SS
         log.info("Segment Store Shutdown");
 
-        bkzk.bookKeeperServiceRunner.close(); // Shut down BK & ZK
-        bkzk.bkService.getAndSet(null).close();
+//        bkzk.bookKeeperServiceRunner.close(); // Shut down BK & ZK
+//        bkzk.bkService.getAndSet(null).close();
+        bkzk.close();
         log.info("BookKeeper & ZooKeeper shutdown");
 
         // start a new BookKeeper and ZooKeeper.
@@ -506,6 +508,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Start a new segment store and controller
         segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory);
+        log.info("Second bk Port = {}", bkzk.bkPort.get());
         controllerStarter = startController(bkzk.bkPort.get(), segmentStoreStarter.servicePort);
 
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
@@ -522,10 +525,16 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
         log.info("Second read on stream 2");
+
+        readerGroupManager.close();
+        clientFactory.close();
+        connectionFactory.close();
+
         controllerStarter.close();
         segmentStoreStarter.close();
-        bkzk.bookKeeperServiceRunner.close(); // Shut down BK & ZK
-        bkzk.bkService.getAndSet(null).close();
+//        bkzk.bookKeeperServiceRunner.close(); // Shut down BK & ZK
+//        bkzk.bkService.getAndSet(null).close();
+        bkzk.close();
     }
 
     public static ScheduledExecutorService createExecutorService(int threadPoolSize) {
