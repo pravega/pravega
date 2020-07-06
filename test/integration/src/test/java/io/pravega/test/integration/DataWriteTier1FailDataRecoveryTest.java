@@ -476,8 +476,6 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         segmentStoreStarter.close(); // Shutdown SS
         log.info("Segment Store Shutdown");
 
-//        bkzk.bookKeeperServiceRunner.close(); // Shut down BK & ZK
-//        bkzk.bkService.getAndSet(null).close();
         bkzk.close();
         log.info("BookKeeper & ZooKeeper shutdown");
 
@@ -503,7 +501,6 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID))).join();
         sleep(5000);
         Services.stopAsync(debugStreamSegmentContainer, executorService).join();
-        //sleep(20000);
         this.dataLogFactory.close();
 
         // Start a new segment store and controller
@@ -532,8 +529,6 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         controllerStarter.close();
         segmentStoreStarter.close();
-//        bkzk.bookKeeperServiceRunner.close(); // Shut down BK & ZK
-//        bkzk.bkService.getAndSet(null).close();
         bkzk.close();
     }
 

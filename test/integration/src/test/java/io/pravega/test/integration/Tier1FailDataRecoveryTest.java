@@ -229,8 +229,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             if (zkClient != null) {
                 zkClient.close();
             }
-            bookKeeperServiceRunner.close();
-            bkService.getAndSet(null).close();
         }
     }
 
@@ -415,8 +413,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         segmentStore.close(); // Shutdown SS
         log.info("SS Shutdown");
 
-        bkzk.bookKeeperServiceRunner.close(); // Shut down BK & ZK
-        bkzk.bkService.getAndSet(null).close();
+        bkzk.close();
         log.info("BK & ZK shutdown");
 
         // start a new BookKeeper and ZooKeeper.
@@ -448,8 +445,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         controllerStarter = startController(bkzk.bkPort.get(), segmentStore.servicePort);
         controllerStarter.close();
         segmentStore.close();
-        bkzk.bookKeeperServiceRunner.close(); // Shut down BK & ZK
-        bkzk.bkService.getAndSet(null).close();
+        bkzk.close();
     }
 
     public static ScheduledExecutorService createExecutorService(int threadPoolSize) {
