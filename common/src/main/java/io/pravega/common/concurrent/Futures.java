@@ -543,6 +543,32 @@ public final class Futures {
         result.whenComplete((r, ex) -> sf.cancel(true));
         return result;
     }
+    
+    /**
+     * Creates a new CompletableFuture that either holds the result of future from the futureSupplier
+     * or will timeout after the given amount of time.
+     *
+     * @param futureSupplier  Supplier of the future. 
+     * @param timeout         The timeout for the future.
+     * @param executorService An ExecutorService that will be used to invoke the timeout on.
+     * @param <T>             The Type argument for the CompletableFuture to create.
+     * @return The result.
+     */
+    public static <T> CompletableFuture<T> futureWithTimeout(Supplier<CompletableFuture<T>> futureSupplier, 
+                                                             Duration timeout, ScheduledExecutorService executorService) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        ScheduledFuture<Boolean> sf = executorService.schedule(() -> result.completeExceptionally(new TimeoutException()), timeout.toMillis(), TimeUnit.MILLISECONDS);
+        CompletableFuture<? extends T> future = futureSupplier.get();
+        completeAfter(() -> future, result);
+        
+        result.whenComplete((r, ex) -> {
+            sf.cancel(true);
+            if (!future.isDone()) {
+                future.cancel(true);
+            }
+        });
+        return result;
+    }
 
     /**
      * Attaches the given callback as an exception listener to the given CompletableFuture, which will be invoked when

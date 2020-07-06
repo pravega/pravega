@@ -9,9 +9,12 @@
  */
 package io.pravega.common.concurrent;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -21,21 +24,39 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.val;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
  * Unit tests for the Futures class.
  */
 public class FuturesTests {
+    private ScheduledExecutorService executor;
+    
+    @Before
+    public void setUp() {
+        executor = Executors.newSingleThreadScheduledExecutor();    
+    }
+
+    @After
+    public void tearDown() {
+        executor.shutdownNow();    
+    }
+    
     /**
      * Tests the failedFuture() method.
      */
@@ -535,6 +556,13 @@ public class FuturesTests {
                 "Unexpected completion for failed future whose handler also threw an exception.",
                 () -> f3,
                 ex -> ex instanceof IntentionalException);
+    }
+
+    @Test
+    public void testTimeout() {
+        Supplier<CompletableFuture<Integer>> x = CompletableFuture::new;
+        CompletableFuture<Integer> m = Futures.futureWithTimeout(x, Duration.ofMillis(10), executor);
+        AssertExtensions.assertFutureThrows("", m, e -> Exceptions.unwrap(e) instanceof TimeoutException);
     }
 
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {
