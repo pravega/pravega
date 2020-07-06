@@ -129,17 +129,17 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             this.dataLogFactory = null;
         }
 
-        if(this.bkzk != null) {
+        if (this.bkzk != null) {
             this.bkzk.close();
             this.bkzk = null;
         }
 
-        if(this.controllerStarter != null) {
+        if (this.controllerStarter != null) {
             this.controllerStarter.close();
             this.controllerStarter = null;
         }
 
-        if(this.segmentStoreStarter != null) {
+        if (this.segmentStoreStarter != null) {
             this.segmentStoreStarter.close();
             this.segmentStoreStarter = null;
         }

@@ -166,12 +166,12 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             this.dataLogFactory = null;
         }
 
-        if(this.bkzk != null) {
+        if (this.bkzk != null) {
             this.bkzk.close();
             this.bkzk = null;
         }
 
-        if(this.segmentStoreStarter != null) {
+        if (this.segmentStoreStarter != null) {
             this.segmentStoreStarter.close();
             this.segmentStoreStarter = null;
         }
@@ -186,8 +186,8 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         return 100;
     }
 
-    BKZK setUpNewBK() throws Exception {
-        return new BKZK();
+    BKZK setUpNewBK(int instanceId) throws Exception {
+        return new BKZK(instanceId);
     }
 
     /**
@@ -205,8 +205,10 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         private String namespace;
         private AtomicReference<BookKeeperServiceRunner> bkService = new AtomicReference<>();
         private AtomicInteger bkPort = new AtomicInteger();
+        private int instanceId;
 
-        BKZK() throws Exception {
+        BKZK(int instanceId) throws Exception {
+            this.instanceId = instanceId;
             secureBk.set(false);
             bkPort.set(TestUtils.getAvailableListenPort());
             val bookiePorts = new ArrayList<Integer>();
@@ -226,7 +228,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         public void setZkClient() {
             // Create a ZKClient with a unique namespace.
-            this.namespace = "pravega/segmentstore/unittest_" + Long.toHexString(System.nanoTime());
+            this.namespace = "pravega/segmentstore/unittest_" + this.instanceId + "_" + Long.toHexString(System.nanoTime());
             this.zkClient.set(CuratorFrameworkFactory
                     .builder()
                     .connectString("localhost:" + bkPort.get())
@@ -446,7 +448,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.storageFactory = new FileSystemStorageFactory(fsConfig, executorService);
 
         // Start a new BK & ZK, segment store and controller
-        this.bkzk = setUpNewBK();
+        this.bkzk = setUpNewBK(0);
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, null);
         log.info("First bk Port = {}", this.bkzk.bkPort.get());
         ControllerStarter controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
@@ -494,7 +496,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("BookKeeper & ZooKeeper shutdown");
 
         // start a new BookKeeper and ZooKeeper.
-        this.bkzk = setUpNewBK();
+        this.bkzk = setUpNewBK(1);
         this.dataLogFactory = new BookKeeperLogFactory(this.bkzk.bkConfig.get(), this.bkzk.zkClient.get(), executorService);
         this.dataLogFactory.initialize();
 
