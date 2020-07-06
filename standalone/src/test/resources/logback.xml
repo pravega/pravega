@@ -28,7 +28,7 @@ You may obtain a copy of the License at
 
     <logger name="io.pravega.local" level="INFO"/>
 
-    <root level="DEBUG">
+    <root level="ERROR">
         <appender-ref ref="FILE"/>
         <appender-ref ref="STDOUT"/>
     </root>
