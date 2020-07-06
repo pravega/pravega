@@ -151,7 +151,7 @@ public class ReadWriteTest {
 
         try (ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, clientFactory.getConnectionPool())) {
+             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory)) {
 
             //start writing events to the stream
             log.info("Creating {} writers", NUM_WRITERS);

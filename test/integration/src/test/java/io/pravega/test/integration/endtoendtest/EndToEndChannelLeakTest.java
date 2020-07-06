@@ -9,23 +9,6 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
-import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -56,8 +39,23 @@ import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndChannelLeakTest {
@@ -133,8 +131,7 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(1, connectionPool, connectionFactory);
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                        .stream(Stream.of(SCOPE, STREAM_NAME)).build());
         
@@ -212,8 +209,7 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(expectedChannelCount, connectionPool, connectionFactory);
         
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory);
         assertChannelCount(expectedChannelCount, connectionPool, connectionFactory); // no changes expected.
       
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
@@ -296,8 +292,7 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(channelCount, connectionPool, connectionFactory);
         
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                                                                     connectionPool);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                        .stream(Stream.of(SCOPE, STREAM_NAME)).build());
         
@@ -415,8 +410,7 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(expectedChannelCount, connectionPool, connectionFactory);
         
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory);
         assertChannelCount(expectedChannelCount, connectionPool, connectionFactory); // no changes expected.
       
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)

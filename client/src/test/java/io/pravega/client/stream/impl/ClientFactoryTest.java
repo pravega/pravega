@@ -57,7 +57,7 @@ public class ClientFactoryTest {
 
     @Test
     public void testCloseWithExternalController() {
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl("scope", controllerClient);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("scope", controllerClient, ClientConfig.builder().build());
         clientFactory.close();
         verify(controllerClient, times(1)).close();
     }

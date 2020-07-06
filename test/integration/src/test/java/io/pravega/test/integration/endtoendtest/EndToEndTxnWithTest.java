@@ -145,7 +145,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         transaction2.writeEvent("0", "txntest2");
         transaction2.commit();
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0).stream("test/test").build());
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new UTF8StringSerializer(),
@@ -268,7 +268,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         assertEventuallyEquals(Transaction.Status.COMMITTED, txn1::checkStatus, 5000);
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0).stream("test/test").build());
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new UTF8StringSerializer(),

@@ -247,7 +247,7 @@ public class EventProcessorTest {
 
         EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope,
                 new ClientFactoryImpl(scope, controller, connectionFactory),
-                new ReaderGroupManagerImpl(scope, controller, clientFactory, clientFactory.getConnectionPool()));
+                new ReaderGroupManagerImpl(scope, controller, clientFactory));
 
         CheckpointConfig.CheckpointPeriod period =
                 CheckpointConfig.CheckpointPeriod.builder()
@@ -315,7 +315,7 @@ public class EventProcessorTest {
 
         EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope,
                 new ClientFactoryImpl(scope, controller, connectionFactory),
-                new ReaderGroupManagerImpl(scope, controller, clientFactory, clientFactory.getConnectionPool()));
+                new ReaderGroupManagerImpl(scope, controller, clientFactory));
         
         CheckpointConfig checkpointConfig =
                 CheckpointConfig.builder()
@@ -372,7 +372,7 @@ public class EventProcessorTest {
 
         system = new EventProcessorSystemImpl("Controller2", host, scope,
                 new ClientFactoryImpl(scope, controller, connectionFactory2),
-                new ReaderGroupManagerImpl(scope, controller, clientFactory2, clientFactory2.getConnectionPool()));
+                new ReaderGroupManagerImpl(scope, controller, clientFactory2));
 
         EventProcessorConfig<TestEvent> eventProcessorConfig2 = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new EventProcessor<TestEvent>() {
@@ -460,7 +460,7 @@ public class EventProcessorTest {
         // create a group and verify that all events can be written and read by readers in this group.
         EventProcessorSystem system1 = new EventProcessorSystemImpl("Controller", "process1", scope,
                 new ClientFactoryImpl(scope, controller, connectionFactory),
-                new ReaderGroupManagerImpl(scope, controller, clientFactory, clientFactory.getConnectionPool()));
+                new ReaderGroupManagerImpl(scope, controller, clientFactory));
 
         @Cleanup
         EventProcessorGroup<TestEvent> eventProcessorGroup1 =
@@ -506,7 +506,7 @@ public class EventProcessorTest {
         // add another system and event processor group (effectively add a new set of readers to the readergroup) 
         EventProcessorSystem system2 = new EventProcessorSystemImpl("Controller", "process2", scope,
                 new ClientFactoryImpl(scope, controller, connectionFactory),
-                new ReaderGroupManagerImpl(scope, controller, clientFactory, clientFactory.getConnectionPool()));
+                new ReaderGroupManagerImpl(scope, controller, clientFactory));
 
         @Cleanup
         EventProcessorGroup<TestEvent> eventProcessorGroup2 =
@@ -521,8 +521,7 @@ public class EventProcessorTest {
         ConcurrentSet<Integer> output2 = new ConcurrentSet<>();
 
         // wait until rebalance may have happened. 
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory);
 
         ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 

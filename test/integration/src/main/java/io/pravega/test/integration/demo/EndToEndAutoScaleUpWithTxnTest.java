@@ -95,7 +95,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
 
             controller.createStream("test", "test", CONFIG).get();
             @Cleanup
-            MockClientFactory clientFactory = new MockClientFactory("test", controller);
+            MockClientFactory clientFactory = new MockClientFactory("test", controller, internalCF.getConnectionPool());
 
             // Mocking pravega service by putting scale up and scale down requests for the stream
             EventWriterConfig writerConfig = EventWriterConfig.builder()
@@ -126,7 +126,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             Thread.sleep(1000);
 
             @Cleanup
-            ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, internalCF.getConnectionPool());
+            ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
             readerGroupManager.createReaderGroup("readergrp", ReaderGroupConfig.builder().stream("test/test").build());
 
             final EventStreamReader<String> reader = clientFactory.createReader("1",

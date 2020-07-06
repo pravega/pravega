@@ -126,7 +126,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.controller = controller;
         this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionPool);
         this.system = system == null ? new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
-                new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory, connectionPool)) : system;
+                new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory)) : system;
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamMetadataStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamMetadataStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamMetadataStore, bucketStore, executor),

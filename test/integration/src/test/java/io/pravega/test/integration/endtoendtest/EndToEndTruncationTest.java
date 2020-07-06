@@ -235,8 +235,7 @@ public class EndToEndTruncationTest {
         controller.truncateStream(stream.getStreamName(), stream.getStreamName(), streamCutPositions).join();
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                   .stream("test/test").build());
 
@@ -295,8 +294,7 @@ public class EndToEndTruncationTest {
         writer.writeEvent("2", "truncationTest2").get();
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream("test/test").build());
 
@@ -420,8 +418,7 @@ public class EndToEndTruncationTest {
 
         //Read the event back.
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                                                   .stream("test/test").build());
         @Cleanup
@@ -591,7 +588,7 @@ public class EndToEndTruncationTest {
 
         // Instantiate readers to consume from Stream.
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory);
         groupManager.createReaderGroup(readerGroupName,
                                        ReaderGroupConfig.builder()
                                                         .automaticCheckpointIntervalMillis(100)
