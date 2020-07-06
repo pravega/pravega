@@ -245,6 +245,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
 
     @Test
 <<<<<<< HEAD
+<<<<<<< HEAD
     @Override
     public void createKeyValueTableTests() {
         // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
@@ -271,27 +272,38 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
         // Key-Value Tables are not implemented in ZK Metadata.
 =======
+=======
+    @Override
+>>>>>>> Minor things.
     public void createKeyValueTableTests() {
-        //TODO: Place holder till we fix the test
-        assertTrue(true);
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
     }
 
     @Test
+    @Override
     public void getCurrentSegmentsKeyValueTableTest() {
+<<<<<<< HEAD
         //TODO: Place holder till we fix the test
         assertTrue(true);
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
+>>>>>>> Minor things.
     }
 
     @Test
+    @Override
     public void kvtablesInScopeTest() {
-        //TODO: Place holder till we fix the test
-        assertTrue(true);
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
     }
 
     @Test
+    @Override
     public void deleteKeyValueTableTests() {
-        //TODO: Place holder till we fix the test
-        assertTrue(true);
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
     }
 }
