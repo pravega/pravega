@@ -552,22 +552,37 @@ public final class Futures {
      * @param timeout         The timeout for the future.
      * @param executorService An ExecutorService that will be used to invoke the timeout on.
      * @param <T>             The Type argument for the CompletableFuture to create.
-     * @return The result.
+     * @return A CompletableFuture which is either completed within given timebound or failed with timeout exception.
      */
-    public static <T> CompletableFuture<T> futureWithTimeout(Supplier<CompletableFuture<T>> futureSupplier, 
+    public static <T> CompletableFuture<T> futureWithTimeout(Supplier<CompletableFuture<T>> futureSupplier,
                                                              Duration timeout, ScheduledExecutorService executorService) {
-        CompletableFuture<T> result = new CompletableFuture<>();
-        ScheduledFuture<Boolean> sf = executorService.schedule(() -> result.completeExceptionally(new TimeoutException()), timeout.toMillis(), TimeUnit.MILLISECONDS);
-        CompletableFuture<? extends T> future = futureSupplier.get();
-        completeAfter(() -> future, result);
+        CompletableFuture<T> future = futureSupplier.get();
+        ScheduledFuture<Boolean> sf = executorService.schedule(() -> future.completeExceptionally(
+                new TimeoutException()), timeout.toMillis(), TimeUnit.MILLISECONDS);
         
-        result.whenComplete((r, ex) -> {
+        return future.whenComplete((r, ex) -> {
+            sf.cancel(true);
+        });
+    }
+
+    /**
+     * Add a timeout to the CompletableFuture. If the future does not complete within the specified timeout,
+     * this would complete the future with timeout exception. 
+     *
+     * @param future          Completable future to add timeout to. 
+     * @param timeout         The timeout for the future.
+     * @param executorService An ExecutorService that will be used to invoke the timeout on.
+     * @param <T>             The Type argument for the CompletableFuture to create.
+     */
+    public static <T> void addTimeout(CompletableFuture<T> future, Duration timeout, ScheduledExecutorService executorService) {
+        ScheduledFuture<Boolean> sf = executorService.schedule(() -> future.completeExceptionally(new TimeoutException()), timeout.toMillis(), TimeUnit.MILLISECONDS);
+        
+        future.whenComplete((r, ex) -> {
             sf.cancel(true);
             if (!future.isDone()) {
                 future.cancel(true);
             }
         });
-        return result;
     }
 
     /**

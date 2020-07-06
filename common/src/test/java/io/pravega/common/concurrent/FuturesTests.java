@@ -560,9 +560,13 @@ public class FuturesTests {
 
     @Test
     public void testTimeout() {
-        Supplier<CompletableFuture<Integer>> x = CompletableFuture::new;
-        CompletableFuture<Integer> m = Futures.futureWithTimeout(x, Duration.ofMillis(10), executor);
-        AssertExtensions.assertFutureThrows("", m, e -> Exceptions.unwrap(e) instanceof TimeoutException);
+        Supplier<CompletableFuture<Integer>> supplier = CompletableFuture::new;
+        CompletableFuture<Integer> f1 = Futures.futureWithTimeout(supplier, Duration.ofMillis(10), executor);
+        AssertExtensions.assertFutureThrows("Future should have timedout. ", f1, e -> Exceptions.unwrap(e) instanceof TimeoutException);
+        
+        CompletableFuture<Void> f2 = new CompletableFuture<>();
+        Futures.addTimeout(f2, Duration.ofMillis(10), executor);
+        AssertExtensions.assertFutureThrows("Future should have timedout. ", f2, e -> Exceptions.unwrap(e) instanceof TimeoutException);
     }
 
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {
