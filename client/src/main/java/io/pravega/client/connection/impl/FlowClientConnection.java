@@ -13,6 +13,7 @@ import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -25,25 +26,37 @@ public class FlowClientConnection implements ClientConnection {
     @Getter
     private final int flowId;
     private final FlowHandler handler;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
+        if (closed.get()) {
+            throw new ConnectionFailedException("Connection is closed");
+        }
         channel.send(cmd);
     }
 
     @Override
     public void send(Append append) throws ConnectionFailedException {
+        if (closed.get()) {
+            throw new ConnectionFailedException("Connection is closed");
+        }
         channel.send(append);
     }
 
     @Override
     public void sendAsync(List<Append> appends, CompletedCallback callback) {
+        if (closed.get()) {
+            callback.complete(new ConnectionFailedException("Connection is closed"));
+        }
         channel.sendAsync(appends, callback);
     }
 
     @Override
     public void close() {
-        handler.closeFlow(this);
+        if (closed.compareAndSet(false, true)) {
+            handler.closeFlow(this);
+        }
     }
 
 }
