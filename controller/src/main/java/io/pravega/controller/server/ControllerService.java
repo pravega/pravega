@@ -558,7 +558,7 @@ public class ControllerService {
         return bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope, stream, executor)
                           .thenCompose(v -> streamStore.noteWriterMark(scope, stream, writerId, timestamp, streamCut, null, executor))
                 .thenApply(r -> {
-                    Controller.TimestampResponse.Builder response = Controller.TimestampResponse.newBuilder();
+                        Controller.TimestampResponse.Builder response = Controller.TimestampResponse.newBuilder();
                         switch (r) {
                             case SUCCESS:
                                 response.setResult(Controller.TimestampResponse.Status.SUCCESS);
@@ -573,7 +573,7 @@ public class ControllerService {
                                 response.setResult(Controller.TimestampResponse.Status.INTERNAL_ERROR);
                                 break;
                         }
-                    return response.build();
+                        return response.build();
                 });
     }
  
