@@ -1,6 +1,7 @@
 /**
  * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
 <<<<<<< HEAD
+<<<<<<< HEAD
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +16,14 @@
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
 >>>>>>> Issue 4879: (KeyValueTables) List and Delete API for Key Value Tables on Controller (#4881)
+=======
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+>>>>>>> Minor things.
  */
 package io.pravega.shared.controller.event.kvtable;
 
