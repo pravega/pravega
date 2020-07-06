@@ -72,7 +72,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 
 /**
@@ -305,6 +307,14 @@ public abstract class StreamMetadataStoreTest {
 
         ((AbstractStreamMetadataStore) store).setStream(streamObjSpied);
 
+        // verify that when we do list stream in scope we do not get partial. 
+        streamInScope = store.listStreamsInScope("Scope").get();
+        assertEquals("List streams in scope", 1, streamInScope.size());
+        assertFalse("List streams in scope", streamInScope.containsKey(partial));
+        
+        reset(streamObjSpied);
+        // set to return unknown state
+        doAnswer(x -> CompletableFuture.completedFuture(State.UNKNOWN)).when(streamObjSpied).getState(anyBoolean());
         // verify that when we do list stream in scope we do not get partial. 
         streamInScope = store.listStreamsInScope("Scope").get();
         assertEquals("List streams in scope", 1, streamInScope.size());
