@@ -127,8 +127,7 @@ public class StreamCutsTest {
         writer.writeEvent("0", "fpj was here again").get();
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         groupManager.createReaderGroup("cuts", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().stream("test/test").groupRefreshTimeMillis(0).build());
         @Cleanup

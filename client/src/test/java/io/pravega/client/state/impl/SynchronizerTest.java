@@ -9,6 +9,7 @@
  */
 package io.pravega.client.state.impl;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentAttribute;
@@ -562,7 +563,7 @@ public class SynchronizerTest {
 
         Controller controller = mock(Controller.class);
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, ClientConfig.builder().build());
 
         // Simulate a sealed stream.
         CompletableFuture<StreamSegments> result = new CompletableFuture<>();

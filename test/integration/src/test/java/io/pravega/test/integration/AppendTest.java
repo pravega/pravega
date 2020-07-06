@@ -344,15 +344,16 @@ public class AppendTest extends LeakDetectorTestSuite {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, tokenExpiryExecutor);
         server.startListening();
-        SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        ClientConfig config = ClientConfig.builder().build();
+        SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(config);
         @Cleanup
-        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(config, clientCF);
         Controller controller = new MockController(endpoint, port, connectionPool, true);
         @Cleanup
         StreamManagerImpl streamManager = new StreamManagerImpl(controller, connectionPool);
         streamManager.createScope(scope);
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, config);
         streamManager.createStream("Scope", streamName,
                                    StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
         @Cleanup

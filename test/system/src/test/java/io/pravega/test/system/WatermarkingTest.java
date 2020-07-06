@@ -11,12 +11,10 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
@@ -33,6 +31,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.TimeWindow;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
@@ -131,8 +130,6 @@ public class WatermarkingTest extends AbstractSystemTest {
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
-        @Cleanup
-        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
                                                        connectionFactory.getInternalExecutor());
         
@@ -164,8 +161,12 @@ public class WatermarkingTest extends AbstractSystemTest {
                 .thenAccept(v -> markStreamCreated.set(v != null)), executorService);
 
         @Cleanup
-        SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(SCOPE, clientConfig);
+        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(SCOPE,
+                new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
+                        connectionFactory.getInternalExecutor()),
+                connectionFactory);
         String markStream = NameUtils.getMarkStreamForStream(STREAM);
+        
 
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
                 new WatermarkSerializer(),
@@ -219,7 +220,7 @@ public class WatermarkingTest extends AbstractSystemTest {
         Map<Stream, StreamCut> end = Collections.singletonMap(streamObj, streamCutEnd);
 
         @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controller, syncClientFactory, connectionPool);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controller, syncClientFactory);
         String readerGroup = "rg";
 
         readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)

@@ -10,6 +10,7 @@
 package io.pravega.controller.server.rest.resources;
 
 import io.pravega.auth.AuthException;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
@@ -308,9 +309,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             return;
         }
 
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this.localController);
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, this.localController,
-                                                                           clientFactory, clientFactory.getConnectionPool());
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this.localController, ClientConfig.builder().build());
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, this.localController, clientFactory);
         ReaderGroupProperty readerGroupProperty = new ReaderGroupProperty();
         readerGroupProperty.setScopeName(scopeName);
         readerGroupProperty.setReaderGroupName(readerGroupName);

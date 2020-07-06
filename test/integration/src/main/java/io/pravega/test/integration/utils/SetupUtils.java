@@ -97,7 +97,7 @@ public final class SetupUtils {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "Controller pool");
         this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
                                              executor);
-        this.clientFactory = new ClientFactoryImpl(scope, controller);
+        this.clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
         
         // Start zookeeper.
         this.zkTestServer = new TestingServerStarter().start();

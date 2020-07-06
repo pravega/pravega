@@ -16,7 +16,6 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
@@ -36,7 +35,10 @@ import io.pravega.client.stream.TimeWindow;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.watermark.WatermarkSerializer;
@@ -178,9 +180,10 @@ public class WatermarkingTest {
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         @Cleanup
-        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
-        @Cleanup
-        SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
+        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scope,
+                new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
+                        connectionFactory.getInternalExecutor()),
+                connectionFactory);
 
         String markStream = NameUtils.getMarkStreamForStream(stream);
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
@@ -199,7 +202,7 @@ public class WatermarkingTest {
         
         // read events from the stream
         @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory, connectionPool);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory);
         
         Watermark watermark0 = watermarks.take();
         Watermark watermark1 = watermarks.take();
@@ -348,9 +351,10 @@ public class WatermarkingTest {
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         @Cleanup
-        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
-        @Cleanup
-        SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
+        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scope,
+                new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
+                        connectionFactory.getInternalExecutor()),
+                connectionFactory);
 
         String markStream = NameUtils.getMarkStreamForStream(stream);
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
@@ -369,7 +373,7 @@ public class WatermarkingTest {
 
         // read events from the stream
         @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory, connectionPool);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory);
 
         Watermark watermark0 = watermarks.take();
         Watermark watermark1 = watermarks.take();

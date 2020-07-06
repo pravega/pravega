@@ -60,7 +60,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         ClientConfig config = ClientConfig.builder().controllerURI(URI.create("tcp://localhost")).build();
         this.connectionPool = new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config));
         this.controller = new MockController(endpoint, port, connectionPool, true);
-        this.clientFactory = new MockClientFactory(scope, controller);
+        this.clientFactory = new MockClientFactory(scope, controller, connectionPool);
     }
 
     @Override

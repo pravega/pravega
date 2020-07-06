@@ -27,6 +27,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.AbstractClientFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
@@ -70,11 +71,11 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory);
     }
 
-    public ReaderGroupManagerImpl(String scope, Controller controller, SynchronizerClientFactory clientFactory, ConnectionPool connectionPool) {
+    public ReaderGroupManagerImpl(String scope, Controller controller, AbstractClientFactoryImpl clientFactory) {
         this.scope = scope;
         this.clientFactory = clientFactory;
         this.controller = controller;
-        this.connectionPool = connectionPool;
+        this.connectionPool = clientFactory.getConnectionPool();
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {

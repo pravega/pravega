@@ -77,7 +77,7 @@ public class EndToEndAutoScaleUpTest {
 
             controller.createStream("test", "test", CONFIG).get();
             @Cleanup
-            MockClientFactory clientFactory = new MockClientFactory("test", controller);
+            MockClientFactory clientFactory = new MockClientFactory("test", controller, internalCF.getConnectionPool());
 
             // Mocking pravega service by putting scale up and scale down requests for the stream
             EventStreamWriter<String> test = clientFactory.createEventWriter(

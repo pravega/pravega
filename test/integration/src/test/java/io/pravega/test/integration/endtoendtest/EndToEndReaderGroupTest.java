@@ -76,8 +76,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                  .stream("test/test").build());
 
@@ -123,8 +122,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         // Create a ReaderGroup
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                  .stream("test/test").build());
@@ -183,8 +181,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(streamName, controller, connectionFactory);
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(defaultScope, controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(defaultScope, controller, clientFactory);
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder()
                                                                  .disableAutomaticCheckpoints()
                                                                  .stream(Stream.of(scopeA, streamName))

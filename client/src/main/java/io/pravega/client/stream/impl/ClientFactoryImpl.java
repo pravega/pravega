@@ -60,24 +60,20 @@ import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Supplier;
-
-import lombok.Getter;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 
 @Slf4j
-public class ClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory {
+public class ClientFactoryImpl extends AbstractClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory {
 
-    private final String scope;
-    private final Controller controller;
+
     private final SegmentInputStreamFactory inFactory;
     private final SegmentOutputStreamFactory outFactory;
     private final ConditionalOutputStreamFactory condFactory;
     private final SegmentMetadataClientFactory metaFactory;
-    @Getter
-    private final ConnectionPool connectionPool;
+
     private final ScheduledExecutorService watermarkReaderThreads = newScheduledThreadPool(getThreadPoolSize(), "WatermarkReader");
 
     /**
@@ -87,14 +83,8 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
      * @param scope             The scope string.
      * @param controller        The reference to Controller.
      */
-    public ClientFactoryImpl(String scope, Controller controller) {
-        Preconditions.checkNotNull(scope);
-        Preconditions.checkNotNull(controller);
-        this.scope = scope;
-        this.controller = controller;
-        ClientConfig config = ClientConfig.builder().build();
-        SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(config);
-        this.connectionPool = new ConnectionPoolImpl(config, connectionFactory);
+    public ClientFactoryImpl(String scope, Controller controller, ClientConfig config) {
+        super(scope, controller, new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config)));
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
         this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
@@ -124,11 +114,7 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
      */
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionPool pool) {
-        Preconditions.checkNotNull(scope);
-        Preconditions.checkNotNull(controller);
-        this.scope = scope;
-        this.controller = controller;
-        this.connectionPool = pool;
+        super(scope, controller, pool);
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
         this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
@@ -139,16 +125,11 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
     public ClientFactoryImpl(String scope, Controller controller, ConnectionPool connectionPool,
             SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory,
             ConditionalOutputStreamFactory condFactory, SegmentMetadataClientFactory metaFactory) {
-        Preconditions.checkNotNull(scope);
-        Preconditions.checkNotNull(controller);
-        Preconditions.checkNotNull(connectionPool);
+        super(scope, controller, connectionPool);
         Preconditions.checkNotNull(inFactory);
         Preconditions.checkNotNull(outFactory);
         Preconditions.checkNotNull(condFactory);
         Preconditions.checkNotNull(metaFactory);
-        this.scope = scope;
-        this.controller = controller;
-        this.connectionPool = connectionPool;
         this.inFactory = inFactory;
         this.outFactory = outFactory;
         this.condFactory = condFactory;

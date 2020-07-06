@@ -143,8 +143,7 @@ public class ReaderGroupNotificationTest {
         writer.writeEvent("0", "data2").get();
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, streamName)).groupRefreshTimeMillis(0).build());
         @Cleanup
@@ -220,8 +219,7 @@ public class ReaderGroupNotificationTest {
         assertTrue(controller.sealStream(SCOPE, streamName).get()); // seal stream
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                                                                     clientFactory.getConnectionPool());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, streamName)).groupRefreshTimeMillis(0).build());
         @Cleanup

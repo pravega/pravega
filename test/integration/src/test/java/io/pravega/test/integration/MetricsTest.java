@@ -179,7 +179,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
         try (ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, clientFactory.getConnectionPool())) {
+             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory)) {
             EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM_NAME,
                     new UTF8StringSerializer(),
                     EventWriterConfig.builder().build());
