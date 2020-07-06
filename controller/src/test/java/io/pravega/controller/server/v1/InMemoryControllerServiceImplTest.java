@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -85,9 +86,10 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
 
         Cluster mockCluster = mock(Cluster.class);
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
-        controllerService = new ControllerServiceImpl(
-                new ControllerService(streamStore, StreamStoreFactory.createInMemoryBucketStore(), streamMetadataTasks, streamTransactionMetadataTasks,
-                                      SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster), GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+        this.controllerSpied = spy(new ControllerService(streamStore, StreamStoreFactory.createInMemoryBucketStore(), streamMetadataTasks, streamTransactionMetadataTasks,
+                SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster));
+        this.controllerService = new ControllerServiceImpl(
+                controllerSpied, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
     @Override

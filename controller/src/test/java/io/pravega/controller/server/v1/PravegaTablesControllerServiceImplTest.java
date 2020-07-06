@@ -127,9 +127,9 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         cluster.registerHost(new Host("localhost", 9090, null));
         latch.await();
 
-        ControllerService controller = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
-        controllerService = new ControllerServiceImpl(controller, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+        controllerSpied = spy(new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, segmentHelper, executorService, cluster));
+        controllerService = new ControllerServiceImpl(controllerSpied, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
     @Override

@@ -10,12 +10,17 @@
 package io.pravega.controller.server.v1;
 
 import com.google.common.base.Strings;
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -58,6 +63,10 @@ import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 
 /**
  * Controller Service Implementation tests.
@@ -79,7 +88,12 @@ public abstract class ControllerServiceImplTest {
     public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
     ControllerServiceImpl controllerService;
+    ControllerService controllerSpied;
 
+    /**
+     * Implementation should setup controllerService and controllerSpied which should be spied using 
+     * {@link org.mockito.Mockito#spy(Object)}. 
+     */
     @Before
     public abstract void setup() throws Exception;
 
@@ -804,6 +818,23 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.noteTimestampFromWriter(request, resultObserver);
         assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.INVALID_POSITION);
 
+        // try failing request
+        doAnswer(x -> Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "")))
+                .when(controllerSpied).noteTimestampFromWriter(anyString(), anyString(), anyString(), anyLong(), any());
+        request = Controller.TimestampFromWriter.newBuilder()
+                                                .setWriter(writer1)
+                                                .setTimestamp(4L)
+                                                .setPosition(position)
+                                                .build();
+        ResultObserver<Controller.TimestampResponse> resultObserverFailing = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserverFailing);
+        AssertExtensions.assertThrows("", resultObserverFailing::get, e -> {
+            Throwable unwrap = Exceptions.unwrap(e);
+            return unwrap instanceof StatusRuntimeException
+                    && ((StatusRuntimeException) unwrap).getStatus().getCode().equals(Status.INTERNAL.getCode());
+        });
+        
+        // remove writer
         Controller.RemoveWriterRequest writerShutdownRequest = Controller.RemoveWriterRequest
                 .newBuilder().setStream(streamInfo).setWriter(writer1).build();
         ResultObserver<Controller.RemoveWriterResponse> shutdownResultObserver = new ResultObserver<>();

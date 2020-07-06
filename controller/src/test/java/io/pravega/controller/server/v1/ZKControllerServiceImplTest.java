@@ -58,6 +58,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.spy;
 
 /**
  * Zookeeper stream store configuration.
@@ -120,9 +121,9 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         cluster.registerHost(new Host("localhost", 9090, null));
         latch.await();
 
-        ControllerService controller = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
-        controllerService = new ControllerServiceImpl(controller, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+        this.controllerSpied = spy(new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, segmentHelper, executorService, cluster));
+        controllerService = new ControllerServiceImpl(controllerSpied, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
     @Override

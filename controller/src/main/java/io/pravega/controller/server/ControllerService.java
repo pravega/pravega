@@ -557,25 +557,21 @@ public class ControllerService {
     public CompletableFuture<Controller.TimestampResponse> noteTimestampFromWriter(String scope, String stream, String writerId, long timestamp, Map<Long, Long> streamCut) {
         return bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope, stream, executor)
                           .thenCompose(v -> streamStore.noteWriterMark(scope, stream, writerId, timestamp, streamCut, null, executor))
-                .handle((r, e) -> {
+                .thenApply(r -> {
                     Controller.TimestampResponse.Builder response = Controller.TimestampResponse.newBuilder();
-                    if (e != null) {
-                        response.setResult(Controller.TimestampResponse.Status.INTERNAL_ERROR);
-                    } else {
-                        switch (r) {
-                            case SUCCESS:
-                                response.setResult(Controller.TimestampResponse.Status.SUCCESS);
-                                break;
-                            case INVALID_TIME:
-                                response.setResult(Controller.TimestampResponse.Status.INVALID_TIME);
-                                break;
-                            case INVALID_POSITION:
-                                response.setResult(Controller.TimestampResponse.Status.INVALID_POSITION);
-                                break;
-                            default:
-                                response.setResult(Controller.TimestampResponse.Status.INTERNAL_ERROR);
-                                break;
-                        }
+                    switch (r) {
+                        case SUCCESS:
+                            response.setResult(Controller.TimestampResponse.Status.SUCCESS);
+                            break;
+                        case INVALID_TIME:
+                            response.setResult(Controller.TimestampResponse.Status.INVALID_TIME);
+                            break;
+                        case INVALID_POSITION:
+                            response.setResult(Controller.TimestampResponse.Status.INVALID_POSITION);
+                            break;
+                        default:
+                            response.setResult(Controller.TimestampResponse.Status.INTERNAL_ERROR);
+                            break;
                     }
                     return response.build();
                 });
