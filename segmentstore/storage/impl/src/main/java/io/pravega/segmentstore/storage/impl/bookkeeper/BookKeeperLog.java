@@ -857,6 +857,9 @@ class BookKeeperLog implements DurableDataLog {
      * @throws DurableDataLogException          If another kind of exception occurred.
      */
     private void persistMetadata(LogMetadata metadata, boolean create) throws DurableDataLogException {
+        log.info("Printing stack trace at persistMetadata");
+        Throwable t = new Throwable();
+        t.printStackTrace();
         try {
             byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize(metadata).getCopy();
             Stat result = create
@@ -869,6 +872,7 @@ class BookKeeperLog implements DurableDataLog {
                         this.traceObjectId, keeperEx.toString(), this.zkClient.getNamespace(), this.logNodePath);
             } else {
                 // We were fenced out. Convert to an appropriate exception.
+                // print stack trace
                 throw new DataLogWriterNotPrimaryException(
                         String.format("Unable to acquire exclusive write lock for log (path = '%s%s').", this.zkClient.getNamespace(), this.logNodePath),
                         keeperEx);
